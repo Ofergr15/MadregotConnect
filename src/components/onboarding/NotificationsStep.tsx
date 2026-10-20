@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { mutate } from 'swr';
+import { useSWRConfig } from 'swr';
 import { BellRing, HeartHandshake, MessageCircle, CalendarCheck } from 'lucide-react';
 import { isIosDevice, subscribeToPush } from '@/lib/pwa';
 import { useOnboardingV2 } from '@/lib/install/v2';
@@ -38,6 +38,9 @@ import { logClient } from '@/lib/client-log';
 const readPermission = readPushPermission;
 
 export function NotificationsStep() {
+  // The app's SWR cache is a custom provider (lib/swr-persist): `mutate` from 'swr' itself
+  // writes to the default cache, which no screen reads — so a refresh did nothing.
+  const { mutate } = useSWRConfig();
   const t = useTranslations('pushStep');
   const v2 = useOnboardingV2();
   const [ios, setIos] = useState(false);

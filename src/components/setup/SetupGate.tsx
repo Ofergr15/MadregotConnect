@@ -14,7 +14,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { mutate } from 'swr';
+import { useSWRConfig } from 'swr';
 import { Bell, CalendarClock, Check, ChevronLeft, MapPin, Watch } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { isIosDevice, isStandalone, subscribeToPush } from '@/lib/pwa';
@@ -394,12 +394,17 @@ function ShoeChips({ value, onPick }: { value: string | null; onPick: (v: string
 }
 
 // ── done ────────────────────────────────────────────────────────────────────
-function DoneStep({ garmin, onClose }: { garmin: boolean; onClose: () => void }) {
+function DoneStep({ garmin, strava, installed, push, onClose }: { garmin: boolean; strava: boolean; installed: boolean; push: boolean; onClose: () => void }) {
   const name = firstName();
+  // Only what is true: a member who came in by email code has no Strava, and one who
+  // continued in Safari has no home-screen app or notifications yet (2026-10-21).
+  const watch: [string, string?] = garmin
+    ? [strava ? 'Strava ו-Garmin מחוברים' : 'Garmin מחובר', 'הריצה הבאה תיכנס לבד']
+    : [strava ? 'Strava מחובר' : 'נכנסת עם קוד במייל', 'Garmin — אפשר לחבר בפרופיל'];
   const items: Array<[string, string?]> = [
-    ['האפליקציה במסך הבית'],
-    garmin ? ['Strava ו-Garmin מחוברים', 'הריצה הבאה תיכנס לבד'] : ['Strava מחובר', 'Garmin — אפשר לחבר בפרופיל'],
-    ['התראות פועלות'],
+    installed ? ['האפליקציה במסך הבית'] : ['ממשיכים בדפדפן', 'אפשר להתקין אחר כך מהפרופיל'],
+    watch,
+    ...(push ? [['התראות פועלות'] as [string]] : []),
     ['הפרטים מלאים'],
   ];
   return (
@@ -422,6 +427,9 @@ function DoneStep({ garmin, onClose }: { garmin: boolean; onClose: () => void })
 }
 
 export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
+  // The app's SWR cache is a custom provider (lib/swr-persist): `mutate` from 'swr' itself
+  // writes to the default cache, which no screen reads — so a refresh did nothing.
+  const { mutate } = useSWRConfig();
   const pathname = usePathname();
   const computer = useIsComputer();
   // ?setup=1 turns the super user's preview on for this tab (the server refuses anyone else).
@@ -469,7 +477,7 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
   useEffect(() => { onActive?.(active); }, [active, onActive]);
   if (!active) return null;
   const refresh = () => mutate(key);
-  if (done) return <DoneStep garmin={!!data?.garmin} onClose={() => setClosed(true)} />;
+  if (done) return <DoneStep garmin={!!data?.garmin} strava={!!data?.strava} installed={standalone} push={!!data?.push} onClose={() => setClosed(true)} />;
 
   const at = steps[0];
   if (at === 'install') return <InstallStep onSkip={() => setInstallLater(true)} />;

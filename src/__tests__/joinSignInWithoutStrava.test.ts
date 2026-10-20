@@ -31,3 +31,14 @@ describe('joining without Strava', () => {
     }
   });
 });
+
+describe('the setup\'s closing screen says only what is true', () => {
+  const gate = readFileSync(resolve('src/components/setup/SetupGate.tsx'), 'utf8');
+  it('names Strava only when it is connected, the home-screen app only when installed, push only when on', () => {
+    const done = gate.slice(gate.indexOf('function DoneStep'), gate.indexOf('export function SetupGate'));
+    expect(done).toContain("strava ? 'Strava מחובר' : 'נכנסת עם קוד במייל'");
+    expect(done).toContain("installed ? ['האפליקציה במסך הבית'] : ['ממשיכים בדפדפן'");
+    expect(done).toContain('...(push ?');
+    expect(gate).toContain('<DoneStep garmin={!!data?.garmin} strava={!!data?.strava} installed={standalone} push={!!data?.push}');
+  });
+});

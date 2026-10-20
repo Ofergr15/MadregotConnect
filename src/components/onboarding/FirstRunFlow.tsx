@@ -17,7 +17,7 @@
 //     data" popup waits while that checklist is up (ConnectDataSourcePopup).
 
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
-import { mutate } from 'swr';
+import { useSWRConfig } from 'swr';
 import { isIosDevice, isStandalone, subscribeToPush } from '@/lib/pwa';
 import { apiHeaders } from '@/lib/api';
 import { logClient } from '@/lib/client-log';
@@ -66,6 +66,9 @@ function askablePush(computer: boolean): boolean {
 
 /** `previewStage`: /preview/first-run only — draw that screen, skip every gate. */
 export function FirstRunFlow({ previewStage }: { previewStage?: Stage } = {}) {
+  // The app's SWR cache is a custom provider (lib/swr-persist): `mutate` from 'swr' itself
+  // writes to the default cache, which no screen reads — so a refresh did nothing.
+  const { mutate } = useSWRConfig();
   const v2 = useOnboardingV2();
   const { data } = useOnboarding();
   const { answered: installAnswered } = useInstallStep();

@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { mutate as globalMutate } from 'swr';
+import { useSWRConfig } from 'swr';
 import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Activity, WifiOff, Copy, Check, Share2, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X, CalendarClock, AlertTriangle, Languages, Sparkles, LogOut, Trash2 } from 'lucide-react';
 import { cn, israelToday, MONDAY_WEEK, type WeekStartDay } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
@@ -131,6 +131,8 @@ function ProfileGate() {
 }
 
 function ProfileContent() {
+  // The provider's cache (lib/swr-persist), not swr's default one nobody reads.
+  const { mutate: globalMutate } = useSWRConfig();
   const t = useTranslations('profile');
   // An academy-only trainee has no club pack: no blank "דבוקת קצב" row (academy-dash.html).
   const { isAcademyOnly } = useNavIdentity();

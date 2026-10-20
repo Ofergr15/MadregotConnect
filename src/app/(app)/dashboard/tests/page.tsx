@@ -5,7 +5,7 @@ import { Check, Copy, Loader2, RotateCcw } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Spinner } from '@/components/ui';
-import { FLOWS, type FlowId, type StepStatus } from '@/lib/testing/flows';
+import { FLOWS, QUICK_ORDER, type FlowId, type StepStatus } from '@/lib/testing/flows';
 import type { FlowStatus } from '@/lib/testing/status';
 import type { Check as ReadyCheck } from '@/lib/testing/readiness';
 
@@ -64,6 +64,8 @@ function StepCard({ def, st, onFix, busy }: { def: (typeof FLOWS)[number]['steps
             </ol>
           )}
           {def.where === 'אוטומטי' && <p className="text-[13.5px] text-ink-500">מחכים — מתעדכן לבד.</p>}
+          {def.expect && <p className="rounded-xl bg-[#EEF0FF] px-3 py-2 text-[13.5px] text-ink-900"><b>מה אמור להגיע:</b> {def.expect}</p>}
+          {def.look && <p className="text-[12.5px] text-ink-400">איפה בודקים: {def.look}</p>}
           {def.values && def.values.length > 0 && (
             <div className="rounded-xl bg-page px-3">{def.values.map((v) => <CopyRow key={v.label} {...v} />)}</div>
           )}
@@ -120,6 +122,11 @@ export default function TestsPage() {
         </ul>
       </section>
 
+      <section className="rounded-2xl bg-card p-3.5">
+        <b className="text-[15px]">הסדר המהיר</b>
+        <ol className="mt-1.5 list-decimal space-y-1 ps-5 text-[13.5px] leading-relaxed text-ink-700">{QUICK_ORDER.map((q, i) => <li key={i}>{q}</li>)}</ol>
+      </section>
+
       <nav className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
         {FLOWS.map((f) => {
           const s = data.flows.find((x) => x.id === f.id)!;
@@ -135,6 +142,7 @@ export default function TestsPage() {
       <section className="space-y-2.5">
         <div className="px-1">
           <p className="text-[14px] text-ink-700">{flow.goal}</p>
+          <details className="mt-1 text-[13px] text-ink-500"><summary className="cursor-pointer font-bold">נתקעת?</summary><ul className="mt-1 list-disc ps-5">{flow.stuck.map((x, i) => <li key={i}>{x}</li>)}</ul></details>
           <p className="mt-1 text-[13px] text-ink-400">מייל הבדיקה: <bdi dir="ltr" className="font-bold text-ink-700">{flow.email}</bdi> · {done}/{st.steps.length} שלבים</p>
           {tab === 'import' && !st.steps.find((s) => s.key === 'card' && s.state === 'done') && (
             <button type="button" disabled={busy} onClick={() => post({ action: 'create-import-card' })} className="mt-2 min-h-[44px] w-full rounded-xl bg-brand-600 text-[14px] font-black text-white disabled:opacity-50">ליצור כרטיס בדיקה מהקובץ</button>

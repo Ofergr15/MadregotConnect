@@ -8,7 +8,7 @@
 // does that on an iPhone.
 
 import { useEffect } from 'react';
-import { mutate } from 'swr';
+import { useSWRConfig } from 'swr';
 import { useIsSuperUser } from '@/lib/impersonation';
 import { apiHeaders } from '@/lib/api';
 import { ONBOARDING_KEY } from '@/lib/onboarding/use-onboarding';
@@ -16,6 +16,9 @@ import { ONBOARDING_KEY } from '@/lib/onboarding/use-onboarding';
 const LOCAL_KEYS = /^(pwa_install_|push_step_|setup_nudge:|mc:whatsNew|mc-install-video-seen)/;
 
 export function OnboardingTestReset() {
+  // The app's SWR cache is a custom provider (lib/swr-persist): `mutate` from 'swr' itself
+  // writes to the default cache, which no screen reads — so a refresh did nothing.
+  const { mutate } = useSWRConfig();
   const superUser = useIsSuperUser();
   useEffect(() => {
     const url = new URL(window.location.href);

@@ -1,13 +1,14 @@
 /**
- * The hand-test flows on the staff "בדיקות" screen (/dashboard/tests): one test identity
- * per sign-up door, and every step written as what Ofer does on his iPhone. The status of
- * each step is read live from the database (lib/testing/status) — this file only says
- * what to do and which fact proves it happened. Pure.
+ * The hand-test flows — ONE source for both the staff "בדיקות הרשמה" screen
+ * (/dashboard/tests) and the quick-test document, so the two can never disagree. Every
+ * step is what Ofer does on his iPhone, with the exact button text read from the real
+ * screens (walked on 2026-10-21), the values to paste, what should arrive, and where to
+ * look. The live status of each step comes from lib/testing/status. Pure.
  */
 
 export type FlowId = 'club' | 'academy' | 'movein' | 'import';
 
-/** Every address here is a +tag of the super user's own Gmail: his inbox, separate accounts. */
+/** Every address is a +tag of the super user's own Gmail: his inbox, separate accounts. */
 export const TEST_EMAILS: Record<FlowId, string> = {
   club: 'grosfeldofer+club20@gmail.com',
   academy: 'grosfeldofer+academy20@gmail.com',
@@ -18,86 +19,127 @@ export const TEST_EMAIL_LIST = Object.values(TEST_EMAILS);
 export const isTestEmail = (e: string | null | undefined) => !!e && TEST_EMAIL_LIST.includes(e.trim().toLowerCase());
 
 export interface CopyValue { label: string; value: string }
+export type Where = 'פרטי' | 'האפליקציה שלך' | 'Gmail' | 'אוטומטי';
 export interface FlowStepDef {
   /** The fact that proves this step happened — see lib/testing/status. */
   key: string;
   title: string;
-  /** Where to do it: the private tab (the test person), the regular app (you), Gmail. */
-  where: 'פרטי' | 'האפליקציה שלך' | 'Gmail' | 'אוטומטי';
-  /** What to do, in order, in his words. */
+  where: Where;
+  /** What to do, in order, with the button text exactly as on the screen. */
   do: string[];
   values?: CopyValue[];
+  /** What should arrive or show (mail subject, push text, screen title). */
+  expect?: string;
+  /** Where to check it. */
+  look?: string;
+  /** Screenshots of this step in the quick-test document (/tmp capture ids). */
+  shots?: string[];
 }
-export interface FlowDef { id: FlowId; title: string; goal: string; email: string; steps: FlowStepDef[] }
+export interface FlowDef { id: FlowId; title: string; goal: string; email: string; stuck: string[]; steps: FlowStepDef[] }
 
 const BASE = 'www.madregot.app';
+const SCREEN = 'מסך "בדיקות הרשמה" (ניהול)';
 
 export const FLOWS: FlowDef[] = [
   {
     id: 'club',
     title: '1 · הרשמה למועדון',
-    goal: 'מי שנרשם מבחוץ מגיע אליך, מאושר, נכנס בלי Strava ומסיים את ההגדרה.',
+    goal: 'מי שנרשם מבחוץ מגיע אליך, מאושר, נכנס עם קוד במייל (בלי Strava) ומסיים את ההגדרה.',
     email: TEST_EMAILS.club,
+    stuck: ['מייל לא הגיע — בדקו בספאם, ובמסך הבדיקות אם נשלח ולאיזו כתובת', 'טעות בכתובת — במסך הבדיקות יופיע "לתקן ל־…"', 'נתקעת בהגדרה — צילום מסך של השלב'],
     steps: [
       {
         key: 'signup', title: 'נרשמים', where: 'פרטי',
-        do: ['Safari → כרטיסיות → פרטי → +', `פותחים ${BASE}/register`, '"🏃 המועדון" → המשך', 'ממלאים את "כמה פרטים" → "אינסטגרם" → המשך', 'זמן מרתון: מקלידים 23400 (מופיע 2:34:00) → המשך', '"דבוקה 2 · מומלץ" → בודקים שהמייל נכון → שליחה'],
+        do: ['Safari ← כרטיסיות ← פרטי ← +', `פותחים ${BASE}/register`, 'מסמנים "🏃 המועדון" ← "המשך"', '"כמה פרטים": ממלאים ← "אינסטגרם" ← "המשך"', '"מה הזמן שלך במרתון?": מקלידים ספרות בלבד ← "המשך"', '"באיזו דבוקה?": בודקים שכתוב "דבוקה 2 · מומלץ" ושהמייל נכון ← "שליחה"'],
         values: [{ label: 'שם פרטי', value: 'Test' }, { label: 'שם משפחה', value: 'Club' }, { label: 'אימייל', value: TEST_EMAILS.club }, { label: 'נייד', value: '0500000001' }, { label: 'זמן מרתון', value: '23400' }, { label: 'איפה', value: 'מרתון תל אביב' }, { label: 'שנה', value: '2026' }],
+        expect: 'מסך "קיבלנו, Test 🙌"', look: 'בכרטיסייה הפרטית', shots: ['c01-path', 'c02-details', 'c03-marathon', 'c04-pack', 'c05-sent'],
       },
-      { key: 'received_mail', title: 'מייל "קיבלנו" נשלח', where: 'אוטומטי', do: ['נבדק לבד'] },
-      { key: 'staff_alert', title: 'התראה לצוות על בקשה חדשה', where: 'אוטומטי', do: ['נבדק לבד — רואים למי היא הגיעה'] },
-      { key: 'approved', title: 'מאשרים', where: 'האפליקציה שלך', do: [`פותחים ${BASE}/dashboard/entry-queue`, 'הכרטיס "Test Club" → בודקים שדבוקה 2 מסומנת → "אשר ושלח קישור"'] },
-      { key: 'approved_mail', title: 'מייל "ההרשמה אושרה" נשלח', where: 'אוטומטי', do: ['נבדק לבד'] },
-      { key: 'signed_in', title: 'נכנסים בפעם הראשונה', where: 'פרטי', do: ['ב־Gmail: לחיצה ארוכה על "להתחלה" במייל → העתקה → מדביקים בכרטיסייה הפרטית', '"הכול נכון, ממשיכים"', '"כניסה עם קוד במייל — בלי Strava" → "שלחו לי קוד" → מקלידים את 6 הספרות מהמייל'] },
-      { key: 'setup_done', title: 'מסיימים את ההגדרה', where: 'פרטי', do: ['התקנה: "לא מצליחים להתקין? ממשיכים בדפדפן"', 'שעון: "אין לי Garmin — ממשיכים"', 'התראות: מאשרים', 'פרטים: תאריך לידה, גובה, מידות'], values: [{ label: 'תאריך לידה', value: '01/01/1990' }, { label: 'גובה', value: '178' }] },
-      { key: 'member', title: 'חבר מועדון בדבוקה 2', where: 'אוטומטי', do: ['נבדק לבד'] },
+      { key: 'received_mail', title: 'מייל "קיבלנו" נשלח', where: 'אוטומטי', do: ['מחכים כמה שניות'], expect: 'נושא: "קיבלנו את הבקשה שלכם, Test 🏃"', look: `Gmail · ${SCREEN}` },
+      { key: 'staff_alert', title: 'התראה לצוות על בקשה חדשה', where: 'אוטומטי', do: ['מחכים כמה שניות'], expect: 'התראה "👋 בקשת הרשמה חדשה" · "Test Club · …" — לחשבון שלך וגם ל־Madregot Admin', look: `התראה בטלפון · ${SCREEN}` },
+      { key: 'approved', title: 'מאשרים', where: 'האפליקציה שלך', do: [`פותחים ${BASE}/dashboard/entry-queue`, 'הכרטיס "Test Club": כתוב "ביקש/ה דבוקה 2 — כבר מסומן" ← "אשר ושלח קישור"'], look: SCREEN, shots: ['c06-approve'] },
+      { key: 'approved_mail', title: 'מייל "ההרשמה אושרה" נשלח', where: 'אוטומטי', do: ['מחכים כמה שניות'], expect: 'נושא: "✅ ההרשמה אושרה! ככה נכנסים לאפליקציה של מדרגות" · כפתור "להתחלה ←"', look: `Gmail · ${SCREEN}` },
+      {
+        key: 'signed_in', title: 'נכנסים בפעם הראשונה', where: 'פרטי',
+        do: ['ב־Gmail: לחיצה ארוכה על "להתחלה ←" ← העתקת קישור ← מדביקים בכרטיסייה הפרטית', '"ברוכים הבאים, Test 🎉" ← "הכול נכון, ממשיכים"', '"כניסה עם קוד במייל — בלי Strava"', '"שלחו לי קוד" ← מקלידים את 6 הספרות מהמייל ← "כניסה"'],
+        expect: 'מייל "XXXXXX הוא קוד הכניסה שלכם למדרגות"', look: `Gmail · ${SCREEN}`, shots: ['c07-join', 'c08-connect', 'c09-welcome', 'c10-code'],
+      },
+      {
+        key: 'setup_done', title: 'מסיימים את ההגדרה', where: 'פרטי',
+        do: ['"לא מצליחים להתקין? ממשיכים בדפדפן"', '"מחברים את Garmin" ← "אין לי Garmin — ממשיכים"', '"עוד 7 פרטים": תאריך לידה, גובה, נעליים 43, שלוש פעמים M, גרביים 43-46 ← "שמירה"', '"הכל מוכן" ← "לאפליקציה"'],
+        values: [{ label: 'תאריך לידה', value: '01/01/1990' }, { label: 'גובה', value: '178' }],
+        expect: 'הפיד נפתח', look: SCREEN, shots: ['c11-install', 'c12-watch', 'c14-details-filled', 'c15-done'],
+      },
+      { key: 'member', title: 'חבר מועדון בדבוקה 2', where: 'אוטומטי', do: ['נבדק לבד'], look: SCREEN },
     ],
   },
   {
     id: 'academy',
     title: '2 · מועמד חדש לאקדמיה',
-    goal: 'מועמד מבחוץ ממלא את הטופס, מגיע למשפך, מתקבל, נכנס, והמאמן מקבל התראה.',
+    goal: 'מועמד מבחוץ ממלא את הטופס, מגיע למועמדים, מתקבל עם מאמן, ומקבל מייל "התקבלת".',
     email: TEST_EMAILS.academy,
+    stuck: ['הכרטיס לא מופיע במועמדים — רעננו את האקדמיה', 'מייל "התקבלת" לא הגיע — במסך הבדיקות אם נשלח'],
     steps: [
-      { key: 'applied', title: 'ממלאים את טופס האקדמיה', where: 'פרטי', do: [`${BASE}/register → "🎯 האקדמיה" → המשך`, 'ממלאים את 4 העמודים → לשלוח'], values: [{ label: 'שם פרטי', value: 'Test' }, { label: 'שם משפחה', value: 'Academy' }, { label: 'אימייל', value: TEST_EMAILS.academy }, { label: 'נייד', value: '0500000002' }] },
-      { key: 'applicant_alert', title: 'התראה לצוות על מועמד', where: 'אוטומטי', do: ['נבדק לבד'] },
-      { key: 'accepted', title: 'מקבלים לאקדמיה', where: 'האפליקציה שלך', do: ['אקדמיה → מועמדים → Test Academy → "לקבל לאקדמיה" → מאמן Sahar → "קבלה ושליחה"'] },
-      { key: 'accepted_mail', title: 'מייל "התקבלת" נשלח', where: 'אוטומטי', do: ['נבדק לבד'] },
-      { key: 'signed_in', title: 'נכנסים בפעם הראשונה', where: 'פרטי', do: ['הקישור מהמייל → "הכול נכון, ממשיכים" → "כניסה עם קוד במייל — בלי Strava"'] },
-      { key: 'coach_linked', title: 'משובץ למאמן', where: 'אוטומטי', do: ['נבדק לבד'] },
+      {
+        key: 'applied', title: 'ממלאים את טופס האקדמיה', where: 'פרטי',
+        do: [`כרטיסייה פרטית חדשה ← ${BASE}/register`, 'מסמנים "🎯 האקדמיה" ← "המשך"', '"כמה פרטים": ממלאים ← "אינסטגרם" ← "המשך"', '"הפרטים שלך": "שילוב של תכנית און ליין עם מפגשים פיזיים" ← "המשך"', '"קצת עליך": תאריך לידה 1 / ינואר / 1990, משקל, גובה, מקום מגורים ← "המשך"', '"הריצה שלך": כותבים רקע, "6 מרתון מלא בכל תוצאה", "אינסטגרם" ← "המשך"', '"בריאות": "בריא לחלוטין" ← "לשלוח"'],
+        values: [{ label: 'שם פרטי', value: 'Test' }, { label: 'שם משפחה', value: 'Academy' }, { label: 'אימייל', value: TEST_EMAILS.academy }, { label: 'נייד', value: '0500000002' }, { label: 'משקל', value: '72' }, { label: 'גובה', value: '178' }, { label: 'מקום מגורים', value: 'Tel Aviv' }, { label: 'רקע', value: 'בדיקה — 3 ריצות בשבוע' }],
+        expect: 'מסך "קיבלנו, Test 🙌"', look: 'בכרטיסייה הפרטית', shots: ['f2-03-form1', 'f2-04-form2', 'f2-05-form3', 'f2-06-form4', 'f2-07-sent'],
+      },
+      { key: 'applicant_alert', title: 'התראה לצוות על מועמד', where: 'אוטומטי', do: ['מחכים כמה שניות'], expect: 'התראה "🎓 מועמד חדש לאקדמיה" · "Test Academy · …" — לאלדר ולך', look: `התראה בטלפון · ${SCREEN}` },
+      { key: 'accepted', title: 'מקבלים לאקדמיה', where: 'האפליקציה שלך', do: ['אקדמיה ← "אנשים" ← "מועמדים" ← Test Academy', '"לקבל לאקדמיה" ← מסמנים רק את Sahar Azar ← "קבלה ושליחה"'], look: SCREEN, shots: ['f2-20-card', 'f2-21-accept'] },
+      { key: 'accepted_mail', title: 'מייל "התקבלת" נשלח', where: 'אוטומטי', do: ['מחכים כמה שניות'], expect: 'נושא: "🎉 התקבלת לאקדמיה של מדרגות — ככה נכנסים לאפליקציה"', look: `Gmail · ${SCREEN}`, shots: ['e-academy_accepted'] },
+      { key: 'signed_in', title: 'נכנסים בפעם הראשונה', where: 'פרטי', do: ['הקישור מהמייל (לחיצה ארוכה ← העתקה ← כרטיסייה פרטית) ← "הכול נכון, ממשיכים" ← "כניסה עם קוד במייל — בלי Strava" ← "שלחו לי קוד"'], look: SCREEN },
+      { key: 'coach_linked', title: 'משובץ למאמן', where: 'אוטומטי', do: ['נבדק לבד'], look: SCREEN },
     ],
   },
   {
     id: 'movein',
     title: '3 · מתאמן קיים ("כבר מתאמנים")',
-    goal: 'מתאמן שכבר אצלנו מקבל טופס של עמוד אחד, מאושר, נכנס, והמאמן קובע בסיס קצב.',
+    goal: 'מתאמן שכבר אצלנו מקבל טופס של עמוד אחד, מאושר, ומקבל מייל עם הקישור לאפליקציה.',
     email: TEST_EMAILS.movein,
+    stuck: ['"לשלוח לTest טופס פרטים" לא נלחץ — חסר מייל או מאמן', 'הטופס נפתח ריק — הקישור פג או הועתק חלקית'],
     steps: [
-      { key: 'invited', title: 'שולחים טופס', where: 'האפליקציה שלך', do: ['אקדמיה → "+ הוספה" → "כבר מתאמנים" → "עוד לא באפליקציה"', 'ממלאים → מאמנים: Sahar → "לשלוח … טופס פרטים"'], values: [{ label: 'שם', value: 'Test Movein' }, { label: 'מייל', value: TEST_EMAILS.movein }, { label: 'טלפון', value: '0500000003' }] },
-      { key: 'form_mail', title: 'מייל הטופס נשלח', where: 'אוטומטי', do: ['נבדק לבד'] },
-      { key: 'form_filled', title: 'ממלאים את הטופס', where: 'פרטי', do: ['הקישור מהמייל → מאשרים את הפרטים → בריאות → שליחה'] },
-      { key: 'accepted', title: 'מאשרים', where: 'האפליקציה שלך', do: ['אקדמיה → הכרטיס "Test Movein" → אישור'] },
-      { key: 'install_mail', title: 'מייל ההתקנה נשלח', where: 'אוטומטי', do: ['נבדק לבד'] },
-      { key: 'coach_setup', title: 'המאמן קיבל "טופס התאמה"', where: 'אוטומטי', do: ['נבדק לבד'] },
-      { key: 'signed_in', title: 'נכנסים בפעם הראשונה', where: 'פרטי', do: ['הקישור מהמייל → "כניסה עם קוד במייל — בלי Strava"'] },
-      { key: 'baseline', title: 'בסיס קצב נקבע', where: 'האפליקציה שלך', do: ['אקדמיה → Test Movein → "טופס התאמה" → בסיס קצב: 10 ק״מ, 42:00 (מקלידים 4200) → שמירה'] },
+      {
+        key: 'invited', title: 'שולחים טופס', where: 'האפליקציה שלך',
+        do: ['אקדמיה ← "בית" ← "מתאמן"', '"כבר מתאמנים" ← "עוד לא באפליקציה"', 'ממלאים שם, מייל, טלפון', '"מאמנים בלי שיבוץ" ← Sahar Azar', '"לשלוח לTest טופס פרטים"'],
+        values: [{ label: 'שם', value: 'Test Movein' }, { label: 'מייל', value: TEST_EMAILS.movein }, { label: 'טלפון', value: '0500000003' }],
+        look: SCREEN, shots: ['f3-01-academy', 'f3-02-add', 'f3-05-filled'],
+      },
+      { key: 'form_mail', title: 'מייל הטופס נשלח', where: 'אוטומטי', do: ['מחכים כמה שניות'], expect: 'נושא: "🎓 Test, האקדמיה עוברת לאפליקציה — נשאר רק למלא פרטים"', look: `Gmail · ${SCREEN}`, shots: ['e-academy_existing_form'] },
+      { key: 'form_filled', title: 'ממלאים את הטופס', where: 'פרטי', do: ['הקישור מהמייל ← "כמה פרטים, ואתה באפליקציה" (השם, המייל והטלפון כבר ממולאים)', '"בריא לחלוטין" ← "אינסטגרם" ← "לשלוח"'], expect: 'מסך "תודה, Test! 🙌"', look: 'בכרטיסייה הפרטית', shots: ['f3-10-form', 'f3-11-filled', 'f3-12-sent'] },
+      { key: 'accepted', title: 'מאשרים', where: 'האפליקציה שלך', do: ['התראה "📋 Test Movein מילא/ה את הטופס" ← הכרטיס', 'או: אקדמיה ← "אנשים" ← "מועמדים" ← Test Movein', '"לקבל לאקדמיה" ← Sahar Azar ← "קבלה ושליחה"'], look: SCREEN, shots: ['f3-20-card', 'f3-21-accept'] },
+      { key: 'install_mail', title: 'מייל "הכל מוכן" נשלח', where: 'אוטומטי', do: ['מחכים כמה שניות'], expect: 'נושא: "✅ Test, הכל מוכן — ככה נכנסים לאפליקציה" · כפתור "להתחלה ←"', look: `Gmail · ${SCREEN}`, shots: ['e-academy_move_in'] },
+      { key: 'coach_setup', title: 'המאמן קיבל "טופס התאמה"', where: 'אוטומטי', do: ['נבדק לבד (התראה לסהר)'], look: SCREEN },
+      { key: 'signed_in', title: 'נכנסים בפעם הראשונה', where: 'פרטי', do: ['הקישור מהמייל ← "הכול נכון, ממשיכים" ← "כניסה עם קוד במייל — בלי Strava" ← "שלחו לי קוד"'], look: SCREEN },
+      { key: 'baseline', title: 'בסיס קצב נקבע', where: 'האפליקציה שלך', do: ['אקדמיה ← Test Movein ← "טופס התאמה" ← "בסיס קצב": 10 ק״מ, מקלידים 4200 (42:00) ← שמירה'], look: SCREEN },
     ],
   },
   {
     id: 'import',
     title: '4 · מתאמן מהקובץ',
-    goal: 'כרטיס מהקובץ מוזמן, מאשר את הפרטים שמולאו מראש, נכנס, והקצבים כבר שם.',
+    goal: 'כרטיס מהקובץ מוזמן, המתאמן מאשר פרטים שכבר ממולאים, ומקבל מייל התקנה בלי אישור נוסף.',
     email: TEST_EMAILS.import,
+    stuck: ['לא ללחוץ "בחירה מהירה" — זה מסמן מתאמנים אמיתיים', 'Test Import לא ברשימה — ליצור אותו קודם במסך הבדיקות'],
     steps: [
-      { key: 'card', title: 'כרטיס בדיקה קיים', where: 'האפליקציה שלך', do: ['במסך הזה: "ליצור כרטיס בדיקה מהקובץ"'] },
-      { key: 'invited', title: 'מזמינים', where: 'האפליקציה שלך', do: ['אקדמיה → "מעבר לאפליקציה" → "מי מוזמן" → מסמנים רק את "Test Import" → שליחה'] },
-      { key: 'form_mail', title: 'מייל "הפרטים שלך" נשלח', where: 'אוטומטי', do: ['נבדק לבד'] },
-      { key: 'confirmed', title: 'מאשרים את הפרטים', where: 'פרטי', do: ['הקישור מהמייל → "הפרטים שלך" → תאריך לידה + מגדר → בריאות "כן" → שליחה'], values: [{ label: 'תאריך לידה', value: '01/01/1990' }] },
-      { key: 'install_mail', title: 'מייל ההתקנה נשלח (בלי אישור נוסף)', where: 'אוטומטי', do: ['נבדק לבד'] },
-      { key: 'signed_in', title: 'נכנסים בפעם הראשונה', where: 'פרטי', do: ['הקישור מהמייל → "כניסה עם קוד במייל — בלי Strava"'] },
-      { key: 'baseline', title: 'בסיס הקצב מולא מראש מהקובץ', where: 'האפליקציה שלך', do: ['אקדמיה → Test Import → "טופס התאמה" → הבסיס כבר מוצע → שמירה'] },
+      { key: 'card', title: 'כרטיס בדיקה קיים', where: 'האפליקציה שלך', do: [`${SCREEN} ← בדיקה 4 ← "ליצור כרטיס בדיקה מהקובץ"`], look: SCREEN },
+      { key: 'invited', title: 'מזמינים', where: 'האפליקציה שלך', do: ['אקדמיה ← "אנשים" ← "מעבר לאפליקציה"', '"מי מוזמן": לא נוגעים ב"בחירה מהירה" — מסמנים רק את "Test Import"', '"שליחת הזמנה ל־ 1 נבחרים" ← "לשלוח הזמנה ל־1?" ← "שליחה"'], look: SCREEN, shots: ['f4-01-import', 'f4-02-picked', 'f4-03-confirm'] },
+      { key: 'form_mail', title: 'מייל "הפרטים שלך" נשלח', where: 'אוטומטי', do: ['מחכים כמה שניות'], expect: 'נושא: "🎓 Test, האקדמיה עוברת לאפליקציה — נשאר רק למלא פרטים"', look: `Gmail · ${SCREEN}`, shots: ['e-academy_existing_form'] },
+      { key: 'confirmed', title: 'מאשרים את הפרטים', where: 'פרטי', do: ['הקישור מהמייל ← "הפרטים שלך" (הכל ממולא מהקובץ)', 'תאריך לידה 1 / ינואר / 1990 ← "גבר" ← בריאות "כן" ← "לשלוח"'], expect: 'מסך "תודה, Test! 🙌" · "הפרטים אושרו"', look: 'בכרטיסייה הפרטית', shots: ['f4-10-form', 'f4-11-filled', 'f4-12-sent'] },
+      { key: 'install_mail', title: 'מייל "הכל מוכן" נשלח (בלי אישור נוסף)', where: 'אוטומטי', do: ['מחכים כמה שניות'], expect: 'נושא: "✅ Test, הכל מוכן — ככה נכנסים לאפליקציה"', look: `Gmail · ${SCREEN}`, shots: ['e-academy_move_in'] },
+      { key: 'signed_in', title: 'נכנסים בפעם הראשונה', where: 'פרטי', do: ['הקישור מהמייל ← "הכול נכון, ממשיכים" ← "כניסה עם קוד במייל — בלי Strava" ← "שלחו לי קוד"'], look: SCREEN },
+      { key: 'baseline', title: 'בסיס הקצב מולא מראש מהקובץ', where: 'האפליקציה שלך', do: ['אקדמיה ← Test Import ← "טופס התאמה" ← הבסיס כבר מוצע ← שמירה'], look: SCREEN },
     ],
   },
+];
+
+/** The fastest order across the four flows: start the next while a mail is on its way. */
+export const QUICK_ORDER: string[] = [
+  `${SCREEN}: "ניקוי והתחלה מחדש", ואז בבדיקה 4 "ליצור כרטיס בדיקה מהקובץ"`,
+  'כרטיסייה פרטית א׳: בדיקה 1 "נרשמים"',
+  'כרטיסייה פרטית ב׳: בדיקה 2 "ממלאים את טופס האקדמיה"',
+  'באפליקציה שלך: מאשרים את Test Club, מקבלים את Test Academy, שולחים טופס ל־Test Movein, מזמינים את Test Import',
+  'ב־Gmail: ארבעה מיילים — פותחים כל קישור בכרטיסייה פרטית משלו וממשיכים כל בדיקה עד הסוף',
+  `${SCREEN}: כל השלבים ירוקים`,
 ];
 
 export type StepState = 'done' | 'next' | 'waiting' | 'stuck';

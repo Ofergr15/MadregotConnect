@@ -323,7 +323,7 @@ export function AcceptSheet({
               <p className="rounded-card bg-page px-3 py-3 text-sm text-ink-700" dir="auto">{names || 'אין מאמן'}</p>
             )}
             <p className="mt-2 text-xs text-ink-500" dir="auto">
-              הקבלה מאשרת את החשבון, משייכת למאמנים שסימנתם, ושולחת מייל ״התקבלת״ עם קישור כניסה דרך Strava. Garmin — אחר כך, לא חובה.
+              הקבלה מאשרת את החשבון, משייכת למאמנים שסימנתם, ושולחת מייל ״התקבלת״ עם קישור כניסה — עם Strava או עם קוד במייל. Garmin — אחר כך, לא חובה.
             </p>
             <MailPreview html={preview?.html ?? null} to={preview?.to ?? null} />
           </>

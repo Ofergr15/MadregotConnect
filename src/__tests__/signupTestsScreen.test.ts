@@ -72,3 +72,18 @@ describe('the tests screen — writes stay inside the test accounts', () => {
     expect(db.auth.admin.deleteUser).not.toHaveBeenCalledWith('u2');
   });
 });
+
+describe('the screen and the document are one list', () => {
+  it('the live status has exactly the steps the flows define, in the same order', async () => {
+    const { testStatus } = await import('@/lib/testing/status');
+    const empty: any = { from: () => { const q: any = { select: () => q, eq: () => q, neq: () => q, gte: () => q, in: () => q, like: () => q, order: () => q, contains: () => q, limit: () => q, maybeSingle: async () => ({ data: null, error: null }), then: (r: any) => r({ data: [], error: null }) }; return q; } };
+    const st = await testStatus(empty);
+    for (const f of FLOWS) expect(st.find((x) => x.id === f.id)!.steps.map((s) => s.key)).toEqual(f.steps.map((s) => s.key));
+  });
+  it('every hand step names its buttons and every automatic one says what arrives', () => {
+    for (const f of FLOWS) for (const s of f.steps) {
+      expect(s.do.length).toBeGreaterThan(0);
+      if (s.where === 'אוטומטי' && !['member', 'coach_linked', 'coach_setup'].includes(s.key)) expect(s.expect, `${f.id}/${s.key}`).toBeTruthy();
+    }
+  });
+});
