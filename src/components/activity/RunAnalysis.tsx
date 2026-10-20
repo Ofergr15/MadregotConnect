@@ -382,15 +382,27 @@ export function Times({ total, moving }: { total: number; moving: number | null 
 
 export function Conditions({ c }: { c: NonNullable<RunAnalysisData['conditions']> }) {
   const t = useTranslations('runAnalysis');
+  const tile = (v: string, l: string, tone = '') => (
+    <div className={cn('flex flex-1 flex-col items-center rounded-[14px] px-1 py-2.5 text-center', tone || 'bg-[#F4F5F8]')}>
+      <b className="text-lg font-black"><B>{v}</B></b><span className="text-[11px] leading-tight text-ink-400">{l}</span>
+    </div>
+  );
+  const op = (x: string) => <span className="flex-none self-center text-lg font-black text-ink-300">{x}</span>;
   return (
     <section className="rounded-card bg-card p-3.5">
-      <div className="flex gap-2">
-        {([[`${Math.round(c.tempC)}°`, t('temp')], ...(c.feelsC != null ? [[`${Math.round(c.feelsC)}°`, t('feels')] as const] : []), [`${Math.round(c.humidity)}%`, t('humidity')]] as const).map(([v, l]) => (
-          <div key={l} className="flex flex-1 flex-col rounded-[14px] bg-[#F4F5F8] p-2.5"><b className="text-lg font-black"><B>{v}</B></b><span className="text-[11px] text-ink-400">{l}</span></div>
-        ))}
-        <div className="flex flex-1 flex-col rounded-[14px] bg-[#FFF4E5] p-2.5"><b className="text-lg font-black text-[#B45309]"><B>{c.costSec > 0 ? `+${c.costSec}″` : '0″'}</B></b><span className="text-[11px] text-[#8A4A0B]">{t('heatCost')}</span></div>
+      {/* Temperature + humidity = how it feels (mockup: "x + y = z"). */}
+      <div className="flex items-stretch gap-1.5">
+        {tile(`${Math.round(c.tempC)}°`, t('temp'))}
+        {op('+')}
+        {tile(`${Math.round(c.humidity)}%`, t('humidity'))}
+        {op('=')}
+        {tile(`${Math.round(c.feelsC ?? c.tempC)}°`, t('feels'), 'bg-[#EEF0FF]')}
       </div>
-      <p className="mt-2 text-[12px] leading-relaxed text-ink-500">{t('dewLine', { dew: Math.round(c.dewC) })} {c.costSec >= 5 ? t('heatHigh', { s: c.costSec }) : c.costSec > 0 ? t('heatLow', { s: c.costSec }) : t('heatNone')}</p>
+      <div className="mt-2 flex items-center gap-2 rounded-[14px] bg-[#FFF4E5] px-3 py-2">
+        <b className="text-lg font-black text-[#B45309]"><B>{c.costSec > 0 ? `+${c.costSec}″` : '0″'}</B></b>
+        <span className="text-[12px] leading-snug text-[#8A4A0B]">{c.costSec >= 5 ? t('heatHigh', { s: c.costSec }) : c.costSec > 0 ? t('heatLow', { s: c.costSec }) : t('heatNone')}</span>
+      </div>
+      <p className="mt-2 text-[11.5px] leading-relaxed text-ink-400">{t('dewLine', { dew: Math.round(c.dewC) })}</p>
     </section>
   );
 }
