@@ -6,22 +6,26 @@
 // five sizes. Weight and the photo stay optional. Whoever stopped half-way is brought
 // back to the step that is left. The rule is lib/setup/gate.ts, the facts /api/setup.
 //
+// Drawn in the app's own iOS look (the run-together screens), not the joining journey's
+// sunset: light page, white cards, one blue — and real things in it: the app icon, the
+// Garmin and Strava marks, the iPhone's own share sheet.
+//
 // Steps aside on the profile screen, where the watch is connected, and comes back after.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { mutate } from 'swr';
-import { Bell, Smartphone, Watch } from 'lucide-react';
+import { Bell, CalendarClock, Check, ChevronLeft, MapPin, Route, Share, SquarePlus, Trophy } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
-import { isStandalone, subscribeToPush } from '@/lib/pwa';
+import { isIosDevice, isStandalone, subscribeToPush } from '@/lib/pwa';
 import { useIsComputer } from '@/lib/install/use-computer';
 import { CLOTHING_SIZES, SOCK_SIZES } from '@/lib/kit-sizes';
 import { EU_SHOE_SIZES } from '@/lib/shoe-catalog';
-import { remainingSteps, missingDetails, SETUP_ORDER, type SetupStep } from '@/lib/setup/gate';
+import { remainingSteps, SETUP_ORDER, type SetupStep } from '@/lib/setup/gate';
 import { InstallGuide } from '@/components/install/InstallGuide';
 import { useInstallStep } from '@/components/onboarding/InstallStepProvider';
-import { JOURNEY, JourneyCard, JourneyHero, JourneyScreen, PrimaryButton, SecondaryButton } from '@/components/onboarding/journey-ui';
 
+type SizeKey = 'shoeSize' | 'shirtSize' | 'pantsSize' | 'tightsSize' | 'socksSize';
 interface SetupFacts {
   applicable: boolean;
   preview?: boolean;
@@ -32,141 +36,380 @@ interface SetupFacts {
   birthDate?: string | null;
   heightCm?: number | null;
   weightKg?: number | null;
-  sizes?: Record<'shoeSize' | 'shirtSize' | 'pantsSize' | 'tightsSize' | 'socksSize', string | null>;
+  sizes?: Record<SizeKey, string | null>;
 }
 
 const PREVIEW_KEY = 'mc:setup-preview';
 const KEY = '/api/setup';
-const LABEL: Record<SetupStep, string> = { install: 'התקנה', watch: 'שעון', push: 'התראות', details: 'פרטים' };
+const BLUE = '#1525FF';
+const INK = '#111218';
+const SOFT = '#55565F';
+const LINE = '#EFEFF3';
+const CARD = 'rounded-[22px] bg-white shadow-[0_1px_2px_rgba(0,0,0,.04),0_8px_20px_-12px_rgba(0,0,0,.14)]';
 
-function StepBar({ at, done }: { at: SetupStep; done: Set<SetupStep> }) {
+function firstName(): string {
+  try {
+    return localStorage.getItem('mc-first-name') || (localStorage.getItem('athlete_name') || '').split(/\s+/)[0] || '';
+  } catch { return ''; }
+}
+
+/** Strava's official mark — the same paths as the landing page's (src/app/page.tsx). */
+function StravaMark({ className }: { className?: string }) {
   return (
-    <div className="flex gap-1.5" aria-label="שלבי ההגדרה">
-      {SETUP_ORDER.map((s) => {
-        const on = s === at;
-        const ok = done.has(s);
-        return (
-          <span key={s} className="flex-1 rounded-full py-1.5 text-center text-[12px] font-extrabold"
-            style={{ background: on ? JOURNEY.dusk : ok ? '#E3F4EA' : '#fff', color: on ? '#fff' : ok ? '#0E7A3C' : JOURNEY.muted, border: `1px solid ${on ? JOURNEY.dusk : JOURNEY.line}` }}
-            aria-current={on ? 'step' : undefined}>
-            {LABEL[s]}{ok ? ' ✓' : ''}
-          </span>
-        );
-      })}
-    </div>
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className} fill="currentColor">
+      <path d="m15.387 17.944-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066M10.463 8.392l2.835 5.436h4.173L10.463 0l-7 13.828h4.169" />
+    </svg>
   );
 }
 
-function Pills({ label, value, options, onPick }: { label: string; value: string | null; options: readonly string[]; onPick: (v: string) => void }) {
+function Shell({ step, title, sub, children, foot }: { step: number; title: ReactNode; sub?: ReactNode; children?: ReactNode; foot?: ReactNode }) {
   return (
-    <div>
-      <p className="mb-1.5 text-[14px] font-extrabold" style={{ color: JOURNEY.ink }}>{label}</p>
-      <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }} role="radiogroup" aria-label={label}>
-        {options.map((o) => (
-          <button key={o} type="button" role="radio" aria-checked={value === o} onClick={() => onPick(o)}
-            className="min-h-[44px] rounded-[14px] px-1 text-[15px] font-bold"
-            style={{ background: value === o ? JOURNEY.dusk : '#fff', color: value === o ? '#fff' : JOURNEY.body, border: `1.5px solid ${value === o ? JOURNEY.dusk : JOURNEY.line}` }}>
-            <bdi dir="ltr">{o}</bdi>
-          </button>
-        ))}
+    <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#F2F2F7]" dir="rtl" role="dialog" aria-modal="true" aria-label="הגדרת האפליקציה" data-testid="setup-gate">
+      <div className="mx-auto flex min-h-[100dvh] max-w-[480px] flex-col px-[18px] pt-[max(14px,env(safe-area-inset-top))]" style={{ color: INK }}>
+        {step > 0 && (
+          <>
+            <div className="mb-3.5 mt-1.5 flex gap-[5px]" aria-hidden>
+              {SETUP_ORDER.map((s, i) => <i key={s} className="h-[5px] flex-1 rounded-full" style={{ background: i < step ? BLUE : '#DCDCE3' }} />)}
+            </div>
+            <p className="mb-1 text-[13px] font-extrabold" style={{ color: BLUE }}>שלב {step} מתוך 4</p>
+          </>
+        )}
+        {title && <h1 className="mb-2 text-[29px] font-black leading-[1.15] tracking-[-0.6px]">{title}</h1>}
+        {sub && <p className="mb-[18px] text-[15.5px] leading-normal" style={{ color: SOFT }}>{sub}</p>}
+        {children}
+        {foot && (
+          <div className="sticky bottom-0 mt-auto flex flex-col gap-1.5 bg-gradient-to-t from-[#F2F2F7] from-70% to-transparent pb-[max(24px,env(safe-area-inset-bottom))] pt-4">{foot}</div>
+        )}
       </div>
     </div>
   );
 }
 
-function Details({ facts, onSaved }: { facts: SetupFacts; onSaved: () => void }) {
-  const need = missingDetails({ birthDate: facts.birthDate ?? null, heightCm: facts.heightCm ?? null, sizes: Object.values(facts.sizes || {}) });
-  const s = facts.sizes || { shoeSize: null, shirtSize: null, pantsSize: null, tightsSize: null, socksSize: null };
+function Primary({ children, onClick, disabled }: { children: ReactNode; onClick?: () => void; disabled?: boolean }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled}
+      className="flex h-14 items-center justify-center gap-2 rounded-[18px] text-[17px] font-black transition-colors"
+      style={disabled ? { background: '#E3E5FF', color: BLUE } : { background: BLUE, color: '#fff', boxShadow: '0 10px 22px -10px rgba(21,37,255,.7)' }}>
+      {children}
+    </button>
+  );
+}
+function Quiet({ children, onClick, disabled }: { children: ReactNode; onClick?: () => void; disabled?: boolean }) {
+  return <button type="button" onClick={onClick} disabled={disabled} className="h-11 text-[15px] font-extrabold" style={{ color: SOFT }}>{children}</button>;
+}
+
+function Benefits({ rows }: { rows: Array<[ReactNode, string]> }) {
+  return (
+    <div className={`${CARD} px-3.5 py-1.5`}>
+      {rows.map(([icon, text], i) => (
+        <div key={text} className="flex items-center gap-3 py-2.5 text-[15px] font-bold" style={i ? { borderTop: `1px solid ${LINE}` } : undefined}>
+          <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[11px] bg-[#EEF0FF]" style={{ color: BLUE }}>{icon}</span>
+          {text}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── 1 · install ─────────────────────────────────────────────────────────────
+function InstallStep({ onSkip }: { onSkip: () => void }) {
+  const install = useInstallStep();
+  const [guide, setGuide] = useState(false);
+  const prompt = install.offer?.kind === 'prompt' ? install.offer.prompt : null;
+  const ios = typeof window !== 'undefined' && isIosDevice();
+  if (guide) {
+    return (
+      <div className="fixed inset-0 z-[71] overflow-y-auto bg-[#F2F2F7]">
+        <InstallGuide canPrompt={!!prompt} onInstall={prompt ? () => prompt.prompt() : undefined}
+          onLater={() => setGuide(false)} onDone={() => setGuide(false)} />
+      </div>
+    );
+  }
+  const shots = [
+    { src: '/images/install/ios-share.jpg', pos: '50% 100%', n: 1, text: <>לוחצים על <Key icon={<Share className="h-[15px] w-[15px]" />}>שיתוף</Key></> },
+    { src: '/images/install/ios-add-to-home.jpg', pos: '50% 88%', n: 2, text: <>בוחרים <Key icon={<SquarePlus className="h-[15px] w-[15px]" />}>הוספה למסך הבית</Key></> },
+    { src: '/images/install/ios-home-icon.jpg', pos: '15% 55%', n: 3, text: <>פותחים את מדרגות מהמסך הבית</> },
+  ];
+  return (
+    <Shell step={1} title="מוסיפים את מדרגות למסך הבית" sub="חצי דקה. ככה האפליקציה נפתחת מהר, ויכולה לשלוח לך התראות."
+      foot={<>
+        {prompt
+          ? <Primary onClick={() => prompt.prompt()}>התקנה</Primary>
+          : <Primary onClick={() => setGuide(true)}><Share className="h-[19px] w-[19px]" strokeWidth={2.4} />הראו לי איפה</Primary>}
+        <Quiet onClick={onSkip}>לא מצליחים? ממשיכים בדפדפן</Quiet>
+      </>}>
+      {ios || !prompt ? (
+        <div className={`${CARD} px-3.5`}>
+          {shots.map((s, i) => (
+            <div key={s.n} className="flex items-center gap-3.5 py-3" style={i ? { borderTop: `1px solid ${LINE}` } : undefined}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- the iPhone's own screens, already sized */}
+              <img src={s.src} alt="" className="h-[92px] w-[68px] shrink-0 rounded-[12px] border border-[#E4E4EA] object-cover" style={{ objectPosition: s.pos }} />
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[14px] font-black text-white" style={{ background: INK }}>{s.n}</span>
+              <span className="text-[15.5px] font-bold leading-[1.6]">{s.text}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className={`${CARD} flex items-center gap-3.5 p-4`}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- the app's own icon */}
+          <img src="/images/icon-192.png" alt="" className="h-16 w-16 rounded-[16px] shadow-md" />
+          <div><b className="block text-[17px]">מדרגות</b><span className="text-[14px]" style={{ color: SOFT }}>התקנה בלחיצה אחת, בלי חנות אפליקציות</span></div>
+        </div>
+      )}
+    </Shell>
+  );
+}
+function Key({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return <span className="inline-flex items-center gap-1 rounded-[7px] bg-[#EEF0FF] px-1.5 align-[-3px] font-extrabold" style={{ color: BLUE }}>{icon}{children}</span>;
+}
+
+// ── 2 · watch ───────────────────────────────────────────────────────────────
+function WatchStep({ onNoWatch, busy }: { onNoWatch: () => void; busy: boolean }) {
+  const router = useRouter();
+  const providers = [
+    {
+      key: 'garmin', href: '/dashboard/profile?connectGarmin=1', sub: 'גם האימון של היום נשלח לשעון', tag: 'מומלץ',
+      // eslint-disable-next-line @next/next/no-img-element -- the official Garmin logo (public/images/brands)
+      mark: <img src="/images/brands/garmin.svg" alt="Garmin" className="h-[22px] w-auto" />,
+    },
+    {
+      key: 'strava', href: '/dashboard/profile?tab=datasource', sub: 'Apple Watch, Coros, Polar, Suunto', tag: null,
+      mark: <span className="flex items-center gap-1.5 text-[19px] font-black tracking-[-0.3px]" style={{ color: '#FC4C02' }}><StravaMark className="h-[22px] w-[22px]" />STRAVA</span>,
+    },
+  ];
+  return (
+    <Shell step={2} title="מחברים את השעון" sub="כל ריצה נכנסת לבד — בלי להעלות כלום."
+      foot={<Quiet onClick={onNoWatch} disabled={busy}>אין לי שעון — ממשיכים בלי</Quiet>}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- the club's own photo */}
+      <img src="/images/runners-group.jpg" alt="" className="mb-3 h-[120px] w-full rounded-[22px] object-cover" style={{ objectPosition: '50% 84%' }} />
+      <div className="flex flex-col gap-2.5">
+        {providers.map((p) => (
+          <button key={p.key} type="button" onClick={() => router.push(p.href)} className={`${CARD} flex min-h-[78px] items-center gap-3 px-4 text-start`}>
+            <span className="flex-1">
+              <span className="flex h-7 items-center gap-2">{p.mark}{p.tag && <span className="rounded-[7px] bg-[#E3F4EA] px-[7px] py-0.5 text-[11.5px] font-black text-[#0E7A3C]">{p.tag}</span>}</span>
+              <span className="mt-1 block text-[13.5px] font-semibold" style={{ color: '#6B6C76' }}>{p.sub}</span>
+            </span>
+            <ChevronLeft className="h-5 w-5 text-[#B5B6BF]" aria-hidden />
+          </button>
+        ))}
+      </div>
+      <p className="mb-[7px] ms-1.5 mt-4 text-[13px] font-extrabold" style={{ color: '#6B6C76' }}>מה זה נותן</p>
+      <Benefits rows={[
+        [<Route key="r" className="h-[18px] w-[18px]" />, 'הריצות נכנסות לתוכנית ולנוכחות'],
+        [<Trophy key="t" className="h-[18px] w-[18px]" />, 'שיאים וסטורי של השבוע — לבד'],
+      ]} />
+    </Shell>
+  );
+}
+
+// ── 3 · notifications ───────────────────────────────────────────────────────
+function PushStep({ onEnable, busy, error }: { onEnable: () => void; busy: boolean; error: string | null }) {
+  const now = new Date();
+  const time = now.toLocaleTimeString('he-IL', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Jerusalem' });
+  const day = now.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Jerusalem' });
+  const notes = [
+    { when: 'עכשיו', text: 'האימון בעוד 20 דק׳ · נפגשים בנקודה הקבועה' },
+    { when: 'אתמול', text: 'המאמן ענה על האימון שלך' },
+  ];
+  return (
+    <Shell step={3} title="מפעילים התראות" sub="רק מה שחשוב: האימון, שינויים, ותשובה מהמאמן."
+      foot={<>
+        {error && <p role="alert" className="mb-1 text-center text-[14px] font-bold text-[#AD3838]">{error}</p>}
+        <Primary onClick={onEnable} disabled={busy}><Bell className="h-[19px] w-[19px]" strokeWidth={2.4} />{busy ? 'רגע…' : 'הפעלת התראות'}</Primary>
+        <p className="py-2 text-center text-[13.5px] font-bold" style={{ color: SOFT }}>אפשר לכבות כל סוג בהגדרות</p>
+      </>}>
+      <div className="relative mb-4 overflow-hidden rounded-[26px] px-3 pb-3.5 pt-5 text-white">
+        {/* eslint-disable-next-line @next/next/no-img-element -- the club's own photo as the lock-screen wallpaper */}
+        <img src="/images/hero-running.jpg" alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/10 to-black/30" />
+        <div className="relative">
+          <div className="text-center text-[52px] font-light leading-none tracking-[-1px]" dir="ltr">{time}</div>
+          <div className="mb-4 mt-1 text-center text-[13.5px] font-bold opacity-90">{day}</div>
+          {notes.map((n) => (
+            <div key={n.when} className="mt-2 flex gap-2.5 rounded-[18px] bg-white/80 px-3 py-2.5 backdrop-blur-md" style={{ color: INK }}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- the app's own icon */}
+              <img src="/images/icon-192.png" alt="" className="h-[34px] w-[34px] shrink-0 rounded-[9px]" />
+              <div className="min-w-0 flex-1">
+                <b className="flex justify-between text-[13.5px]">מדרגות<em className="text-[12px] font-semibold not-italic text-[#6B6C76]">{n.when}</em></b>
+                <p className="mt-0.5 text-[13px] leading-snug text-[#2A2B33]">{n.text}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <Benefits rows={[
+        [<CalendarClock key="c" className="h-[18px] w-[18px]" />, 'תזכורת לאימון בבוקר'],
+        [<MapPin key="p" className="h-[18px] w-[18px]" />, 'שינוי שעה או מקום'],
+      ]} />
+    </Shell>
+  );
+}
+
+// ── 4 · details ─────────────────────────────────────────────────────────────
+const SIZE_LABEL: Record<SizeKey, string> = { shoeSize: 'נעליים', shirtSize: 'חולצה', pantsSize: 'מכנסיים קצרים', tightsSize: 'טייץ', socksSize: 'גרביים' };
+const HEIGHTS = Array.from({ length: 81 }, (_, i) => 140 + i);
+const WEIGHTS = Array.from({ length: 91 }, (_, i) => 40 + i);
+
+function Dot() { return <span className="h-[7px] w-[7px] shrink-0 rounded-full bg-[#FF5315]" aria-label="חסר" />; }
+
+/** A settings-style row whose value opens the phone's own picker (date wheel, list wheel). */
+function PickRow({ label, value, missing, optional, children }: { label: string; value: string | null; missing: boolean; optional?: boolean; children: ReactNode }) {
+  return (
+    <label className="relative flex min-h-[52px] items-center gap-2.5 text-[16px] font-bold">
+      {missing && <Dot />}
+      {label}
+      <span className="ms-auto flex items-center gap-1 font-extrabold" style={{ color: value ? INK : optional ? '#6B6C76' : BLUE }}>
+        {value ? <bdi dir="ltr">{value}</bdi> : optional ? 'לא חובה' : 'בחירה'}
+        <ChevronLeft className="h-4 w-4" aria-hidden />
+      </span>
+      {children}
+    </label>
+  );
+}
+const overlay = 'absolute inset-0 h-full w-full cursor-pointer opacity-0';
+
+function DetailsStep({ facts, onSaved }: { facts: SetupFacts; onSaved: () => void }) {
+  const start = facts.sizes || { shoeSize: null, shirtSize: null, pantsSize: null, tightsSize: null, socksSize: null };
+  // Asked once: what was missing when the step opened stays on screen after it is picked.
+  const [ask] = useState(() => ({
+    birthDate: !facts.birthDate, height: !facts.heightCm, weight: !facts.weightKg,
+    sizes: (Object.keys(start) as SizeKey[]).filter((k) => !start[k]),
+  }));
   const [birthDate, setBirthDate] = useState(facts.birthDate || '');
   const [height, setHeight] = useState(facts.heightCm ? String(facts.heightCm) : '');
   const [weight, setWeight] = useState(facts.weightKg ? String(facts.weightKg) : '');
-  const [sizes, setSizes] = useState(s);
+  const [sizes, setSizes] = useState(start);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Asked once: a field shown at the start stays on screen after it is filled.
-  const [ask] = useState(() => ({
-    birthDate: need.birthDate, height: need.height,
-    sizes: (Object.keys(s) as Array<keyof typeof s>).filter((k) => !s[k]),
-    weight: !facts.weightKg,
-  }));
-  const h = Number(height);
-  const ready = !!birthDate && h >= 100 && h <= 250 && Object.values(sizes).every(Boolean);
+  const left = (birthDate ? 0 : 1) + (height ? 0 : 1) + Object.values(sizes).filter((v) => !v).length;
 
   const save = async () => {
     setSaving(true); setError(null);
     try {
-      const id = localStorage.getItem('athlete_id');
-      const w = Number(weight);
       const res = await fetch('/api/athletes/me', {
         method: 'PUT', headers: await apiHeaders(true),
-        body: JSON.stringify({ id, birthDate, heightCm: h, ...(weight && w >= 25 && w <= 250 ? { weightKg: w } : {}), ...sizes }),
+        body: JSON.stringify({ id: localStorage.getItem('athlete_id'), birthDate, heightCm: Number(height), ...(weight ? { weightKg: Number(weight) } : {}), ...sizes }),
       });
       if (!res.ok) throw new Error(String(res.status));
       onSaved();
     } catch {
       setError('השמירה לא הצליחה. נסו שוב בעוד רגע.');
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
-  const SIZE_LABEL = { shoeSize: 'נעליים', shirtSize: 'חולצה', pantsSize: 'מכנסיים קצרים', tightsSize: 'טייץ', socksSize: 'גרביים' } as const;
-  const field = 'h-[50px] w-full rounded-[14px] border-[1.5px] bg-white px-3 text-[16px]';
+  const shown = birthDate ? birthDate.split('-').reverse().join('.') : null;
+  const rows = [
+    ask.birthDate && (
+      <PickRow key="b" label="תאריך לידה" value={shown} missing={!birthDate}>
+        <input type="date" aria-label="תאריך לידה" className={overlay} value={birthDate} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setBirthDate(e.target.value)} />
+      </PickRow>
+    ),
+    ask.height && (
+      <PickRow key="h" label="גובה" value={height ? `${height} ס״מ` : null} missing={!height}>
+        <select aria-label="גובה" className={overlay} value={height} onChange={(e) => setHeight(e.target.value)}>
+          <option value="">בחירה</option>{HEIGHTS.map((h) => <option key={h} value={h}>{h} ס״מ</option>)}
+        </select>
+      </PickRow>
+    ),
+    ask.weight && (
+      <PickRow key="w" label="משקל" value={weight ? `${weight} ק״ג` : null} missing={false} optional>
+        <select aria-label="משקל" className={overlay} value={weight} onChange={(e) => setWeight(e.target.value)}>
+          <option value="">לא עכשיו</option>{WEIGHTS.map((w) => <option key={w} value={w}>{w} ק״ג</option>)}
+        </select>
+      </PickRow>
+    ),
+  ].filter(Boolean);
+
   return (
-    <div className="flex flex-col gap-4">
-      {(ask.birthDate || ask.height) && (
-        <JourneyCard className="flex flex-col gap-3 p-4">
-          {ask.birthDate && (
-            <label className="flex flex-col gap-1.5 text-[14px] font-extrabold" style={{ color: JOURNEY.ink }}>
-              תאריך לידה
-              <input type="date" value={birthDate} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setBirthDate(e.target.value)} className={field} style={{ borderColor: JOURNEY.line }} />
-            </label>
-          )}
-          {ask.height && (
-            <label className="flex flex-col gap-1.5 text-[14px] font-extrabold" style={{ color: JOURNEY.ink }}>
-              גובה (ס״מ)
-              <input type="number" inputMode="numeric" min={100} max={250} value={height} onChange={(e) => setHeight(e.target.value)} placeholder="175" className={field} style={{ borderColor: JOURNEY.line }} />
-            </label>
-          )}
-        </JourneyCard>
+    <Shell step={4} title={left > 0 ? `עוד ${left} ${left === 1 ? 'פרט' : 'פרטים'}` : 'הכל מולא'} sub="מה שלא מילאת בהרשמה. המאמן והביגוד של המועדון צריכים אותם."
+      foot={<>
+        {error && <p role="alert" className="mb-1 text-center text-[14px] font-bold text-[#AD3838]">{error}</p>}
+        <Primary onClick={save} disabled={left > 0 || saving}>{saving ? 'שומרים…' : left > 0 ? `${left === 1 ? 'נשאר 1' : `נשארו ${left}`} · שמירה` : 'שמירה'}</Primary>
+      </>}>
+      {rows.length > 0 && (
+        <div className={`${CARD} mb-3.5 px-3.5 [&>*+*]:border-t [&>*+*]:border-[#EFEFF3]`}>{rows}</div>
       )}
       {ask.sizes.length > 0 && (
-        <JourneyCard className="flex flex-col gap-4 p-4">
-          <p className="text-[13px]" style={{ color: JOURNEY.soft }}>המידות לביגוד של המועדון</p>
-          {ask.sizes.map((k) => k === 'shoeSize' ? (
-            <label key={k} className="flex flex-col gap-1.5 text-[14px] font-extrabold" style={{ color: JOURNEY.ink }}>
-              {SIZE_LABEL[k]}
-              <select value={sizes.shoeSize || ''} onChange={(e) => setSizes({ ...sizes, shoeSize: e.target.value || null })} className={field} style={{ borderColor: JOURNEY.line }}>
-                <option value="">בחירה</option>
-                {EU_SHOE_SIZES.map((o) => <option key={o} value={o}>{o}</option>)}
-              </select>
-            </label>
-          ) : (
-            <Pills key={k} label={SIZE_LABEL[k]} value={sizes[k]} options={k === 'socksSize' ? SOCK_SIZES : CLOTHING_SIZES} onPick={(v) => setSizes({ ...sizes, [k]: v })} />
-          ))}
-        </JourneyCard>
+        <>
+          <p className="mb-[7px] ms-1.5 text-[13px] font-extrabold" style={{ color: '#6B6C76' }}>מידות ביגוד</p>
+          <div className={`${CARD} mb-4 [&>*+*]:border-t [&>*+*]:border-[#EFEFF3]`}>
+            {ask.sizes.map((k) => (
+              <div key={k} className="px-3.5 pb-3.5 pt-3">
+                <div className="mb-2 flex items-center justify-between text-[15px] font-extrabold">
+                  {SIZE_LABEL[k]}
+                  {sizes[k] ? <Check className="h-4 w-4 text-[#0E7A3C]" strokeWidth={3} aria-label="נבחר" /> : <span className="text-[12.5px] text-[#C2410C]">חסר</span>}
+                </div>
+                {k === 'shoeSize' ? (
+                  <ShoeChips value={sizes.shoeSize} onPick={(v) => setSizes({ ...sizes, shoeSize: v })} />
+                ) : (
+                  <div className="flex rounded-[12px] bg-[#EEEEF2] p-[3px]" dir="ltr" role="radiogroup" aria-label={SIZE_LABEL[k]}>
+                    {(k === 'socksSize' ? SOCK_SIZES : CLOTHING_SIZES).map((o) => (
+                      <button key={o} type="button" role="radio" aria-checked={sizes[k] === o} onClick={() => setSizes({ ...sizes, [k]: o })}
+                        className="min-h-[44px] flex-1 rounded-[9px] text-[14px] font-extrabold"
+                        style={sizes[k] === o ? { background: '#fff', color: BLUE, boxShadow: '0 1px 3px rgba(0,0,0,.14)' } : { color: '#45464F' }}>
+                        {o}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
       )}
-      {ask.weight && (
-        <JourneyCard className="p-4">
-          <label className="flex flex-col gap-1.5 text-[14px] font-extrabold" style={{ color: JOURNEY.ink }}>
-            <span>משקל (ק״ג) <span className="font-semibold" style={{ color: JOURNEY.soft }}>· לא חובה</span></span>
-            <input type="number" inputMode="decimal" min={25} max={250} value={weight} onChange={(e) => setWeight(e.target.value)} className={field} style={{ borderColor: JOURNEY.line }} />
-          </label>
-        </JourneyCard>
-      )}
-      {error && <p role="alert" className="text-[14px] font-bold" style={{ color: JOURNEY.red }}>{error}</p>}
-      <div className="sticky bottom-0 pb-[max(16px,env(safe-area-inset-bottom))] pt-2" style={{ background: `linear-gradient(transparent, ${JOURNEY.page} 28%)` }}>
-        <PrimaryButton onClick={save} disabled={!ready || saving}>{saving ? 'שומרים…' : 'סיום — לאפליקציה'}</PrimaryButton>
-      </div>
+    </Shell>
+  );
+}
+
+function ShoeChips({ value, onPick }: { value: string | null; onPick: (v: string) => void }) {
+  // Opens on the common sizes (the row scrolls both ways for the rest).
+  useEffect(() => {
+    document.getElementById(`shoe-${value || '42'}`)?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [value]);
+  return (
+    <div className="-mx-3.5 flex gap-1.5 overflow-x-auto px-3.5 pb-1 [scrollbar-width:none]" dir="ltr" role="radiogroup" aria-label="מידת נעליים">
+      {EU_SHOE_SIZES.map((o) => (
+        <button key={o} id={`shoe-${o}`} type="button" role="radio" aria-checked={value === o} onClick={() => onPick(o)}
+          className="h-11 min-w-[48px] shrink-0 rounded-[12px] px-2 text-[14px] font-extrabold"
+          style={value === o ? { background: BLUE, color: '#fff' } : { background: '#EEEEF2', color: '#45464F' }}>
+          {o}
+        </button>
+      ))}
     </div>
   );
 }
 
+// ── done ────────────────────────────────────────────────────────────────────
+function DoneStep({ connected, onClose }: { connected: boolean; onClose: () => void }) {
+  const name = firstName();
+  const items: Array<[string, string?]> = [
+    ['האפליקציה במסך הבית'],
+    connected ? ['השעון מחובר', 'הריצה הבאה תיכנס לבד'] : ['בלי שעון — אפשר לחבר בפרופיל'],
+    ['התראות פועלות'],
+    ['הפרטים מלאים'],
+  ];
+  return (
+    <Shell step={0} title={null} foot={<Primary onClick={onClose}>לאפליקציה</Primary>}>
+      <div className="flex flex-1 flex-col items-center justify-center text-center">
+        <span className="mb-[18px] flex h-24 w-24 items-center justify-center rounded-full bg-[#E3F4EA] text-[#0E7A3C]"><Check className="h-12 w-12" strokeWidth={3} /></span>
+        <h1 className="mb-1 text-[29px] font-black tracking-[-0.6px]">הכל מוכן{name ? `, ${name}` : ''}</h1>
+        <p className="text-[15.5px]" style={{ color: SOFT }}>נתראה באימון הבא</p>
+        <div className={`${CARD} mt-[18px] w-full px-3.5 py-1 text-start`}>
+          {items.map(([t, s], i) => (
+            <div key={t} className="flex items-center gap-2.5 py-3 text-[15.5px] font-extrabold" style={i ? { borderTop: `1px solid ${LINE}` } : undefined}>
+              <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full bg-[#0E7A3C] text-white"><Check className="h-[15px] w-[15px]" strokeWidth={3.2} /></span>
+              {t}{s && <small className="ms-auto text-[13px] font-bold" style={{ color: '#6B6C76' }}>{s}</small>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </Shell>
+  );
+}
+
 export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
-  const router = useRouter();
   const pathname = usePathname();
   const computer = useIsComputer();
-  const install = useInstallStep();
   // ?setup=1 turns the super user's preview on for this tab (the server refuses anyone else).
   const [preview, setPreview] = useState(false);
   useEffect(() => {
@@ -181,14 +424,17 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
   const { data } = useApi<SetupFacts>(key, { revalidateOnFocus: true });
   const [standalone, setStandalone] = useState(false);
   useEffect(() => setStandalone(isStandalone()), []);
-  // "Not now" on the install guide holds for this visit only: an install the app can't
-  // see (Android Chrome tab) must never lock somebody out.
+  // "Can't install" holds for this visit only: an install the app can't see (an Android
+  // Chrome tab) must never lock somebody out.
   const [installLater, setInstallLater] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
+  // Somebody who walked at least one step sees the closing screen once it is all done.
+  const [walked, setWalked] = useState(false);
+  const [closed, setClosed] = useState(false);
 
   const steps = useMemo(() => {
-    if (!data?.applicable) return [];
+    if (!data?.applicable) return [] as SetupStep[];
     return remainingSteps({
       phone: !computer,
       installed: standalone || !!data.phoneOpened || installLater,
@@ -196,92 +442,36 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
       birthDate: data.birthDate ?? null, heightCm: data.heightCm ?? null, sizes: Object.values(data.sizes || {}),
     });
   }, [data, computer, standalone, installLater]);
+  useEffect(() => { if (steps.length) setWalked(true); }, [steps.length]);
 
-  const active = steps.length > 0 && !pathname.startsWith('/dashboard/profile');
+  const done = steps.length === 0 && walked && !closed;
+  const active = (steps.length > 0 || done) && !pathname.startsWith('/dashboard/profile');
   useEffect(() => { onActive?.(active); }, [active, onActive]);
   if (!active) return null;
-  const at = steps[0];
-  const done = new Set(SETUP_ORDER.filter((s) => !steps.includes(s)));
   const refresh = () => mutate(key);
+  if (done) return <DoneStep connected={!!data?.connected} onClose={() => setClosed(true)} />;
 
-  if (at === 'install') {
-    return (
-      <div className="fixed inset-0 z-[70] overflow-y-auto" style={{ background: JOURNEY.page }}>
-        <InstallGuide
-          canPrompt={install.offer?.kind === 'prompt'}
-          onInstall={install.offer?.kind === 'prompt' ? async () => { await (install.offer as { prompt: { prompt: () => Promise<void> } }).prompt.prompt(); } : undefined}
-          onLater={() => setInstallLater(true)}
-          onDone={() => setInstallLater(true)}
-          onEscape={() => setInstallLater(true)}
-          blocking
-        />
-      </div>
-    );
+  const at = steps[0];
+  if (at === 'install') return <InstallStep onSkip={() => setInstallLater(true)} />;
+  if (at === 'watch') {
+    return <WatchStep busy={busy} onNoWatch={async () => {
+      setBusy(true);
+      try {
+        await fetch(KEY, { method: 'PATCH', headers: await apiHeaders(true), body: JSON.stringify({ noWatch: true }) });
+        await refresh();
+      } finally { setBusy(false); }
+    }} />;
   }
-
-  const noWatch = async () => {
-    setBusy(true);
-    try {
-      await fetch(KEY, { method: 'PATCH', headers: await apiHeaders(true), body: JSON.stringify({ noWatch: true }) });
-      await refresh();
-    } finally { setBusy(false); }
-  };
-  const enablePush = async () => {
-    setBusy(true); setPushError(null);
-    const id = localStorage.getItem('athlete_id') || '';
-    const r = await subscribeToPush(id);
-    setBusy(false);
-    if (r.ok) await refresh();
-    else setPushError(r.error === 'permission_denied'
-      ? 'ההתראות חסומות בטלפון. פותחים הגדרות ← מדרגות ← התראות, מפעילים, וחוזרים.'
-      : 'זה לא הצליח הפעם. נסו שוב בעוד דקה.');
-  };
-
-  const head = {
-    watch: { title: 'מחברים את השעון', sub: 'כך כל ריצה נכנסת לבד — לתוכנית, לנוכחות, לשיאים ולסטורי של השבוע.' },
-    push: { title: 'מפעילים התראות', sub: 'בלי התראות לא תדעו על האימון של מחר, על שינוי שעה, ועל תשובה מהמאמן.' },
-    details: { title: 'עוד כמה פרטים', sub: 'מה שלא מילאתם בהרשמה — המאמן צריך אותם.' },
-  }[at];
-
-  return (
-    <div className="fixed inset-0 z-[70] overflow-y-auto" role="dialog" aria-modal="true" aria-label="הגדרת האפליקציה" data-testid="setup-gate">
-      <JourneyScreen
-        hero={<JourneyHero compact eyebrow={`הגדרה ${SETUP_ORDER.indexOf(at) + 1}/4`} title={head.title} subtitle={head.sub} />}
-        actions={at === 'details' ? undefined : at === 'watch' ? (
-          <SecondaryButton onClick={noWatch} disabled={busy}>אין לי שעון — אמשיך בלעדיו</SecondaryButton>
-        ) : (
-          <PrimaryButton onClick={enablePush} disabled={busy}>{busy ? 'רגע…' : 'הפעלת התראות'}</PrimaryButton>
-        )}
-      >
-        <StepBar at={at} done={done} />
-        {at === 'watch' && (
-          <div className="flex flex-col gap-2.5">
-            {[
-              { name: 'Garmin', sub: 'גם האימונים יישלחו לשעון', bg: '#007CC3', href: '/dashboard/profile?connectGarmin=1' },
-              { name: 'Strava', sub: 'לכל שעון אחר — Apple, Coros, Polar', bg: '#FC4C02', href: '/dashboard/profile?tab=datasource' },
-            ].map((p) => (
-              <button key={p.name} type="button" onClick={() => router.push(p.href)}
-                className="flex min-h-[64px] items-center gap-3 rounded-[18px] border bg-white px-4 text-start" style={{ borderColor: JOURNEY.line }}>
-                <span className="flex h-10 w-10 items-center justify-center rounded-[12px] text-[17px] font-black text-white" style={{ background: p.bg }}>{p.name[0]}</span>
-                <span className="flex-1"><b className="block text-[16px]" style={{ color: JOURNEY.ink }}>{p.name}</b><small className="text-[13px]" style={{ color: JOURNEY.soft }}>{p.sub}</small></span>
-                <span className="text-[14px] font-extrabold" style={{ color: JOURNEY.dusk }}>חיבור ‹</span>
-              </button>
-            ))}
-            <p className="flex items-center gap-2 text-[13px]" style={{ color: JOURNEY.soft }}><Watch className="h-4 w-4" aria-hidden />&quot;אין לי שעון&quot; נשמר, והמאמן רואה.</p>
-          </div>
-        )}
-        {at === 'push' && (
-          <JourneyCard className="flex items-center gap-3 p-4">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: JOURNEY.tagBg, color: JOURNEY.tag }}><Bell className="h-6 w-6" aria-hidden /></span>
-            <p className="flex-1 text-[14px]" style={{ color: JOURNEY.soft }}>הטלפון ישאל אם לאשר. אפשר לבחור אחר כך בהגדרות אילו התראות מקבלים.</p>
-          </JourneyCard>
-        )}
-        {at === 'push' && pushError && <p role="alert" className="text-[14px] font-bold" style={{ color: JOURNEY.red }}>{pushError}</p>}
-        {at === 'details' && data && <Details facts={data} onSaved={refresh} />}
-        {data?.preview && (
-          <p className="flex items-center gap-1.5 text-[13px]" style={{ color: JOURNEY.soft }}><Smartphone className="h-3.5 w-3.5" aria-hidden />תצוגה מקדימה · ‎?setup=0 לסגירה</p>
-        )}
-      </JourneyScreen>
-    </div>
-  );
+  if (at === 'push') {
+    return <PushStep busy={busy} error={pushError} onEnable={async () => {
+      setBusy(true); setPushError(null);
+      const r = await subscribeToPush(localStorage.getItem('athlete_id') || '');
+      setBusy(false);
+      if (r.ok) await refresh();
+      else setPushError(r.error === 'permission_denied'
+        ? 'ההתראות חסומות. הגדרות ← מדרגות ← התראות, מפעילים וחוזרים.'
+        : 'זה לא הצליח הפעם. נסו שוב בעוד דקה.');
+    }} />;
+  }
+  return data ? <DetailsStep facts={data} onSaved={refresh} /> : null;
 }
