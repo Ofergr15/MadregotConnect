@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { initialsOf } from './types';
 import type { Inbox, InboxReason, InboxRow } from '@/lib/academy/thread';
 import { scoped } from '@/lib/academy/client-scope';
+import { ChatList, type ChatPayload } from './ChatList';
 
 // ── "What needs me" across every academy thread ─────────────────────────────
 //
@@ -170,7 +171,7 @@ function detailText(row: InboxRow): React.ReactNode {
 
 /** The fetching wrapper. Staff-only screen, so it does not guard on identity here. */
 export function ThreadInbox({ onOpen }: { onOpen?: (athleteId: string) => void }) {
-  const [inbox, setInbox] = useState<Inbox | null>(null);
+  const [inbox, setInbox] = useState<ChatPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -181,7 +182,7 @@ export function ThreadInbox({ onOpen }: { onOpen?: (athleteId: string) => void }
         const data = await res.json();
         if (cancelled) return;
         if (!res.ok) { setError(data?.error || 'לא הצלחנו לטעון את השיחות'); return; }
-        setInbox(data as Inbox);
+        setInbox(data as ChatPayload);
       } catch {
         if (!cancelled) setError('לא הצלחנו לטעון את השיחות');
       }
@@ -191,5 +192,6 @@ export function ThreadInbox({ onOpen }: { onOpen?: (athleteId: string) => void }
 
   if (error) return <p className="py-6 text-center text-xs text-accent-red-ink">{error}</p>;
   if (!inbox) return <p className="py-6 text-center text-xs text-ink-400">טוען…</p>;
-  return <InboxList inbox={inbox} onOpen={onOpen} />;
+  // Since 10-20 the Messenger-shaped list (ChatList); InboxList stays for the audit preview.
+  return <ChatList data={inbox} onOpen={onOpen} />;
 }

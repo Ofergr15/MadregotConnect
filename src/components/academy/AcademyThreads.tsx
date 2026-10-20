@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronRight } from 'lucide-react';
 import { ThreadInbox } from './ThreadInbox';
 import { AcademyThreadPanel } from './AcademyThreadPanel';
 
@@ -29,18 +28,5 @@ export function AcademyThreads({ initialOpenId = null }: {
 
   if (!openId) return <ThreadInbox onOpen={setOpenId} />;
 
-  return (
-    <div dir="rtl">
-      <button
-        onClick={() => setOpenId(null)}
-        // A real 44px target: the audit measures this, and a back affordance that
-        // misses is worse here than elsewhere because the thread has no other exit.
-        className="mb-2 -ms-2 flex min-h-[44px] items-center gap-1 px-2 text-sm text-brand-600"
-      >
-        <ChevronRight className="h-4 w-4" />
-        לכל השיחות
-      </button>
-      <AcademyThreadPanel athleteId={openId} />
-    </div>
-  );
+  return <AcademyThreadPanel athleteId={openId} onBack={() => setOpenId(null)} />;
 }

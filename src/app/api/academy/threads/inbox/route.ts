@@ -54,7 +54,7 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
     const { data: rows, error } = await supabase
       .from('athletes')
-      .select('id, name, is_academy, academy_coach_id')
+      .select('id, name, is_academy, academy_coach_id, avatar_url, gender')
       .eq('coach_id', COACH_ID);
     if (error) {
       // The pairing column arrives with migration 077. Without it there is no
@@ -83,6 +83,8 @@ export async function GET(request: Request) {
       roster.map(a => [a.id, snapshotFromMessages(a.id, a.name || a.id, [], 0)]),
     );
     const channelToAthlete = new Map(roster.map(a => [academyChannelId(a.id), a.id]));
+    // The chat list's ✓✓: has the trainee read past the newest message.
+    const seen = new Map<string, boolean>();
 
     let streamError: string | null = null;
     try {
@@ -127,7 +129,10 @@ export async function GET(request: Request) {
             unread = 0;
           }
 
-          byId.set(athleteId, snapshotFromMessages(athleteId, base.name, ch.state.messages ?? [], unread));
+          const snap = snapshotFromMessages(athleteId, base.name, ch.state.messages ?? [], unread);
+          byId.set(athleteId, snap);
+          const lastRead = ch.state?.read?.[athleteId]?.last_read;
+          if (snap.lastAt && lastRead) seen.set(athleteId, new Date(lastRead).getTime() >= Date.parse(snap.lastAt));
         }
       }
 
@@ -152,10 +157,26 @@ export async function GET(request: Request) {
     // in purple, the coach in green (academy-dash.html). Read-only, a display field.
     const pairs = coachMap ?? await coachIdsByTrainee(supabase, undefined, academyRows);
     const nameOf = new Map((rows || []).map(a => [a.id, a.name || '']));
+    const avatarOf = new Map((rows || []).map(a => [a.id, (a as { avatar_url?: string | null }).avatar_url ?? null]));
+    const viewer = (rows || []).find(a => a.id === caller.athleteId) as { gender?: string | null } | undefined;
+    let viewerGender = viewer?.gender ?? null;
+    if (!viewer && caller.athleteId) {
+      const { data: me } = await supabase.from('athletes').select('gender').eq('id', caller.athleteId).maybeSingle();
+      viewerGender = (me as { gender?: string | null } | null)?.gender ?? null;
+    }
     const inbox = buildInbox([...byId.values()]);
     return NextResponse.json({
       ...inbox,
-      rows: inbox.rows.map(r => ({ ...r, coachNames: coachesOf(pairs, r.athleteId).map(id => nameOf.get(id) || '').filter(Boolean) })),
+      rows: inbox.rows.map(r => ({
+        ...r,
+        coachNames: coachesOf(pairs, r.athleteId).map(id => nameOf.get(id) || '').filter(Boolean),
+        // The chat list (lib/academy/chat-list.ts): "שלי", ✓✓, the photo.
+        mine: !!caller.athleteId && coachesOf(pairs, r.athleteId).includes(caller.athleteId),
+        seenByTrainee: seen.get(r.athleteId) ?? false,
+        avatarUrl: avatarOf.get(r.athleteId) ?? null,
+      })),
+      viewerId: caller.athleteId,
+      viewerGender,
       scope: isManager ? 'academy' : 'coach',
       ...(streamError ? { degraded: true } : {}),
     });

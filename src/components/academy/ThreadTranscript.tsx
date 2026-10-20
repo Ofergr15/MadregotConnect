@@ -82,8 +82,14 @@ export function ThreadTranscript({
   className,
   layout = 'inline',
   readOnly,
+  seenAt = null,
+  quickReplies,
 }: {
   messages: ThreadMessage[];
+  /** When the trainee last read the thread: "נקרא ✓✓" under the viewer's newest message. */
+  seenAt?: string | null;
+  /** Chips above the composer that fill it with a ready line (the chat mockup's quick row). */
+  quickReplies?: string[];
   /** Which seat is looking. Their own messages are the ones that sit on the end. */
   viewerSeat: ThreadSeat;
   /**
@@ -169,12 +175,21 @@ export function ThreadTranscript({
       ) : (
         <div className="space-y-2.5 py-1">
           <SeatLegend />
-          {visible.map((m, i) => (
-            <div key={m.id}>
-              {needsDaySeparator(visible, i) && <DaySeparator at={m.at} />}
-              <Bubble message={m} mine={isMine(m, viewerSeat, viewerId)} segments={segments} />
-            </div>
-          ))}
+          {visible.map((m, i) => {
+            const mine = isMine(m, viewerSeat, viewerId);
+            const last = i === visible.length - 1;
+            return (
+              <div key={m.id}>
+                {needsDaySeparator(visible, i) && <DaySeparator at={m.at} />}
+                <Bubble message={m} mine={mine} segments={segments} />
+                {mine && last && viewerSeat !== 'trainee' && (
+                  <p className="mt-0.5 px-10 text-[11px] text-ink-400">
+                    {seenAt && Date.parse(seenAt) >= Date.parse(m.at) ? <><b className="text-brand-600">✓✓</b> נקרא</> : <>✓ נשלח</>}
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -197,6 +212,15 @@ export function ThreadTranscript({
           </span>
         </button>
       )}
+
+      {onSend && !readOnly && quickReplies?.length ? (
+        <div className={cn('mt-2 flex gap-1.5 overflow-x-auto [scrollbar-width:none]', isSheet && 'shrink-0')}>
+          {quickReplies.map((q) => (
+            <button key={q} type="button" onClick={() => setDraft((d) => (d.trim() ? `${d.trim()} ${q}` : q))}
+              className="min-h-[34px] shrink-0 rounded-full border border-brand-600/25 px-3 text-[12.5px] font-bold text-brand-600">{q}</button>
+          ))}
+        </div>
+      ) : null}
 
       {onSend && !readOnly && (
         <div className={cn('mt-2 flex items-end gap-2', isSheet && 'shrink-0 border-t border-page pt-2')}>
@@ -273,10 +297,12 @@ function Bubble({
   const style = SEAT_STYLE[seat];
   return (
     <div className={cn('flex items-end gap-2', mine ? 'flex-row-reverse' : 'flex-row')}>
-      <SeatAvatar seat={seat} name={authorName} />
+      {mine ? <span className="w-[30px] shrink-0" /> : <SeatAvatar seat={seat} name={authorName} />}
+      {/* Mine: the solid blue bubble of any chat app (mockup academy-chat). Others keep
+          their seat's tint and name, because three seats share this thread. */}
       <div
-        className="max-w-[78%] rounded-2xl border-s-[3px] px-3 py-2 text-ink-700"
-        style={{ background: style.bg, borderInlineStartColor: style.ink }}
+        className={cn('max-w-[78%] rounded-[20px] px-3 py-2', mine ? 'rounded-es-md bg-brand-600 text-white' : 'rounded-ee-md border-s-[3px] text-ink-700')}
+        style={mine ? undefined : { background: style.bg, borderInlineStartColor: style.ink }}
       >
         {!mine && (
           <div className="mb-0.5 flex items-center gap-1 text-[12px] font-extrabold" style={{ color: style.ink }}>
@@ -291,7 +317,7 @@ function Bubble({
           <BidiText text={text} />
         </p>
         {/* 11px, not 10: the audit's floor. */}
-        <div className="mt-0.5 text-[11px] text-ink-400">
+        <div className={cn('mt-0.5 text-[11px]', mine ? 'text-white/75' : 'text-ink-400')}>
           {fmtTime(at)}
         </div>
       </div>

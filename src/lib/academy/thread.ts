@@ -88,6 +88,9 @@ export interface ThreadSnapshot {
    */
   lastText?: string | null;
   lastFromTrainee?: boolean;
+  /** The newest message's time and author (the chat list: "when", and "אני:" on mine). */
+  lastAt?: string | null;
+  lastAuthorId?: string | null;
 }
 
 /**
@@ -127,7 +130,7 @@ export function snapshotFromMessages(
 ): ThreadSnapshot {
   let lastTraineeMessageAt: string | null = null;
   let lastStaffMessageAt: string | null = null;
-  let newest: { at: number; text: string | null; fromTrainee: boolean } | null = null;
+  let newest: { at: number; text: string | null; fromTrainee: boolean; author: string | null } | null = null;
 
   for (const m of messages) {
     if (!m.created_at) continue;
@@ -138,7 +141,7 @@ export function snapshotFromMessages(
     const isTrainee = author === athleteId;
     if (!newest || stamp.getTime() > newest.at) {
       const text = typeof m.text === 'string' && m.text.trim() ? m.text.trim().slice(0, 140) : null;
-      newest = { at: stamp.getTime(), text, fromTrainee: isTrainee };
+      newest = { at: stamp.getTime(), text, fromTrainee: isTrainee, author };
     }
     const slot = isTrainee ? lastTraineeMessageAt : lastStaffMessageAt;
     // Not assuming the caller sorted them: Stream returns oldest-first here and
@@ -154,6 +157,8 @@ export function snapshotFromMessages(
     athleteId, name, lastTraineeMessageAt, lastStaffMessageAt, unreadCount,
     lastText: newest?.text ?? null,
     lastFromTrainee: newest?.fromTrainee ?? false,
+    lastAt: newest ? new Date(newest.at).toISOString() : null,
+    lastAuthorId: newest?.author ?? null,
   };
 }
 

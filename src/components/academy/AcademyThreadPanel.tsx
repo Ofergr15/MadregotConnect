@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, MessageCircleOff } from 'lucide-react';
+import { ChevronRight, Loader2, MessageCircleOff } from 'lucide-react';
+import { ChatAvatar } from './ChatList';
 import type { Channel as StreamChannel, StreamChat } from 'stream-chat';
 import { getSupabase } from '@/lib/supabase/client';
 import { apiHeaders, useApi } from '@/lib/api';
@@ -68,6 +69,8 @@ interface PanelProps {
   className?: string;
   /** See ThreadTranscript — `sheet` pins the composer and scrolls the transcript. */
   layout?: 'inline' | 'sheet';
+  /** Staff chat screen: a header with the trainee and a back arrow (mockup academy-chat, 2). */
+  onBack?: () => void;
 }
 
 export function AcademyThreadPanel(props: PanelProps) {
@@ -80,7 +83,7 @@ export function AcademyThreadPanel(props: PanelProps) {
 }
 
 /** The transcript from GET /api/academy/threads/messages, no Stream, nothing sent. */
-function ReadOnlyAcademyThread({ athleteId, segments, className, layout }: PanelProps) {
+function ReadOnlyAcademyThread({ athleteId, segments, className, layout, onBack }: PanelProps) {
   const t = useTranslations('viewAs');
   const { data, error } = useApi<{ messages: ThreadMessage[]; seat: ThreadSeat; viewerId: string | null }>(
     `/api/academy/threads/messages${athleteId ? `?athleteId=${encodeURIComponent(athleteId)}` : ''}`,
@@ -100,7 +103,7 @@ function ReadOnlyAcademyThread({ athleteId, segments, className, layout }: Panel
       </div>
     );
   }
-  return (
+  const transcript = (
     <ThreadTranscript
       messages={data.messages}
       viewerSeat={data.seat}
@@ -111,6 +114,15 @@ function ReadOnlyAcademyThread({ athleteId, segments, className, layout }: Panel
       readOnly={{ label: t('readOnly'), onTap: announceReadOnly }}
     />
   );
+  if (!onBack) return transcript;
+  return (
+    <div dir="rtl">
+      <button type="button" onClick={onBack} className="mb-2 -ms-2 flex min-h-[44px] items-center gap-1 px-2 text-sm text-brand-600">
+        <ChevronRight className="h-4 w-4" /> לכל השיחות
+      </button>
+      {transcript}
+    </div>
+  );
 }
 
 function LiveAcademyThreadPanel({
@@ -118,6 +130,7 @@ function LiveAcademyThreadPanel({
   segments,
   className,
   layout,
+  onBack,
 }: PanelProps) {
   const [supabaseToken, setSupabaseToken] = useState<string | null>(null);
   const [thread, setThread] = useState<OpenedThread | null>(null);
@@ -161,9 +174,17 @@ function LiveAcademyThreadPanel({
 
   if (error) {
     return (
-      <div className="flex items-center gap-2 py-6 text-xs text-ink-400" dir="rtl">
-        <MessageCircleOff className="h-3.5 w-3.5" />
-        {error}
+      <div dir="rtl">
+        {/* The thread has no other exit on the chat screen, so a failed open keeps the way back. */}
+        {onBack && (
+          <button type="button" onClick={onBack} className="-ms-2 flex min-h-[44px] items-center gap-1 px-2 text-sm text-brand-600">
+            <ChevronRight className="h-4 w-4" /> לכל השיחות
+          </button>
+        )}
+        <div className="flex items-center gap-2 py-6 text-xs text-ink-400">
+          <MessageCircleOff className="h-3.5 w-3.5" />
+          {error}
+        </div>
       </div>
     );
   }
@@ -185,9 +206,13 @@ function LiveAcademyThreadPanel({
       segments={segments}
       className={className}
       layout={layout}
+      onBack={onBack}
     />
   );
 }
+
+/** Lines a coach sends a lot, one tap into the composer. */
+const STAFF_QUICK = ['איך הרגיש האימון?', 'ראיתי את הריצה 👏', 'מעולה, ממשיכים ככה 💪', 'בוא נדבר על השבוע'];
 
 function ConnectedAcademyThread({
   tokenData,
@@ -195,7 +220,9 @@ function ConnectedAcademyThread({
   segments,
   className,
   layout,
+  onBack,
 }: {
+  onBack?: () => void;
   tokenData: StreamTokenData;
   thread: OpenedThread;
   segments?: SegmentVerdict[];
@@ -207,8 +234,11 @@ function ConnectedAcademyThread({
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [seenAt, setSeenAt] = useState<string | null>(null);
 
   const sync = useCallback((ch: StreamChannel) => {
+    const read = ch.state?.read?.[thread.athleteId]?.last_read;
+    setSeenAt(read ? new Date(read).toISOString() : null);
     setMessages(toThreadMessages(
       (ch.state.messages ?? []) as unknown as StreamMessageLike[],
       { athleteId: thread.athleteId, mentorId: thread.mentorIds?.length ? thread.mentorIds : thread.mentorId },
@@ -244,6 +274,8 @@ function ConnectedAcademyThread({
       ch.on('message.new', onEvent),
       ch.on('message.updated', onEvent),
       ch.on('message.deleted', onEvent),
+      // The trainee opening the thread turns "✓ נשלח" into "✓✓ נקרא" live.
+      ch.on('message.read', onEvent),
     ];
 
     return () => {
@@ -293,7 +325,7 @@ function ConnectedAcademyThread({
     );
   }
 
-  return (
+  const transcript = (
     <ThreadTranscript
       messages={messages}
       viewerSeat={thread.seat}
@@ -304,6 +336,28 @@ function ConnectedAcademyThread({
       error={error}
       className={className}
       layout={layout}
+      seenAt={seenAt}
+      quickReplies={thread.seat === 'trainee' ? undefined : STAFF_QUICK}
     />
+  );
+  if (!onBack) return transcript;
+  return (
+    <div dir="rtl">
+      <ThreadHeader name={thread.name} athleteId={thread.athleteId} onBack={onBack} />
+      {transcript}
+    </div>
+  );
+}
+
+function ThreadHeader({ name, athleteId, onBack }: { name: string; athleteId: string; onBack: () => void }) {
+  return (
+    <div className="-mx-1 mb-2 flex items-center gap-2.5 border-b border-page pb-2">
+      <button type="button" onClick={onBack} aria-label="לכל השיחות"
+        className="grid h-11 w-11 shrink-0 place-items-center text-brand-600">
+        <ChevronRight className="h-6 w-6" />
+      </button>
+      <ChatAvatar row={{ athleteId, name }} size={38} />
+      <b className="min-w-0 flex-1 truncate text-[16px] text-ink-900" dir="auto">{name}</b>
+    </div>
   );
 }
