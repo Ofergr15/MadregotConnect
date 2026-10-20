@@ -17,7 +17,7 @@
 import { formatActivityTime } from '@/lib/utils';
 import type { FeedItem, FeedActivity } from './project';
 import { markLogo, recordHitMap, type ShareHitMap } from '@/lib/share/hit-map';
-import { mainSet, onTarget, type PlanSegment } from '@/lib/share/plan-segments';
+import { mainSet, onTarget, workoutHeadline, type PlanSegment } from '@/lib/share/plan-segments';
 
 /**
  * What the KM Splits view charts. `blocks` / `full` are the workout the watch ran
@@ -223,6 +223,9 @@ export interface ShareI18n {
   hr: string;
   /** Label for the start-of-run clock time — "Started" / "התחלה". */
   start: string;
+  /** A workout's reps on target — "ביעד" over "9/10" — and their average pace. */
+  onTarget: string;
+  repPace: string;
   /** Labels the newer views need, which the original three never printed. */
   distance: string;
   elevation: string;
@@ -839,10 +842,10 @@ function distanceKm(act: FeedActivity): string {
  * for the same reason it was appended last to `secondaryStats` — the stats athletes
  * already know keep their positions.
  */
-export type WorkoutMetricKey = 'km' | 'pace' | 'time' | 'elev' | 'cal' | 'hr' | 'start';
+export type WorkoutMetricKey = 'km' | 'reps' | 'repPace' | 'pace' | 'time' | 'elev' | 'cal' | 'hr' | 'start';
 
 export const WORKOUT_METRIC_KEYS: WorkoutMetricKey[] = [
-  'km', 'pace', 'time', 'elev', 'cal', 'hr', 'start',
+  'km', 'reps', 'repPace', 'pace', 'time', 'elev', 'cal', 'hr', 'start',
 ];
 
 const WORKOUT_METRICS: Record<WorkoutMetricKey, {
@@ -853,6 +856,18 @@ const WORKOUT_METRICS: Record<WorkoutMetricKey, {
   km: {
     has: act => act.distance > 0,
     stat: (act, i18n) => ({ value: distanceKm(act), unit: i18n.km, label: i18n.distance }),
+  },
+  // A workout the watch ran: how many reps met the target, and their average pace.
+  reps: {
+    has: act => workoutHeadline(act.stepBands)?.hit != null,
+    stat: (act, i18n) => {
+      const h = workoutHeadline(act.stepBands)!;
+      return { value: `${h.hit}/${h.reps}`, label: i18n.onTarget };
+    },
+  },
+  repPace: {
+    has: act => !!workoutHeadline(act.stepBands),
+    stat: (act, i18n) => ({ value: formatPace(workoutHeadline(act.stepBands)!.repPace), unit: i18n.perKm, label: i18n.repPace }),
   },
   pace: {
     has: act => !!act.averagePace,

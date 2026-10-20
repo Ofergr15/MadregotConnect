@@ -116,7 +116,7 @@ const STEP_ICON: Record<FlowStep, React.ComponentType<{ className?: string }>> =
 
 export default function EntryQueuePage() {
   const t = useTranslations('entryQueue');
-  const { data, isLoading, mutate } = useApi<QueueResponse>('/api/admin/entry-queue');
+  const { data, error: loadError, isLoading, mutate } = useApi<QueueResponse>('/api/admin/entry-queue');
   // The allowlist comes back only to an approver, and it is what "shut them back
   // out" needs to write. Its absence — not `maintenance` — is what hides that
   // action, exactly as on the roster.
@@ -489,13 +489,30 @@ export default function EntryQueuePage() {
     return m.lastSeenAt || m.approvedAt || m.createdAt;
   };
 
+  // Words while it loads, not only grey blocks: opened from the "new sign-up" push, a
+  // screen of skeletons read as a white, stuck page (Ofer, 2026-10-20).
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4" role="status" aria-busy="true">
+        <p className="text-sm font-bold text-ink-400">{t('loading')}</p>
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-48 w-full rounded-card" />
         {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-52 w-full rounded-card" />)}
       </div>
+    );
+  }
+
+  // A failed read is said, with a way to try again — not drawn as an empty queue,
+  // which would tell the coach nobody is waiting.
+  if (loadError && !data) {
+    return (
+      <Card variant="solid" className="space-y-3 text-center">
+        <p className="font-bold text-ink-700">{t('loadFailed')}</p>
+        <Button variant="primary" onClick={() => void mutate()}>
+          <RotateCcw className="h-4 w-4" />
+          {t('retry')}
+        </Button>
+      </Card>
     );
   }
 

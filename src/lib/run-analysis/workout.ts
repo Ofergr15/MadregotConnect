@@ -106,8 +106,12 @@ export function readWorkout(laps: WLap[] | null | undefined, executed: { steps?:
   const cand = segs.filter((s) => s.kind === 'rep');
   const byLen = new Map<number, Seg[]>();
   for (const s of cand) { const k = Math.round(s.meters / 100) * 100; byLen.set(k, [...(byLen.get(k) || []), s]); }
-  const [len, reps] = [...byLen].sort((a, b) => b[1].length - a[1].length || b[0] - a[0])[0] ?? [0, []];
-  if (reps.length < 2) return null;
+  const [len, full] = [...byLen].sort((a, b) => b[1].length - a[1].length || b[0] - a[0])[0] ?? [0, []];
+  if (full.length < 2) return null;
+  // A last rep the watch was stopped inside (2026-10-20: 10 × 1600 ending at 1,143 m) is
+  // still a rep of the session — named and scored with the rest, as the share card does.
+  const last = cand[cand.length - 1];
+  const reps = last && !full.includes(last) && last === segs[segs.length - 1] && last.meters >= len * 0.6 && last.meters < len ? [...full, last] : full;
   for (const s of cand) if (!reps.includes(s)) s.kind = 'run';
   const recs = segs.filter((s, i) => s.kind === 'recovery' && segs[i - 1]?.kind === 'rep');
   const recLen = recs.length >= 2 ? Math.round(recs.map((r) => r.meters).sort((a, b) => a - b)[recs.length >> 1] / 50) * 50 : null;

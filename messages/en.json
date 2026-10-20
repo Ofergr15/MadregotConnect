@@ -3318,7 +3318,10 @@
     "dupConfidence_near": "Maybe",
     "dupConfidence_weak": "Similar name",
     "openLog": "Registration log",
-    "openLogHint": "Everybody who signed up, rejections included · re-send a join link · copy a link"
+    "openLogHint": "Everybody who signed up, rejections included · re-send a join link · copy a link",
+    "loading": "Loading the entry queue…",
+    "loadFailed": "Couldn't load the entry queue",
+    "retry": "Try again"
   },
   "upcoming": {
     "title": "Coming up",

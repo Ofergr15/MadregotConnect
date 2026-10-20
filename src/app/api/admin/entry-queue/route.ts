@@ -68,10 +68,12 @@ function isMissingColumn(code?: string) {
  */
 async function readOrphanRequests(
   supabase: ReturnType<typeof createServerClient>,
-  athleteEmails: Set<string>,
+  // A promise, so this read runs alongside the roster instead of after it.
+  athleteEmailsP: Promise<Set<string>>,
 ): Promise<PendingSignupRequest[]> {
   const WITH_SOURCE = 'id, email, source, created_at, group_id, athlete_id';
   const first = await supabase.from('signup_requests').select(WITH_SOURCE).eq('status', 'pending');
+  const athleteEmails = await athleteEmailsP;
   const { data, error } = isMissingColumn(first.error?.code)
     ? await supabase
         .from('signup_requests')
@@ -163,37 +165,42 @@ export async function GET(request: Request) {
     if (denied) return denied;
 
     const supabase = createServerClient();
-    const state = await readMaintenance();
 
-    let { data: rows, error } = await supabase.from('athletes').select(FULL_COLUMNS);
-    if (isMissingColumn(error?.code)) {
-      ({ data: rows, error } = await supabase.from('athletes').select(PRE_100_COLUMNS));
+    // Every read at once. They were one after another — about ten round trips, the
+    // whole roster and every auth user among them — and the screen sat on its grey
+    // skeleton for seconds: opened from the "new sign-up" push it read as a white
+    // screen (Ofer, 2026-10-20). None of these depends on another.
+    const athletesP = (async () => {
+      let { data: rows, error } = await supabase.from('athletes').select(FULL_COLUMNS);
       if (isMissingColumn(error?.code)) {
-        ({ data: rows, error } = await supabase.from('athletes').select(BASE_COLUMNS));
+        ({ data: rows, error } = await supabase.from('athletes').select(PRE_100_COLUMNS));
+        if (isMissingColumn(error?.code)) {
+          ({ data: rows, error } = await supabase.from('athletes').select(BASE_COLUMNS));
+        }
       }
-    }
-    if (error) throw error;
-
-    const athletes = (rows || []) as Array<Record<string, unknown>>;
-
-    // Group names and push counts in one round trip each, not one per member.
-    const { data: groups } = await supabase.from('groups').select('id, name');
+      if (error) throw error;
+      return (rows || []) as Array<Record<string, unknown>>;
+    })();
+    const emailsP = athletesP.then((list) => new Set(list.map((a) => String(a.email || '').toLowerCase().trim()).filter(Boolean)), () => new Set<string>());
+    const [state, athletes, { data: groups }, { data: subs }, { data: left }, authFacts, orphanRequests] = await Promise.all([
+      readMaintenance(),
+      athletesP,
+      // Group names and push counts in one round trip each, not one per member.
+      supabase.from('groups').select('id, name'),
+      supabase.from('push_subscriptions').select('athlete_id'),
+      // The address each waiting Strava sign-in left (migration 140): how the approval
+      // will reach them, shown on their card. Missing column = nobody has one.
+      supabase.from('signup_requests').select('athlete_id, notify_email')
+        .eq('status', 'pending').not('athlete_id', 'is', null).not('notify_email', 'is', null),
+      // The login evidence. Null = we couldn't look; see readAuthFacts.
+      readAuthFacts(supabase),
+      // The applicants who have no athlete row yet — see the note at the response.
+      readOrphanRequests(supabase, emailsP),
+    ]);
     const groupName = new Map((groups || []).map((g: { id: string; name: string }) => [g.id, g.name]));
-
-    const { data: subs } = await supabase.from('push_subscriptions').select('athlete_id');
     const pushed = new Set((subs || []).map((s: { athlete_id: string }) => s.athlete_id));
-
-    // The address each waiting Strava sign-in left (migration 140): how the approval
-    // will reach them, shown on their card. Missing column = nobody has one.
     const notifyEmails = new Map<string, string>();
-    {
-      const { data: left } = await supabase.from('signup_requests').select('athlete_id, notify_email')
-        .eq('status', 'pending').not('athlete_id', 'is', null).not('notify_email', 'is', null);
-      for (const r of (left || []) as Array<{ athlete_id: string; notify_email: string }>) notifyEmails.set(r.athlete_id, r.notify_email);
-    }
-
-    // The login evidence. Null = we couldn't look; see readAuthFacts.
-    const authFacts = await readAuthFacts(supabase);
+    for (const r of (left || []) as Array<{ athlete_id: string; notify_email: string }>) notifyEmails.set(r.athlete_id, r.notify_email);
 
     // ── "ISN'T THIS SOMEBODY WE ALREADY HAVE?" ────────────────────────────────
     //
@@ -279,20 +286,12 @@ export async function GET(request: Request) {
       };
     });
 
-    // ── the applicants who have no athlete row yet ───────────────────────────
+    // ── the applicants who have no athlete row yet (read above, in parallel) ──
     // Two things make a pending signup_request invisible above: no athlete_id, and
     // no athlete carrying the same address. Those are the /register applicants, and
     // they are the only rows the retired בקשות הרשמה tab held on its own. Backfilled
     // rows (source='club-backfill', 23 of the 24 pending in production) always have
     // an athlete_id, so they are already members up there and are NOT repeated here.
-    const orphanRequests = await readOrphanRequests(
-      supabase,
-      new Set(
-        athletes
-          .map((a) => String(a.email || '').toLowerCase().trim())
-          .filter(Boolean),
-      ),
-    );
 
     return NextResponse.json({
       maintenance: state.on,

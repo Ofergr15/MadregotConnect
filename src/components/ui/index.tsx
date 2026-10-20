@@ -193,8 +193,10 @@ export function EmptyState({
 }
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
+// aria-busy: a screen of skeletons is loading, not empty — the blank-screen probe
+// (ClientEventReporter) reads it that way and looks again at 10 s instead of filing it.
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn('animate-pulse rounded-lg bg-ink-300/50', className)} />;
+  return <div aria-busy="true" className={cn('animate-pulse rounded-lg bg-ink-300/50', className)} />;
 }
 
 // A card-shaped skeleton for list/stat loading.

@@ -198,6 +198,18 @@ async function runSync(request: Request) {
     snapshot = { error: String(e?.message || e) };
   }
 
+  // Once a day, members' Strava photos whose stored URL stopped loading (a photo
+  // changed on Strava). Here, ahead of the history passes: last in line it never ran —
+  // they spend the tick and the bonus budget was always gone. A few HEADs, once a day.
+  // See lib/strava/avatar-refresh.
+  let stravaAvatars: any = null;
+  try {
+    stravaAvatars = await refreshStaleStravaAvatars(createServerClient());
+  } catch (e: any) {
+    stravaAvatars = { error: String(e?.message || e) };
+  }
+
+
   // The three passes below repair HISTORY; each waits for the next tick rather
   // than start with too little time left to finish.
   const bonusSkipped: string[] = [];
@@ -249,16 +261,6 @@ async function runSync(request: Request) {
     garminHistory = await runScheduledHistoryBackfill(createServerClient());
   } catch (e: any) {
     garminHistory = { error: String(e?.message || e) };
-  }
-
-  // Once a day, members' Strava photos whose stored URL stopped loading (a photo
-  // changed on Strava). Isolated like the passes above. See lib/strava/avatar-refresh.
-  let stravaAvatars: any = null;
-  if (left() < BONUS_MIN_MS) bonusSkipped.push('stravaAvatars');
-  else try {
-    stravaAvatars = await refreshStaleStravaAvatars(createServerClient());
-  } catch (e: any) {
-    stravaAvatars = { error: String(e?.message || e) };
   }
 
   const skipped = bonusSkipped.length ? bonusSkipped : undefined;
