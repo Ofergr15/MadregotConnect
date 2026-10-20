@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireBirthdayAdmin } from '@/lib/birthday-year/access';
+import { readStorySettings } from '@/lib/stories/gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,7 @@ const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
 export async function POST(request: Request) {
   const { denied } = await requireBirthdayAdmin(request);
   if (denied) return denied;
+  if (((await readStorySettings('birthday'))?.state ?? 'off') === 'off') return NextResponse.json({ error: 'birthday stories are off' }, { status: 409 });
   try {
     const form = await request.formData();
     const file = form.get('file') as File | null;

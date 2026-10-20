@@ -5,6 +5,7 @@ import { loadClubNumbers } from '@/lib/club-numbers/server';
 import { cachedNumbers, clubManagers, isClubAdmin, keepNumbers, mayViewNumbers } from '@/lib/club-numbers/access';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 // GET /api/admin/club-numbers — "מדרגות במספרים" (lib/club-numbers), for the admin and the
 // "מנהלי מדרגות" (lib/club-numbers/access). `?fresh=1` skips the cache.

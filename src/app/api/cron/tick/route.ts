@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { sendEveningWatchReminders } from '@/lib/watch/evening-reminder';
 import { sendMeetupReminders } from '@/lib/runs/meetups-server';
-import { publishBirthdayPosts } from '@/lib/feed/birthday';
-import { sendBirthdayYearPushes } from '@/lib/birthday-year/server';
+import { publishBirthdayPosts } from '@/lib/feed/birthday-publish';
+import { runAnnualStoryPushes, runBirthdayStoryPushes } from '@/lib/stories/runners';
 import { createServerClient } from '@/lib/supabase/server';
 import { sendPushLocalized, resolveAudience, subscriptionsForAthletes, allAthleteIds, persistNotifications, localesForAthletes, notifyAthlete } from '@/lib/push';
 import {
@@ -865,19 +865,23 @@ async function run(request: Request) {
     }
   }
 
-  // From 07:00, once a day: the birthday person's own year story (lib/birthday-year),
-  // while the admin's "שליחה לחוגגים" switch is on.
-  if (hour >= 7) {
-    const tag = `birthdayYear:${israelToday(now)}`;
+  // The birthday and annual stories (lib/stories/runners.ts), on EVERY tick: each person's
+  // publish time can differ (an override: 07:30, "דחה למחר"), so there is no once-a-day
+  // tag here. THE STORIES GATE decides who; the story_instances claim (pushed_at) makes a
+  // tick that runs twice send once. Both are closed while their feature is 'off'.
+  if (hour >= 6) {
     try {
-      if (!(await already(tag))) {
-        const n = await sendBirthdayYearPushes(supabase, israelToday(now));
-        await markFired(tag, n);
-        fired.push(`${tag} → ${n}`);
-      }
+      const n = await runBirthdayStoryPushes(supabase, now, { already, markFired });
+      if (n) fired.push(`story:birthday → ${n}`);
     } catch (err) {
-      console.error('[tick] birthday year push failed:', err);
+      console.error('[tick] birthday story push failed:', err);
     }
+  }
+  try {
+    const n = await runAnnualStoryPushes(supabase, now, { already, markFired });
+    if (n) fired.push(`story:annual → ${n}`);
+  } catch (err) {
+    console.error('[tick] annual story push failed:', err);
   }
 
   // 20:00, once a night: runners whose session for tomorrow was sent and is not on their

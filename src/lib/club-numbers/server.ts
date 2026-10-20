@@ -6,6 +6,8 @@ import { addDays, computeClubNumbers, type NAthlete, type NCandidate, type NRun 
 
 type Db = ReturnType<typeof createServerClient>;
 
+const nextMonth = (iso: string) => { const y = Number(iso.slice(0, 4)), m = Number(iso.slice(5, 7)); return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`; };
+
 /** Every table "מדרגות במספרים" reads, in one round of queries. A table that is not there yet reads as empty. */
 export async function loadClubNumbers(supabase: Db, today = israelToday()) {
   const from = addDays(`${today.slice(0, 4)}-01-01`, -7);
@@ -21,9 +23,17 @@ export async function loadClubNumbers(supabase: Db, today = israelToday()) {
     safe(supabase.from('weekly_plans').select('athlete_id').not('athlete_id', 'is', null).limit(5000)),
     safe(supabase.from('app_settings').select('key, value').in('key', ['reminder_config'])),
   ]);
-  const runs = await fetchAllRows<{ athlete_id: string; start_time: string; distance: number | null; duration: number | null; moving_duration: number | null; activity_type: string }>((a, b) =>
+  // One window per month, all at once: eight pages read one after the other took ~8 s, most of
+  // a serverless function's budget, before anything was computed.
+  type RunRow = { athlete_id: string; start_time: string; distance: number | null; duration: number | null; moving_duration: number | null; activity_type: string };
+  const windows: Array<[string, string]> = [];
+  for (let m = from; m <= today; ) {
+    const next = m < `${today.slice(0, 4)}-01-01` ? `${today.slice(0, 4)}-01-01` : `${nextMonth(m)}`;
+    windows.push([m, next]); m = next;
+  }
+  const runs = (await Promise.all(windows.map(([a0, b0]) => fetchAllRows<RunRow>((a, b) =>
     supabase.from('athlete_activities').select('id, athlete_id, start_time, distance, duration, moving_duration, activity_type')
-      .gte('start_time', `${from}T00:00:00`).order('id').range(a, b));
+      .gte('start_time', `${a0}T00:00:00`).lt('start_time', `${b0}T00:00:00`).order('id').range(a, b))))).flat();
 
   const G = new Map((groups as Array<{ id: string; name: string }>).map((g) => [g.id, g.name]));
   const B = new Map((bands as Array<{ id: string; band_number: number }>).map((b) => [b.id, b.band_number]));
