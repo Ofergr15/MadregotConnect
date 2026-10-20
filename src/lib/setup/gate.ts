@@ -1,6 +1,6 @@
 /**
  * The setup a new member finishes before the app opens (mockup join-flow-mockup.html,
- * Ofer 2026-10-20): install, a watch (or "I have none"), notifications, and the details
+ * Ofer 2026-10-20): install, Garmin (or "I have none" — Strava came with the sign-in), notifications, and the details
  * the coach needs — only what is missing. Pure: the screen asks it which steps remain.
  */
 
@@ -12,7 +12,10 @@ export interface SetupFacts {
   installed: boolean;
   /** A computer has nothing to install and no push to grant here. */
   phone: boolean;
-  connected: boolean;
+  /** Members sign in with Strava, so it is usually there before setup starts. */
+  strava: boolean;
+  garmin: boolean;
+  /** "No Garmin" — the watch step passes without it (notification_prefs.setup.noWatch). */
   noWatch: boolean;
   push: boolean;
   birthDate: string | null;
@@ -29,7 +32,9 @@ export function remainingSteps(f: SetupFacts): SetupStep[] {
   const d = missingDetails(f);
   return SETUP_ORDER.filter((s) => {
     if (s === 'install') return f.phone && !f.installed;
-    if (s === 'watch') return !f.connected && !f.noWatch;
+    // The step is Garmin: it is the one that can push workouts to the watch, and Strava
+    // came with the sign-in. Shown until Garmin is linked or they say they have none.
+    if (s === 'watch') return !f.garmin && !f.noWatch;
     // On iPhone a push needs the installed app: asked once installed (or on Android).
     if (s === 'push') return f.phone && !f.push;
     return d.birthDate || d.height || d.sizes;

@@ -32,6 +32,8 @@ export interface StreamView {
   hr?: Array<number | null>;
   elev?: Array<number | null>;
   cad?: Array<number | null>;
+  /** Running power, watts — when the watch measures it. */
+  pw?: Array<number | null>;
 }
 
 export interface StreamKmSplit {
@@ -99,9 +101,11 @@ export function streamView(
   const hasHr = includeHr && Array.isArray(series.hr) && series.hr.length === t.length && series.hr.some(v => v > 0);
   const hasElev = Array.isArray(series.elev) && series.elev.length === t.length;
   const hasCad = Array.isArray(series.cad) && series.cad.length === t.length && series.cad.some(v => v > 0);
+  const hasPw = Array.isArray(series.pw) && series.pw.length === t.length && series.pw.some(v => v > 0);
   if (hasHr) view.hr = [];
   if (hasElev) view.elev = [];
   if (hasCad) view.cad = [];
+  if (hasPw) view.pw = [];
 
   let prevD = d[0];
   let prevT = t[0];
@@ -117,6 +121,7 @@ export function streamView(
     if (view.hr) view.hr.push(roundInt(mean(series.hr, s, e, true)));
     if (view.elev) view.elev.push(round1(mean(series.elev, s, e)));
     if (view.cad) view.cad.push(roundInt(mean(series.cad, s, e, true)));
+    if (view.pw) view.pw.push(roundInt(mean(series.pw, s, e, true)));
     prevD = endD;
     prevT = endT;
   }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { INSTALL_KEY } from '@/lib/auth/install-key';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,9 +14,13 @@ export const dynamic = 'force-dynamic';
 // start_url saves the /join address instead, and /join forwards from there.
 const TOKEN = /^[A-Za-z0-9_-]{8,128}$/;
 
+// `?k=<verifier>` (api/auth/install-key): the icon opens on /welcome?k=…, already
+// signed in — the login the member had in Safari, carried over once.
 export async function GET(request: Request) {
-  const t = new URL(request.url).searchParams.get('t') || '';
-  const start = TOKEN.test(t) ? `/welcome?t=${encodeURIComponent(t)}` : '/feed';
+  const q = new URL(request.url).searchParams;
+  const t = q.get('t') || '';
+  const k = q.get('k') || '';
+  const start = INSTALL_KEY.test(k) ? `/welcome?k=${encodeURIComponent(k)}` : TOKEN.test(t) ? `/welcome?t=${encodeURIComponent(t)}` : '/feed';
   return NextResponse.json({
     id: '/dashboard',
     name: 'Madregot After 2KM',

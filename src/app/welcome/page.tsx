@@ -15,6 +15,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { INSTALL_KEY } from '@/lib/auth/install-key';
 import { getSupabase } from '@/lib/supabase/client';
 import { ONBOARDING_V2_KEY } from '@/lib/install/v2';
 import { useIsComputer } from '@/lib/install/use-computer';
@@ -52,14 +53,29 @@ export default function WelcomePage() {
   useEffect(() => {
     setStandalone(isStandalone());
     setIos(isIosDevice());
-    const t = new URLSearchParams(window.location.search).get('t') || '';
+    const q = new URLSearchParams(window.location.search);
+    const t = q.get('t') || '';
+    // `k`: the icon was added from the setup's install step while signed in in Safari
+    // (api/auth/install-key) — its first open signs in by itself, once.
+    const k = q.get('k') || '';
     setToken(t);
     trackOnb('welcome_open', { token: t || null, once: true });
     // This IS the new flow's app: the rest of v2 (the notifications picture) follows it here.
-    try { localStorage.setItem(ONBOARDING_V2_KEY, '1'); } catch { /* private mode */ }
+    // Not for the setup's icon: the required setup (components/setup/SetupGate) owns that run.
+    if (!k) { try { localStorage.setItem(ONBOARDING_V2_KEY, '1'); } catch { /* private mode */ } }
     (async () => {
-      const { data } = await getSupabase().auth.getSession();
+      const supabase = getSupabase();
+      const { data } = await supabase.auth.getSession();
       if (data.session && localStorage.getItem('athlete_id')) { router.replace('/feed'); return; }
+      if (INSTALL_KEY.test(k)) {
+        const res = await fetch('/api/auth/claim-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verifier: k }) });
+        const got = res.ok ? await res.json().catch(() => null) : null;
+        if (got?.session?.access_token && got.session.refresh_token) {
+          const { error } = await supabase.auth.setSession({ access_token: got.session.access_token, refresh_token: got.session.refresh_token });
+          if (!error) { router.replace('/auth/resolve'); return; }
+        }
+        // Spent or expired: the ordinary sign-in below, nothing lost.
+      }
       if (!t) { setUnknown(true); return; }
       const res = await fetch('/api/auth/email-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'who', token: t }) });
       if (!res.ok) { setUnknown(true); return; }
