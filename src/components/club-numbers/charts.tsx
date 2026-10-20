@@ -118,6 +118,36 @@ export function WeekColumns({ weeks, km, soFar, lastSame, projected, height = 18
   );
 }
 
+/**
+ * A count per week as columns on the same axes as WeekColumns: this week in the strong colour,
+ * the rest soft, and the weeks that grew marked with their +n.
+ */
+export function CountColumns({ weeks, values, color, soft, nowLabel, height = 170 }: { weeks: string[]; values: number[]; color: string; soft: string; nowLabel: string; height?: number }) {
+  const W = 330, PL = 4, PR = 30, PT = 22, PB = 22, iw = W - PL - PR, ih = height - PT - PB;
+  const max = Math.max(1, ...values); const step = Math.max(1, niceStep(max, Math.min(4, max))); const top = Math.max(step, step * Math.ceil(max / step));
+  const n = values.length; const slot = iw / n; const bw = slot * 0.66;
+  const x = (i: number) => PL + i * slot + (slot - bw) / 2;
+  const y = (v: number) => PT + ih - (v / top) * ih;
+  return (
+    <svg viewBox={`0 0 ${W} ${height}`} className="block w-full" style={{ height, direction: 'ltr' }} role="img">
+      <Grid top={top} step={step} y={y} x0={PL} x1={PL + iw} W={W} />
+      {values.map((v, k) => {
+        const grew = k > 0 && v > values[k - 1];
+        const now = k === n - 1;
+        return (
+          <g key={weeks[k]}>
+            {v > 0 && <rect x={x(k)} y={y(v)} width={bw} height={y(0) - y(v)} rx={3} fill={now ? color : soft} />}
+            {grew && <text x={x(k) + bw / 2} y={y(v) - 5} textAnchor="middle" className="text-[10px] font-black" fill="#15803d">+{v - values[k - 1]}</text>}
+            {now && <text x={x(k) + bw / 2} y={y(v) - (grew ? 17 : 5)} textAnchor="middle" className="text-[11px] font-black" fill={color}>{v}</text>}
+            {now ? <text x={x(k) + bw / 2} y={height - 6} textAnchor="middle" className="text-[10px] font-bold" fill={color}>{nowLabel}</text>
+              : k % 3 === 0 && k < n - 2 && <text x={x(k) + bw / 2} y={height - 6} textAnchor="middle" className="fill-ink-400 text-[10px]">{dm(weeks[k])}</text>}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 /** Plain columns with a label under each; `hi` are drawn in the strong colour. */
 export function Columns({ values, labels, height = 110, hi, color = '#1525FF', soft = '#E3E5EC', showValues, format = fmt }: {
   values: number[]; labels: string[]; height?: number; hi?: number[]; color?: string; soft?: string; showValues?: number[]; format?: (v: number) => string;

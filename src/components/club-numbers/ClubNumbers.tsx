@@ -10,7 +10,7 @@ import { EmptyState, SkeletonList } from '@/components/ui';
 import { CLUB_PACKS, ENTRY_STEPS, type ClubNumbers } from '@/lib/club-numbers/compute';
 
 type Data = ClubNumbers & { access: { admin: boolean; managers: string[] } };
-import { Columns, Legend, Spark, WeekColumns, WeekLines, dm, monthShort } from './charts';
+import { Columns, CountColumns, Legend, Spark, WeekColumns, WeekLines, dm, monthShort } from './charts';
 
 /**
  * "מדרגות במספרים" — the club's numbers for its admin (mockup ~/.cache/madregot/club-numbers-v3.html,
@@ -19,8 +19,8 @@ import { Columns, Legend, Spark, WeekColumns, WeekLines, dm, monthShort } from '
  */
 
 const TABS = [
-  ['overview', 'סקירה'], ['core', 'רצי גרעין'], ['growth', 'צמיחה'], ['packs', 'דבוקות'],
-  ['academy', 'אקדמיה'], ['insights', 'תובנות'], ['stability', 'יציבות'], ['attention', 'תשומת לב'],
+  ['overview', 'סקירה'], ['academy', 'אקדמיה'], ['core', 'רצי גרעין'], ['growth', 'צמיחה'], ['packs', 'דבוקות'],
+  ['insights', 'תובנות'], ['stability', 'יציבות'], ['attention', 'תשומת לב'],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -450,8 +450,6 @@ function PaceChart({ months, series }: { months: number[]; series: Array<{ label
 
 function Academy({ d }: { d: Data }) {
   const a = d.academy; const tw = a.traineesByWeek; const ws = d.weeks;
-  const first = Math.max(0, tw.findIndex((v) => v > 0) - 4);
-  const show = tw.slice(first); const wks = ws.slice(first);
   const maxF = Math.max(1, ...a.funnel.map((f) => f.count));
   return (
     <>
@@ -463,19 +461,9 @@ function Academy({ d }: { d: Data }) {
       </Card>
       <Sub>מתאמנים · שבוע מול שבוע</Sub>
       <Card>
-        <div className="flex items-end gap-1" dir="ltr">
-          {show.map((v, i) => {
-            const ch = i ? v - show[i - 1] : 0;
-            return (
-              <div key={wks[i]} className="flex min-w-0 flex-1 flex-col items-center gap-0.5">
-                <span className="text-[10.5px] font-black text-[#8E1043]"><B>{v}</B></span>
-                <div className="flex h-[70px] w-full items-end overflow-hidden rounded-md bg-[#F7EEF3]"><i className="block w-full bg-[#C2185B]" style={{ height: `${(v / Math.max(3, ...show)) * 100}%` }} /></div>
-                <em className="text-[8.5px] not-italic text-ink-400">{dm(wks[i])}</em>
-                <b className="h-3 text-[9.5px] text-[#15803d]">{ch > 0 ? <B>+{ch}</B> : ''}</b>
-              </div>
-            );
-          })}
-        </div>
+        <CardHead title="מתאמנים בכל שבוע" side="מאז ההשקה" />
+        <CountColumns weeks={ws} values={tw} color={PINK} soft="#F3D3E2" nowLabel="השבוע" />
+        <Legend items={[{ label: 'השבוע', color: PINK }, { label: 'שבועות קודמים', color: '#F3D3E2' }, { label: 'הצטרף מתאמן', color: '#15803d' }]} />
         <Tri items={[[<B key="a">{tw.at(-1)}</B>, 'השבוע'], [<B key="b">{(tw.at(-1) ?? 0) - (tw.at(-2) ?? 0)}</B>, 'מול שבוע שעבר'], [<B key="c">+{(tw.at(-1) ?? 0) - (tw.at(-5) ?? 0)}</B>, 'ב-4 שבועות']]} />
       </Card>
       <Sub>המשפך · מאז שנפתח</Sub>
