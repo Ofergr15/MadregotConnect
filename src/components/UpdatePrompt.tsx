@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { apiFetcher } from '@/lib/api';
+import { apiFetcher, apiHeaders } from '@/lib/api';
+import { compareAppVersions } from '@/lib/feedback/lifecycle';
 import { useIsSuperUser } from '@/lib/impersonation';
 import { askBuildId, isNewerBuild, isRunningBuild, pageBuildId } from '@/lib/sw-build-id';
 import { AWAY_MS, canApplyUpdate } from '@/lib/update-timing';
@@ -80,6 +81,24 @@ async function fetchReleases(): Promise<WhatsNewRelease[] | null> {
 // 10 of the 21 members active that week were still on 2.41.171, four days and
 // four releases behind, missing fixes (#118). Ofer: "everyone gets the update,
 // immediately". The safe-moment path is still what a worker-only swap uses.
+/**
+ * The version the server runs (/api/version), or null: offline, slow, or refused.
+ * Straight from the network — /api/ is NetworkOnly in the worker.
+ */
+async function fetchServerVersion(): Promise<string | null> {
+  try {
+    const res = await Promise.race([
+      fetch(`/api/version?t=${Date.now()}`, { cache: 'no-store', headers: await apiHeaders() }),
+      sleep(3000).then(() => null),
+    ]);
+    if (!res || !res.ok) return null;
+    const v = (await res.json())?.version;
+    return typeof v === 'string' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The rollout switch. `false` puts the sheet back to the super user only. */
 export const MANDATORY_UPDATE_FOR_ALL = true;
 
@@ -158,6 +177,11 @@ export function UpdatePrompt() {
     // null = it wouldn't say (a worker older than sw.ts's handler), which makes
     // every comparison inconclusive and so counts as newer.
     let loadedBuild: string | null = null;
+    // The server said it runs a newer version than this page (/api/version). Then the
+    // update comes FIRST (Ofer 10-20: "on open, check for an update; if there is one,
+    // nothing else until it's done"): no cooldown, no waiting for a quiet moment, and
+    // the worker is fetched now rather than whenever the browser gets to it.
+    let serverNewer: string | null = null;
 
     // Was a SW already controlling this page WHEN IT LOADED? If not, this is a
     // first install (or a hard reload with no controller) — the initial worker
@@ -221,7 +245,7 @@ export function UpdatePrompt() {
       // Updated a few minutes ago: wait out the cooldown, then ask (lib/update-flow.ts).
       let lastUpdated: number | null = null;
       try { lastUpdated = Number(localStorage.getItem(UPDATED_AT_KEY)) || null; } catch { /* no memory, no wait */ }
-      const wait = cooldownLeft(lastUpdated, Date.now());
+      const wait = serverNewer ? 0 : cooldownLeft(lastUpdated, Date.now());
       if (wait > 0) {
         if (!cooldownTimer) cooldownTimer = setTimeout(() => { cooldownTimer = null; void ask(); }, wait + 500);
         return;
@@ -235,14 +259,28 @@ export function UpdatePrompt() {
       asking = false;
       if (disposed || asked) return;
       asked = true;
-      if (onlyTheWorkerIsOld(releases, APP_VERSION)) {
+      if (!serverNewer && onlyTheWorkerIsOld(releases, APP_VERSION)) {
         quiet = true;
         tryApply();
         return;
       }
-      setContent(updateContent(releases, APP_VERSION));
+      const c = updateContent(releases, APP_VERSION);
+      setContent(serverNewer && !c.version ? { ...c, version: serverNewer } : c);
     };
     askRef.current = () => { void ask(); };
+
+    /** Ask the server which version is out; newer than this page → the update, now. */
+    const checkServer = async () => {
+      if (disposed || applying || serverNewer || onPublicPage()) return;
+      const v = await fetchServerVersion();
+      if (disposed || !v || compareAppVersions(v, APP_VERSION) <= 0) return;
+      serverNewer = v;
+      pending = true;
+      reg?.update().catch(() => {});
+      // The sheet (everyone, mandatory). Its button swaps the worker if the new one is
+      // there yet, or unregisters and reloads from the network if it isn't (apply).
+      void ask();
+    };
 
     const tryApply = (awayMs = 0) => {
       if (!pending || disposed) return;
@@ -297,6 +335,7 @@ export function UpdatePrompt() {
       r.addEventListener('updatefound', () => watchWorker(r!.installing));
       r.update().catch(() => {}); // check for a fresh build now
     });
+    void checkServer();
 
     // Another tab accepted an update, so this page is now served by a worker
     // whose build it is not running.
@@ -316,6 +355,7 @@ export function UpdatePrompt() {
       if (away >= AWAY_MS) { quietSince = Date.now(); interacted = false; }
       tryApply(away);
       reg?.update().catch(() => {}); // catches deploys since the last view
+      void checkServer();
     };
     document.addEventListener('visibilitychange', onVisible);
 

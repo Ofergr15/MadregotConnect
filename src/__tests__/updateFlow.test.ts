@@ -60,7 +60,7 @@ describe('onlyTheWorkerIsOld', () => {
 
   it('the prompt takes that swap the quiet way', () => {
     const src = readFileSync(join(__dirname, '../components/UpdatePrompt.tsx'), 'utf8');
-    expect(src).toMatch(/if \(onlyTheWorkerIsOld\(releases, APP_VERSION\)\) \{\s*quiet = true;\s*tryApply\(\);/);
+    expect(src).toMatch(/if \(!serverNewer && onlyTheWorkerIsOld\(releases, APP_VERSION\)\) \{\s*quiet = true;\s*tryApply\(\);/);
     expect(src).toMatch(/if \(superRef\.current && !quiet\) \{ void ask\(\); return; \}/);
   });
 });
