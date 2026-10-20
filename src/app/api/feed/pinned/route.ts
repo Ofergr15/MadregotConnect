@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
  * The club's posts pinned to the top ("נעוץ בראש הפיד", mockup publish-preview-v2):
  * pinned_until still ahead, the newest pin first. The feed shows them above the list
  * and leaves them out of it. Club posts only (author null), so a member's own post
- * can never be made to sit on top. Before migration 160 there is no column: no pins.
+ * can never be made to sit on top. Before migration 161 there is no column: no pins.
  */
 export async function GET(request: Request) {
   const auth = await requireSession(request);

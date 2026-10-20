@@ -3,8 +3,8 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireApprover } from '@/lib/auth/require-approver';
 import { createAndSendSurvey } from '@/lib/surveys';
 import { closesAt } from '@/lib/publish/model';
-import { MIGRATION_160, pinUntil, readPinChoice } from '@/lib/publish/pin';
-import { hasMigration160, pinPost, publishClubPost } from '@/lib/publish/server';
+import { MIGRATION_161, pinUntil, readPinChoice } from '@/lib/publish/pin';
+import { hasMigration161, pinPost, publishClubPost } from '@/lib/publish/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
       : { data: [] };
 
     const countsBySurvey = new Map<string, number[]>();
-    // People, not rows: a survey with more than one answer has a row per answer (160).
+    // People, not rows: a survey with more than one answer has a row per answer (161).
     const people = new Map<string, Set<string>>();
     for (const r of responses || []) {
       const who = people.get(r.survey_id) ?? new Set<string>(); who.add(r.athlete_id); people.set(r.survey_id, who);
@@ -73,11 +73,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'At least 2 options are required' }, { status: 400 });
     }
 
-    // More than one answer, and pinned to the top (both 160): refused before anything is made.
+    // More than one answer, and pinned to the top (both 161): refused before anything is made.
     const multi = body.multi === true;
     const pin = pinUntil(readPinChoice(body.pin), new Date(), { date: typeof body.pinDate === 'string' ? body.pinDate : null, closesAt: closes });
-    if ((multi || pin) && !(await hasMigration160(createServerClient()))) {
-      return NextResponse.json({ error: MIGRATION_160 }, { status: 409 });
+    if ((multi || pin) && !(await hasMigration161(createServerClient()))) {
+      return NextResponse.json({ error: MIGRATION_161 }, { status: 409 });
     }
 
     const { survey, sent } = await createAndSendSurvey({

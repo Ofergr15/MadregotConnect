@@ -1,4 +1,4 @@
--- 160: a feed post pinned to the top until a time, and surveys with more than one answer.
+-- 161: a feed post pinned to the top until a time, and surveys with more than one answer.
 -- Paste as one block in the Supabase SQL editor; safe to run twice.
 ALTER TABLE feed_items ADD COLUMN IF NOT EXISTS pinned_until timestamptz;
 CREATE INDEX IF NOT EXISTS idx_feed_items_pinned ON feed_items (pinned_until DESC) WHERE pinned_until IS NOT NULL AND deleted_at IS NULL;

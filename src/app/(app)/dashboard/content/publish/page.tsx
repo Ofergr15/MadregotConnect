@@ -13,7 +13,7 @@ import { sortByPaceGroup } from '@/lib/plans/pace-group';
 import { Switch } from '@/components/ui';
 import { Avatar } from '@/components/day-session/WatchSend';
 import { CHEER_REASONS, cheerText, closesAt, plainText, splitMessage, type AudienceChoice, type AudienceMode, type CheerReason, type CloseChoice } from '@/lib/publish/model';
-import { MIGRATION_160, MIGRATION_TEXT, pinUntil, type PinChoice } from '@/lib/publish/pin';
+import { MIGRATION_161, MIGRATION_TEXT, pinUntil, type PinChoice } from '@/lib/publish/pin';
 import { ClubCirclePreview, CheerCirclePreview, draftItem, FeedPreview, LockPreview, PinSetting, PreviewStage, type Place } from '@/components/publish/PublishPreview';
 import type { CelebrationType } from '@/lib/feed/celebration';
 
@@ -23,7 +23,7 @@ import type { CelebrationType } from '@/lib/feed/celebration';
 // Since 10-20 (mockup publish-preview-v2) every kind opens with "איך זה ייראה" — the
 // feed's own card / circle / notification fed the draft — and shares one set of
 // settings: where it shows, pinned to the top and for how long, the notification;
-// a survey also takes more than one answer. Pin and multi need migration 160.
+// a survey also takes more than one answer. Pin and multi need migration 161.
 // ═════════════════════════════════════════════════════════════════════════════
 
 type Kind = 'message' | 'cheer' | 'survey';
@@ -194,7 +194,7 @@ export default function PublishPage() {
       if (!res.ok) {
         const out = await res.json().catch(() => ({}));
         // Pin / more than one answer before 160 is in the database: said plainly, nothing was posted.
-        if ((out as { error?: string }).error === MIGRATION_160) { setMsg({ ok: false, text: MIGRATION_TEXT }); return; }
+        if ((out as { error?: string }).error === MIGRATION_161) { setMsg({ ok: false, text: MIGRATION_TEXT }); return; }
         throw new Error();
       }
       setMsg({ ok: true, text: t('published') });

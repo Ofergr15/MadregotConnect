@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 interface Answer {
   survey: { options_he: string[]; closes_at: string | null; multi_answer?: boolean };
   myResponse: number | null;
-  /** All of mine — several on a survey with more than one answer (migration 160). */
+  /** All of mine — several on a survey with more than one answer (migration 161). */
   myResponses?: number[];
   results: Array<{ optionIndex: number; people: Array<{ id: string }> }> | null;
 }

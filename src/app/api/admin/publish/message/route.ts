@@ -4,8 +4,8 @@ import { requireApprover } from '@/lib/auth/require-approver';
 import { resolveAudience, sendPushLocalized } from '@/lib/push';
 import { publishAnnouncement } from '@/lib/feed/announce';
 import { audienceTargets, readAudience, splitMessage } from '@/lib/publish/model';
-import { hasMigration160, pinPost, postWithText, publishClubPost } from '@/lib/publish/server';
-import { MIGRATION_160, pinUntil, readPinChoice } from '@/lib/publish/pin';
+import { hasMigration161, pinPost, postWithText, publishClubPost } from '@/lib/publish/server';
+import { MIGRATION_161, pinUntil, readPinChoice } from '@/lib/publish/pin';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,10 +28,10 @@ export async function POST(request: Request) {
   const scheduleAt = typeof b?.scheduleAt === 'string' && !Number.isNaN(Date.parse(b.scheduleAt)) && Date.parse(b.scheduleAt) > Date.now() + 60000
     ? new Date(b.scheduleAt).toISOString() : null;
   const db = createServerClient();
-  // "נעוץ בראש הפיד" (160). Not for a scheduled message: its post does not exist yet.
+  // "נעוץ בראש הפיד" (161). Not for a scheduled message: its post does not exist yet.
   const pin = scheduleAt ? null : pinUntil(readPinChoice(b?.pin), new Date(), { date: typeof b?.pinDate === 'string' ? b.pinDate : null });
   try {
-    if (pin && !(await hasMigration160(db))) return NextResponse.json({ error: MIGRATION_160 }, { status: 409 });
+    if (pin && !(await hasMigration161(db))) return NextResponse.json({ error: MIGRATION_161 }, { status: 409 });
     if (b?.push === false) {
       const id = await publishClubPost(db, { body: text, media: imageUrl ? [{ path: '', url: imageUrl, w: null, h: null }] : [], payload: { message: true } });
       if (pin && id) await pinPost(db, id, pin);

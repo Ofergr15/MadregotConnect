@@ -22,7 +22,7 @@ export async function createAndSendSurvey(opts: {
   push?: boolean;
   /** ISO; null = open until somebody closes it. */
   closesAt?: string | null;
-  /** More than one answer per person (migration 160). */
+  /** More than one answer per person (migration 161). */
   multi?: boolean;
 }): Promise<{ survey: { id: string; [key: string]: unknown }; sent: number }> {
   const supabase = createServerClient();

@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 // POST /api/surveys/[id]/respond  { athleteId, optionIndex } -> { success, answers }
 // One answer: the tap replaces the athlete's answer. A survey with more than one
-// answer (surveys.multi_answer, migration 160): the tap adds or removes that option.
+// answer (surveys.multi_answer, migration 161): the tap adds or removes that option.
 // Written as delete-the-dropped + insert-the-new, which is right under both the old
 // unique (survey, athlete) and 160's (survey, athlete, option).
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {

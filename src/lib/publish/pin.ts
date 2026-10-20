@@ -1,6 +1,6 @@
 // "נעוץ בראש הפיד" and surveys with more than one answer (mockup publish-preview-v2,
-// Ofer 10-20). Both need migration 160 (feed_items.pinned_until, surveys.multi_answer);
-// until it is pasted the routes answer MIGRATION_160 and the feed simply has no pins.
+// Ofer 10-20). Both need migration 161 (feed_items.pinned_until, surveys.multi_answer);
+// until it is pasted the routes answer MIGRATION_161 and the feed simply has no pins.
 
 export type PinChoice = 'evening' | 'day' | '3d' | 'week' | 'date' | 'close';
 export const PIN_CHOICES: PinChoice[] = ['evening', 'day', '3d', 'week', 'date'];
@@ -8,9 +8,9 @@ export const PIN_LABEL: Record<PinChoice, string> = {
   evening: 'עד הערב', day: 'יום', '3d': '3 ימים', week: 'שבוע', date: 'עד תאריך…', close: 'עד שנסגר',
 };
 
-/** The error code a route answers when 160 is not in the database yet; the screen shows MIGRATION_TEXT. */
-export const MIGRATION_160 = 'migration-160';
-export const MIGRATION_TEXT = 'צריך להריץ מיגרציה 160';
+/** The error code a route answers when 161 is not in the database yet; the screen shows MIGRATION_TEXT. */
+export const MIGRATION_161 = 'migration-161';
+export const MIGRATION_TEXT = 'צריך להריץ מיגרציה 161';
 
 /** Postgres "column does not exist" (42703), or PostgREST not knowing it (PGRST204 / its schema cache). */
 export function isMissingColumn(err: unknown): boolean {

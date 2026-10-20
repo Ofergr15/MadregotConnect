@@ -108,7 +108,7 @@ export async function recentPublished(db: Db, limit = 6): Promise<RecentItem[]> 
   const answers = new Map<string, number>();
   const delivered = new Map<string, number>();
   await Promise.all([
-    // People, not rows: a survey with more than one answer has a row per answer (160).
+    // People, not rows: a survey with more than one answer has a row per answer (161).
     surveyIds.length ? db.from('survey_responses').select('survey_id, athlete_id').in('survey_id', surveyIds).then(({ data: resp }) => {
       const who = new Map<string, Set<string>>();
       for (const r of (resp || []) as Array<{ survey_id: string; athlete_id: string }>) {
@@ -147,11 +147,11 @@ export async function recentPublished(db: Db, limit = 6): Promise<RecentItem[]> 
 }
 
 /**
- * Is migration 160 in this database? One cheap probe of the column; a missing one is
+ * Is migration 161 in this database? One cheap probe of the column; a missing one is
  * isMissingColumn (lib/publish/pin.ts). Pin and multi-answer requests are refused
- * with MIGRATION_160 until it is, so a post is never half made.
+ * with MIGRATION_161 until it is, so a post is never half made.
  */
-export async function hasMigration160(db: Db): Promise<boolean> {
+export async function hasMigration161(db: Db): Promise<boolean> {
   const { error } = await db.from('feed_items').select('pinned_until').limit(1);
   if (!error) return true;
   if (isMissingColumn(error)) return false;

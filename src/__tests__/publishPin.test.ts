@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { isMissingColumn, israelEndOfDay, nextAnswers, orderPinned, pinUntil, readPinChoice, untilLabel } from '@/lib/publish/pin';
 import { firstUnseen, ringState } from '@/lib/feed/ring-state';
 
-// Pinned to the top, more than one answer (migration 160) and the circles' rings
+// Pinned to the top, more than one answer (migration 161) and the circles' rings
 // (mockups publish-preview-v2 + circles-seen, Ofer 10-20).
 
 const NOW = new Date('2026-10-20T12:00:00Z'); // 15:00 in Israel
@@ -66,7 +66,7 @@ describe('answering a survey', () => {
   });
 });
 
-describe('before migration 160 is pasted', () => {
+describe('before migration 161 is pasted', () => {
   it('knows a missing column from Postgres and from PostgREST', () => {
     expect(isMissingColumn({ code: '42703', message: 'column feed_items.pinned_until does not exist' })).toBe(true);
     expect(isMissingColumn({ code: 'PGRST204', message: "Could not find the 'multi_answer' column of 'surveys' in the schema cache" })).toBe(true);
@@ -93,10 +93,10 @@ describe('the circles’ rings', () => {
   });
 });
 
-describe('hasMigration160', async () => {
-  const { hasMigration160 } = await import('@/lib/publish/server');
+describe('hasMigration161', async () => {
+  const { hasMigration161 } = await import('@/lib/publish/server');
   const db = (error: unknown) => ({ from: () => ({ select: () => ({ limit: async () => ({ error }) }) }) }) as never;
-  it('true when the column is there', async () => { expect(await hasMigration160(db(null))).toBe(true); });
-  it('false when it is not', async () => { expect(await hasMigration160(db({ code: '42703', message: 'column feed_items.pinned_until does not exist' }))).toBe(false); });
-  it('any other error is an error', async () => { await expect(hasMigration160(db({ code: '08006', message: 'connection' }))).rejects.toBeTruthy(); });
+  it('true when the column is there', async () => { expect(await hasMigration161(db(null))).toBe(true); });
+  it('false when it is not', async () => { expect(await hasMigration161(db({ code: '42703', message: 'column feed_items.pinned_until does not exist' }))).toBe(false); });
+  it('any other error is an error', async () => { await expect(hasMigration161(db({ code: '08006', message: 'connection' }))).rejects.toBeTruthy(); });
 });
