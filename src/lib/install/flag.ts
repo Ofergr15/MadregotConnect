@@ -1,12 +1,17 @@
 import { memberGroupName } from '@/lib/utils';
+import { SETUP_GATE_FOR_ALL } from '@/lib/setup/flag';
 // The one switch for onboarding v2 (the install guide, its video, the new approval
 // mail and WhatsApp message). Its own module, with no 'use client', so the server
 // routes that build the approval mail can read it too. Flip to ship to everyone.
 export const ONBOARDING_V2_FOR_ALL = false;
 
-/** The join link the v2 mail and WhatsApp message carry: `?onb=v2` turns the guide on for that phone. */
+/**
+ * The join link the v2 mail and WhatsApp message carry: `?onb=v2` turns the guide on for that phone.
+ * Not once the required setup is on (lib/setup/flag): then every link is the one journey —
+ * confirm the details, sign in with Strava, install from the setup's welcome.
+ */
 export function joinLinkV2(appUrl: string, token: string, v2: boolean): string {
-  return `${appUrl}/join/${token}${v2 ? '?onb=v2' : ''}`;
+  return `${appUrl}/join/${token}${v2 && !SETUP_GATE_FOR_ALL ? '?onb=v2' : ''}`;
 }
 
 /** The WhatsApp message an approver sends with one tap. */

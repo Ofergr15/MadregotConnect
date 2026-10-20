@@ -38,7 +38,7 @@ describe('the first run is one sequence: welcome → notifications → tour → 
     expect(tour).toMatch(/if \(id\) setFirstRunStage\(id, 'done'\);/);
   });
   it('the flow is mounted with the other first-run steps, sends a test push on success, and "later" holds the old sheet off', () => {
-    expect(read('app/(app)/layout.tsx')).toMatch(/\{popupsAllowed && <FirstRunFlow \/>\}/);
+    expect(read('app/(app)/layout.tsx')).toMatch(/\{popupsAllowed && olderAsks && <FirstRunFlow \/>\}/);
     const flow = read('components/onboarding/FirstRunFlow.tsx');
     expect(flow).toMatch(/fetch\('\/api\/push\/test'/);
     expect(flow).toMatch(/sessionStorage\.setItem\(PUSH_STEP_SESSION_SKIP_KEY, '1'\)/);

@@ -31,6 +31,7 @@ import { SquadStandings } from '@/components/SquadStandings';
 const SHOW_SQUAD_STANDINGS = false;
 import { UpcomingEvents } from '@/components/UpcomingEvents';
 import { SetupNudgeCard } from '@/components/onboarding/SetupNudgeCard';
+import { useSetupCohort } from '@/lib/setup/use-cohort';
 import { PushDeadBanner } from '@/components/PushDeadBanner';
 import { WeekSummaryCard } from '@/components/feed/WeekSummaryCard';
 import { QualitySessionRow } from '@/components/feed/QualitySessionRow';
@@ -181,6 +182,7 @@ export default function FeedPage() {
   // `?item=`, which this page used to ignore entirely. `feedFocusFromParams`
   // holds both readings; see lib/feed/deep-link.
   const router = useRouter();
+  const setupCohort = useSetupCohort();
   const searchParams = useSearchParams();
 
   // The operator account has no member feed (#71) — but every sign-in path
@@ -738,7 +740,8 @@ export default function FeedPage() {
       </div>
 
       <div className="mb-4 empty:mb-0">
-        <SetupNudgeCard />
+        {/* The required setup's members did all of it there (lib/setup/use-cohort). */}
+        {setupCohort === false && <SetupNudgeCard />}
       </div>
 
       {/* ═══ THE HIGHLIGHT CARD ═══
