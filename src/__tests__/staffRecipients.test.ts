@@ -71,23 +71,24 @@ beforeEach(() => {
 });
 
 describe('staffRecipientIds', () => {
-  it('asks one question — role=admin — and stops there', async () => {
+  it('asks for the admins, then the owner by his address — and nothing else', async () => {
     answer = () => ({ data: [{ id: CLUB.admin }], error: null });
     await staffRecipientIds();
-    expect(calls).toEqual([{ table: 'athletes', column: 'role', value: 'admin' }]);
+    expect(calls).toEqual([
+      { table: 'athletes', column: 'role', value: 'admin' },
+      { table: 'athletes', column: 'email', value: 'grosfeldofer@gmail.com' },
+    ]);
   });
 
-  it('does not notify a super-user on their other accounts', async () => {
-    // The reported bug, in one test. `is_super_user` grants admin ABILITIES; it is
-    // not a statement about which of a person's accounts should be mailed. The
-    // owner holds it on his runner account, so using it as the recipient list
-    // wrote two inbox rows per bug report — one to Madregot Admin, one to Ofer
-    // Grosfeld — and nothing on the row said which was which.
+  it('reaches the operator AND the owner\'s own account, each exactly once', async () => {
+    // Ofer chose "both" on 2026-10-20: he tests and approves from his own app, and the
+    // operator account stays on the list. By his address — never every super-user row —
+    // so a third super-user account would not be added, and his own gets one push.
     answer = (call) =>
-      call.column === 'is_super_user'
-        ? { data: [{ id: CLUB.admin }, { id: CLUB.ownerRunner }], error: null }
-        : { data: [{ id: CLUB.admin }], error: null };
-    await expect(staffRecipientIds()).resolves.toEqual([CLUB.admin]);
+      call.column === 'email'
+        ? { data: [{ id: CLUB.ownerRunner }, { id: CLUB.ownerRunner }], error: null }
+        : { data: [{ id: CLUB.admin }, { id: CLUB.admin }], error: null };
+    await expect(staffRecipientIds()).resolves.toEqual([CLUB.admin, CLUB.ownerRunner]);
     expect(calls.some((c) => c.column === 'is_super_user')).toBe(false);
   });
 
@@ -95,8 +96,11 @@ describe('staffRecipientIds', () => {
     // APPROVER_EMAILS was one of the four old sources. It is also the source that
     // looks most obviously like a bug when it is missing, so it is the one most
     // likely to be re-added by someone reading notifyStaff in isolation.
+    answer = () => ({ data: [{ id: CLUB.admin }], error: null });
     await staffRecipientIds();
-    expect(calls.some((c) => c.column === 'email')).toBe(false);
+    // The one address lookup is the owner's own account, a constant — not a list of
+    // approver addresses that grows.
+    expect(calls.filter((c) => c.column === 'email').map((c) => (c as { value?: unknown }).value)).toEqual(['grosfeldofer@gmail.com']);
   });
 
   it('does not make a coach a recipient — the whole point of the narrowing', async () => {

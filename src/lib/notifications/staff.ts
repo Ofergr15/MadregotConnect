@@ -72,7 +72,11 @@ export async function staffRecipientIds(): Promise<string[]> {
     const admins = await supabase.from('athletes').select('id').eq('role', 'admin');
     if (!admins.error) {
       const ids = dedupe(admins.data);
-      if (ids.length > 0) return ids;
+      if (ids.length > 0) {
+        // …and the owner's own account (Ofer, 2026-10-20: "both"), once.
+        const owner = await supabase.from('athletes').select('id').eq('email', SUPER_USER_EMAIL);
+        return dedupe([...(admins.data || []), ...(owner.error ? [] : owner.data || [])]);
+      }
     }
     // No admin row (or no readable `role`): fall back rather than notify nobody.
     const supers = await supabase.from('athletes').select('id').eq('is_super_user', true);

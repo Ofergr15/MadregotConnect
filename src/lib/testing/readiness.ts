@@ -45,6 +45,8 @@ export async function readiness(db: SupabaseClient, opts: { env?: Record<string,
     const roles = (routing || []).filter((r: any) => r.kind === kind && r.enabled).map((r: any) => r.role);
     const { data: people } = roles.length ? await db.from('athletes').select('id, name').in('role', roles) : { data: [] as any[] };
     const list: Array<{ id: string; name: string }> = [...(people || [])];
+    // Admin-routed alerts also reach the owner's own account (lib/notifications/routing).
+    if (roles.includes('admin') && me) list.push({ id: me.id, name: me.name });
     // The applicant alert also always reaches the academy managers and the owner's own
     // account (lib/notifications/staff academyManagerIds).
     if (kind === 'academy_applicant') {

@@ -92,6 +92,24 @@ beforeEach(() => {
 });
 
 describe('recipientsForKind', () => {
+  it('an admin-routed kind reaches the operator and the owner\'s own account, once each', async () => {
+    answer = (q) => {
+      if (q.table === 'notification_routing') return { data: rows([['signup_request', 'admin', true], ['signup_request', 'coach', false], ['signup_request', 'academy_coach', false]]), error: null };
+      if (q.column === 'email') return { data: [{ id: 'ofer' }], error: null };
+      return { data: [{ id: 'operator' }, { id: 'ofer' }], error: null };
+    };
+    await expect(recipientsForKind('signup_request')).resolves.toEqual(['operator', 'ofer']);
+  });
+
+  it('a kind not routed to admins does not add the owner', async () => {
+    answer = (q) => {
+      if (q.table === 'notification_routing') return { data: rows([['feedback_alert', 'coach', true], ['feedback_alert', 'admin', false], ['feedback_alert', 'academy_coach', false]]), error: null };
+      if (q.column === 'email') return { data: [{ id: 'ofer' }], error: null };
+      return { data: [{ id: 'coach-1' }], error: null };
+    };
+    await expect(recipientsForKind('feedback_alert')).resolves.toEqual(['coach-1']);
+  });
+
   it('returns null — not an empty list — for a kind with no rows', async () => {
     // The difference the whole module rests on: `null` sends the caller to its own
     // hardcoded list, so a kind added in code before its seed row is written still

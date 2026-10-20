@@ -1,4 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server';
+import { SUPER_USER_EMAIL } from '@/lib/constants';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // WHO RECEIVES EACH MANAGEMENT ALERT — as data, not as code.
@@ -186,7 +187,15 @@ export async function recipientsForKind(kind: string, db?: Db): Promise<string[]
     const supabase = db ?? createServerClient();
     const { data, error } = await supabase.from('athletes').select('id').in('role', roles);
     if (error) return null; // couldn't resolve → let the caller's fallback answer
-    return [...new Set(((data || []) as Array<{ id: string }>).map((r) => r.id))];
+    const ids = ((data || []) as Array<{ id: string }>).map((r) => r.id);
+    // An admin alert reaches the owner's own account too (Ofer chose "both", 2026-10-20):
+    // he runs with the club as role 'runner', so `role` alone never finds him. By his
+    // address, not is_super_user — the operator account is a super user as well.
+    if (roles.includes('admin')) {
+      const { data: owner } = await supabase.from('athletes').select('id').eq('email', SUPER_USER_EMAIL);
+      for (const r of (owner || []) as Array<{ id: string }>) ids.push(r.id);
+    }
+    return [...new Set(ids)];
   } catch {
     return null;
   }
