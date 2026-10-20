@@ -24,7 +24,9 @@ export const LIVE_TOUR_EVENT = 'mc:live-tour-start';
 export function startLiveTour(): void { window.dispatchEvent(new Event(LIVE_TOUR_EVENT)); }
 
 type Find = () => HTMLElement | null;
-type Act = { tap: Find } | { key: 'Escape' } | { go: string } | { wait: number };
+type Act = { tap: Find } | { key: 'Escape' } | { go: string } | { wait: number }
+  /** A finger swipe across the screen, then `el` scrolled into view — the next photo in a gallery. */
+  | { swipe: Find };
 interface Step {
   /** What the finger does to bring this step's screen up, in order. */
   acts?: Act[];
@@ -38,6 +40,8 @@ interface Step {
   needs?: Find;
   /** Skip the step at once, before any finger moves, when this is not on screen (a tab this member does not have). */
   only?: Find;
+  /** How long `needs` may take to show up (a run page loads its streams). */
+  needsMs?: number;
 }
 
 const visible = (el: Element | null): el is HTMLElement => {
@@ -53,8 +57,26 @@ const byText = (text: string, climb = 'button, a, [role="tab"]'): Find => () => 
   const el = hit[hit.length - 1] ?? null;
   return (el?.closest<HTMLElement>(climb) ?? el) || null;
 };
+/** A card whose title STARTS with `text` ("השבוע שלי · יום 3"), climbed to its rounded block. */
+const cardStarting = (text: string): Find => () => {
+  const hit = Array.from(document.querySelectorAll<HTMLElement>('p, span, h2, h3, div'))
+    .filter((el) => visible(el) && (el.textContent ?? '').trim().startsWith(text) && (el.textContent ?? '').trim().length < 40);
+  const el = hit[hit.length - 1] ?? null;
+  return el?.closest<HTMLElement>('[class*="rounded"]') ?? el;
+};
 const tab = (name: string): Find => q(`nav [data-tour="tab-${name}"], nav a[href$="/${name}"]`);
 
+/** The card around a heading: the nearest rounded block that holds it. */
+const cardOf = (text: string): Find => () => {
+  const h = byText(text, 'h1, h2, h3, p, span')();
+  return h?.closest<HTMLElement>('[class*="rounded-card"], [class*="rounded-[2"], section') ?? h;
+};
+
+// Twelve stops, in the order a member meets the app (2026-10-20: "a better tour, with
+// the photos and the other new areas"): the feed and its stories, a run, the home,
+// the plan, the profile and records, then the photos properly — the last session,
+// its folder, a photo full screen and a swipe to the next — run together, and the
+// notifications. Each finds its element on the live page; a missing one is passed over.
 const STEPS: Step[] = [
   {
     acts: [{ go: '/feed' }],
@@ -70,11 +92,41 @@ const STEPS: Step[] = [
     body: 'מחליקים הצידה לבא, ולמטה כדי לסגור.',
   },
   {
-    acts: [{ key: 'Escape' }, { wait: 450 }, { tap: tab('program') }, { wait: 900 }],
+    acts: [{ key: 'Escape' }, { wait: 450 }],
+    spot: q('main div[role="button"][aria-label="לצפייה בריצה המלאה"]'),
+    needs: q('main div[role="button"][aria-label="לצפייה בריצה המלאה"]'),
+    title: 'כל ריצה של המועדון',
+    body: 'נכנסת לבד מהשעון: מרחק, קצב, זמן — ולייק או תגובה בלחיצה.',
+  },
+  {
+    acts: [{ tap: q('main div[role="button"][aria-label="לצפייה בריצה המלאה"]') }, { wait: 1300 }],
+    spot: cardOf('ניתוח'),
+    needs: byText('ניתוח', 'h2, h3'),
+    needsMs: 6000,
+    title: 'הריצה עצמה',
+    body: 'גרפים אמיתיים מהשעון: קצב, דופק, פיצולים — גוררים על הגרף כדי לראות כל רגע.',
+  },
+  {
+    acts: [{ tap: q('nav a[href="/dashboard"]') }, { wait: 1000 }],
+    // The page from its greeting down: today's session, "coming?", the club today.
+    spot: q('main h1'),
+    spotBelow: true,
+    title: 'היום שלכם',
+    body: 'האימון של היום עם הקצב שלכם, ו"מגיעים?" בלחיצה אחת — המאמן רואה מי בא.',
+  },
+  {
+    acts: [{ wait: 200 }],
+    spot: () => q('[data-tour="weekStrip"]')() ?? cardStarting('השבוע שלי')(),
+    needs: () => q('[data-tour="weekStrip"]')() ?? cardStarting('השבוע שלי')(),
+    title: 'השבוע שלי',
+    body: 'טבעת אחת לכל השבוע: כמה רצתם, ומה עוד נשאר לפי התוכנית.',
+  },
+  {
+    acts: [{ tap: tab('program') }, { wait: 900 }],
     spot: byText('שבוע אימונים', 'button'),
     spotBelow: true,
     title: 'התוכנית השבועית',
-    body: 'כל אימון של השבוע מהמאמן, עם הקצב שלכם. לחיצה על יום פותחת את המבנה המלא.',
+    body: 'כל אימון של השבוע מהמאמן. לחיצה על יום פותחת את המבנה המלא — וגם שולחת אותו לשעון.',
   },
   {
     acts: [{ tap: tab('academy') }, { wait: 900 }],
@@ -83,46 +135,72 @@ const STEPS: Step[] = [
     body: 'התוכנית האישית מהמאמן, שבוע אחרי שבוע, והמשוב שלכם עליה.',
   },
   {
-    acts: [{ tap: tab('profile') }, { wait: 900 }],
-    spot: () => byText('אימוני השנה', 'div.rounded-card, [class*="rounded-"]')()?.closest<HTMLElement>('[class*="rounded-"]') ?? null,
-    title: 'הפרופיל שלכם',
-    body: 'הקילומטרים, האימונים והשבועות ברצף — ומתחת, השלמת הפרופיל.',
-  },
-  {
-    acts: [{ tap: byText('שיאים') }, { wait: 700 }],
+    acts: [{ tap: tab('profile') }, { wait: 1000 }, { tap: byText('שיאים') }, { wait: 700 }],
     needs: byText('שיאים'),
-    // The records card itself (its title), not the tab that opened it.
     spot: () => byText('שיאים אישיים', 'section, [class*="rounded-card"], [class*="rounded-["]')(),
     title: 'השיאים שלכם',
-    body: '5, 10, חצי ומרתון — מתעדכנים לבד אחרי כל ריצה.',
+    body: '5, 10, חצי ומרתון — מתעדכנים לבד אחרי כל ריצה, עם המקום שלכם במועדון. שברתם שיא? תדעו מיד.',
   },
   {
     acts: [{ tap: q('nav button[aria-label="עוד"]') }, { wait: 650 }],
     spot: q('[role="dialog"] a[href="/dashboard/photos"]'),
     title: 'כל השאר — ב״עוד״',
-    body: 'תמונות, מרוצים, הטבות וחיפוש. נכנסים לתמונות:',
+    body: 'תמונות, לרוץ ביחד, מרוצים, הטבות וחיפוש. נתחיל בתמונות:',
   },
   {
-    acts: [{ tap: q('[role="dialog"] a[href="/dashboard/photos"]') }, { wait: 1200 }],
-    needs: q('main button[class*="h-[250px]"]'),
-    spot: q('main button[class*="h-[250px]"]'),
+    acts: [{ tap: q('[role="dialog"] a[href="/dashboard/photos"]') }, { wait: 1300 }],
+    needs: q('button[class*="h-[250px]"]'),
+    spot: q('button[class*="h-[250px]"]'),
     title: 'התמונות מהאימונים',
-    body: 'האימון האחרון — ראשון. וכל התיקיות מתחת, לפי תאריך.',
+    body: 'אחרי כל אימון — כל התמונות כאן. האימון האחרון ראשון, וכל התיקיות מתחת, לפי חודש.',
   },
   {
-    acts: [{ tap: q('main button[aria-label^="תמונה "]') }, { wait: 900 }],
-    needs: q('main button[aria-label^="תמונה "]'),
-    title: 'תמונה במסך מלא',
-    body: 'מחליקים בין תמונות, מגדילים בשתי אצבעות, ושומרים לטלפון בלחיצה.',
+    acts: [{ tap: q('button[class*="h-[250px]"]') }, { wait: 1400 }],
+    needs: q('.grid button[aria-label^="תמונה "]'),
+    spot: () => q('.grid button[aria-label^="תמונה "]')()?.parentElement ?? null,
+    title: 'תיקייה של אימון',
+    body: 'כל התמונות מהאימון, בגדול. לחיצה על תמונה פותחת אותה:',
   },
   {
-    acts: [{ key: 'Escape' }, { wait: 300 }, { tap: tab('feed') }, { wait: 700 }],
+    acts: [{ tap: q('.grid button[aria-label^="תמונה "]') }, { wait: 1100 }, { swipe: q('[role="dialog"] [data-slide="1"]') }, { wait: 700 }],
+    needs: q('[role="dialog"] [data-slide]'),
+    title: 'כמו בגלריה של האייפון',
+    body: 'מחליקים לתמונה הבאה, מגדילים בשתי אצבעות, וגוררים למטה כדי לסגור. "שמירה" — והיא בטלפון.',
+  },
+  {
+    acts: [{ key: 'Escape' }, { wait: 500 }, { tap: q('nav button[aria-label="עוד"]') }, { wait: 650 }, { tap: q('[role="dialog"] a[href="/dashboard/run-together"]') }, { wait: 1200 }],
+    needs: byText('לרוץ ביחד', 'h1'),
+    spot: () => byText('לרוץ ביחד', 'h1')()?.parentElement ?? null,
+    spotBelow: true,
+    title: 'לרוץ ביחד',
+    body: 'יוצאים לרוץ? מפרסמים מתי ואיפה — והדבוקה מקבלת התראה, ואולי מישהו יצטרף.',
+  },
+  {
+    acts: [{ tap: q('header button[aria-label="התראות"], header a[aria-label="התראות"]') }, { wait: 1200 }],
+    needs: byText('התראות', 'h1'),
+    spot: () => byText('התראות', 'h1')()?.parentElement ?? null,
+    spotBelow: true,
+    title: 'מה שמחכה לכם',
+    body: 'תגובות, לייקים, הודעות מהמאמן ושאלות לפני אימון — מה שמחכה לכם, למעלה.',
+  },
+  {
+    acts: [{ tap: tab('feed') }, { wait: 700 }],
     title: 'זהו, אתם מוכנים 🎉',
     body: 'הפיד — כאן נפתחת האפליקציה. נתראה בריצה!',
   },
 ];
 
 type Phase = 'off' | 'intro' | 'acting' | 'showing';
+/**
+ * Where the tour is, kept across a full page load: a tap that ends in one (a cold
+ * route, iOS dropping the web view) used to end the tour in silence. On the way
+ * back the tour picks up at that step, without repeating its taps.
+ */
+const RESUME_KEY = 'mc-live-tour';
+const RESUME_MS = 3 * 60_000;
+const saveAt = (n: number | null) => {
+  try { if (n === null) sessionStorage.removeItem(RESUME_KEY); else sessionStorage.setItem(RESUME_KEY, JSON.stringify({ n, at: Date.now() })); } catch { /* private mode */ }
+};
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function waitFor(find: Find, ms = 4000): Promise<HTMLElement | null> {
   const end = Date.now() + ms;
@@ -145,6 +223,15 @@ export function LiveTour() {
   const [hole, setHole] = useState<{ x: number; y: number; w: number; h: number; r: number } | null>(null);
   const spotEl = useRef<{ el: HTMLElement; below: boolean } | null>(null);
   const run = useRef(0);
+
+  const resumeRef = useRef<number | null>(null);
+  useEffect(() => {
+    try {
+      const r = JSON.parse(sessionStorage.getItem(RESUME_KEY) || 'null') as { n: number; at: number } | null;
+      if (r && Date.now() - r.at < RESUME_MS && r.n >= 0 && r.n < STEPS.length) resumeRef.current = r.n;
+      else saveAt(null);
+    } catch { /* nothing to resume */ }
+  }, []);
 
   useEffect(() => {
     const start = () => { setI(0); setHole(null); setPhase('intro'); };
@@ -185,7 +272,7 @@ export function LiveTour() {
     setFinger((f) => ({ ...f, down: false }));
   };
 
-  const goTo = useCallback(async (k: number) => {
+  const goTo = useCallback(async (k: number, resumed = false) => {
     const token = ++run.current;
     setPhase('acting');
     setHole(null);
@@ -193,11 +280,25 @@ export function LiveTour() {
     for (let n = k; n < STEPS.length; n++) {
       const s = STEPS[n];
       if (s.only && !s.only()) continue;
-      for (const a of s.acts ?? []) {
+      saveAt(n);
+      // After a reload in the middle of this step its taps already happened.
+      const acts = resumed && n === k ? [] : (s.acts ?? []);
+      for (const a of acts) {
         if (run.current !== token) return;
         if ('wait' in a) await sleep(a.wait);
         else if ('key' in a) {
           (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent('keydown', { key: a.key, bubbles: true }));
+        } else if ('swipe' in a) {
+          const el = await waitFor(a.swipe, 2500);
+          if (el) {
+            const w = window.innerWidth, y = window.innerHeight * 0.48;
+            setFinger((f) => ({ ...f, on: true, down: true, x: w * 0.78, y }));
+            await sleep(380);
+            setFinger((f) => ({ ...f, x: w * 0.22 }));
+            el.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+            await sleep(700);
+            setFinger((f) => ({ ...f, down: false }));
+          }
         } else if ('go' in a) {
           if (pathRef.current !== a.go) { router.push(a.go); await sleep(900); }
         } else {
@@ -210,7 +311,7 @@ export function LiveTour() {
         }
       }
       if (run.current !== token) return;
-      if (s.needs && !(await waitFor(s.needs, 2500))) continue; // nothing to show here: on to the next
+      if (s.needs && !(await waitFor(s.needs, s.needsMs ?? 2500))) continue; // nothing to show here: on to the next
       const el = s.spot ? await waitFor(s.spot, 3000) : null;
       if (el) {
         const r = el.getBoundingClientRect();
@@ -222,11 +323,21 @@ export function LiveTour() {
       setPhase('showing');
       return;
     }
+    saveAt(null);
     setPhase('off');
   }, [router]);
 
+  // Picked up after a full page load, once goTo exists.
+  useEffect(() => {
+    const n = resumeRef.current;
+    if (n === null) return;
+    resumeRef.current = null;
+    void goTo(n, true);
+  }, [goTo]);
+
   const end = () => {
     run.current++;
+    saveAt(null);
     setPhase('off');
     setHole(null);
     setFinger((f) => ({ ...f, on: false }));

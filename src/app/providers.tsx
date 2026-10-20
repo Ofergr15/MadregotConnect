@@ -4,6 +4,7 @@ import { SWRConfig } from 'swr';
 import { SWR_DEFAULTS } from '@/lib/api';
 import { persistedCacheProvider } from '@/lib/swr-persist';
 import { PostHogIdentity } from '@/components/PostHogIdentity';
+import { LiveTour } from '@/components/onboarding/LiveTour';
 
 // App-wide client providers. SWRConfig gives every screen cache-first data with
 // background revalidation — the foundation of the native "opens instantly" feel.
@@ -18,6 +19,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <SWRConfig value={{ ...SWR_DEFAULTS, provider: persistedCacheProvider }}>
       <PostHogIdentity />
       {children}
+      {/* Above the app shell, not inside it: the shell drops to a spinner on some
+          navigations (access checks), and the tour must keep its place across them. */}
+      <LiveTour />
     </SWRConfig>
   );
 }
