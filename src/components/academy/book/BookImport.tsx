@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { KIND_REQUIRED_TEXT, kindHint, missingKinds, type KindChoice } from '@/lib/academy/kind-choice';
+import { LIBRARY_KINDS } from '@/lib/academy/library';
 import { importTickedByDefault } from '@/lib/academy/book-import';
 import { useTranslations } from 'next-intl';
 import { Check } from 'lucide-react';
@@ -32,6 +34,8 @@ export function BookImport({ onClose, onImported }: { onClose: () => void; onImp
   const [data, setData] = useState<ImportResponse | null>(null);
   const [error, setError] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  // The type of each row, chosen by the manager — none to begin with (kind-choice.ts).
+  const [kinds, setKinds] = useState<Record<string, KindChoice>>({});
   const [busy, setBusy] = useState(false);
   const [written, setWritten] = useState<number | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -63,7 +67,7 @@ export function BookImport({ onClose, onImported }: { onClose: () => void; onImp
       const res = await fetch('/api/academy/library/import', {
         method: 'POST',
         headers: await apiHeaders(true),
-        body: JSON.stringify({ keys: [...picked] }),
+        body: JSON.stringify({ keys: [...picked], kinds }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) { setSaveError(res.status === 409 ? t('import.nameTaken') : t('import.failed')); return; }
@@ -85,6 +89,8 @@ export function BookImport({ onClose, onImported }: { onClose: () => void; onImp
     });
   };
 
+  const missing = useMemo(() => missingKinds(picked, kinds), [picked, kinds]);
+
   const ordered = useMemo(() => {
     const rank: Record<ImportStatus, number> = { new: 0, review: 1, existing: 2 };
     return [...rows].sort((a, b) => rank[a.status] - rank[b.status] || b.uses - a.uses);
@@ -97,7 +103,12 @@ export function BookImport({ onClose, onImported }: { onClose: () => void; onImp
         leading={<BarButton onClick={onClose}>{written !== null ? t('close') : t('cancel')}</BarButton>}
         footer={written !== null
           ? <PrimaryButton onClick={onClose}>{t.rich('import.written', { ...RICH, n: written })}</PrimaryButton>
-          : <PrimaryButton onClick={() => void save()} disabled={!picked.size} busy={busy}>{t('import.save', { n: picked.size })}</PrimaryButton>}
+          : (
+            <>
+              {missing.length > 0 && <p className="text-center text-[13px] font-bold text-[#8A4308]">{KIND_REQUIRED_TEXT} · <N>{missing.length}</N></p>}
+              <PrimaryButton onClick={() => void save()} disabled={!picked.size || missing.length > 0} busy={busy}>{t('import.save', { n: picked.size })}</PrimaryButton>
+            </>
+          )}
       >
         {error && <p className="py-6 text-center text-sm text-accent-red-ink">{t('import.loadFailed')}</p>}
         {!data && !error && <p className="py-6 text-center text-sm text-ink-400">{t('import.scanning')}</p>}
@@ -119,8 +130,8 @@ export function BookImport({ onClose, onImported }: { onClose: () => void; onImp
                 const model = row.steps ? fromLibrarySteps(row.steps) : null;
                 const on = picked.has(row.key);
                 return (
+                  <Fragment key={row.key}>
                   <div
-                    key={row.key}
                     role={row.saveable ? 'checkbox' : undefined}
                     aria-checked={row.saveable ? on : undefined}
                     tabIndex={row.saveable ? 0 : -1}
@@ -146,6 +157,24 @@ export function BookImport({ onClose, onImported }: { onClose: () => void; onImp
                     </span>
                     {model && <ProfileBar segments={profileBar(model, null)} size="sm" />}
                   </div>
+                  {on && (
+                    <div className="border-b border-[#EFEFF4] px-4 pb-3" onClick={e => e.stopPropagation()}>
+                      {kindHint(row.kind, kinds[row.key] ?? null) && (
+                        <button type="button" onClick={() => setKinds(k => ({ ...k, [row.key]: row.kind }))} className="min-h-[36px] text-[13px] font-bold text-brand-600">
+                          נראה כמו: {t(`chip.${row.kind}`)} — לבחור
+                        </button>
+                      )}
+                      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1">
+                        {LIBRARY_KINDS.map(k => (
+                          <button key={k} type="button" aria-pressed={kinds[row.key] === k} onClick={() => setKinds(m => ({ ...m, [row.key]: k }))}
+                            className={cn('h-10 shrink-0 whitespace-nowrap rounded-full px-3.5 text-[14px] font-bold', kinds[row.key] === k ? 'bg-ink-900 text-white' : 'bg-[#F4F4F8] text-ink-500')}>
+                            {t(`chip.${k}`)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  </Fragment>
                 );
               })}
             </div>

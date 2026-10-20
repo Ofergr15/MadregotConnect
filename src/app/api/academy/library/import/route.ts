@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { missingKinds, type KindChoice } from '@/lib/academy/kind-choice';
+import type { LibraryKind } from '@/lib/academy/library';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
@@ -96,6 +98,10 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const keys = new Set(Array.isArray(body?.keys) ? (body.keys as unknown[]).filter((k): k is string => typeof k === 'string') : []);
     if (!keys.size) return NextResponse.json({ error: 'keys are required' }, { status: 400 });
+    // Each entry's type is the manager's choice, never the import's guess (kind-choice.ts).
+    const kinds = (body?.kinds && typeof body.kinds === 'object' ? body.kinds : {}) as Record<string, unknown>;
+    const unchosen = missingKinds(keys, kinds as Record<string, KindChoice>);
+    if (unchosen.length) return NextResponse.json({ error: 'kinds are required', keys: unchosen }, { status: 400 });
 
     const supabase = createServerClient();
     const result = await build(supabase);
@@ -110,7 +116,7 @@ export async function POST(request: Request) {
         scope: 'academy',
         owner_id: caller.athleteId,
         name: c.name,
-        kind: c.kind,
+        kind: kinds[c.key] as LibraryKind,
         notes: null,
         steps: c.steps,
         use_count: c.uses,

@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { apiHeaders } from '@/lib/api';
 import { Sheet } from '@/components/ui';
 import type { LibraryKind } from '@/lib/academy/library';
+import { KIND_REQUIRED_TEXT, kindChosen, kindHint, type KindChoice } from '@/lib/academy/kind-choice';
 import {
   addStep, bookTotals, fieldValue, nudgeField, profileBar, quickFields, setField, wheelOptions,
   type BookStep, type FieldRef, sessionGlance, toLibrarySteps, EASY_WARMUP_SEC,
@@ -313,7 +314,8 @@ function SaveAsNew({ draft, model, thresholdSec, paceAdjust }: { draft: Draft; m
   const { data } = useFavourites();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
-  const [kind, setKind] = useState<LibraryKind>(draft.kind);
+  // No type until the coach picks one (kind-choice.ts): the inferred one is a hint.
+  const [kind, setKind] = useState<KindChoice>(null);
   const [state, setState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle');
   const changed = !!draft.original && JSON.stringify(model) !== JSON.stringify(draft.original);
   if (!changed) return null;
@@ -321,12 +323,13 @@ function SaveAsNew({ draft, model, thresholdSec, paceAdjust }: { draft: Draft; m
   const taken = !!trimmed && (data?.entries ?? []).some(e => e.name.trim() === trimmed);
   const start = () => {
     setName(suggestedName(sessionGlance(model, thresholdSec, paceAdjust), draft.name));
-    setKind(draft.kind); setState('idle'); setOpen(true);
+    setKind(null); setState('idle'); setOpen(true);
   };
+  const hint = kindHint(draft.kind, kind);
   const save = async () => {
-    if (!trimmed) return;
+    if (!trimmed || !kindChosen(kind)) return;
     setState('busy');
-    const body = (scope: 'academy' | 'mine') => JSON.stringify({ name: trimmed, kind, notes: draft.notes, steps: toLibrarySteps(model), scope });
+    const body = (scope: 'academy' | 'mine') => JSON.stringify({ name: trimmed, kind: kind as LibraryKind, notes: draft.notes, steps: toLibrarySteps(model), scope });
     try {
       let res = await fetch('/api/academy/library', { method: 'POST', headers: await apiHeaders(true), body: body('academy') });
       if (res.status === 403) res = await fetch('/api/academy/library', { method: 'POST', headers: await apiHeaders(true), body: body('mine') });
@@ -353,6 +356,11 @@ function SaveAsNew({ draft, model, thresholdSec, paceAdjust }: { draft: Draft; m
           {taken && <p className="px-1 text-[13px] font-bold text-[#8A4308]">כבר יש בספר אימון בשם הזה — כדאי שם אחר</p>}
           <div>
             <span className="mb-1.5 block px-1 text-13 font-bold text-ink-400">סוג</span>
+            {hint && (
+              <button type="button" onClick={() => setKind(hint)} className="mb-1.5 min-h-[36px] px-1 text-[13px] font-bold text-brand-600">
+                נראה כמו: {t(`chip.${hint}`)} — לבחור
+              </button>
+            )}
             <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
               {KINDS.map(k => (
                 <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}
@@ -362,8 +370,9 @@ function SaveAsNew({ draft, model, thresholdSec, paceAdjust }: { draft: Draft; m
               ))}
             </div>
           </div>
+          {!kindChosen(kind) && <p className="px-1 text-[13px] font-bold text-[#8A4308]">{KIND_REQUIRED_TEXT}</p>}
           {state === 'error' && <p className="px-1 text-[13px] font-bold text-accent-red-ink">לא נשמר — נסו שוב</p>}
-          <PrimaryButton onClick={() => void save()} disabled={!trimmed || state === 'busy'} busy={state === 'busy'} className="w-full">שמירה בספר</PrimaryButton>
+          <PrimaryButton onClick={() => void save()} disabled={!trimmed || !kindChosen(kind) || state === 'busy'} busy={state === 'busy'} className="w-full">שמירה בספר</PrimaryButton>
         </div>
       </Sheet>
     </>

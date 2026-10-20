@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { KIND_REQUIRED_TEXT, kindChosen, kindHint, type KindChoice } from '@/lib/academy/kind-choice';
+import { LIBRARY_KINDS } from '@/lib/academy/library';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { Check, ChevronRight } from 'lucide-react';
@@ -46,9 +48,10 @@ export function SendScreen({ data, draft, day, primary, onBack, onClose }: {
   const [picked, setPicked] = useState<Set<string>>(
     () => new Set(data.others.filter(o => eligible(o) && o.lane === data.trainee.lane).map(o => o.id)),
   );
-  // On unless this is a book entry sent exactly as it is in the book.
-  const changed = !!draft.model && JSON.stringify(draft.model) !== JSON.stringify(draft.original);
-  const [save, setSave] = useState(draft.source !== 'book' || changed);
+  // Off until the coach turns it on — and then it needs a type they choose (kind-choice.ts):
+  // nothing goes into the book under a type the app guessed.
+  const [save, setSave] = useState(false);
+  const [saveKind, setSaveKind] = useState<KindChoice>(null);
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<Record<string, SendResult>>({});
   const [saveState, setSaveState] = useState<'idle' | 'saved' | 'taken' | 'failed'>('idle');
@@ -83,11 +86,11 @@ export function SendScreen({ data, draft, day, primary, onBack, onClose }: {
         if (!res.ok) for (const id of ids) next[id] = { athleteId: id, name: '', status: 'failed' };
         setResults(next);
       }
-      if (save && saveState !== 'saved') {
+      if (save && saveState !== 'saved' && kindChosen(saveKind)) {
         const res = await fetch('/api/academy/library', {
           method: 'POST',
           headers: await apiHeaders(true),
-          body: JSON.stringify({ name: saveName, kind: draft.kind, scope: 'mine', notes: draft.notes, steps: draftSteps(draft) }),
+          body: JSON.stringify({ name: saveName, kind: saveKind, scope: 'mine', notes: draft.notes, steps: draftSteps(draft) }),
         });
         setSaveState(res.ok ? 'saved' : res.status === 409 ? 'taken' : 'failed');
       }
@@ -111,7 +114,7 @@ export function SendScreen({ data, draft, day, primary, onBack, onClose }: {
       leading={<BarButton onClick={onBack}><ChevronRight className="h-5 w-5" />{t('back.back')}</BarButton>}
       footer={finished
         ? <PrimaryButton onClick={onClose}>{t('close')}</PrimaryButton>
-        : <PrimaryButton onClick={() => void finish()} busy={busy}>{picked.size ? t('sendAlso', { n: picked.size }) : t('finish')}</PrimaryButton>}
+        : <PrimaryButton onClick={() => void finish()} busy={busy} disabled={save && !kindChosen(saveKind)}>{picked.size ? t('sendAlso', { n: picked.size }) : t('finish')}</PrimaryButton>}
     >
       <div className={cn(CARD, 'p-4 text-center')}>
         <div className={cn(
@@ -206,6 +209,24 @@ export function SendScreen({ data, draft, day, primary, onBack, onClose }: {
           <i className={cn('absolute top-1 h-[22px] w-[22px] rounded-full bg-white transition-all', save ? 'left-1' : 'left-[24px]')} />
         </button>
       </div>
+      {save && saveState !== 'saved' && (
+        <div className="space-y-1.5 px-1">
+          {kindHint(draft.kind, saveKind) && (
+            <button type="button" onClick={() => setSaveKind(draft.kind)} className="min-h-[36px] text-[13px] font-bold text-brand-600">
+              נראה כמו: {t(`chip.${draft.kind}`)} — לבחור
+            </button>
+          )}
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+            {LIBRARY_KINDS.map(k => (
+              <button key={k} type="button" aria-pressed={saveKind === k} onClick={() => setSaveKind(k)}
+                className={cn('h-11 shrink-0 whitespace-nowrap rounded-full px-4 text-[15px] font-bold', saveKind === k ? 'bg-ink-900 text-white' : 'bg-white text-ink-500')}>
+                {t(`chip.${k}`)}
+              </button>
+            ))}
+          </div>
+          {!kindChosen(saveKind) && <p className="text-[13px] font-bold text-[#8A4308]">{KIND_REQUIRED_TEXT}</p>}
+        </div>
+      )}
     </FlowScreen>
   );
 }

@@ -378,13 +378,26 @@ function shiftStep(step: WorkoutStep, thresholdSec: number, target: PaceAdjust, 
  */
 export function applyPaceAdjust(workout: ParsedWorkout, thresholdSec: number | null, target: PaceAdjust): ParsedWorkout {
   if (!thresholdSec || !(thresholdSec > 0)) return workout;
-  const applied = cleanAdjust(workout.paceAdjust);
-  const goal = cleanAdjust(target);
-  if (PACE_KINDS.every(k => (applied[k] ?? 0) === (goal[k] ?? 0))) return workout;
+  // The coach's manual zones travel with the kinds (pace-kinds.ts): without them here, a zone
+  // set by hand was dropped by `cleanAdjust` and never reached the watch (release audit, 2026-10-20).
+  const withZones = (a: PaceAdjust | null | undefined): PaceAdjust => {
+    const kinds = cleanAdjust(a);
+    const zones = cleanZones(a?.zones);
+    return Object.keys(zones).length ? { ...kinds, zones } : kinds;
+  };
+  const applied = withZones(workout.paceAdjust);
+  const goal = withZones(target);
+  if (JSON.stringify(sortedAdjust(applied)) === JSON.stringify(sortedAdjust(goal))) return workout;
   const out: ParsedWorkout = { ...workout, steps: workout.steps.map(s => shiftStep(s, thresholdSec, goal, applied)) };
   if (Object.keys(goal).length) out.paceAdjust = goal;
   else delete out.paceAdjust;
   return out;
+}
+
+/** An adjust with its keys in one order, so two equal ones compare equal. */
+function sortedAdjust(a: PaceAdjust): unknown {
+  const zones = a.zones ? Object.fromEntries(Object.entries(a.zones).sort(([x], [y]) => x.localeCompare(y))) : undefined;
+  return { ...Object.fromEntries(PACE_KINDS.map(k => [k, a[k] ?? 0])), zones };
 }
 
 /** The main work's planned pace, sec/km — what a row's pace column shows. */
