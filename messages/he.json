@@ -6276,6 +6276,8 @@
     "failed": "לא נשמר — נסו שוב"
   },
   "runAnalysis": {
+    "splitsAll": "כל {n} הק״מ",
+    "splitsLess": "להציג פחות",
     "te_RECOVERY": "התאוששות",
     "te_AEROBIC_BASE": "בסיס אירובי",
     "te_BASE": "בסיס אירובי",

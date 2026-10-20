@@ -6276,6 +6276,8 @@
     "failed": "Not saved — try again"
   },
   "runAnalysis": {
+    "splitsAll": "All {n} km",
+    "splitsLess": "Show less",
     "te_RECOVERY": "Recovery",
     "te_AEROBIC_BASE": "Aerobic base",
     "te_BASE": "Aerobic base",

@@ -9,7 +9,9 @@
  *  - we celebrate: no rep is greyed out or painted as a failure; on-target gets a ✓.
  * Charts run left→right like every chart in the app; the text around them stays RTL.
  */
+import { useState } from 'react';
 import Link from 'next/link';
+import { ChevronDown } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
 import type { Seg, Workout } from '@/lib/run-analysis/workout';
@@ -175,27 +177,40 @@ function SimilarTrend({ items }: { items: Array<{ date: string; title: string; a
 
 // ── the charts under the main stack ────────────────────────────────────────────────
 
+/** Over this many km the list opens folded on the first few (Ofer 2026-10-20). */
+const SPLITS_FOLD = 10;
+const SPLITS_PEEK = 5;
+
 export function KmSplitsList({ splits, maxHr }: { splits: StreamKmSplit[]; maxHr: number }) {
   const t = useTranslations('runAnalysis');
+  const [open, setOpen] = useState(false);
   if (splits.length < 2) return null;
+  const folded = splits.length > SPLITS_FOLD && !open;
   const full = splits.filter((s) => s.distance >= 900);
   const ps = full.map((s) => s.pace); const lo = Math.min(...ps); const hi = Math.max(...ps);
   return (
     <Card title={t('splits')}>
       <div className="grid grid-cols-[22px_1fr_38px_34px] gap-2 pb-1.5 text-[10.5px] font-extrabold text-ink-400"><span className="text-center">{t('km')}</span><span>{t('pace')}</span><span className="text-center">{t('elev')}</span><span className="text-center">♥</span></div>
-      {splits.map((s) => {
+      {(folded ? splits.slice(0, SPLITS_PEEK) : splits).map((s) => {
         const fast = s.pace <= lo + (hi - lo) * 0.35;
         const w = hi > lo ? 30 + (1 - (s.pace - lo) / (hi - lo)) * 70 : 100;
         const el = Math.round(s.elevationGain - s.elevationLoss);
         return (
           <div key={s.km} className="grid grid-cols-[22px_1fr_38px_34px] items-center gap-2 py-[3px] text-xs">
             <span className="text-center font-extrabold text-ink-400">{s.km}</span>
-            <span className="relative flex h-[18px] items-center"><i className="absolute inset-y-[2px] start-0 block rounded" style={{ width: `${w}%`, background: fast ? BLUE : '#AEB8FF' }} /><b className="relative ps-1.5 text-[11.5px] font-black text-ink-900"><B>{formatPace(s.pace)}</B></b></span>
+            <span className="relative flex h-[18px] items-center"><i className="absolute inset-y-[2px] start-0 block rounded" style={{ width: `${w}%`, background: fast ? BLUE : '#AEB8FF' }} /><b className={cn('relative ps-1.5 text-[11.5px] font-black', fast ? 'text-white' : 'text-ink-900')}><B>{formatPace(s.pace)}</B></b></span>
             <span className="text-center text-[11px] text-ink-400"><B>{el > 0 ? `+${el}` : el}</B></span>
             <span className="text-center font-extrabold" style={{ color: s.hr ? ZONE_COLOR[zoneOf(s.hr, maxHr)] : undefined }}><B>{s.hr ?? '—'}</B></span>
           </div>
         );
       })}
+      {splits.length > SPLITS_FOLD && (
+        <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}
+          className="mt-1.5 flex min-h-[40px] w-full items-center justify-center gap-1 rounded-xl bg-[#F4F5F8] text-[12.5px] font-bold text-ink-700">
+          {open ? t('splitsLess') : t('splitsAll', { n: splits.length })}
+          <ChevronDown className={cn('h-4 w-4 transition-transform', open && 'rotate-180')} />
+        </button>
+      )}
     </Card>
   );
 }
