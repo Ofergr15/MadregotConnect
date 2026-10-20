@@ -15,9 +15,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { mutate } from 'swr';
-import { Bell, CalendarClock, Check, ChevronLeft, MapPin, Route, Share, SquarePlus, Trophy } from 'lucide-react';
+import { Bell, CalendarClock, Check, ChevronLeft, MapPin, Route, Trophy } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
-import { isIosDevice, isStandalone, subscribeToPush } from '@/lib/pwa';
+import { isStandalone, subscribeToPush } from '@/lib/pwa';
 import { useIsComputer } from '@/lib/install/use-computer';
 import { CLOTHING_SIZES, SOCK_SIZES } from '@/lib/kit-sizes';
 import { EU_SHOE_SIZES } from '@/lib/shoe-catalog';
@@ -112,55 +112,18 @@ function Benefits({ rows }: { rows: Array<[ReactNode, string]> }) {
 }
 
 // ── 1 · install ─────────────────────────────────────────────────────────────
+// The app's own install guide — the recorded demo beside the step-by-step text — as the
+// landing page and the end of /join show it. Blocking: its one way out is "can't install?
+// continue in the browser", which holds for this visit only.
 function InstallStep({ onSkip }: { onSkip: () => void }) {
   const install = useInstallStep();
-  const [guide, setGuide] = useState(false);
   const prompt = install.offer?.kind === 'prompt' ? install.offer.prompt : null;
-  const ios = typeof window !== 'undefined' && isIosDevice();
-  if (guide) {
-    return (
-      <div className="fixed inset-0 z-[71] overflow-y-auto bg-[#F2F2F7]">
-        <InstallGuide canPrompt={!!prompt} onInstall={prompt ? () => prompt.prompt() : undefined}
-          onLater={() => setGuide(false)} onDone={() => setGuide(false)} />
-      </div>
-    );
-  }
-  const shots = [
-    { src: '/images/install/ios-share.jpg', pos: '50% 100%', n: 1, text: <>לוחצים על <Key icon={<Share className="h-[15px] w-[15px]" />}>שיתוף</Key></> },
-    { src: '/images/install/ios-add-to-home.jpg', pos: '50% 88%', n: 2, text: <>בוחרים <Key icon={<SquarePlus className="h-[15px] w-[15px]" />}>הוספה למסך הבית</Key></> },
-    { src: '/images/install/ios-home-icon.jpg', pos: '15% 55%', n: 3, text: <>פותחים את מדרגות מהמסך הבית</> },
-  ];
   return (
-    <Shell step={1} title="מוסיפים את מדרגות למסך הבית" sub="חצי דקה. ככה האפליקציה נפתחת מהר, ויכולה לשלוח לך התראות."
-      foot={<>
-        {prompt
-          ? <Primary onClick={() => prompt.prompt()}>התקנה</Primary>
-          : <Primary onClick={() => setGuide(true)}><Share className="h-[19px] w-[19px]" strokeWidth={2.4} />הראו לי איפה</Primary>}
-        <Quiet onClick={onSkip}>לא מצליחים? ממשיכים בדפדפן</Quiet>
-      </>}>
-      {ios || !prompt ? (
-        <div className={`${CARD} px-3.5`}>
-          {shots.map((s, i) => (
-            <div key={s.n} className="flex items-center gap-3.5 py-3" style={i ? { borderTop: `1px solid ${LINE}` } : undefined}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- the iPhone's own screens, already sized */}
-              <img src={s.src} alt="" className="h-[92px] w-[68px] shrink-0 rounded-[12px] border border-[#E4E4EA] object-cover" style={{ objectPosition: s.pos }} />
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[14px] font-black text-white" style={{ background: INK }}>{s.n}</span>
-              <span className="text-[15.5px] font-bold leading-[1.6]">{s.text}</span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className={`${CARD} flex items-center gap-3.5 p-4`}>
-          {/* eslint-disable-next-line @next/next/no-img-element -- the app's own icon */}
-          <img src="/images/icon-192.png" alt="" className="h-16 w-16 rounded-[16px] shadow-md" />
-          <div><b className="block text-[17px]">מדרגות</b><span className="text-[14px]" style={{ color: SOFT }}>התקנה בלחיצה אחת, בלי חנות אפליקציות</span></div>
-        </div>
-      )}
-    </Shell>
+    <div className="fixed inset-0 z-[70] overflow-y-auto" role="dialog" aria-modal="true" aria-label="התקנת האפליקציה" data-testid="setup-gate">
+      <InstallGuide canPrompt={!!prompt} onInstall={prompt ? () => prompt.prompt() : undefined}
+        onLater={onSkip} onDone={onSkip} onEscape={onSkip} memberName={firstName() || null} blocking />
+    </div>
   );
-}
-function Key({ icon, children }: { icon: ReactNode; children: ReactNode }) {
-  return <span className="inline-flex items-center gap-1 rounded-[7px] bg-[#EEF0FF] px-1.5 align-[-3px] font-extrabold" style={{ color: BLUE }}>{icon}{children}</span>;
 }
 
 // ── 2 · watch ───────────────────────────────────────────────────────────────
@@ -270,11 +233,9 @@ const overlay = 'absolute inset-0 h-full w-full cursor-pointer opacity-0';
 
 function DetailsStep({ facts, onSaved }: { facts: SetupFacts; onSaved: () => void }) {
   const start = facts.sizes || { shoeSize: null, shirtSize: null, pantsSize: null, tightsSize: null, socksSize: null };
-  // Asked once: what was missing when the step opened stays on screen after it is picked.
-  const [ask] = useState(() => ({
-    birthDate: !facts.birthDate, height: !facts.heightCm, weight: !facts.weightKg,
-    sizes: (Object.keys(start) as SizeKey[]).filter((k) => !start[k]),
-  }));
+  // Every field, not only the missing ones: what was filled at sign-up is shown with its
+  // value so a wrong one can be put right here (Ofer 2026-10-20). Missing ones carry the dot.
+  const ask = { birthDate: true, height: true, weight: true, sizes: Object.keys(start) as SizeKey[] };
   const [birthDate, setBirthDate] = useState(facts.birthDate || '');
   const [height, setHeight] = useState(facts.heightCm ? String(facts.heightCm) : '');
   const [weight, setWeight] = useState(facts.weightKg ? String(facts.weightKg) : '');
@@ -321,7 +282,7 @@ function DetailsStep({ facts, onSaved }: { facts: SetupFacts; onSaved: () => voi
   ].filter(Boolean);
 
   return (
-    <Shell step={4} title={left > 0 ? `עוד ${left} ${left === 1 ? 'פרט' : 'פרטים'}` : 'הכל מולא'} sub="מה שלא מילאת בהרשמה. המאמן והביגוד של המועדון צריכים אותם."
+    <Shell step={4} title={left > 0 ? `עוד ${left} ${left === 1 ? 'פרט' : 'פרטים'}` : 'הכל מולא'} sub="בודקים שהכל נכון. מה שמילאת בהרשמה כבר כאן — אפשר לתקן כל שורה."
       foot={<>
         {error && <p role="alert" className="mb-1 text-center text-[14px] font-bold text-[#AD3838]">{error}</p>}
         <Primary onClick={save} disabled={left > 0 || saving}>{saving ? 'שומרים…' : left > 0 ? `${left === 1 ? 'נשאר 1' : `נשארו ${left}`} · שמירה` : 'שמירה'}</Primary>
