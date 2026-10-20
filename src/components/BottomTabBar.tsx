@@ -92,12 +92,13 @@ export function BottomTabBar() {
   const primaryOrder = identity.isOperator
     ? OPERATOR_PRIMARY_ORDER
     : isStaffView ? STAFF_PRIMARY_ORDER
-      // A "מנהל מדרגות" keeps ניהול among the four: profile moves into "More".
-      : athletePrimaryOrder(identity.isClubManager ? ATHLETE_PRIMARY_ORDER.map((t) => (t === 'profile' ? 'club-numbers' : t)) : ATHLETE_PRIMARY_ORDER, identity.isAcademyMember, identity.traineeV2);
+      // A "מנהל מדרגות" gets ניהול as a FIFTH flat tab, after profile — nothing moves into "More".
+      : [...athletePrimaryOrder(ATHLETE_PRIMARY_ORDER, identity.isAcademyMember, identity.traineeV2), ...(identity.isClubManager ? ['club-numbers'] : [])];
+  const maxPrimary = !isStaffView && identity.isClubManager ? 5 : 4;
   const byTab = new Map(navItems.map(i => [i.tab, i]));
   const primary: NavItem[] = [];
   for (const tab of primaryOrder) {
-    if (primary.length >= 4) break;
+    if (primary.length >= maxPrimary) break;
     const item = byTab.get(tab);
     if (item) { primary.push(item); byTab.delete(tab); }
   }
@@ -105,7 +106,7 @@ export function BottomTabBar() {
   // with the staff FAB's own target (a role missing some of its preferred tabs
   // must not fall back onto the one destination the FAB already covers).
   for (const item of navItems) {
-    if (primary.length >= 4) break;
+    if (primary.length >= maxPrimary) break;
     if (isStaffView && STAFF_NEVER_PRIMARY.has(item.tab)) continue;
     // Review has two permanent homes of its own now — the button beside the logo
     // in the Header and the static card in the sheet below — so it must never be
