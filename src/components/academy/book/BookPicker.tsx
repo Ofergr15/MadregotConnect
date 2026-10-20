@@ -7,7 +7,7 @@ import { ChevronRight, Search } from 'lucide-react';
 import { useApi, apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { bookTotals, fromLibrarySteps, profileBar, structureName } from '@/lib/academy/book-steps';
-import { filterLibrary, type LibraryEntry, type LibraryKind } from '@/lib/academy/library';
+import { filterLibrary, isUnclassified, type LibraryEntry, type LibraryKind } from '@/lib/academy/library';
 import { BarButton, CARD, FlowScreen, ProfileBar, RICH, SectionLabel, kmText } from './ui';
 
 // ── 📖 מהספר (mockup phone 1ב) ────────────────────────────────────────────────────────────
@@ -87,7 +87,8 @@ export function BookPicker({ thresholdSec, onBack, onPick }: {
       .filter(({ entry, shape }) => !needle
         || entry.name.toLowerCase().includes(needle)
         || shape.toLowerCase().includes(needle)
-        || t(`kind.${entry.kind}`).includes(needle)
+        // A guessed type is not searchable as a type — the name and the shape still are.
+        || (!isUnclassified(entry) && t(`kind.${entry.kind}`).includes(needle))
         || (entry.notes ?? '').toLowerCase().includes(needle));
   }, [data, chip, query, favourites, t]);
 
@@ -174,7 +175,10 @@ function BookRow({ entry, model, thresholdSec, fav, onPick }: {
   const t = useTranslations('workoutBook');
   const totals = model ? bookTotals(model, thresholdSec) : null;
   const last = entry.lastUsedAt ? `${entry.lastUsedAt.slice(8, 10)}.${entry.lastUsedAt.slice(5, 7)}` : null;
-  const extra = entry.useCount >= 2
+  // The history fill's entries say they are still a guess (Ofer: a type is chosen, never guessed).
+  const extra = isUnclassified(entry)
+    ? <span className="font-bold text-[#8A4308]">{t('unclassifiedHint')}</span>
+    : entry.useCount >= 2
     ? t.rich('usedTimes', { ...RICH, count: entry.useCount })
     : last ? <>{t('lastUsed')} <bdi dir="ltr">{last}</bdi></> : t(`kind.${entry.kind}`);
   return (

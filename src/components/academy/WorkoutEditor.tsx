@@ -85,7 +85,7 @@ export function WorkoutEditor({
   onArchive,
   onCancel,
 }: {
-  initial?: Pick<LibraryEntry, 'name' | 'kind' | 'notes' | 'steps' | 'scope'>;
+  initial?: Pick<LibraryEntry, 'name' | 'kind' | 'notes' | 'steps' | 'scope' | 'kindConfirmed'>;
   canWriteCanon: boolean;
   saving?: boolean;
   error?: string | null;
@@ -96,7 +96,8 @@ export function WorkoutEditor({
 }) {
   const [name, setName] = useState(initial?.name ?? '');
   // A new entry starts with no type: the coach names it truthfully (kind-choice.ts). An edit keeps its own.
-  const [kind, setKind] = useState<LibraryKind | null>(initial?.kind ?? null);
+  // An entry the history fill wrote holds only a guessed type — that is no type either.
+  const [kind, setKind] = useState<LibraryKind | null>(initial && initial.kindConfirmed !== false ? initial.kind : null);
   const [scope, setScope] = useState<LibraryScope>(initial?.scope ?? 'mine');
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [showExample, setShowExample] = useState(false);

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { isMissingTable } from '@/lib/supabase/schema-drift';
+import { isMissingColumn, isMissingTable } from '@/lib/supabase/schema-drift';
 import {
   hasAbsolutePaces,
   isLibraryKind,
@@ -46,8 +46,20 @@ export const dynamic = 'force-dynamic';
  * embed outright (PGRST201) — the whole book would 500 the moment 137 was pasted. The hint
  * names the author's foreign key by its column, which holds with or without 137.
  */
-const COLUMNS =
+const COLUMNS_BASE =
   'id, scope, owner_id, name, kind, notes, steps, use_count, last_used_at, created_at, athletes!owner_id(name)';
+/** Plus migration 159's "the type is still a guess" (the history fill), when it is pasted. */
+const COLUMNS = `${COLUMNS_BASE}, kind_confirmed`;
+
+/**
+ * Run a select with migration 159's column, and again without it if the column is not
+ * there yet — every entry then reads as classified, which is what it was before 159.
+ */
+async function withKindColumn<T>(run: (columns: string) => PromiseLike<{ data: T; error: any }>): Promise<{ data: T; error: any }> {
+  const first = await run(COLUMNS);
+  if (first.error && isMissingColumn(first.error, 'kind_confirmed')) return run(COLUMNS_BASE);
+  return first;
+}
 
 function toEntry(row: any): LibraryEntry {
   return {
@@ -64,6 +76,7 @@ function toEntry(row: any): LibraryEntry {
     useCount: Number(row.use_count || 0),
     lastUsedAt: row.last_used_at ?? null,
     createdAt: String(row.created_at || ''),
+    ...(row.kind_confirmed === false ? { kindConfirmed: false } : {}),
   };
 }
 
@@ -98,11 +111,11 @@ export async function GET(request: Request) {
     }
 
     const supabase = createServerClient();
-    const { data, error } = await supabase
+    const { data, error } = await withKindColumn(columns => supabase
       .from('academy_workout_library')
-      .select(COLUMNS)
+      .select(columns)
       .is('archived_at', null)
-      .order('use_count', { ascending: false });
+      .order('use_count', { ascending: false }));
 
     if (error) {
       if (isMissingTable(error)) return NextResponse.json(NOT_SET_UP);
@@ -192,7 +205,7 @@ export async function POST(request: Request) {
         notes: String(body?.notes || '').trim() || null,
         steps: checked.steps,
       })
-      .select(COLUMNS)
+      .select(COLUMNS_BASE)
       .single();
 
     if (error) {
@@ -215,6 +228,7 @@ export async function POST(request: Request) {
  * Edit, archive, or record that an entry was pushed.
  *
  *   { id, action: 'edit', name?, kind?, notes?, steps? }
+ *   { id, action: 'classify', kind }   → the history fill's guessed type, chosen (migration 159)
  *   { id, action: 'archive' }
  *   { id, action: 'used', trainees: 6 }
  *
@@ -305,6 +319,23 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
+    if (action === 'classify') {
+      // The history fill's entries carry only a guessed type (migration 159); choosing it is
+      // the one thing that makes the entry show under a type chip.
+      if (!isLibraryKind(body?.kind)) return NextResponse.json({ error: 'Unknown workout kind' }, { status: 400 });
+      const { data, error } = await supabase
+        .from('academy_workout_library')
+        .update({ kind: body.kind, kind_confirmed: true, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select(COLUMNS)
+        .single();
+      if (error) {
+        if (isMissingColumn(error, 'kind_confirmed')) return NextResponse.json({ error: 'migration 159 needed', needsMigration: 159 }, { status: 409 });
+        return NextResponse.json({ error: 'Failed to save the type' }, { status: 500 });
+      }
+      return NextResponse.json({ entry: toEntry(data) });
+    }
+
     if (action !== 'edit') return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
 
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -316,6 +347,8 @@ export async function PATCH(request: Request) {
     if (body?.kind !== undefined) {
       if (!isLibraryKind(body.kind)) return NextResponse.json({ error: 'Unknown workout kind' }, { status: 400 });
       patch.kind = body.kind;
+      // A type set in the editor is a chosen type.
+      patch.kind_confirmed = true;
     }
     if (body?.notes !== undefined) patch.notes = String(body.notes || '').trim() || null;
     if (body?.steps !== undefined) {
@@ -324,12 +357,21 @@ export async function PATCH(request: Request) {
       patch.steps = checked.steps;
     }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('academy_workout_library')
       .update(patch)
       .eq('id', id)
       .select(COLUMNS)
       .single();
+    if (error && isMissingColumn(error, 'kind_confirmed')) {
+      delete patch.kind_confirmed;
+      ({ data, error } = await supabase
+        .from('academy_workout_library')
+        .update(patch)
+        .eq('id', id)
+        .select(COLUMNS_BASE)
+        .single());
+    }
     if (error) {
       if (String((error as any).code) === '23505') {
         return NextResponse.json({ error: 'A workout by that name is already on this shelf' }, { status: 409 });

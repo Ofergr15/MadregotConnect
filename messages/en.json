@@ -4096,7 +4096,38 @@
     "recent": "Recent",
     "allWorkouts": "All workouts",
     "usedTimes": "<m>{count}</m> uses",
-    "lastUsed": "Last:"
+    "lastUsed": "Last:",
+    "fill": {
+      "open": "Fill the book from all history",
+      "title": "Fill the book",
+      "lead": "Every workout ever written in the app — club weeks, one-day sessions and templates — goes into the book at once. A workout already in the book isn't added again.",
+      "toAdd": "Will be added",
+      "alreadyIn": "Already in the book",
+      "sources": "Sources: <m>{weeks}</m> weeks · <m>{days}</m> one-day sessions · <m>{templates}</m> templates",
+      "unclassified": "No workout's type is set automatically. They go in as “to classify” — searchable and sendable right away, and shown under a type only once someone chooses it.",
+      "go": "{n, plural, =0 {Nothing to add} one {Add one workout to the book} other {Add # workouts to the book}}",
+      "nothing": "Everything is already in the book",
+      "written": "{n, plural, =0 {No workout added} one {One workout added} other {<m>#</m> workouts added}} · Close",
+      "loadFailed": "Couldn't scan the history.",
+      "failed": "The fill failed. Try again.",
+      "needsMigration": "Migration 159 has to be run on the database first."
+    },
+    "classify": {
+      "open": "To classify · {n}",
+      "title": "Classify workouts",
+      "left": "<m>{n}</m> left",
+      "skip": "Skip — later",
+      "allDone": "{n, plural, =0 {Nothing classified} one {One workout classified} other {<m>#</m> workouts classified}} · Close",
+      "doneTitle": "That's it for this round",
+      "emptyTitle": "Nothing to classify",
+      "doneBody": "{n, plural, =0 {No workout classified.} one {One workout classified.} other {# workouts classified.}}",
+      "typicalPace": "at a typical pace",
+      "question": "What kind of workout is this?",
+      "hint": "Looks like: {kind}",
+      "oneTap": "one tap saves and moves on",
+      "failed": "Saving failed. Try again."
+    },
+    "unclassifiedHint": "To classify"
   },
   "viewAs": {
     "title": "View as",

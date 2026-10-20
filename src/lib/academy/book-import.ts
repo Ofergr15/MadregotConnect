@@ -19,19 +19,38 @@
  *
  * Pure: plans, thresholds and the existing book in; a review list out. The route writes
  * only the candidates the manager confirmed, re-derived server-side from the same inputs.
+ *
+ * ── The whole history (Ofer, 2026-10-20: "maybe run over all the workouts we put into
+ * the app historically?") ─────────────────────────────────────────────────────────────────
+ *
+ * Two more sources ride the same pipeline: the one-day sessions (`day_sessions`, steps at
+ * lane 1's paces like a club week) and the legacy templates (`academy_workouts`). An easy
+ * run is merged by its LENGTH alone — `60 דקות קל` written at 5:00 and at 5:10 is one
+ * session, not "60 דקות קל (2)" — and the most-used variant is the one kept. `fillRows`
+ * turns the whole list into book rows in one go, every one UNCLASSIFIED: the guessed type
+ * is a hint, never the label, until a manager chooses it (kind-choice.ts, library.ts).
  */
 
 import type { ParsedWorkout } from '@/lib/ai/types';
 import { hasAbsolutePaces, type LibraryEntry, type LibraryKind, type LibraryStep } from './library';
 import { laneWorkouts, type Lane } from './group-lane';
-import { absoluteToLibrary, fromLibrarySteps, guessKind, structureKey, structureName } from './book-steps';
+import { absoluteToLibrary, centrePct, fromLibrarySteps, guessKind, structureKey, structureName, toneOfPct } from './book-steps';
 
 export interface ImportPlanRow {
   id: string;
   athleteId: string | null;
   weekStart: string;
   parsed: unknown;
+  /**
+   * The workouts themselves, for a source that is not a week (`day_sessions`, a legacy
+   * template) — taken as written at lane 1's paces, like the club's week. Wins over `parsed`.
+   */
+  workouts?: ParsedWorkout[];
+  /** Which store the row came from; a week's origin follows from `athleteId`. */
+  origin?: ImportOrigin;
 }
+
+export type ImportOrigin = 'club' | 'academy' | 'day' | 'template';
 
 export type ImportStatus = 'new' | 'existing' | 'review';
 
@@ -46,7 +65,7 @@ export interface ImportSource {
   planId: string;
   weekStart: string;
   dayOfWeek: number;
-  origin: 'club' | 'academy';
+  origin: ImportOrigin;
   athleteId: string | null;
   /** The source's own title (`שלישי`, `אינטרוולים`). */
   title: string;
@@ -68,6 +87,7 @@ export interface ImportCandidate {
 }
 
 function workoutsOf(row: ImportPlanRow): ParsedWorkout[] {
+  if (Array.isArray(row.workouts)) return row.workouts;
   if (row.athleteId) {
     const flat = (row.parsed as { workouts?: ParsedWorkout[] } | null)?.workouts;
     if (Array.isArray(flat)) return flat;
@@ -77,6 +97,20 @@ function workoutsOf(row: ImportPlanRow): ParsedWorkout[] {
 
 function hasRealWork(w: ParsedWorkout): boolean {
   return Array.isArray(w?.steps) && w.steps.some(s => s.type !== 'rest' && s.type !== 'recovery');
+}
+
+/** The tree that occurs most often in the group (by exact structure), the first on a tie. */
+function mostUsedVariant(group: LibraryStep[][]): LibraryStep[] {
+  const counts = new Map<string, { n: number; steps: LibraryStep[] }>();
+  for (const steps of group) {
+    const k = structureKey(steps);
+    const c = counts.get(k) ?? { n: 0, steps };
+    c.n += 1;
+    counts.set(k, c);
+  }
+  let best: { n: number; steps: LibraryStep[] } | null = null;
+  for (const c of counts.values()) if (!best || c.n > best.n) best = c;
+  return JSON.parse(JSON.stringify(best!.steps)) as LibraryStep[];
 }
 
 /** The same tree with each intensity replaced by the median of the group's. */
@@ -118,7 +152,80 @@ export interface BuildImportInput {
   thresholds: Record<string, number | null>;
   /** Lane 1's reference threshold, from senior-pick's `laneReferences`. */
   clubReferenceSec: number;
-  existing: Pick<LibraryEntry, 'id' | 'name' | 'steps'>[];
+  existing: Array<Pick<LibraryEntry, 'id' | 'name' | 'steps'> & { importKey?: string | null }>;
+}
+
+/** Every non-rest step, flattened through repeats (count times). */
+function workSteps(steps: LibraryStep[], times = 1, out: Array<{ step: LibraryStep; times: number }> = []) {
+  for (const s of steps) {
+    if (s.repeatSteps?.length) workSteps(s.repeatSteps, times * (s.repeatCount ?? 1), out);
+    else if (s.type !== 'rest' && s.type !== 'recovery') out.push({ step: s, times });
+  }
+  return out;
+}
+
+/**
+ * An easy run's identity is its length: every step easy (or untargeted), no repeat of real
+ * work. Returns `easy:t<sec>` / `easy:d<m>` — the pace it was written at does not make it a
+ * different session — or null when the session has any faster work.
+ */
+export function easyRunKey(steps: LibraryStep[]): string | null {
+  const work = workSteps(steps);
+  if (!work.length) return null;
+  let sec = 0; let m = 0;
+  for (const { step, times } of work) {
+    const tone = step.intensity ? toneOfPct(centrePct(step.intensity)) : 'e';
+    if (tone !== 'e' || step.targetType === 'heart_rate') return null;
+    if (!step.durationValue || step.durationType === 'open') continue;
+    if (step.durationType === 'distance') m += step.durationValue * times;
+    else sec += step.durationValue * times;
+  }
+  if (sec && m) return null; // a mixed run is a structure, not one length
+  if (sec) return `easy:t${Math.round(sec / 300) * 300}`;
+  if (m) return `easy:d${Math.round(m / 500) * 500}`;
+  return null;
+}
+
+/** The key an entry is matched on: an easy run's length, else its structure. */
+export function importKeyOf(steps: LibraryStep[]): string {
+  return easyRunKey(steps) ?? structureKey(steps);
+}
+
+const lenText = (s: LibraryStep): string => {
+  if (!s.durationValue || s.durationType === 'open') return '';
+  if (s.durationType === 'distance') return s.durationValue >= 1000 ? `${Math.round(s.durationValue / 100) / 10} ק״מ` : `${s.durationValue} מ׳`;
+  return s.durationValue >= 60 && s.durationValue % 60 === 0 ? `${s.durationValue / 60} דק׳` : s.durationValue >= 120 ? `${Math.round(s.durationValue / 60)} דק׳` : `${s.durationValue} שנ׳`;
+};
+
+/**
+ * A name for a session the editor cannot draw (`not-editable`: open laps, untargeted reps):
+ * its repeat blocks, else its length — never the weekday it happened to be written on
+ * ("יום ראשון (7)" said nothing about the workout). `hint` adds "עליות" when the plan said so.
+ */
+export function roughName(steps: LibraryStep[], hint = ''): string {
+  // Each repeat block with how much work it holds; the short accents (≤ 30 s / ≤ 150 m —
+  // the warm-up strides every club session opens with) only when nothing else is there.
+  const blocks = steps.filter(s => s.repeatSteps?.length).map(s => {
+    const lead = s.repeatSteps!.find(c => c.type !== 'rest' && c.type !== 'recovery');
+    const v = lead?.durationValue ?? 0;
+    const short = !lead || lead.durationType === 'open' || !v
+      || (lead.durationType === 'distance' ? v <= 150 : v <= 30);
+    const weight = (s.repeatCount ?? 1) * (lead?.durationType === 'distance' ? v * 0.3 : v);
+    const len = lead ? lenText(lead) : '';
+    return { text: len ? `${s.repeatCount ?? 1} × ${len}` : `${s.repeatCount ?? 1} חזרות`, short, weight };
+  });
+  const main = blocks.filter(b => !b.short).sort((a, b) => b.weight - a.weight);
+  const parts = (main.length ? main : blocks).slice(0, 2).map(b => b.text);
+  const hills = /גבע|עליות|עליה|hill/i.test(hint) ? ' עליות' : '';
+  if (parts.length) return `${parts.join(' + ')}${hills}`;
+  let sec = 0; let m = 0;
+  for (const { step, times } of workSteps(steps)) {
+    if (!step.durationValue || step.durationType === 'open') continue;
+    if (step.durationType === 'distance') m += step.durationValue * times; else sec += step.durationValue * times;
+  }
+  if (m >= 1000) return `ריצה ${Math.round(m / 100) / 10} ק״מ${hills}`;
+  if (sec) return `ריצה ${Math.round(sec / 60)} דק׳${hills}`;
+  return `אימון${hills}`;
 }
 
 export function buildImport({ plans, thresholds, clubReferenceSec, existing }: BuildImportInput): ImportCandidate[] {
@@ -133,7 +240,7 @@ export function buildImport({ plans, thresholds, clubReferenceSec, existing }: B
   const groups = new Map<string, Group>();
 
   for (const row of plans) {
-    const origin = row.athleteId ? 'academy' : 'club';
+    const origin: ImportOrigin = row.origin ?? (row.athleteId ? 'academy' : 'club');
     const reference = row.athleteId ? thresholds[row.athleteId] ?? null : clubReferenceSec;
     for (const w of workoutsOf(row)) {
       if (!hasRealWork(w) || typeof w.dayOfWeek !== 'number') continue;
@@ -155,7 +262,7 @@ export function buildImport({ plans, thresholds, clubReferenceSec, existing }: B
 
       const converted = absoluteToLibrary(w.steps, reference);
       if (hasAbsolutePaces(converted.steps)) continue;
-      const key = structureKey(converted.steps);
+      const key = importKeyOf(converted.steps);
       const g = groups.get(key) ?? { key, steps: [], reasons: new Set<ImportReason>(), sources: [], hint, saveable: true };
       g.steps.push(converted.steps);
       for (const r of converted.review) g.reasons.add(r as ImportReason);
@@ -165,13 +272,25 @@ export function buildImport({ plans, thresholds, clubReferenceSec, existing }: B
     }
   }
 
-  const existingByKey = new Map(existing.map(e => [structureKey(e.steps), e.id]));
+  // An entry is "already in the book" by its own steps' key OR the key it was imported under:
+  // a coach who edited an imported entry has changed its steps, and re-running the fill must
+  // not bring the original back beside it.
+  const existingByKey = new Map<string, string>();
+  for (const e of existing) {
+    existingByKey.set(importKeyOf(e.steps), e.id);
+    existingByKey.set(structureKey(e.steps), e.id);
+    if (e.importKey) existingByKey.set(e.importKey, e.id);
+  }
   const takenNames = new Set(existing.map(e => e.name.trim().toLowerCase()));
 
   const candidates = [...groups.values()].map((g): ImportCandidate => {
-    const steps = g.steps.length ? mergeIntensities(g.steps) : null;
+    // An easy run merged across paces keeps the variant written most often, whole — a
+    // median of differently shaped trees is not a tree.
+    const steps = !g.steps.length ? null
+      : g.key.startsWith('easy:') ? mostUsedVariant(g.steps)
+      : mergeIntensities(g.steps);
     const model = steps ? fromLibrarySteps(steps) : null;
-    const name = model ? structureName(model) : (g.sources[0]?.title || 'אימון');
+    const name = model ? structureName(model) : steps ? roughName(steps, g.hint) : (g.sources[0]?.title || 'אימון');
     const existingId = steps ? existingByKey.get(g.key) ?? null : null;
     const reasons = [...g.reasons];
     const status: ImportStatus = existingId ? 'existing' : reasons.length ? 'review' : 'new';
@@ -225,4 +344,64 @@ export function importTickedByDefault(c: Pick<ImportCandidate, 'status' | 'savea
 /** "<name> (2)" — the importer's suffix for a second session under the same name. */
 export function isDuplicateVariant(c: Pick<ImportCandidate, 'kind' | 'name'>): boolean {
   return c.kind === 'easy' && /\(\d+\)\s*$/.test(c.name.trim());
+}
+
+/** A row the history fill writes: the candidate as is, its type left for a manager to choose. */
+export interface FillRow {
+  key: string;
+  name: string;
+  /** The import's guess, stored because the column needs a value; `kindConfirmed: false` says so. */
+  kind: LibraryKind;
+  kindConfirmed: false;
+  steps: LibraryStep[];
+  uses: number;
+  lastWeek: string;
+}
+
+/**
+ * Everything the history holds that the book does not: every saveable, not-yet-present
+ * candidate, review reasons included (they are notes on the row, not a reason to leave a
+ * session out of the book — a manager sees them on the classify screen). Idempotent by
+ * construction: a second run rebuilds the list against the book the first run wrote, and
+ * every candidate comes back `existing`.
+ */
+export function fillRows(candidates: ImportCandidate[]): FillRow[] {
+  return candidates
+    .filter(c => c.saveable && c.status !== 'existing' && c.steps && c.steps.length && !hasAbsolutePaces(c.steps))
+    .map(c => ({ key: c.key, name: c.name, kind: c.kind, kindConfirmed: false as const, steps: c.steps!, uses: c.uses, lastWeek: c.lastWeek }));
+}
+
+/** The source counts the fill screen shows ("18 שבועות · 2 אימונים ליום אחד"). */
+export function sourceCounts(rows: ImportPlanRow[]): Record<ImportOrigin, number> {
+  const out: Record<ImportOrigin, number> = { club: 0, academy: 0, day: 0, template: 0 };
+  for (const r of rows) out[r.origin ?? (r.athleteId ? 'academy' : 'club')] += 1;
+  return out;
+}
+
+/** A one-day session (`day_sessions`) as an import row: its steps are lane 1's, like a club week. */
+export function daySessionRow(row: { id: string; session_date: string; title?: string | null; steps?: unknown }): ImportPlanRow | null {
+  if (!Array.isArray(row.steps) || !row.steps.length || !/^\d{4}-\d{2}-\d{2}$/.test(String(row.session_date))) return null;
+  const dayOfWeek = new Date(`${row.session_date}T12:00:00Z`).getUTCDay();
+  return {
+    id: `day:${row.id}`,
+    athleteId: null,
+    weekStart: String(row.session_date),
+    parsed: null,
+    origin: 'day',
+    workouts: [{ dayOfWeek, name: String(row.title || ''), steps: row.steps } as ParsedWorkout],
+  };
+}
+
+/** A legacy template (`academy_workouts.workout`, a ParsedWorkout) as an import row. */
+export function templateRow(row: { id: string; name?: string | null; workout?: unknown; created_at?: string | null }): ImportPlanRow | null {
+  const w = row.workout as Partial<ParsedWorkout> | null;
+  if (!w || !Array.isArray(w.steps) || !w.steps.length) return null;
+  return {
+    id: `template:${row.id}`,
+    athleteId: null,
+    weekStart: String(row.created_at || '').slice(0, 10),
+    parsed: null,
+    origin: 'template',
+    workouts: [{ ...(w as ParsedWorkout), dayOfWeek: typeof w.dayOfWeek === 'number' ? w.dayOfWeek : 0, name: String(row.name || w.name || '') }],
+  };
 }

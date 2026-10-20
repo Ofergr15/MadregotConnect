@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { KIND_LABEL, ZONE_LABEL } from './libraryText';
 import { WorkoutEditor, type WorkoutDraftPayload } from './WorkoutEditor';
 import { BookImport } from './book/BookImport';
+import { BookClassify, BookFill, unclassifiedOf } from './book/BookFill';
 import {
   LIBRARY_KINDS,
   duplicateEntry,
@@ -330,6 +331,7 @@ function Row({
             ? <><bdi dir="ltr">{Math.round(durationSec / 60)}</bdi> דק׳ · </>
             : distanceM > 0 ? <><bdi dir="ltr">{km(distanceM)}</bdi> ק״מ · </> : null}
           {effort && <>{effort} · </>}
+          {entry.kindConfirmed === false && <span className="font-bold text-[#8A4308]">לסיווג · </span>}
           {useCountLabel(entry.useCount)}
         </p>
       </div>
@@ -370,6 +372,8 @@ export function WorkoutBook() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [filling, setFilling] = useState(false);
+  const [classifying, setClassifying] = useState(false);
   const t = useTranslations('workoutBook');
 
   const reload = useCallback(async (isCancelled: () => boolean = () => false) => {
@@ -469,6 +473,8 @@ export function WorkoutBook() {
     setEditing({ mode: 'new', from: { ...entry, ...duplicateEntry(entry, viewer.athleteId ?? '') } });
   };
 
+  const unclassifiedCount = entries ? unclassifiedOf(entries).length : 0;
+
   if (error) return <p className="py-6 text-center text-xs text-accent-red-ink">{error}</p>;
   // Said plainly rather than as an empty book: migration 109 is pasted in by hand, and a
   // screen that looks merely empty is one nobody thinks to go and apply a migration for.
@@ -500,14 +506,36 @@ export function WorkoutBook() {
       {/* The manager's one-time door: every workout the app already holds, reviewed, into
           the canon (book v3). Nothing is written until the review screen's button. */}
       {viewer.isManager && (
-        <button
-          type="button"
-          onClick={() => setImporting(true)}
-          className="mb-3 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-card bg-card text-sm font-bold text-brand-600"
-        >
-          <Download className="h-4 w-4" />
-          {t('import.open')}
-        </button>
+        <div className="mb-3 space-y-2">
+          {/* The history fill (Ofer, 2026-10-20): every session ever written, in one go, each
+              one waiting for a person to choose its type. The reviewed import stays beside it
+              for a manager who wants to pick row by row. */}
+          <button
+            type="button"
+            onClick={() => setFilling(true)}
+            className="flex min-h-[48px] w-full items-center justify-center gap-1.5 rounded-card bg-brand-600 text-sm font-extrabold text-white"
+          >
+            <Layers className="h-4 w-4" />
+            {t('fill.open')}
+          </button>
+          {unclassifiedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setClassifying(true)}
+              className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-card bg-[#FFF4E5] text-sm font-extrabold text-[#8A4308]"
+            >
+              {t('classify.open', { n: unclassifiedCount })}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setImporting(true)}
+            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-card bg-card text-sm font-bold text-brand-600"
+          >
+            <Download className="h-4 w-4" />
+            {t('import.open')}
+          </button>
+        </div>
       )}
       <BookList
         entries={entries}
@@ -519,6 +547,14 @@ export function WorkoutBook() {
         canEdit={canEdit}
       />
       {importing && <BookImport onClose={() => setImporting(false)} onImported={() => void reload()} />}
+      {filling && <BookFill onClose={() => setFilling(false)} onFilled={() => { setScope('academy'); void reload(); }} />}
+      {classifying && (
+        <BookClassify
+          entries={entries}
+          onClose={() => setClassifying(false)}
+          onClassified={saved => setEntries(list => (list || []).map(e => (e.id === saved.id ? saved : e)))}
+        />
+      )}
     </>
   );
 }

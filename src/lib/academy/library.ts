@@ -195,6 +195,19 @@ export interface LibraryEntry {
   useCount: number;
   lastUsedAt: string | null;
   createdAt: string;
+  /**
+   * False for an entry the history fill wrote (book-import `fillRows`) whose type nobody has
+   * chosen yet: `kind` then holds only the import's GUESS, shown as "נראה כמו: …", and the
+   * entry stays out of the type filters until a manager classifies it (Ofer, 2026-10-20:
+   * "only that way it is labelled truthfully"). Absent (migration 159 not pasted, or any
+   * entry written by hand) reads as chosen.
+   */
+  kindConfirmed?: boolean;
+}
+
+/** An entry whose type is still the import's guess — searchable, usable, never filtered by type. */
+export function isUnclassified(entry: Pick<LibraryEntry, 'kindConfirmed'>): boolean {
+  return entry.kindConfirmed === false;
 }
 
 /**
@@ -472,7 +485,8 @@ export function filterLibrary(entries: LibraryEntry[], filter: LibraryFilter = {
   return entries
     .filter(e => {
       if (filter.scope && e.scope !== filter.scope) return false;
-      if (filter.kind && e.kind !== filter.kind) return false;
+      // A guessed type is not a type: the chip shows only what a coach chose.
+      if (filter.kind && (e.kind !== filter.kind || isUnclassified(e))) return false;
       if (!needle) return true;
       return e.name.toLowerCase().includes(needle)
         || (e.notes ?? '').toLowerCase().includes(needle);
