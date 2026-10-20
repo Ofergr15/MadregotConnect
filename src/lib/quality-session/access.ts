@@ -22,3 +22,21 @@ export async function storyEditorIds(supabase: Db): Promise<string[] | null> {
   if (error) return null;
   return ((data || []) as Array<{ id: string }>).map(a => a.id);
 }
+
+/**
+ * Who is told about the quality morning (the 7:30 push, the photo folder): exactly the
+ * people the screen opens for — every super user (the club's admin account included:
+ * Ofer, 2026-10-20, "why didn't it reach admin?"), the super user's address, and every
+ * story editor. One list, so a push never lands on someone the page then turns away.
+ */
+export async function qualitySessionRecipientIds(supabase: Db, superUserEmail: string): Promise<string[]> {
+  const [supers, byEmail, editors] = await Promise.all([
+    supabase.from('athletes').select('id').eq('is_super_user', true),
+    supabase.from('athletes').select('id').eq('email', superUserEmail),
+    storyEditorIds(supabase),
+  ]);
+  return [...new Set([
+    ...[...((supers.data || []) as Array<{ id: string }>), ...((byEmail.data || []) as Array<{ id: string }>)].map(a => a.id),
+    ...(editors || []),
+  ])];
+}

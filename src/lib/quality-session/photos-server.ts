@@ -6,7 +6,7 @@ import { COACH_ID, SUPER_USER_EMAIL } from '@/lib/constants';
 import { sessionFolderReadyCopy, sessionPhotosCopy } from '@/lib/notifications/copy';
 import { driveWriter, ensureDayFolder } from '@/lib/google-drive/writer';
 import { loadQualityWorkout } from './server';
-import { storyEditorIds } from './access';
+import { qualitySessionRecipientIds } from './access';
 import { albumPhotoUrls, pullAlbumPhotos, type PulledMedia } from './album-fetch';
 import { MAX_SESSION_PHOTOS, SESSION_PHOTOS_KIND, sessionDayLabel, toSessionPhotos, type SessionPhotosPayload } from './photos';
 
@@ -159,11 +159,7 @@ export const WATCH_UNTIL_HOUR = 15;
 const WATCH_EVERY_MS = 14 * 60_000;
 
 export async function editorIds(supabase: Db): Promise<string[]> {
-  const [editors, superRow] = await Promise.all([
-    storyEditorIds(supabase),
-    supabase.from('athletes').select('id').eq('email', SUPER_USER_EMAIL).maybeSingle(),
-  ]);
-  return [...new Set([...(editors || []), ...((superRow.data as { id?: string } | null)?.id ? [(superRow.data as { id: string }).id] : [])])];
+  return qualitySessionRecipientIds(supabase, SUPER_USER_EMAIL);
 }
 
 /**

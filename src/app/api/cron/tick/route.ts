@@ -46,7 +46,7 @@ import { CLUB_WEEK_KIND, clubWeekBody, storyPushCopy, type WeekNumbers } from '@
 import { publishClubPost } from '@/lib/publish/server';
 import { BUCKET_LABEL, parseRecordUrl } from '@/lib/publish/model';
 import { PUSH_AT } from '@/lib/quality-session/model';
-import { storyEditorIds } from '@/lib/quality-session/access';
+import { qualitySessionRecipientIds } from '@/lib/quality-session/access';
 import { cronPaused } from '@/lib/cron-pause';
 import { gateState, shouldAsk, stageDue, addDays, type ApprovalStore, type GateState } from '@/lib/notifications/approval';
 import { loadApprovals, qualityOf } from '@/lib/notifications/approval-server';
@@ -820,8 +820,8 @@ async function run(request: Request) {
   // The quality session (lib/quality-session): at 7:30 on a morning the PLAN calls
   // intervals / tempo / fartlek — not the team days above — one push saying the
   // morning's runs are there to pick from and share. Once per day by the ledger,
-  // and no follow-ups: the screen keeps itself current. To the super user and
-  // whoever has the "אינסטגרם" switch (lib/quality-session/access.ts). Any tick from 7:30 on sends it, so a missed one only
+  // and no follow-ups: the screen keeps itself current. To everyone the screen
+  // opens for — super users (the admin account too) and the "אינסטגרם" switch (qualitySessionRecipientIds). Any tick from 7:30 on sends it, so a missed one only
   // delays it five minutes; the row on the feed stops at 11:00, so does this.
   if (hour * 60 + minute >= PUSH_AT && hour < 11) {
     const today = israelToday(now);
@@ -830,16 +830,7 @@ async function run(request: Request) {
       if (!(await already(tag))) {
         const push = await qualityPush(supabase, today);
         if (push) {
-          const [supers, byEmail, editors] = await Promise.all([
-            // The club's admin account is a super user too, but not a runner or an editor.
-            supabase.from('athletes').select('id').eq('is_super_user', true).or(`role.is.null,role.neq.${CLUB_ACCOUNT_ROLE}`),
-            supabase.from('athletes').select('id').eq('email', SUPER_USER_EMAIL),
-            storyEditorIds(supabase),
-          ]);
-          const ids = [...new Set([
-            ...[...(supers.data || []), ...(byEmail.data || [])].map(a => a.id as string),
-            ...(editors || []),
-          ])];
+          const ids = await qualitySessionRecipientIds(supabase, SUPER_USER_EMAIL);
           for (const athleteId of ids) {
             await notifyAthlete({
               athleteId,

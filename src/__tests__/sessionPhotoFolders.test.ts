@@ -19,7 +19,7 @@ vi.mock('@/lib/google-drive/writer', () => ({ driveWriter: () => ({}), ensureDay
 vi.mock('@/lib/quality-session/server', () => ({
   loadQualityWorkout: async (_s: unknown, date: string) => (h.qualityDays.has(date) ? { name: 'עליות', type: 'intervals' } : null),
 }));
-vi.mock('@/lib/quality-session/access', () => ({ storyEditorIds: async () => ['editor-1'] }));
+vi.mock('@/lib/quality-session/access', () => ({ storyEditorIds: async () => ['editor-1'], qualitySessionRecipientIds: async () => ['editor-1', 'super-1'] }));
 vi.mock('@/lib/push', () => ({ notifyAthlete: h.notify }));
 vi.mock('@/lib/quality-session/album-fetch', () => ({
   albumPhotoUrls: async () => (h.photos ? { ok: true, urls: Array.from({ length: h.photos }, (_, i) => `u${i}`) } : { ok: false, error: 'no-photos' }),

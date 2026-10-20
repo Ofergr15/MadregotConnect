@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { apiHeaders, useApi } from '@/lib/api';
-import { isPreviewing, useIsSuperUser } from '@/lib/impersonation';
+import { getViewMode, useIsSuperUser } from '@/lib/impersonation';
 import { GROUP_HEX } from '@/lib/utils';
 import { ShareSheet } from '@/components/ShareSheet';
 import { fetchFeedItemByActivity } from '@/lib/feed-client';
 import { withoutHeartRate, type FeedItem } from '@/lib/feed/project';
 import { fmtPace, type Pack } from '@/lib/pack-stories/model';
 import { readClock } from '@/lib/quality-session/clock';
-import { useQualitySessionAccess } from '@/lib/quality-session/use-access';
+import { useQualitySessionAccessState } from '@/lib/quality-session/use-access';
 import {
   fromMinutes, isNew, packRuns, runnersOf, shareTitle,
   type QsClock, type QsRunner, type QsSession, type SortKey,
@@ -79,7 +79,13 @@ function vsTarget(d: number) {
 }
 
 export default function QualitySessionPage() {
-  const allowed = useQualitySessionAccess() && !isPreviewing();
+  const access = useQualitySessionAccessState();
+  // A super user previewing someone else's app (view-as) sees what THEY would: the
+  // screen used to render nothing at all for that, which read as a page stuck
+  // loading (Ofer, 2026-10-20 — three blank opens from the 7:30 push).
+  const [viewAs, setViewAs] = useState<string | null>(null);
+  useEffect(() => { setViewAs(getViewMode()); }, []);
+  const allowed = access === 'yes' && !viewAs;
   const isSuper = useIsSuperUser();
   const [clock, setClock] = useState<QsClock | null>(null);
   const [asked, setAsked] = useState<string | null>(null);
@@ -140,7 +146,25 @@ export default function QualitySessionPage() {
     : (a, b) => (a.key ?? Infinity) - (b.key ?? Infinity) || b.runner.run.dist - a.runner.run.dist), [seen, sortBy]);
   const picked = seen.find(s => s.runner.run.id === sel[pack]) || null;
 
-  if (!allowed) return null;
+  if (!allowed) {
+    const exitViewAs = () => { localStorage.removeItem('view_as_role'); window.location.reload(); };
+    return (
+      <div className="qsx" dir="rtl">
+        <Link href="/feed" className="back">› פיד</Link>
+        <h1 className="ttl">אימון האיכות</h1>
+        {viewAs && access === 'yes' ? (
+          <div className="card empty">
+            את/ה כרגע בתצוגה של משתמש אחר, ושם הדף הזה לא פתוח.
+            <button className="try" onClick={exitViewAs}>לחזור לתצוגה שלי ולפתוח</button>
+          </div>
+        ) : access === 'no' ? (
+          <div className="card empty">הדף הזה פתוח רק למי שמשתף את אימון האיכות (המתג ״אינסטגרם״ במסך התפקידים).</div>
+        ) : (
+          <div className="note">טוען…</div>
+        )}
+      </div>
+    );
+  }
 
   const title = sess?.workout?.name ? <><bdi dir="ltr">{sess.workout.name}</bdi> · {sess.label.replace(/^אימון /, '')}</> : sess?.label;
   const runners = packs.reduce<number>((n, p) => n + (byPack[p]?.length || 0), 0);
@@ -246,7 +270,12 @@ export default function QualitySessionPage() {
           )}
           {/* Only before the first answer: a refresh keeps the morning on screen. */}
           {!sess && !error && <div className="note">טוען…</div>}
-          {error && !sess && <div className="note">לא הצלחתי לטעון את האימון.</div>}
+          {error && !sess && (
+            <div className="note">
+              לא הצלחתי לטעון את האימון.
+              <button className="try" onClick={() => { void mutate(); }}>לנסות שוב</button>
+            </div>
+          )}
           {sess && (
             <>
               <div className="tabs">
