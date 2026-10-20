@@ -140,7 +140,9 @@ export async function GET(request: Request) {
     // raw order — a page may come back short, never skipped.
     const pending = await pendingRead;
     if (auth.user.athleteId) pending.delete(auth.user.athleteId);
-    const page = withoutPendingAuthors(raw as { author_athlete_id?: string | null }[], pending) as typeof raw;
+    // A birthday set to "circle only" (story_instances.placement, 162) lives on the circles, not in the list.
+    const page = (withoutPendingAuthors(raw as { author_athlete_id?: string | null }[], pending) as typeof raw)
+      .filter((r) => !((r as { payload?: { circleOnly?: unknown } | null }).payload?.circleOnly));
 
     // Likes, comment previews and plan verdicts for the whole page — see
     // lib/feed/context.ts, which the single-item route uses too so a card opened

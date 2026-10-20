@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { Award, Bell, Cake, CalendarDays, Radio, Sparkles, Trophy } from 'lucide-react';
+import { Award, Bell, CalendarDays, Radio, Sparkles, Trophy } from 'lucide-react';
 import { InsetRow, InsetSection, Sheet } from '@/components/ui';
 import { israelDateOf } from '@/lib/reports/last-7-days';
 import {
@@ -11,6 +11,7 @@ import {
   type ContentType,
 } from '@/lib/content/hub';
 import { LastLine, TypeBlock, TypeIcon, WaitRow } from '@/components/content/hub-ui';
+import { StoriesHome } from '@/components/content/StoriesHome';
 import { useCheerSuggestions, useHubContent, useLive, usePhotosStatus } from '@/components/content/use-hub';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -122,6 +123,8 @@ export default function ContentPage() {
         </p>
       </div>
 
+      {today && <StoriesHome live={items} today={today} />}
+
       {TYPE_ORDER.map(block)}
 
       <InsetSection header="עוד בתוכן" className="pt-3">
@@ -140,8 +143,6 @@ export default function ContentPage() {
             : data ? t('notificationsNone') : undefined}
           href="/dashboard/settings?tab=notifications" />
         <InsetRow icon={Radio} iconBg="bg-[#FF5315]" label={t('clubUpdates')} sublabel={t('clubUpdatesSub')} href="/dashboard/club-updates" />
-        <InsetRow icon={Cake} iconBg="bg-[#FF5315]" label={t('birthdays')} sublabel={t('birthdaysSub')} href="/dashboard/birthdays" />
-        <InsetRow icon={CalendarDays} iconBg="bg-[#2f45ff]" label="סיפורים" sublabel="סיכום שבועי: מצב ובודקים" href="/dashboard/stories" />
         <InsetRow icon={Sparkles} iconBg="bg-brand-600" label={t('whatsNew')}
           sublabel={data?.latestNote ? t('whatsNewSub', { title: data.latestNote.title }) : undefined} href="/dashboard/whats-new" />
       </InsetSection>

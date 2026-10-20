@@ -38,6 +38,8 @@ export async function GET(request: Request) {
     if (error) throw error;
     const rows = (data || []).filter((r) => {
       const row = r as { payload: Record<string, unknown> | null; occurred_at: string };
+      // "post only" (story_instances.placement, 162): stays off the circles.
+      if ((row.payload as { noCircle?: unknown } | null)?.noCircle) return false;
       return isCelebrationActive(row.payload, today, israelDateOf(row.occurred_at));
     });
     // The Madregot circle (lib/feed/club-stories.ts): read alongside, first on the row.

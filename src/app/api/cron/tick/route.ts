@@ -863,16 +863,14 @@ async function run(request: Request) {
     }
   }
 
-  // From 06:00, once a day: a club post on the feed for each member whose birthday it is
-  // (lib/feed/birthday.ts) — likes and comments reach them like on their own post.
+  // From 06:00, on every tick: a club post on the feed for each member whose birthday it is
+  // (lib/feed/birthday.ts) — likes and comments reach them like on their own post. Every
+  // tick, not once a day: a person's time can be moved later by hand (story_instances), and
+  // publishBirthdayPosts posts each one once (an existing row, even a deleted one, stops it).
   if (hour >= 6) {
-    const tag = `birthdayPosts:${israelToday(now)}`;
     try {
-      if (!(await already(tag))) {
-        const n = await publishBirthdayPosts(supabase, israelToday(now), now);
-        await markFired(tag, n);
-        fired.push(`${tag} → ${n}`);
-      }
+      const n = await publishBirthdayPosts(supabase, israelToday(now), now);
+      if (n) fired.push(`birthdayPosts:${israelToday(now)} → ${n}`);
     } catch (err) {
       console.error('[tick] birthday posts failed:', err);
     }

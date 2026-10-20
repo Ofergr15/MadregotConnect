@@ -32,6 +32,12 @@ export interface StoryInstance {
   slide_order: string[] | null;
   enabled: boolean | null;
   skipped: boolean;
+  /** Migration 162. Where a birthday shows; NULL = both. */
+  placement?: Placement | null;
+  /** Migration 162. false = no push to this person. */
+  send_push?: boolean | null;
+  /** Migration 162. A manual end; NULL = publish + display_days. */
+  until_at?: string | null;
   updated_by?: string | null;
   updated_at?: string | null;
   pushed_at?: string | null;
@@ -40,7 +46,12 @@ export interface StoryInstance {
 }
 
 /** The overrides an admin may set. Anything else in a PATCH body is ignored. */
-export type Overrides = Partial<Pick<StoryInstance, 'publish_at' | 'display_days' | 'feed_post' | 'custom_text' | 'slide_order' | 'enabled' | 'skipped'>>;
+export type Overrides = Partial<Pick<StoryInstance, 'publish_at' | 'display_days' | 'feed_post' | 'custom_text' | 'slide_order' | 'enabled' | 'skipped' | 'placement' | 'send_push' | 'until_at'>>;
+
+export type Placement = 'feed' | 'circle' | 'both';
+export const PLACEMENTS: Placement[] = ['feed', 'circle', 'both'];
+/** The columns migration 162 adds — dropped from a write when the DB doesn't have them yet. */
+export const V162_KEYS = ['placement', 'send_push', 'until_at'] as const;
 
 /** How long after publish the push may still go out (a late tick, a story turned on late). */
 export const PUSH_GRACE_MS = 3 * 3600_000;
@@ -81,10 +92,14 @@ export interface Effective {
   displayDays: number;
   until: Date;
   feedPost: boolean;
+  /** Where the public part shows — only meaningful while feedPost. */
+  placement: Placement;
+  /** The push goes out (feature switch AND this person). */
+  sendPush: boolean;
   customText: CustomText | null;
   slideOrder: string[] | null;
   /** The non-default overrides, for the chip under the row. */
-  overridden: Array<'publish_at' | 'display_days' | 'feed_post' | 'custom_text' | 'slide_order' | 'enabled'>;
+  overridden: Array<'publish_at' | 'display_days' | 'feed_post' | 'custom_text' | 'slide_order' | 'enabled' | 'placement' | 'send_push' | 'until_at'>;
 }
 
 /**
@@ -102,6 +117,10 @@ export function effectiveFor(settings: StorySettingsRow, period: string, inst: P
   if (inst?.custom_text && Object.values(inst.custom_text).some((v) => typeof v === 'string' && v.trim())) overridden.push('custom_text');
   if (inst?.slide_order?.length) overridden.push('slide_order');
   if (inst?.enabled != null) overridden.push('enabled');
+  if (inst?.placement) overridden.push('placement');
+  if (inst?.send_push != null) overridden.push('send_push');
+  const manualUntil = inst?.until_at ? new Date(inst.until_at) : null;
+  if (manualUntil) overridden.push('until_at');
   let reason: Effective['reason'] = null;
   if (inst?.skipped) reason = 'skipped';
   else if (inst?.enabled === false) reason = 'disabled';
@@ -111,8 +130,10 @@ export function effectiveFor(settings: StorySettingsRow, period: string, inst: P
     reason,
     publishAt,
     displayDays,
-    until: new Date(publishAt.getTime() + displayDays * 86_400_000),
+    until: manualUntil && manualUntil > publishAt ? manualUntil : new Date(publishAt.getTime() + displayDays * 86_400_000),
     feedPost: settings.feed_post === true && inst?.feed_post !== false,
+    placement: inst?.placement && PLACEMENTS.includes(inst.placement) ? inst.placement : 'both',
+    sendPush: settings.send_push !== false && inst?.send_push !== false,
     customText: inst?.custom_text ?? null,
     slideOrder: inst?.slide_order ?? null,
     overridden,
@@ -124,7 +145,7 @@ export const visibleAt = (e: Effective, now: Date) => e.on && now >= e.publishAt
 
 /** May the push go out on this tick? Within the grace after publish, and not pushed yet. */
 export const pushDueAt = (e: Effective, now: Date, pushedAt: string | null | undefined) =>
-  e.on && !pushedAt && now >= e.publishAt && now.getTime() < e.publishAt.getTime() + PUSH_GRACE_MS;
+  e.on && e.sendPush && !pushedAt && now >= e.publishAt && now.getTime() < e.publishAt.getTime() + PUSH_GRACE_MS;
 
 /**
  * Checks and cleans a PATCH body. A publish time in the past is refused (edge case #16):
@@ -153,6 +174,25 @@ export function validateOverrides(body: Record<string, unknown>, now: Date, opts
     if (k in body) {
       if (body[k] !== null && typeof body[k] !== 'boolean') return { ok: false, error: `bad ${k}` };
       v[k] = body[k] as boolean | null;
+    }
+  }
+  if ('placement' in body) {
+    if (body.placement !== null && !PLACEMENTS.includes(body.placement as Placement)) return { ok: false, error: 'bad placement' };
+    v.placement = body.placement as Placement | null;
+  }
+  if ('send_push' in body) {
+    if (body.send_push !== null && typeof body.send_push !== 'boolean') return { ok: false, error: 'bad send_push' };
+    v.send_push = body.send_push as boolean | null;
+  }
+  if ('until_at' in body) {
+    if (body.until_at === null) v.until_at = null;
+    else {
+      const t = typeof body.until_at === 'string' ? Date.parse(body.until_at) : NaN;
+      if (!Number.isFinite(t)) return { ok: false, error: 'bad until_at' };
+      if (!opts.allowPast && t < now.getTime()) return { ok: false, error: 'until_at in the past' };
+      const from = typeof v.publish_at === 'string' ? Date.parse(v.publish_at) : NaN;
+      if (Number.isFinite(from) && t <= from) return { ok: false, error: 'until_at before publish_at' };
+      v.until_at = new Date(t).toISOString();
     }
   }
   if ('skipped' in body) {
@@ -197,6 +237,9 @@ export function overrideSummary(e: Effective): string {
   if (e.overridden.includes('display_days')) parts.push(`${e.displayDays} ימים`);
   if (e.overridden.includes('custom_text')) parts.push('כותרת אישית');
   if (e.overridden.includes('feed_post') && !e.feedPost) parts.push('בלי פוסט');
+  if (e.overridden.includes('placement')) parts.push(e.placement === 'circle' ? 'רק עיגול' : e.placement === 'feed' ? 'רק פוסט' : 'עיגול ופוסט');
+  if (e.overridden.includes('send_push') && !e.sendPush) parts.push('בלי התראה');
+  if (e.overridden.includes('until_at')) parts.push('זמן ידני');
   return parts.length ? `מותאם: ${parts.join(' · ')}` : 'ברירת מחדל';
 }
 
@@ -225,13 +268,22 @@ export async function readInstance(db: Db, athleteId: string, feature: StoryFeat
 }
 
 /** Upsert overrides on the unique key. `false` when the table is missing or the write fails. */
-export async function writeOverrides(db: Db, athleteId: string, feature: StoryFeature, period: string, o: Overrides, by: string | null): Promise<boolean> {
-  const { error } = await db.from('story_instances').upsert(
-    { athlete_id: athleteId, feature, period, ...o, updated_by: by, updated_at: new Date().toISOString() },
-    { onConflict: 'athlete_id,feature,period' },
-  );
-  return !error;
+export async function writeOverrides(db: Db, athleteId: string, feature: StoryFeature, period: string, o: Overrides, by: string | null): Promise<boolean | 'needs_162'> {
+  const row = { athlete_id: athleteId, feature, period, ...o, updated_by: by, updated_at: new Date().toISOString() };
+  const { error } = await db.from('story_instances').upsert(row, { onConflict: 'athlete_id,feature,period' });
+  if (!error) return true;
+  // Before 162 is pasted: save the rest, and say the new choices need it.
+  if (!isMissing162(error)) return false;
+  const rest = { ...row } as Record<string, unknown>;
+  const had = V162_KEYS.some((k) => k in rest && rest[k] != null);
+  for (const k of V162_KEYS) delete rest[k];
+  const retry = await db.from('story_instances').upsert(rest, { onConflict: 'athlete_id,feature,period' });
+  if (retry.error) return false;
+  return had ? 'needs_162' : true;
 }
+
+const isMissing162 = (e: { code?: string; message?: string }) =>
+  e.code === 'PGRST204' || e.code === '42703' || /placement|send_push|until_at/.test(e.message || '');
 
 /** "בטל שינויים": every override back to NULL (the marks stay). */
 export async function resetOverrides(db: Db, athleteId: string, feature: StoryFeature, period: string, by: string | null): Promise<boolean> {
@@ -239,7 +291,11 @@ export async function resetOverrides(db: Db, athleteId: string, feature: StoryFe
     publish_at: null, display_days: null, feed_post: null, custom_text: null, slide_order: null, enabled: null, skipped: false,
     updated_by: by, updated_at: new Date().toISOString(),
   }).eq('athlete_id', athleteId).eq('feature', feature).eq('period', period);
-  return !error;
+  if (error) return false;
+  // 162's columns, separately: a pre-162 DB still resets the rest.
+  await db.from('story_instances').update({ placement: null, send_push: null, until_at: null })
+    .eq('athlete_id', athleteId).eq('feature', feature).eq('period', period);
+  return true;
 }
 
 /**

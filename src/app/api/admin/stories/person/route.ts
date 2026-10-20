@@ -5,6 +5,7 @@ import { israelToday } from '@/lib/utils';
 import { loadAnnualStory, loadStory } from '@/lib/birthday-year/server';
 import { birthdayYearCopy } from '@/lib/notifications/copy';
 import { STORY_FEATURES, readStorySettings, type StoryFeature } from '@/lib/stories/gate';
+import { publishBirthdayPosts } from '@/lib/feed/birthday-publish';
 import { effectiveFor, quickAction, readInstance, resetOverrides, validateOverrides, writeOverrides, type Overrides, type StoryInstance } from '@/lib/stories/instances';
 
 export const dynamic = 'force-dynamic';
@@ -15,9 +16,11 @@ export const dynamic = 'force-dynamic';
  *        the effective values. Reads only: never pushes, never marks viewed.
  * PATCH  {athleteId, feature, period, action?: plus_day|postpone|skip_year|unskip, ...overrides}
  *        → upsert; returns `previous` (the overrides before), which the undo snackbar PATCHes back.
+ *        action=publish_now (today's birthday only): publish_at = now, and the public post /
+ *        circle goes up on this request; the push follows on the next tick.
  * DELETE ?athleteId&feature&period — "בטל שינויים": every override back to default.
  */
-const OVERRIDE_KEYS = ['publish_at', 'display_days', 'feed_post', 'custom_text', 'slide_order', 'enabled', 'skipped'] as const;
+const OVERRIDE_KEYS = ['publish_at', 'display_days', 'feed_post', 'custom_text', 'slide_order', 'enabled', 'skipped', 'placement', 'send_push', 'until_at'] as const;
 
 function readKey(sp: URLSearchParams | Record<string, unknown>) {
   const get = (k: string) => (sp instanceof URLSearchParams ? sp.get(k) : (sp[k] as string | undefined)) ?? null;
@@ -59,7 +62,9 @@ export async function GET(request: Request) {
     name: (a as { name?: string | null } | null)?.name ?? null,
     avatarUrl: (a as { avatar_url?: string | null } | null)?.avatar_url ?? null,
     instance: inst,
-    effective: { on: e.on, reason: e.reason, publishAt: e.publishAt.toISOString(), until: e.until.toISOString(), displayDays: e.displayDays, feedPost: e.feedPost, overridden: e.overridden },
+    effective: { on: e.on, reason: e.reason, publishAt: e.publishAt.toISOString(), until: e.until.toISOString(), displayDays: e.displayDays, feedPost: e.feedPost, placement: e.placement, sendPush: e.sendPush, manualUntil: !!inst?.until_at, overridden: e.overridden },
+    state: settings.state,
+    today,
     settings: { feed_post: settings.feed_post, min_runs: settings.min_runs, send_push: settings.send_push },
     numbers,
     push: push ? { title: ct?.push_title || push.title, body: ct?.push_body || push.body } : null,
@@ -88,7 +93,13 @@ export async function PATCH(request: Request) {
   let raw: Record<string, unknown> = {};
   for (const k of OVERRIDE_KEYS) if (k in body) raw[k] = body[k];
   const action = body.action as string | undefined;
-  if (action) {
+  const publishNow = action === 'publish_now';
+  if (publishNow) {
+    // Only on the day itself, and only while the feature is really on for people.
+    if (key.feature !== 'birthday' || key.period !== israelToday(now)) return NextResponse.json({ error: 'publish_now is for today only' }, { status: 400 });
+    if (settings.state !== 'testers' && settings.state !== 'all') return NextResponse.json({ error: 'feature off' }, { status: 409 });
+    raw = { ...raw, publish_at: now.toISOString() };
+  } else if (action) {
     if (!['plus_day', 'postpone', 'skip_year', 'unskip'].includes(action)) return NextResponse.json({ error: 'bad action' }, { status: 400 });
     raw = { ...raw, ...quickAction(action as 'plus_day', effectiveFor(settings, key.period, inst), now) };
   }
@@ -98,7 +109,9 @@ export async function PATCH(request: Request) {
   if (Object.keys(v.value).length === 0) return NextResponse.json({ error: 'nothing to change' }, { status: 400 });
   const ok = await writeOverrides(db, key.athleteId, key.feature, key.period, v.value, caller.athleteId);
   if (!ok) return NextResponse.json({ error: 'save failed (migration 157?)' }, { status: 500 });
-  return NextResponse.json({ ok: true, previous: pick(inst), saved: v.value });
+  // The post / circle now; publishBirthdayPosts applies the gate and this person's choices.
+  const posted = publishNow ? await publishBirthdayPosts(db, key.period, now, { athleteId: key.athleteId }) : 0;
+  return NextResponse.json({ ok: true, previous: pick(inst), saved: v.value, posted, ...(ok === 'needs_162' ? { warning: 'migration 162' } : {}) });
 }
 
 export async function DELETE(request: Request) {
