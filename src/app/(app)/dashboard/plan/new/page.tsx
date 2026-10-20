@@ -289,6 +289,8 @@ export default function WeeklyPlannerPage() {
   const [pushing, setPushing] = useState(false);
   // Off = the week goes to the watches without the athletes' "workouts ready" push.
   const [notifyAthletes, setNotifyAthletes] = useState(true);
+  // Publish and send to the watches as one act (2026-10-20): on by default.
+  const [alsoWatches, setAlsoWatches] = useState(true);
   // The coach's own line per session for that push, by slotKey (lib/notifications/watch-push-copy.ts).
   const [notifyLines, setNotifyLines] = useState<Record<string, string>>({});
   const [editingLine, setEditingLine] = useState<string | null>(null);
@@ -1033,6 +1035,18 @@ export default function WeeklyPlannerPage() {
       // result of what they had just pressed. It stays open: the board dots are
       // recomputed from the plan the server returned, so twenty-seven of them
       // turning green IS the confirmation.
+      // "וגם לשעונים" (2026-10-20): straight on to every runner's Garmin, the whole
+      // week, with the plan just published — through the same send as the push
+      // sheet, whose tracking ("בשעונים 14/16") opens to show it happening.
+      if (alsoWatches) {
+        const withWatch = activeAthletes.filter((a) => a.hasGarmin);
+        if (withWatch.length) {
+          setShowClipboardReview(false);
+          setTrackOpen(true);
+          setShowPush(true);
+          void runPush(withWatch, true, published);
+        }
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t('errors.clipboardPublishingFailed'));
     } finally {
@@ -1151,13 +1165,16 @@ export default function WeeklyPlannerPage() {
    * `groupedPlans.group1` for every failed athlete regardless of their group — so
    * a group-3 athlete whose first delivery failed was retried with group-1 paces.
    */
-  const pushToAthletes = async (athletes: Athlete[], daysOverride?: number[] | null): Promise<PushResultItem[]> => {
-    if (!groupedPlans || !savedPlanId) return [];
+  const pushToAthletes = async (athletes: Athlete[], daysOverride?: number[] | null, plansOverride?: GroupedWeeklyPlans): Promise<PushResultItem[]> => {
+    // `plansOverride`: the plan the publish just returned — state set a moment ago is
+    // not yet in this closure, and the watches must get what was published.
+    const plans = plansOverride ?? groupedPlans;
+    if (!plans || !savedPlanId) return [];
     // "לעדכן בשעונים" sends only the changed days; every other send, the picker's.
     const days = daysOverride !== undefined ? daysOverride : pushDays;
     const groupLevelMap = paceGroupMap(groups) as Record<string, keyof GroupedWeeklyPlans>;
     const planFor = (a: Athlete) =>
-      groupedPlans[(a.group_id ? groupLevelMap[a.group_id] : undefined) || 'group2'];
+      plans[(a.group_id ? groupLevelMap[a.group_id] : undefined) || 'group2'];
 
     const results: PushResultItem[] = [];
     const jobs: { workouts: ParsedWorkout[]; athleteIds: string[] }[] = [];
@@ -1199,7 +1216,7 @@ export default function WeeklyPlannerPage() {
     }
     for (const [paceGroup, ids] of Object.entries(batches)) {
       if (ids.length === 0) continue;
-      const plan = groupedPlans[paceGroup as keyof GroupedWeeklyPlans];
+      const plan = plans[paceGroup as keyof GroupedWeeklyPlans];
       await send(selectedSessions(plan.workouts, days) as ParsedWorkout[], ids);
     }
 
@@ -1218,16 +1235,19 @@ export default function WeeklyPlannerPage() {
     return results;
   };
 
-  const executePush = async () => {
-    if (!groupedPlans || !savedPlanId) return;
+  /**
+   * Send to these athletes and write the plan's status from the result — the one
+   * copy, shared by the push sheet and by "publish and send to the watches".
+   * `wholeWeek` is the picker's "all days"; a partial pick stays "partial".
+   */
+  const runPush = async (targetAthletes: Athlete[], wholeWeek: boolean, plansOverride?: GroupedWeeklyPlans) => {
+    // No plan, no send — and never a status: an empty result would read as "pushed".
+    if (!savedPlanId || !(plansOverride ?? groupedPlans)) return;
     setPushing(true);
     setError(null);
     setPushResults(null);
 
     try {
-      // The picker's choice — only people with a watch are in it.
-      const targetAthletes = activeAthletes.filter((a) => pickedIds.includes(a.id) && a.hasGarmin);
-
       if (targetAthletes.length === 0) {
         throw new Error(t('errors.noGarminSelected'));
       }
@@ -1236,7 +1256,7 @@ export default function WeeklyPlannerPage() {
       // athlete's own one-tap push (POST /api/my-watch) has to reach the same
       // answer — a second copy that disagreed by one index would put the wrong
       // paces on somebody's watch. pushToAthletes applies it.
-      const allResults = await pushToAthletes(targetAthletes);
+      const allResults = await pushToAthletes(targetAthletes, wholeWeek ? null : undefined, plansOverride);
 
       setPushResults(allResults);
 
@@ -1245,11 +1265,10 @@ export default function WeeklyPlannerPage() {
       // A push of some DAYS is a partial week even when every request succeeded
       // (feedback 55ce8f11). On 19.09 only Sunday was sent to the whole club, the plan
       // said "pushed" ✓, and Monday to Saturday never reached a single watch, because
-      // nothing on screen said there was anything left to send. `pushDays === null` is
-      // the whole week; any explicit selection is not, and stays "partial" until the
-      // coach sends the whole week — pessimistic for day-by-day sending, but a false
-      // "partial" costs one look and a false "pushed" cost a week of sessions.
-      const wholeWeek = pushDays === null;
+      // nothing on screen said there was anything left to send. A whole-week send is
+      // the only one that may say "pushed"; any explicit day selection stays
+      // "partial" until the whole week is sent — a false "partial" costs one look,
+      // a false "pushed" cost a week of sessions.
       const newStatus = allSuccess && wholeWeek ? 'pushed' : anySuccess ? 'partial' : 'draft';
 
       await fetch('/api/plans', {
@@ -1266,6 +1285,12 @@ export default function WeeklyPlannerPage() {
     } finally {
       setPushing(false);
     }
+  };
+
+  const executePush = async () => {
+    if (!groupedPlans || !savedPlanId) return;
+    // The picker's choice — only people with a watch are in it.
+    await runPush(activeAthletes.filter((a) => pickedIds.includes(a.id) && a.hasGarmin), pushDays === null);
   };
 
   const updateWatches = async () => {
@@ -1979,6 +2004,9 @@ export default function WeeklyPlannerPage() {
             saving={saving}
             onSaveDraft={saveDraft}
             onPublish={publishClipboards}
+            alsoWatches={alsoWatches}
+            onAlsoWatches={setAlsoWatches}
+            watchCount={activeAthletes.filter((a) => a.hasGarmin).length}
             onMatches={() => {
               setShowClipboardReview(false);
               setShowMatchReview(true);

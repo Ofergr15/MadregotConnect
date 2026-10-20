@@ -708,7 +708,9 @@
     "publishBlocked": "{count} days still need approval",
     "publishRemaining": "Still to approve:",
     "noPaceOnDay": "No pace written",
-    "weekDaysOff": "{count} days do not match"
+    "weekDaysOff": "{count} days do not match",
+    "alsoWatches": "Also to the watches ({n})",
+    "publishAndWatches": "Publish and send to watches"
   },
   "planDetail": {
     "viewDetails": "View details",

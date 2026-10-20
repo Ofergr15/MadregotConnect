@@ -25,7 +25,7 @@ const n = (v: number) => Math.round(v).toLocaleString('en-US');
 
 const ACTIONS = [
   { href: '/dashboard/people?invite=1', icon: UserPlus, bg: 'bg-brand-600', title: 'הזמנת רץ', sub: 'שם, מייל ודבוקה — והקישור יוצא' },
-  { href: '/dashboard/plan/new', icon: Layers, bg: 'bg-accent-900', title: 'פרסום השבוע', sub: 'בונים ומפרסמים את התוכנית' },
+  { href: '/dashboard/plan/new', icon: Layers, bg: 'bg-accent-900', title: 'פרסום השבוע', sub: 'לאפליקציה ולשעונים, בלחיצה אחת' },
   { href: '/dashboard/day-session', icon: Sun, bg: 'bg-[#ff9500]', title: 'טקסט לאימון מחר', sub: 'שעה, מקום ונוסח לוואטסאפ' },
   { href: '/dashboard/content/publish?type=message', icon: MessageSquare, bg: 'bg-[#5856d6]', title: 'עדכון למועדון', sub: 'הודעה לכולם או לדבוקה' },
   { href: '/dashboard/photos', icon: ImageIcon, bg: 'bg-[#ff2d55]', title: 'תמונות מהאימון', sub: 'האימון האחרון וכל התיקיות' },

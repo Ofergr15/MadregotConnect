@@ -92,6 +92,14 @@ export interface DayByDayReviewProps {
   onRefine: () => void;
   onSaveDraft: () => void;
   onPublish: () => void;
+  /**
+   * "וגם לשעונים" (2026-10-20, Ofer: publishing and sending to the watches were two
+   * buttons for one act): when on, a successful publish goes straight on to every
+   * runner's Garmin through the planner's own send. Absent: the plain publish.
+   */
+  alsoWatches?: boolean;
+  onAlsoWatches?: (on: boolean) => void;
+  watchCount?: number;
   onMatches: () => void;
   /**
    * Take back the import's repairs to one session, across all three groups — the
@@ -301,6 +309,13 @@ export function DayByDayReview(props: DayByDayReviewProps) {
                   {t('publishBlocked', { count: pendingDays.length })}
                 </span>
               )}
+              {props.onAlsoWatches && (props.watchCount ?? 0) > 0 && (
+                <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm font-semibold text-ink-700">
+                  <input type="checkbox" className="h-5 w-5 accent-brand-600" checked={!!props.alsoWatches}
+                    onChange={(e) => props.onAlsoWatches!(e.target.checked)} />
+                  {t('alsoWatches', { n: props.watchCount ?? 0 })}
+                </label>
+              )}
               <Button
                 onClick={props.onPublish}
                 disabled={!canPublish || props.loading || props.publishing}
@@ -310,7 +325,7 @@ export function DayByDayReview(props: DayByDayReviewProps) {
                 {props.loading || props.publishing
                   ? <Loader2 className="h-4 w-4 animate-spin" />
                   : <CheckCircle2 className="h-4 w-4" />}
-                {tp('publishAllClipboards')}
+                {props.alsoWatches && (props.watchCount ?? 0) > 0 ? t('publishAndWatches') : tp('publishAllClipboards')}
               </Button>
             </>
           )}

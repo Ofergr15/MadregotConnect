@@ -25,7 +25,7 @@ export default function TrainingPage() {
     <div className="pb-8" dir="rtl">
       <h1 className="px-1 pb-4 text-[32px] font-black tracking-tight text-ink-700">אימונים</h1>
       <InsetSection header="השבוע">
-        <InsetRow icon={ClipboardList} iconBg="bg-brand-600" label="בניית התוכנית ופרסום" sublabel="מדביקים כמו שכותבים — ה-AI מסדר, ומפרסמים" href="/dashboard/plan/new" />
+        <InsetRow icon={ClipboardList} iconBg="bg-brand-600" label="בניית התוכנית ופרסום" sublabel="מדביקים כמו שכותבים — ה-AI מסדר, ומפרסמים לאפליקציה ולשעונים בבת אחת" href="/dashboard/plan/new" />
         <InsetRow icon={CalendarDays} iconBg="bg-brand-600" label="פתיחת השבוע" sublabel="האימונים הקבועים, הודעה וסקר — במסך אחד" href="/dashboard/week" />
         <InsetRow icon={Sun} iconBg="bg-[#ff9500]" label="אימון מחר" sublabel="שעה, מקום, ונוסח לוואטסאפ" href="/dashboard/day-session" />
       </InsetSection>

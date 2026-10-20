@@ -17,7 +17,9 @@ const PAGE = readFileSync(join(SRC, 'app/(app)/dashboard/plan/new/page.tsx'), 'u
  */
 describe('the plan status after a push', () => {
   it('is "pushed" only when the whole week went', () => {
-    expect(PAGE).toMatch(/const wholeWeek = pushDays === null;/);
+    // Since 2026-10-20 runPush takes `wholeWeek` — the push sheet passes the picker's
+    // "all days" (pushDays === null), "publish and send to the watches" passes true.
+    expect(PAGE).toMatch(/await runPush\([^;]*pushDays === null\)/);
     expect(PAGE).toMatch(/allSuccess && wholeWeek \? 'pushed' : anySuccess \? 'partial' : 'draft'/);
   });
 

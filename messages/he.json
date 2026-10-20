@@ -708,7 +708,9 @@
     "publishBlocked": "נותרו {count} ימים לאישור",
     "publishRemaining": "נותרו לאישור:",
     "noPaceOnDay": "לא נכתב קצב",
-    "weekDaysOff": "{count} ימים לא תואמים"
+    "weekDaysOff": "{count} ימים לא תואמים",
+    "alsoWatches": "וגם לשעונים ({n})",
+    "publishAndWatches": "פרסום ושליחה לשעונים"
   },
   "planDetail": {
     "viewDetails": "הצגת פירוט",
