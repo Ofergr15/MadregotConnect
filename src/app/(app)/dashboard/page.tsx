@@ -67,7 +67,7 @@ const TraineeToday = dynamic(() => import('@/components/trainee/TraineeToday').t
 const AdminAttention = dynamic(() => import('@/components/admin/AdminAttention').then(m => m.AdminAttention), { ssr: false });
 // The one exception to "no fallback needed": this replaces the WHOLE screen for an
 // admin, so without a spinner the control room opens on a blank page.
-const ClubNumbers = dynamic(() => import('@/components/club-numbers/ClubNumbers').then(m => m.ClubNumbers), { ssr: false });
+const NewsHome = dynamic(() => import('@/components/home/NewsHome').then(m => m.NewsHome), { ssr: false });
 
 interface DashboardStats {
   athleteCount: number;
@@ -595,7 +595,10 @@ export default function DashboardPage() {
   // page's, so the screen is the same through either door.
   // Since 2026-10-20 (Ofer) the admin's home is "מדרגות במספרים" (components/club-numbers); the
   // control room it replaced lives in ניהול (/dashboard/control-room).
-  if (controlRoomView) return <ClubNumbers />;
+  // And since 2026-10-20 (Ofer, after the navigation research) it is "מה חדש?" —
+  // what needs you, the club in charts, and the frequent actions behind "+"; the full
+  // numbers screen stays at /dashboard/numbers ("לכל המספרים").
+  if (controlRoomView) return <NewsHome />;
 
   const showTraineeHome = !!athleteId && isAcademyMember && traineeV2;
   // The club runner's workout cards (components/home/TodayHome.tsx — today in my own lane,

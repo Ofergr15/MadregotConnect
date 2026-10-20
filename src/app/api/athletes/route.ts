@@ -110,7 +110,7 @@ export async function POST(request: Request) {
 
     const supabase = createServerClient();
     const body = await request.json();
-    const { name, email, publicLink, groupId } = body;
+    const { name, email, publicLink, groupId, sendEmail } = body;
 
     // Public link mode — generate a reusable token without creating an athlete record
     if (publicLink) {
@@ -174,14 +174,16 @@ export async function POST(request: Request) {
     // A plain invite still hands the link to the coach to pass on, as before.
     const { count: asked } = await supabase.from('signup_requests').select('id', { count: 'exact', head: true })
       .eq('status', 'pending').is('athlete_id', null).ilike('email', email.toLowerCase().trim());
-    const sync = asked
+    // …or the invite asked for it outright (People → "+ הזמנה", 2026-10-20): the same
+    // personal-link mail an approval sends.
+    const sync = asked || sendEmail === true
       ? await syncApprovedJoiner({ athleteId: athlete.id, approverEmail: caller?.athleteEmail || caller?.email || null, approverIsSuperUser: !!caller?.isSuperUser })
       : null;
 
     return NextResponse.json({
       athlete,
       inviteLink,
-      ...(sync ? { emailed: sync.emailed } : {}),
+      ...(sync ? { emailed: sync.emailed, emailReason: sync.emailReason } : {}),
     });
   } catch (error) {
     console.error('Failed to create athlete invitation:', error);

@@ -173,8 +173,9 @@ describe('staff', () => {
     // door that feature actually ships behind.
     //
     // `social` (10-18) is gone from the menu since 10-20: it is "תוכן › תמונות" now.
+    // `training` (10-20) is the admin home's own tab, no matrix row, like `people`.
     expect(staff('admin').filter((t) => !staff('coach').includes(t)))
-      .toEqual(['control-room', 'people', 'content', 'practice', 'records', 'profile']);
+      .toEqual(['control-room', 'people', 'training', 'content', 'practice', 'records', 'profile']);
     expect(staff('coach').filter((t) => !staff('admin').includes(t))).toEqual([]);
   });
 

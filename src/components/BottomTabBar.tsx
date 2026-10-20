@@ -9,7 +9,7 @@ import { useIsSuperUser } from '@/lib/impersonation';
 import { startLiveTour } from '@/components/onboarding/LiveTour';
 import { openViewAsChooser } from '@/lib/view-as-person';
 import { cn } from '@/lib/utils';
-import { athletePrimaryOrder, resolveNavItems, useNavIdentity, type NavItem, STORE_OPEN } from '@/lib/nav-items';
+import { athletePrimaryOrder, resolveNavItems, useNavIdentity, type NavItem, STORE_OPEN, ADMIN_HOME_ORDER, isAdminHome } from '@/lib/nav-items';
 import { startViewAs, stopViewAs, MAINTENANCE_MODE, VIEW_AS_SCENARIOS } from '@/lib/impersonation';
 import { Sheet } from '@/components/ui';
 import { useApi } from '@/lib/api';
@@ -89,12 +89,16 @@ export function BottomTabBar() {
   // Split into up-to-4 primary tabs + overflow, using the role-appropriate
   // preferred order. "More" is added as a 5th slot whenever there are leftovers.
   // An academy member's bar trades Program for Academy — see athletePrimaryOrder.
-  const primaryOrder = identity.isOperator
+  // The admin home's bar: five flat tabs, no "עוד" (lib/nav-items ADMIN_HOME_ORDER).
+  const adminHome = isAdminHome(identity);
+  const primaryOrder = adminHome
+    ? ADMIN_HOME_ORDER
+    : identity.isOperator
     ? OPERATOR_PRIMARY_ORDER
     : isStaffView ? STAFF_PRIMARY_ORDER
       // A "מנהל מדרגות" gets ניהול as a FIFTH flat tab, after profile — nothing moves into "More".
       : [...athletePrimaryOrder(ATHLETE_PRIMARY_ORDER, identity.isAcademyMember, identity.traineeV2), ...(identity.isClubManager ? ['club-numbers'] : [])];
-  const maxPrimary = !isStaffView && identity.isClubManager ? 5 : 4;
+  const maxPrimary = adminHome ? 5 : !isStaffView && identity.isClubManager ? 5 : 4;
   const byTab = new Map(navItems.map(i => [i.tab, i]));
   const primary: NavItem[] = [];
   for (const tab of primaryOrder) {
@@ -209,6 +213,7 @@ export function BottomTabBar() {
             vanish entirely for a role whose every enabled tab fit in the bar
             (e.g. `viewer`: activities/dashboard/program), taking the only mobile
             route to those three pages with it. */}
+        {!adminHome && (
         <button
           onClick={() => { try { navigator.vibrate?.(8); } catch { /* no-op */ } setMoreOpen(true); seeTabs(overflow.map(i => i.tab)); }}
           aria-label={t('more' as any)}
@@ -223,6 +228,7 @@ export function BottomTabBar() {
           <Menu className="h-6 w-6" strokeWidth={1.75} />
           <span className="text-3xs leading-none font-medium">{t('more' as any)}</span>
         </button>
+        )}
       </nav>
 
       {/* "More" sheet — grouped grid of quick-action cards (references: My

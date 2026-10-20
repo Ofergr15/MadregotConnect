@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { AdminManage } from '@/components/admin/AdminManage';
+import { isAdminHome, useNavIdentity } from '@/lib/nav-items';
 import { useTranslations } from 'next-intl';
 import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles, UserCog, Zap, CalendarPlus, UserCheck, CalendarCheck } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
@@ -49,7 +51,7 @@ function AcademyRowSkeleton() {
   );
 }
 
-export default function CoachToolsPage() {
+function CoachToolsClassic() {
   const t = useTranslations('coachTools');
   const tn = useTranslations('nav');
   // Reuses Settings' own labels for the rows moved here from its "ניהול"
@@ -358,4 +360,14 @@ export default function CoachToolsPage() {
       </InsetSection>
     </div>
   );
+}
+
+/**
+ * The admin home's ניהול is the short version (components/admin/AdminManage,
+ * 2026-10-20); every other staff account keeps the classic page.
+ */
+export default function CoachToolsPage() {
+  const nav = useNavIdentity();
+  if (isAdminHome(nav)) return <AdminManage />;
+  return <CoachToolsClassic />;
 }

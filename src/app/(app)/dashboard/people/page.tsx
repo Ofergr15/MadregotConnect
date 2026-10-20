@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { Search, Smartphone, Watch, Footprints, Bell, CheckCircle2, CalendarDays, UserRound } from 'lucide-react';
+import { Search, Smartphone, Watch, Footprints, Bell, CheckCircle2, CalendarDays, UserRound, Plus, Route, Layers, Wrench, PauseCircle, UserMinus, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
@@ -53,7 +54,7 @@ function shortDate(iso: string): string {
   return `${d}.${m}.${y.slice(2)}`;
 }
 
-export default function PeoplePage() {
+function PeopleWall() {
   const t = useTranslations('people');
   const { data, isLoading, mutate } = useApi<PeopleResponse>('/api/admin/people');
   const { data: groupsData } = useApi<{ groups?: PackGroup[] }>('/api/groups');
@@ -61,7 +62,11 @@ export default function PeoplePage() {
   const [packForId, setPackForId] = useState<string | null>(null);
   const packMove = usePackMove(() => { void mutate(); });
   const [area, setArea] = useState('all');
-  const [query, setQuery] = useState('');
+  // ?q= (from ניהול's search) and ?invite=1 (from "מה חדש?"'s "+").
+  const params = useSearchParams();
+  const [query, setQuery] = useState(() => params.get('q') ?? '');
+  const [inviting, setInviting] = useState(() => params.get('invite') === '1');
+  const { data: needs } = useApi<{ join: number; joinOldestDays: number }>('/api/admin/needs-you');
   const [openId, setOpenId] = useState<string | null>(null);
 
   const today = data?.today ?? '';
@@ -84,9 +89,31 @@ export default function PeoplePage() {
 
   return (
     <div className="pb-6">
-      <div className="px-1">
-        <h1 className="text-[30px] font-black tracking-tight text-ink-700">{t('title')}</h1>
-        {data && <p className="text-sm text-ink-400">{t('wallCount', { n: people.length })}</p>}
+      <div className="flex items-start justify-between px-1">
+        <div>
+          <h1 className="text-[30px] font-black tracking-tight text-ink-700">{t('title')}</h1>
+          {data && <p className="text-sm text-ink-400">{t('wallCount', { n: people.length })}</p>}
+        </div>
+        <button type="button" onClick={() => setInviting(true)} className="mt-1.5 inline-flex min-h-[38px] items-center gap-1 rounded-full bg-brand-600 px-3.5 text-[14px] font-semibold text-white shadow-[0_4px_12px_rgba(21,37,255,0.3)]">
+          <Plus className="h-4 w-4" strokeWidth={2.6} />{t('invite')}
+        </button>
+      </div>
+
+      {/* What the old roster and the entry queue held, as two doors from here. */}
+      <div className="mt-3 divide-y divide-page overflow-hidden rounded-2xl bg-card">
+        <Link href="/dashboard/onboarding-funnel?stage=approved" className="flex min-h-[54px] items-center gap-3 px-3.5 active:bg-page/60">
+          <span className="grid h-[30px] w-[30px] place-items-center rounded-lg bg-[#5856d6] text-white"><Route className="h-4 w-4" /></span>
+          <span className="min-w-0 flex-1"><span className="block text-[15.5px] font-medium text-ink-700">{t('rowApprove')}</span>
+            <span className="block text-[12.5px] text-ink-400">{needs?.join ? t('rowApproveSub', { n: needs.join, d: needs.joinOldestDays }) : t('rowApproveNone')}</span></span>
+          {!!needs?.join && <span className="rounded-full bg-accent-red px-2 text-[13px] font-bold leading-[20px] text-white tabular-nums">{needs.join}</span>}
+          <ChevronLeft className="h-4 w-4 text-ink-300" />
+        </Link>
+        <Link href="/dashboard/groups" className="flex min-h-[54px] items-center gap-3 px-3.5 active:bg-page/60">
+          <span className="grid h-[30px] w-[30px] place-items-center rounded-lg bg-accent-900 text-white"><Layers className="h-4 w-4" /></span>
+          <span className="min-w-0 flex-1"><span className="block text-[15.5px] font-medium text-ink-700">{t('rowPacks')}</span>
+            <span className="block text-[12.5px] text-ink-400">{t('rowPacksSub', { n: groups.length })}</span></span>
+          <ChevronLeft className="h-4 w-4 text-ink-300" />
+        </Link>
       </div>
 
       <label className="relative mt-3 block">
@@ -171,6 +198,10 @@ export default function PeoplePage() {
             onDone={() => { void mutate(); }}
           />
         )}
+      </Sheet>
+
+      <Sheet open={inviting} onOpenChange={setInviting} title={t('inviteTitle')}>
+        {inviting && <InviteForm groups={groups} onDone={() => { void mutate(); }} />}
       </Sheet>
 
       <PackSwitchSheet
@@ -285,6 +316,125 @@ function FaceCard({ person: p, today, packLabel, onPack, onDone }: {
         )}
       </div>
       {sent === 'fail' && <p className="mt-2 text-center text-xs font-semibold text-accent-red">{t('actFailed')}</p>}
+
+      {/* Managing the account — what the old roster (ספורטאים) held (2026-10-20). */}
+      {!waiting && <AccountSection person={p} onDone={onDone} />}
     </div>
   );
+}
+
+/**
+ * The account actions that lived only in the old roster: which watch feeds the
+ * data, maintenance access, pause, and leaving the club. Leaving is the soft
+ * removal (/api/admin/entry-queue/remove) — reversible — never the roster's hard
+ * delete. Each destructive step asks once more.
+ */
+function AccountSection({ person: p, onDone }: { person: Person; onDone: () => void }) {
+  const t = useTranslations('people');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<'pause' | 'remove' | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const call = async (key: string, url: string, method: string, body: Record<string, string>) => {
+    setBusy(key);
+    try {
+      const res = await fetch(url, { method, headers: await bearerHeaders(), body: JSON.stringify(body) });
+      if (res.ok) { setDone(key); onDone(); }
+    } finally { setBusy(null); setConfirm(null); }
+  };
+  const paused = p.status === 'paused';
+  const other = p.source === 'garmin' ? 'strava' : 'garmin';
+  return (
+    <div className="mt-5">
+      <p className="px-1 pb-1.5 text-[13px] font-semibold text-ink-400">{t('accountHeader')}</p>
+      <div className="divide-y divide-page overflow-hidden rounded-2xl bg-card">
+        {p.source && (
+          <button type="button" disabled={!!busy} onClick={() => call('source', '/api/admin/athlete-source', 'PATCH', { athleteId: p.id, dataSource: other })}
+            className="flex min-h-[52px] w-full items-center gap-3 px-3.5 text-start active:bg-page/60 disabled:opacity-60">
+            <span className="grid h-[30px] w-[30px] place-items-center rounded-lg bg-accent-900 text-white"><Watch className="h-4 w-4" /></span>
+            <span className="min-w-0 flex-1"><span className="block text-[15.5px] text-ink-700">{t('accSource')}</span>
+              <span className="block text-[12.5px] text-ink-400">{done === 'source' ? `✓ ${t('accSourceDone', { to: other === 'garmin' ? 'Garmin' : 'Strava' })}` : t('accSourceSub', { from: p.source === 'garmin' ? 'Garmin' : 'Strava', to: other === 'garmin' ? 'Garmin' : 'Strava' })}</span></span>
+          </button>
+        )}
+        <Link href="/dashboard/athletes" className="flex min-h-[52px] items-center gap-3 px-3.5 active:bg-page/60">
+          <span className="grid h-[30px] w-[30px] place-items-center rounded-lg bg-ink-400 text-white"><Wrench className="h-4 w-4" /></span>
+          <span className="min-w-0 flex-1"><span className="block text-[15.5px] text-ink-700">{t('accMaintenance')}</span><span className="block text-[12.5px] text-ink-400">{t('accMaintenanceSub')}</span></span>
+          <ChevronLeft className="h-4 w-4 text-ink-300" />
+        </Link>
+      </div>
+      <div className="mt-3 divide-y divide-page overflow-hidden rounded-2xl bg-card">
+        <button type="button" disabled={!!busy}
+          onClick={() => (paused ? call('pause', '/api/athletes', 'PUT', { id: p.id, status: 'active' }) : confirm === 'pause' ? call('pause', '/api/athletes', 'PUT', { id: p.id, status: 'paused' }) : setConfirm('pause'))}
+          className="flex min-h-[52px] w-full items-center gap-3 px-3.5 text-start active:bg-page/60 disabled:opacity-60">
+          <span className="grid h-[30px] w-[30px] place-items-center rounded-lg bg-[#ff9500] text-white"><PauseCircle className="h-4 w-4" /></span>
+          <span className="min-w-0 flex-1"><span className="block text-[15.5px] text-ink-700">{paused ? t('accResume') : confirm === 'pause' ? t('accPauseConfirm') : t('accPause')}</span>
+            <span className="block text-[12.5px] text-ink-400">{done === 'pause' ? '✓' : paused ? t('accResumeSub') : t('accPauseSub')}</span></span>
+        </button>
+        <button type="button" disabled={!!busy}
+          onClick={() => (confirm === 'remove' ? call('remove', '/api/admin/entry-queue/remove', 'POST', { athleteId: p.id, action: 'remove' }) : setConfirm('remove'))}
+          className="flex min-h-[52px] w-full items-center gap-3 px-3.5 text-start active:bg-page/60 disabled:opacity-60">
+          <span className="grid h-[30px] w-[30px] place-items-center rounded-lg bg-accent-red text-white"><UserMinus className="h-4 w-4" /></span>
+          <span className="min-w-0 flex-1"><span className="block text-[15.5px] font-medium text-accent-red">{done === 'remove' ? `✓ ${t('accRemoved')}` : confirm === 'remove' ? t('accRemoveConfirm') : t('accRemove')}</span>
+            <span className="block text-[12.5px] text-ink-400">{t('accRemoveSub')}</span></span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** "+ הזמנה": a name, an address and a pack, and the personal-link mail goes out (POST /api/athletes). */
+function InviteForm({ groups, onDone }: { groups: PackGroup[]; onDone: () => void }) {
+  const t = useTranslations('people');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [groupId, setGroupId] = useState<string | null>(null);
+  const [state, setState] = useState<'idle' | 'busy' | 'sent' | 'linkOnly' | 'fail'>('idle');
+  const [link, setLink] = useState<string | null>(null);
+  const ok = name.trim().length > 1 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim()) && !!groupId;
+  const send = async () => {
+    setState('busy');
+    try {
+      const res = await fetch('/api/athletes', { method: 'POST', headers: await bearerHeaders(), body: JSON.stringify({ name: name.trim(), email: email.trim(), groupId, sendEmail: true }) });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { setState('fail'); return; }
+      setLink(body.inviteLink ?? null);
+      setState(body.emailed ? 'sent' : 'linkOnly');
+      onDone();
+    } catch { setState('fail'); }
+  };
+  if (state === 'sent' || state === 'linkOnly') {
+    return (
+      <div className="pb-4 text-center" dir="rtl">
+        <p className="text-[20px] font-black text-ink-700">{state === 'sent' ? t('inviteSent', { name: name.trim().split(' ')[0] }) : t('inviteLinkOnly')}</p>
+        <p className="mt-1 text-sm text-ink-400">{state === 'sent' ? t('inviteSentSub', { email: email.trim() }) : t('inviteLinkOnlySub')}</p>
+        {link && (
+          <button type="button" onClick={() => { void navigator.clipboard?.writeText(link); }} className="mt-4 min-h-[48px] w-full rounded-2xl bg-card text-[15px] font-semibold text-brand-600">{t('inviteCopy')}</button>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="pb-4" dir="rtl">
+      <p className="text-sm text-ink-400">{t('inviteSub')}</p>
+      <div className="mt-3 divide-y divide-page overflow-hidden rounded-2xl bg-card">
+        <label className="flex min-h-[50px] items-center gap-3 px-3.5"><span className="w-16 shrink-0 text-[15px] text-ink-700">{t('inviteName')}</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Noa Levi" dir="auto" className="min-w-0 flex-1 bg-transparent text-[15px] focus:outline-none" /></label>
+        <label className="flex min-h-[50px] items-center gap-3 px-3.5"><span className="w-16 shrink-0 text-[15px] text-ink-700">{t('inviteEmail')}</span>
+          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" inputMode="email" placeholder="noa@gmail.com" dir="ltr" className="min-w-0 flex-1 bg-transparent text-start text-[15px] focus:outline-none" /></label>
+        <div className="flex min-h-[50px] items-center gap-3 px-3.5"><span className="w-16 shrink-0 text-[15px] text-ink-700">{t('invitePack')}</span>
+          <span className="flex gap-1.5">{groups.map((g, i) => (
+            <button key={g.id} type="button" onClick={() => setGroupId(g.id)} aria-pressed={groupId === g.id}
+              className={cn('h-9 min-w-[40px] rounded-lg px-2 text-[14px] font-bold', groupId === g.id ? 'bg-brand-600 text-white' : 'bg-page text-ink-700')}>{laneOf(g.name) || i + 1}</button>
+          ))}</span></div>
+      </div>
+      <button type="button" disabled={!ok || state === 'busy'} onClick={send} className="mt-4 min-h-[50px] w-full rounded-2xl bg-brand-600 text-[16px] font-semibold text-white disabled:opacity-50">
+        {state === 'busy' ? '…' : t('inviteSend')}
+      </button>
+      {state === 'fail' && <p className="mt-2 text-center text-xs font-semibold text-accent-red">{t('actFailed')}</p>}
+    </div>
+  );
+}
+
+/** Suspense: the wall reads ?q= and ?invite= (useSearchParams). */
+export default function PeoplePage() {
+  return <Suspense><PeopleWall /></Suspense>;
 }

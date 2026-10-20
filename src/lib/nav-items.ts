@@ -5,7 +5,7 @@ import {
   Calendar, Users, Layers, Clock, User, Settings,
   Route, MessageSquare, Bug, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
   BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift, ShieldCheck, Gauge, Trophy,
-  UsersRound, Megaphone, TrendingUp, Sun,
+  UsersRound, Megaphone, TrendingUp, Sun, Sparkles,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
@@ -44,7 +44,20 @@ export const ACADEMY_BOARD_ITEM: NavItem = { href: '/dashboard/academy', tab: 'a
 export const PROGRESS_ITEM: NavItem = { href: '/dashboard/academy/progress', tab: 'academy-progress', labelKey: 'progress', icon: TrendingUp };
 
 /** /dashboard when it shows "מדרגות במספרים" (an admin's home): same door, its own name. */
-export const NUMBERS_HOME_ITEM: NavItem = { href: '/dashboard', tab: 'dashboard', labelKey: 'numbersHome', icon: BarChart3 };
+export const NUMBERS_HOME_ITEM: NavItem = { href: '/dashboard', tab: 'dashboard', labelKey: 'numbersHome', icon: Sparkles };
+
+/**
+ * The admin's own bar (2026-10-20, after the navigation research — mockups/admin-ia.html):
+ * מה חדש? · אנשים · אימונים · תוכן · ניהול, five visible tabs and no "עוד" (a hidden
+ * menu is used about half as often — NN/g). For the account whose home is the admin
+ * home: an admin with no athlete row, or the operator account (the dashboard's
+ * controlRoomView), or a preview of `admin`.
+ */
+export const ADMIN_HOME_ORDER = ['dashboard', 'people', 'training', 'content', 'coach-tools'];
+export function isAdminHome(id: { effectiveRole: string | null; isOperator?: boolean; isAthlete?: boolean; previewRole?: string | null }): boolean {
+  if (id.effectiveRole !== 'admin') return false;
+  return id.previewRole === 'admin' || !!id.isOperator || !id.isAthlete;
+}
 
 export const ALL_NAV_ITEMS: NavItem[] = [
   // "היום" (2026-10-19): the runner's day, not a control panel — the sun, not a pulse line.
@@ -66,6 +79,9 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   // them by rule 1; no matrix row exists for either, so every other role doesn't.
   // Both read staff-gated routes, so granting one to a coach later is safe.
   { href: '/dashboard/people', tab: 'people', labelKey: 'people', icon: UsersRound },
+  // The admin's training tab (2026-10-20): the week's work by what you do. No matrix row,
+  // so only `admin` has it (rule 1).
+  { href: '/dashboard/training', tab: 'training', labelKey: 'training', icon: Dumbbell },
   { href: '/dashboard/content', tab: 'content', labelKey: 'contentHub', icon: Megaphone },
   // A beetle, not a speech bubble: this is the "something is broken" channel,
   // and a message icon read as one more place to talk to the coach.
