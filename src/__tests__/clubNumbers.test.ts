@@ -74,10 +74,12 @@ describe('computeClubNumbers', () => {
     expect(out.attention.dropping.map((r) => r.id)).toContain('b');
     expect(out.attention.notOpening.map((r) => r.id)).toEqual(['b']);
   });
-  it('takes 3+ runs every week as the core, with hand-picked changes on top', () => {
-    expect(out.core.runners.map((r) => r.id)).toEqual(['a']);
-    const withT = computeClubNumbers({ ...{ today, athletes: [athlete('a'), athlete('t', { isAcademy: true })], runs, candidates: [], tested: new Set<string>(), formed: new Set<string>(), planned: new Set<string>() }, coreOverride: { add: ['t'], remove: ['a'] } });
-    expect(withT.core.runners.map((r) => r.id)).toEqual(['t']);
+  it('takes the core from the club flag, and offers who fits the rule', () => {
+    expect(out.core.runners).toEqual([]);
+    expect(out.core.suggested.map((r) => r.id)).toEqual(['a']);
+    const flagged = computeClubNumbers({ today, athletes: [athlete('a'), athlete('t', { isAcademy: true, core: true })], runs, candidates: [], tested: new Set<string>(), formed: new Set<string>(), planned: new Set<string>() });
+    expect(flagged.core.runners.map((r) => r.id)).toEqual(['t']);
+    expect(flagged.core.suggested.map((r) => r.id)).toEqual(['a']);
   });
 });
 

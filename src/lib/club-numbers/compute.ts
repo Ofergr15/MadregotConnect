@@ -25,6 +25,8 @@ export interface NAthlete {
   isAcademy: boolean; bandNumber: number | null; academyJoinedOn: string | null;
   groupName: string | null; createdAt: string; firstSeenAt: string | null; lastSeenAt: string | null;
   approved: boolean; watch: boolean; birthDate: string | null; gender: string | null;
+  /** In הגרעין, the club's core squad (lib/core-runner — the flag, or the legacy role). */
+  core?: boolean;
 }
 export interface NRun { athleteId: string; start: string; meters: number; seconds: number; type: string }
 export interface NCandidate { id: string; name: string; source: string | null; createdAt: string; athleteId: string | null; stages: string[] }
@@ -36,7 +38,6 @@ export interface NInput {
   /** Trainee ids with an approved 30-minute test, with an answered characterization form, with a personal week. */
   tested: Set<string>; formed: Set<string>; planned: Set<string>;
   teamDays?: number[];
-  coreOverride?: { add: string[]; remove: string[] };
 }
 
 // ── dates ──────────────────────────────────────────────────────────────────────────
@@ -192,11 +193,12 @@ export function computeClubNumbers(x: NInput) {
       lastSeen: a.lastSeenAt ? a.lastSeenAt.slice(0, 10) : null,
     };
   });
-  const auto = new Set(runnerRows.filter((r) => r.weeks3plus8 === last8.length && last8.length > 0).map((r) => r.id));
-  for (const id of x.coreOverride?.add ?? []) auto.add(id);
-  for (const id of x.coreOverride?.remove ?? []) auto.delete(id);
-  const core = runnerRows.filter((r) => auto.has(r.id)).sort((p, q) => q.avg4 - p.avg4);
-
+  // הגרעין is the club's own list (the flag, managed by hand); who fits the rule but is not in it is offered.
+  const inCore = new Set(people.filter((a) => a.core).map((a) => a.id));
+  const fits = (r: (typeof runnerRows)[number]) => last8.length > 0 && r.weeks3plus8 === last8.length;
+  const core = runnerRows.filter((r) => inCore.has(r.id)).sort((p, q) => q.avg4 - p.avg4);
+  const suggested = runnerRows.filter((r) => !inCore.has(r.id) && fits(r)).sort((p, q) => q.runs8 - p.runs8)
+    .map((r) => ({ id: r.id, name: r.name, pack: r.pack, runs8: r.runs8, avg4: r.avg4 }));
   const attention = {
     dropping: runnerRows.filter((r) => r.change != null && r.change <= -20).sort((p, q) => (p.change ?? 0) - (q.change ?? 0))
       .map((r) => ({ id: r.id, name: r.name, pack: r.pack, from: r.prev6, to: r.rec2, change: r.change })),
@@ -247,7 +249,7 @@ export function computeClubNumbers(x: NInput) {
       members: runnerRows.length,
     },
     attention,
-    core: { rule: '3+ runs in each of the last 8 weeks', runners: core, all: runnerRows.map((r) => ({ id: r.id, name: r.name, pack: r.pack, inCore: auto.has(r.id) })) },
+    core: { runners: core, suggested, all: active.map((a) => ({ id: a.id, name: a.name, pack: packOf(a), inCore: inCore.has(a.id) })).sort((p, q) => Number(q.inCore) - Number(p.inCore) || p.name.localeCompare(q.name)) },
   };
 }
 

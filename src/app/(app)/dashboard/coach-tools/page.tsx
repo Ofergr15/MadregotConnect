@@ -239,8 +239,8 @@ export default function CoachToolsPage() {
           A pure admin still lands on it at /dashboard, so for them this is a second
           door to the same screen — see ControlRoomScreen. */}
       {isAdminLens && <InsetSection>
-        {/* "מדרגות במספרים" (components/club-numbers): the club's people, growth and academy. */}
-        <InsetRow icon={BarChart3} iconBg="bg-ink-900" label={t('clubNumbers')} sublabel={t('clubNumbersSub')} href="/dashboard/numbers" />
+        {/* The control room moved here from the admin's home (2026-10-20), which is now
+            "מדרגות במספרים" — still reachable from here too. */}
         <InsetRow
           icon={Gauge}
           iconBg="bg-brand-600"
@@ -248,6 +248,7 @@ export default function CoachToolsPage() {
           sublabel={t('controlRoomSub')}
           href="/dashboard/control-room"
         />
+        <InsetRow icon={BarChart3} iconBg="bg-ink-900" label={t('clubNumbers')} sublabel={t('clubNumbersSub')} href="/dashboard/numbers" />
       </InsetSection>}
 
       {isClubCoachLens && <>
