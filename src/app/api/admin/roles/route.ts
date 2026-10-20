@@ -10,6 +10,8 @@ import { coachIdsOf, traineeIdsOfCoach } from '@/lib/academy/trainee-coaches';
 import { academyManagerIds } from '@/lib/notifications/staff';
 import { storyEditorIds } from '@/lib/quality-session/access';
 import { applyAcademyMembership } from '@/lib/academy/membership-server';
+import { isCoreRunner } from '@/lib/core-runner';
+import { clubManagers, setClubManagers } from '@/lib/club-numbers/access';
 import { newlyGranted, welcomeRoleOf, WELCOME_PARAM } from '@/lib/role-views';
 
 export const dynamic = 'force-dynamic';
@@ -26,7 +28,7 @@ export const revalidate = 0;
 /** Postgres "column does not exist" — migration 127 not pasted in yet. */
 const UNDEFINED_COLUMN = '42703';
 
-const BASE = 'id, name, email, avatar_url, role, status, is_academy';
+const BASE = 'id, name, email, avatar_url, role, status, is_academy, is_core_runner';
 
 // "רץ אקדמיה" is not a role column. It is `athletes.is_academy`, the flag that
 // "accept" on the applicants board turns on and everything academy reads (the
@@ -219,8 +221,9 @@ export async function GET(request: Request) {
       res = await supabase.from('athletes').select(BASE).order('name');
     }
     if (res.error) throw res.error;
-    const [notified, editors] = await Promise.all([lastNotified(supabase), storyEditorIds(supabase)]);
+    const [notified, editors, managers] = await Promise.all([lastNotified(supabase), storyEditorIds(supabase), clubManagers(supabase).catch(() => [] as string[])]);
     const editor = new Set(editors || []);
+    const manager = new Set(managers);
 
     const people: RolePerson[] = ((res.data || []) as any[])
       .filter(a => a.status !== 'removed')
@@ -232,6 +235,8 @@ export async function GET(request: Request) {
         roles: grantedRoles(a.role, a.extra_roles),
         academy: a.is_academy === true,
         storyEditor: editor.has(a.id),
+        coreRunner: isCoreRunner(a),
+        clubManager: manager.has(a.id),
         lastNotifiedAt: notified.get(a.id) ?? null,
       }));
 
@@ -247,10 +252,11 @@ export async function PUT(request: Request) {
     const { denied, caller } = await requireRoleAdmin(request);
     if (denied) return denied;
 
-    const body = (await request.json().catch(() => ({}))) as { athleteId?: unknown; roles?: unknown; academy?: unknown; storyEditor?: unknown };
+    const body = (await request.json().catch(() => ({}))) as { athleteId?: unknown; roles?: unknown; academy?: unknown; storyEditor?: unknown; coreRunner?: unknown; clubManager?: unknown };
     const athleteId = typeof body.athleteId === 'string' ? body.athleteId : '';
     if (!athleteId || !Array.isArray(body.roles) || (body.academy !== undefined && typeof body.academy !== 'boolean')
-      || (body.storyEditor !== undefined && typeof body.storyEditor !== 'boolean')) {
+      || (body.storyEditor !== undefined && typeof body.storyEditor !== 'boolean')
+      || (body.coreRunner !== undefined && typeof body.coreRunner !== 'boolean') || (body.clubManager !== undefined && typeof body.clubManager !== 'boolean')) {
       return NextResponse.json({ error: 'athleteId and roles are required' }, { status: 400 });
     }
     if (body.roles.some(r => !(GRANTABLE_ROLES as readonly unknown[]).includes(r))) {
@@ -303,9 +309,16 @@ export async function PUT(request: Request) {
     const update: Record<string, unknown> = migrated ? { role: next.role, extra_roles: next.extra_roles } : { role: next.role };
     if (academy !== wasAcademy) update.is_academy = academy;
     if (storyEditor !== wasEditor) update.is_story_editor = storyEditor;
+    // הגרעין: the flag (the legacy role value, if any, was already replaced by `rolesToColumns`).
+    if (typeof body.coreRunner === 'boolean') update.is_core_runner = body.coreRunner;
     const { error } = await supabase.from('athletes').update(update).eq('id', athlete.id);
     if (error) throw error;
     if (academy !== wasAcademy) await applyAcademyMembership(supabase, athlete.id, academy);
+    if (typeof body.clubManager === 'boolean') {
+      const ids = await clubManagers(supabase);
+      const has = ids.includes(athlete.id);
+      if (body.clubManager !== has) await setClubManagers(supabase, body.clubManager ? [...ids, athlete.id] : ids.filter((x) => x !== athlete.id));
+    }
 
     const roles = grantedRoles(next.role, next.extra_roles);
     // Only a role switched ON is news to them. Taking one away sends nothing.
@@ -320,7 +333,7 @@ export async function PUT(request: Request) {
       ? await releaseTrainees(supabase, { id: athlete.id, name: athlete.name ?? null }, caller)
       : { released: 0, orphaned: 0 };
 
-    return NextResponse.json({ success: true, roles, academy, storyEditor, notified: notified ? added : null, academyNotified, storyNotified, traineesReleased: trainees.released, traineesOrphaned: trainees.orphaned });
+    return NextResponse.json({ success: true, roles, academy, storyEditor, coreRunner: typeof body.coreRunner === 'boolean' ? body.coreRunner : undefined, clubManager: typeof body.clubManager === 'boolean' ? body.clubManager : undefined, notified: notified ? added : null, academyNotified, storyNotified, traineesReleased: trainees.released, traineesOrphaned: trainees.orphaned });
   } catch (error) {
     console.error('Failed to update roles:', error);
     return NextResponse.json({ error: 'Failed to update roles' }, { status: 500 });

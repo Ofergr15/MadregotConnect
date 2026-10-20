@@ -23,6 +23,10 @@ export interface RolePerson {
   academy?: boolean;
   /** "אינסטגרם": `athletes.is_story_editor` (migration 129), the quality session. */
   storyEditor?: boolean;
+  /** הגרעין — `is_core_runner` (or the legacy role), lib/core-runner. */
+  coreRunner?: boolean;
+  /** "מנהל מדרגות" — sees "מדרגות במספרים" and its ניהול tab (lib/club-numbers/access). */
+  clubManager?: boolean;
   /** When the "קיבלת תפקיד חדש" push last went to them; null when it never did. */
   lastNotifiedAt?: string | null;
 }

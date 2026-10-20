@@ -32,10 +32,26 @@ export async function mayViewNumbers(supabase: Db, c: { isSuperUser: boolean; ro
   return !!c.athleteId && (await clubManagers(supabase)).includes(c.athleteId);
 }
 
-// The numbers move once a sync lands, not every second, and the read is the club's whole
-// year of runs: kept for a few minutes per server instance.
-let cache: { at: number; body: unknown } | null = null;
-const TTL_MS = 5 * 60_000;
-export const cachedNumbers = () => (cache && Date.now() - cache.at < TTL_MS ? cache.body : null);
-export const keepNumbers = (body: unknown) => { cache = { at: Date.now(), body }; };
-export const dropNumbers = () => { cache = null; };
+// ── the numbers, kept ready ─────────────────────────────────────────────────────────
+// Working the numbers out reads the club's whole year of runs (~3 s). The screen must open
+// at once, so the last result is kept in app_settings and served as it is; when it is more
+// than a few minutes old the request answers with it anyway and recomputes after replying
+// (and the cron tick keeps it warm). Each server instance also holds it in memory.
+export const SNAPSHOT_KEY = 'club_numbers_snapshot';
+export const FRESH_MS = 5 * 60_000;
+let mem: { at: number; body: unknown } | null = null;
+
+export async function readSnapshot(supabase: Db): Promise<{ at: number; body: unknown } | null> {
+  if (mem) return mem;
+  const { data } = await supabase.from('app_settings').select('value').eq('key', SNAPSHOT_KEY).maybeSingle();
+  try {
+    const v = JSON.parse((data as { value?: string } | null)?.value || 'null');
+    if (v && typeof v.at === 'number' && v.body) { mem = v; return v; }
+  } catch { /* none yet */ }
+  return null;
+}
+export async function writeSnapshot(supabase: Db, body: unknown): Promise<void> {
+  mem = { at: Date.now(), body };
+  await supabase.from('app_settings').upsert({ key: SNAPSHOT_KEY, value: JSON.stringify(mem), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+}
+export const dropNumbers = () => { mem = null; };

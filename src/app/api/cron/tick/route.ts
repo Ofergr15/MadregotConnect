@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { sendEveningWatchReminders } from '@/lib/watch/evening-reminder';
 import { sendMeetupReminders } from '@/lib/runs/meetups-server';
 import { publishBirthdayPosts } from '@/lib/feed/birthday-publish';
@@ -762,6 +762,19 @@ async function run(request: Request) {
   } catch (err) {
     console.error('[tick] session photo folders failed:', err);
   }
+
+  // "מדרגות במספרים" kept warm (lib/club-numbers/access): recomputed when 10+ minutes old, after the
+  // reply, so the admin's home never waits on the year's runs. Never fails the tick.
+  after(async () => {
+    try {
+      const { readSnapshot, writeSnapshot } = await import('@/lib/club-numbers/access');
+      const snap = await readSnapshot(supabase);
+      if (!snap || Date.now() - snap.at > 10 * 60_000) {
+        const { loadClubNumbers } = await import('@/lib/club-numbers/server');
+        await writeSnapshot(supabase, await loadClubNumbers(supabase));
+      }
+    } catch (err) { console.error('[tick] club numbers refresh failed:', err); }
+  });
 
   const resolvedReports = await reconcileResolvedReports(supabase, now);
   if (resolvedReports.sent) fired.push(`reviewResolved → ${resolvedReports.sent}`);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Bell, Lock, MoreHorizontal, Pencil, Plus, Search, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -47,11 +47,13 @@ const BADGE_TONE: Record<GrantableRole, string> = {
   admin: 'bg-ink-700 text-white',
 };
 
-type Filter = 'any' | 'academyRunners' | 'storyEditors' | 'coaches' | 'academy' | 'admin';
+type Filter = 'any' | 'academyRunners' | 'core' | 'managers' | 'storyEditors' | 'coaches' | 'academy' | 'admin';
 
 const FILTERS: Array<{ key: Filter; label: string; test: (p: RolePerson) => boolean }> = [
-  { key: 'any', label: 'עם תפקיד', test: p => p.roles.length > 0 || !!p.academy || !!p.storyEditor },
+  { key: 'any', label: 'עם תפקיד', test: p => p.roles.length > 0 || !!p.academy || !!p.storyEditor || !!p.coreRunner || !!p.clubManager },
   { key: 'academyRunners', label: 'רצי אקדמיה', test: p => !!p.academy },
+  { key: 'core', label: 'גרעין', test: p => !!p.coreRunner },
+  { key: 'managers', label: 'מנהלי מדרגות', test: p => !!p.clubManager },
   { key: 'storyEditors', label: 'אינסטגרם', test: p => !!p.storyEditor },
   { key: 'coaches', label: 'מאמנים', test: p => p.roles.includes('coach') || p.roles.includes('academy_coach') },
   { key: 'academy', label: 'צוות אקדמיה', test: p => p.roles.includes('academy_coach') || p.roles.includes('academy_manager') },
@@ -103,8 +105,8 @@ async function resendRolePush(athleteId: string): Promise<string | null> {
   }
 }
 
-function RoleBadges({ roles, academy, storyEditor }: { roles: GrantableRole[]; academy?: boolean; storyEditor?: boolean }) {
-  if (!roles.length && !academy && !storyEditor) {
+function RoleBadges({ roles, academy, storyEditor, coreRunner, clubManager }: { roles: GrantableRole[]; academy?: boolean; storyEditor?: boolean; coreRunner?: boolean; clubManager?: boolean }) {
+  if (!roles.length && !academy && !storyEditor && !coreRunner && !clubManager) {
     return <span className="inline-flex h-[22px] items-center rounded-[7px] bg-[#F1F1F3] px-2 text-2xs font-bold text-ink-400">רץ</span>;
   }
   return (
@@ -114,6 +116,12 @@ function RoleBadges({ roles, academy, storyEditor }: { roles: GrantableRole[]; a
       )}
       {storyEditor && (
         <span className="inline-flex h-[22px] items-center rounded-[7px] bg-[#FDE7F3] px-2 text-2xs font-bold text-[#B0186F]">אינסטגרם</span>
+      )}
+      {coreRunner && (
+        <span className="inline-flex h-[22px] items-center rounded-[7px] bg-[#FFF4E5] px-2 text-2xs font-bold text-[#8A4A0B]">גרעין</span>
+      )}
+      {clubManager && (
+        <span className="inline-flex h-[22px] items-center rounded-[7px] bg-[#EEF0FF] px-2 text-2xs font-bold text-[#1D2A99]">מנהל מדרגות</span>
       )}
       {roles.map(r => (
         <span key={r} className={cn('inline-flex h-[22px] items-center rounded-[7px] px-2 text-2xs font-bold', BADGE_TONE[r])}>
@@ -131,6 +139,8 @@ export default function RolesPage() {
   );
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('any');
+  // ?filter=core / managers — the doors from "מדרגות במספרים".
+  useEffect(() => { const f = new URLSearchParams(window.location.search).get('filter'); if (f && FILTERS.some(x => x.key === f)) setFilter(f as Filter); }, []);
   const [editing, setEditing] = useState<RolePerson | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -233,7 +243,7 @@ export default function RolesPage() {
                   <span className="block truncate text-[15px] font-bold text-ink-700">{p.name || p.email}</span>
                   <span className="block truncate text-xs text-ink-400" dir="ltr" style={{ textAlign: 'right' }}>{p.email}</span>
                 </span>
-                <RoleBadges roles={p.roles} academy={p.academy} storyEditor={p.storyEditor} />
+                <RoleBadges roles={p.roles} academy={p.academy} storyEditor={p.storyEditor} coreRunner={p.coreRunner} clubManager={p.clubManager} />
               </button>
               <button
                 type="button"
@@ -327,6 +337,8 @@ function EditRolesSheet({
   const [draft, setDraft] = useState<GrantableRole[]>([]);
   const [academy, setAcademy] = useState(false);
   const [storyEditor, setStoryEditor] = useState(false);
+  const [coreRunner, setCoreRunner] = useState(false);
+  const [clubManager, setClubManager] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [forId, setForId] = useState<string | null>(null);
   const [confirmAdmin, setConfirmAdmin] = useState(false);
@@ -339,6 +351,8 @@ function EditRolesSheet({
     setDraft(person.roles);
     setAcademy(!!person.academy);
     setStoryEditor(!!person.storyEditor);
+    setCoreRunner(!!person.coreRunner);
+    setClubManager(!!person.clubManager);
     setFailed(null);
   }
 
@@ -356,7 +370,7 @@ function EditRolesSheet({
       const res = await fetch('/api/admin/roles', {
         method: 'PUT',
         headers: await apiHeaders(true),
-        body: JSON.stringify({ athleteId: person.id, roles: draft, academy, ...(storyMigrated ? { storyEditor } : {}) }),
+        body: JSON.stringify({ athleteId: person.id, roles: draft, academy, coreRunner, clubManager, ...(storyMigrated ? { storyEditor } : {}) }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -386,7 +400,7 @@ function EditRolesSheet({
   const preview = rolePreview(draft, chipView);
   const joining = !!person && academy && !person.academy;
   const changed = !!person && (
-    academy !== !!person.academy || storyEditor !== !!person.storyEditor || draft.length !== person.roles.length || draft.some(r => !person.roles.includes(r))
+    academy !== !!person.academy || storyEditor !== !!person.storyEditor || coreRunner !== !!person.coreRunner || clubManager !== !!person.clubManager || draft.length !== person.roles.length || draft.some(r => !person.roles.includes(r))
   );
   const first = person?.name?.split(' ')[0] || 'חשבון';
   const grantNote = person
@@ -420,6 +434,14 @@ function EditRolesSheet({
                   checked={academy}
                   onChange={on => (on ? setAcademy(true) : person.academy ? setConfirmLeave(true) : setAcademy(false))}
                 />
+                <RoleRow title="רץ גרעין" description="הגרעין של המועדון: ההטבות, 🌰 בפרופיל, ולשונית רצי גרעין במספרים" checked={coreRunner} onChange={setCoreRunner} />
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-1.5 px-1 text-2xs font-extrabold tracking-wide text-ink-400">ניהול</p>
+              <div className="overflow-hidden rounded-2xl bg-page/60">
+                <RoleRow title="מנהל מדרגות" description="רואה את &quot;מדרגות במספרים&quot; ומקבל טאב ניהול למטה — בלי כלי צוות" checked={clubManager} onChange={setClubManager} />
               </div>
             </div>
 

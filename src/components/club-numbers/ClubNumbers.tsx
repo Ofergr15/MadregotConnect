@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Eye, GraduationCap, Pencil, ShieldCheck, Users } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { teammateHref } from '@/lib/athletes/profile-link';
 import { cn } from '@/lib/utils';
-import { EmptyState, Sheet, SkeletonList, Switch } from '@/components/ui';
+import { EmptyState, SkeletonList } from '@/components/ui';
 import { CLUB_PACKS, ENTRY_STEPS, type ClubNumbers } from '@/lib/club-numbers/compute';
 
 type Data = ClubNumbers & { access: { admin: boolean; managers: string[] } };
@@ -95,7 +95,6 @@ export function ClubNumbers() {
     if (t && TABS.some(([k]) => k === t)) setTab(t as Tab);
   }, []);
   const { data, error, isLoading, mutate } = useApi<Data>('/api/admin/club-numbers');
-  const [who, setWho] = useState(false);
   const go = (t: Tab) => { setTab(t); window.history.replaceState(null, '', `?tab=${t}`); window.scrollTo({ top: 0 }); };
 
   return (
@@ -103,9 +102,10 @@ export function ClubNumbers() {
       <div className="flex items-center justify-between px-[18px] pt-2">
         <h1 className="text-[27px] font-black tracking-tight text-ink-900">מדרגות במספרים</h1>
         {data?.access?.admin && (
-          <button type="button" onClick={() => setWho(true)} className="flex min-h-[36px] items-center gap-1 rounded-full bg-card px-3 text-[12.5px] font-bold text-brand-600">
+          // Who sees this screen is set where every other access is: the roles screen.
+          <Link href="/dashboard/roles?filter=managers" className="flex min-h-[36px] items-center gap-1 rounded-full bg-card px-3 text-[12.5px] font-bold text-brand-600">
             <ShieldCheck className="h-4 w-4" />מי רואה<span className="text-ink-400"> · <B>{data.access.managers.length}</B></span>
-          </button>
+          </Link>
         )}
       </div>
       <div className="mt-2 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
@@ -125,7 +125,6 @@ export function ClubNumbers() {
               {tab === 'insights' && <Insights d={data} />}
               {tab === 'stability' && <Stability d={data} />}
               {tab === 'attention' && <Attention d={data} />}
-              {data.access?.admin && <ManagersSheet open={who} onClose={() => setWho(false)} d={data} onSaved={() => mutate()} />}
             </>
           )}
     </div>
@@ -235,7 +234,6 @@ function LoadChip({ load }: { load: { ratio: number | null; state: string } }) {
 
 function Core({ d, onSaved }: { d: Data; onSaved: () => void }) {
   const rs = d.core.runners;
-  const [edit, setEdit] = useState(false);
   const balanced = rs.filter((r) => r.load.state === 'normal').length;
   const teamRate = rs.length ? Math.round((rs.reduce((s, r) => s + r.teamHit, 0) / rs.reduce((s, r) => s + r.teamOf, 0)) * 100) : 0;
   const long40 = rs.filter((r) => r.long.km >= 40).length;
@@ -243,9 +241,8 @@ function Core({ d, onSaved }: { d: Data; onSaved: () => void }) {
   return (
     <>
       <div className="flex items-center justify-between px-[18px] pt-3"><h2 className="text-[22px] font-black">רצי גרעין</h2>
-        {d.access?.admin && <button type="button" onClick={() => setEdit(true)} className="flex min-h-[36px] items-center gap-1 text-[13px] font-bold text-brand-600"><Pencil className="h-3.5 w-3.5" />עריכה</button>}</div>
+        {d.access?.admin && <Link href="/dashboard/roles?filter=core" className="flex min-h-[36px] items-center gap-1 text-[13px] font-bold text-brand-600"><Pencil className="h-3.5 w-3.5" />עריכה</Link>}</div>
       <p className="mx-[18px] mt-1 text-[13.5px] leading-relaxed text-ink-500">הגרעין של המועדון — <B>{rs.length}</B> רצים, אותה רשימה שמקבלת את ההטבות. {d.core.suggested.length > 0 && <>ועוד <B>{d.core.suggested.length}</B> שמתאימים: 3+ ריצות בכל אחד מ-8 השבועות האחרונים.</>}</p>
-      {d.core.suggested.length > 0 && <Suggested d={d} canEdit={!!d.access?.admin} onSaved={onSaved} />}
       <div className="mx-4 mt-3 flex gap-2">
         <Kpi label="רצו השבוע" value={<B>{`${rs.filter((r) => r.soFar > 0).length}/${rs.length}`}</B>} />
         <Kpi label="עומס רגיל" value={<B>{balanced}</B>} note={<>מתוך <B>{rs.length}</B></>} />
@@ -261,17 +258,18 @@ function Core({ d, onSaved }: { d: Data; onSaved: () => void }) {
           <div key={w} className="flex items-start gap-2 py-[5px] text-[11.5px] leading-snug text-ink-500"><span className={cn('w-[76px] flex-none rounded-full py-[3px] text-center text-[11px] font-extrabold', cls)}>{w}</span><span>{t}</span></div>
         ))}
       </Card>
-      <Sub>השבוע · א׳–ש׳</Sub>
+      <Sub>השבוע · א׳–ש׳ · <span className="text-[#15803d]">ירוק = רץ באימון קבוצה</span></Sub>
       {rs.map((r) => (
         <Link key={r.id} href={profile(r.id)} className="mx-4 mb-2 block rounded-[20px] bg-card px-3 pb-2.5 pt-3 active:opacity-80">
           <div className="flex items-center gap-[7px]"><b className="text-[14.5px] font-extrabold">{r.name}</b><span className="flex-1 text-[11.5px] text-ink-400">{r.academy ? 'אקדמיה' : r.pack}</span><LoadChip load={r.load} /></div>
           <div className="mt-2.5 flex gap-1">
             {r.days.map((v, i) => (
               <div key={i} className="flex flex-1 flex-col items-center gap-0.5">
-                <span className={cn('text-[9.5px] font-bold', d.insights.teamDays.includes(i) ? 'text-brand-600' : 'text-ink-400')}>{DAYS[i]}</span>
+                <span className={cn('text-[9.5px] font-bold', d.insights.teamDays.includes(i) ? 'text-[#15803d]' : 'text-ink-400')}>{DAYS[i]}{d.insights.teamDays.includes(i) ? ' · קבוצה' : ''}</span>
                 <i className={cn('grid h-6 w-full place-items-center rounded-[7px] text-[10.5px] font-extrabold not-italic text-white',
-                  v > 0 ? 'bg-brand-600' : i > d.dayIndex ? 'bg-[repeating-linear-gradient(45deg,#F2F3F6_0_4px,#fff_4px_8px)]' : 'bg-[#F2F3F6]',
-                  d.insights.teamDays.includes(i) && v === 0 && 'shadow-[inset_0_0_0_1.5px_#1525FF55]')}>{v > 0 ? <B>{Math.round(v)}</B> : ''}</i>
+                  // A team day that was run is green, so the team sessions read at a glance.
+                  v > 0 ? (d.insights.teamDays.includes(i) ? 'bg-[#15803d]' : 'bg-brand-600') : i > d.dayIndex ? 'bg-[repeating-linear-gradient(45deg,#F2F3F6_0_4px,#fff_4px_8px)]' : 'bg-[#F2F3F6]',
+                  d.insights.teamDays.includes(i) && v === 0 && 'shadow-[inset_0_0_0_1.5px_#15803d66]')}>{v > 0 ? <B>{Math.round(v)}</B> : ''}</i>
               </div>
             ))}
           </div>
@@ -285,7 +283,7 @@ function Core({ d, onSaved }: { d: Data; onSaved: () => void }) {
           </div>
         </Link>
       ))}
-      <CoreSheet open={edit} onClose={() => setEdit(false)} d={d} onSaved={onSaved} />
+      {d.core.suggested.length > 0 && <Suggested d={d} canEdit={!!d.access?.admin} onSaved={onSaved} />}
     </>
   );
 }
@@ -313,64 +311,6 @@ function Suggested({ d, canEdit, onSaved }: { d: Data; canEdit: boolean; onSaved
         ))}
       </Card>
     </>
-  );
-}
-
-function CoreSheet({ open, onClose, d, onSaved }: { open: boolean; onClose: () => void; d: Data; onSaved: () => void }) {
-  const [on, setOn] = useState<Set<string>>(new Set());
-  const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) setOn(new Set(d.core.all.filter((a) => a.inCore).map((a) => a.id))); }, [open, d]);
-  const save = async () => {
-    setBusy(true);
-    // The same flag the athletes list, the 🌰 badge and the perks read (lib/core-runner): one person at a time.
-    const changed = d.core.all.filter((a) => a.inCore !== on.has(a.id));
-    const results = await Promise.all(changed.map(async (a) => {
-      const res = await fetch('/api/admin/core-runners', { method: 'PUT', headers: await apiHeaders(true), body: JSON.stringify({ athleteId: a.id, isCoreRunner: on.has(a.id) }) }).catch(() => null);
-      return !!res?.ok;
-    }));
-    setBusy(false);
-    if (results.every(Boolean)) { onSaved(); onClose(); }
-  };
-  return (
-    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }} title="רצי הגרעין">
-      <p className="mb-2 text-[13px] text-ink-500">הגרעין של המועדון — אותה רשימה שמקבלת את ההטבות ואת 🌰 בפרופיל.</p>
-      <div className="max-h-[55vh] overflow-y-auto">
-        {d.core.all.map((a) => (
-          <div key={a.id} className="flex items-center gap-2 border-b border-[#F3F4F6] py-2.5">
-            <span className="flex-1 text-sm font-semibold">{a.name}<span className="ms-1.5 text-xs font-normal text-ink-400">{a.pack}</span>
-              {d.core.suggested.some((x) => x.id === a.id) && <span className="ms-1.5 rounded-full bg-[#E8F6EE] px-1.5 py-px text-[10.5px] font-bold text-[#15803d]">מתאים</span>}</span>
-            <Switch size="sm" checked={on.has(a.id)} onChange={(v) => setOn((st) => { const nx = new Set(st); if (v) nx.add(a.id); else nx.delete(a.id); return nx; })} ariaLabel={a.name} />
-          </div>
-        ))}
-      </div>
-      <button type="button" disabled={busy} onClick={save} className="mt-4 flex h-[50px] w-full items-center justify-center rounded-[14px] bg-ink-900 text-[15px] font-bold text-white disabled:opacity-60">שמירה</button>
-    </Sheet>
-  );
-}
-
-function ManagersSheet({ open, onClose, d, onSaved }: { open: boolean; onClose: () => void; d: Data; onSaved: () => void }) {
-  const [on, setOn] = useState<Set<string>>(new Set(d.access.managers));
-  const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) setOn(new Set(d.access.managers)); }, [open, d.access.managers]);
-  const save = async () => {
-    setBusy(true);
-    const res = await fetch('/api/admin/club-numbers/managers', { method: 'PUT', headers: await apiHeaders(true), body: JSON.stringify({ ids: [...on] }) }).catch(() => null);
-    setBusy(false);
-    if (res?.ok) { onSaved(); onClose(); }
-  };
-  return (
-    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }} title="מנהלי מדרגות">
-      <p className="mb-2 text-[13px] leading-relaxed text-ink-500">מי שמסומן כאן רואה את &quot;מדרגות במספרים&quot;, ומקבל למטה טאב &quot;ניהול&quot;. רק המסך הזה — לא עריכה ולא כלי צוות.</p>
-      <div className="max-h-[55vh] overflow-y-auto">
-        {d.core.all.map((a) => (
-          <div key={a.id} className="flex items-center gap-2 border-b border-[#F3F4F6] py-2.5">
-            <span className="flex-1 text-sm font-semibold">{a.name}<span className="ms-1.5 text-xs font-normal text-ink-400">{a.pack}</span></span>
-            <Switch size="sm" checked={on.has(a.id)} onChange={(v) => setOn((st) => { const nx = new Set(st); if (v) nx.add(a.id); else nx.delete(a.id); return nx; })} ariaLabel={a.name} />
-          </div>
-        ))}
-      </div>
-      <button type="button" disabled={busy} onClick={save} className="mt-4 flex h-[50px] w-full items-center justify-center rounded-[14px] bg-ink-900 text-[15px] font-bold text-white disabled:opacity-60">שמירה</button>
-    </Sheet>
   );
 }
 
@@ -459,14 +399,18 @@ function Packs({ d }: { d: Data }) {
       </Card>
       <Sub>מי מושך את המועדון · 4 חודשים</Sub>
       <Card>
-        <div className="grid grid-cols-[84px_44px_1fr] pb-1 text-[10.5px] font-extrabold text-ink-400"><span /><span>רצים</span><span>ק״מ</span></div>
+        <div className="grid grid-cols-[78px_62px_1fr] pb-1 text-[10.5px] font-extrabold text-ink-400"><span /><span>רצים</span><span>ק״מ</span></div>
         {p.share.map((r) => (
-          <Link key={r.pack} href={r.pack.startsWith('דבוקה') ? `/dashboard/packs/${r.pack.slice(-1)}` : '/dashboard/academy'} className="grid grid-cols-[84px_44px_1fr] items-center border-b border-[#F5F6F8] py-1.5 last:border-0">
+          <Link key={r.pack} href={r.pack.startsWith('דבוקה') ? `/dashboard/packs/${r.pack.slice(-1)}` : '/dashboard/academy'} className="grid grid-cols-[78px_62px_1fr] items-center border-b border-[#F5F6F8] py-2 last:border-0">
             <span className="flex items-center gap-[5px] text-xs font-bold"><i className="h-2 w-2 rounded-[3px]" style={{ background: PACK_COLOR[r.pack] }} />{r.pack}</span>
-            <b className="text-[13px] font-extrabold text-ink-500"><B>{Math.round((r.runners / totalR) * 100)}%</B></b>
-            <span className="flex items-center gap-1.5"><i className="block h-3 rounded" style={{ width: `${(r.km / totalKm) * 160}%`, maxWidth: '80%', background: PACK_COLOR[r.pack] }} /><b className="text-[13px] font-black"><B>{Math.round((r.km / totalKm) * 100)}%</B></b></span>
+            <span className="flex flex-col leading-tight"><b className="text-[14px] font-black text-ink-900"><B>{r.runners}</B></b><span className="text-[10.5px] text-ink-400"><B>{Math.round((r.runners / totalR) * 100)}%</B> מהרצים</span></span>
+            <span className="flex items-center gap-2">
+              <i className="block h-3 rounded" style={{ width: `${Math.max(4, (r.km / totalKm) * 100)}%`, maxWidth: '55%', background: PACK_COLOR[r.pack] }} />
+              <span className="flex flex-col leading-tight"><b className="text-[14px] font-black"><B>{n(r.km)}</B></b><span className="text-[10.5px] text-ink-400"><B>{Math.round((r.km / totalKm) * 100)}%</B> מהק״מ</span></span>
+            </span>
           </Link>
         ))}
+        <div className="grid grid-cols-[78px_62px_1fr] pt-2 text-xs font-extrabold text-ink-500"><span>סה״כ</span><span><B>{totalR}</B></span><span><B>{n(totalKm)}</B> ק״מ</span></div>
         {top && <Insight>{top.pack} — <B>{Math.round((top.runners / totalR) * 100)}%</B> מהרצים, <B>{Math.round((top.km / totalKm) * 100)}%</B> מהק״מ.</Insight>}
       </Card>
       <Sub>קצב חציוני בריצות 5–25 ק״מ · דקות לק״מ</Sub>
