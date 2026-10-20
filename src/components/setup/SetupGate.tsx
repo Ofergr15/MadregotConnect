@@ -438,7 +438,8 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
   const key = preview ? `${KEY}?preview=1` : KEY;
   const { data } = useApi<SetupFacts>(key, { revalidateOnFocus: true });
   const [standalone, setStandalone] = useState(false);
-  useEffect(() => setStandalone(isStandalone()), []);
+  const [iosTab, setIosTab] = useState(false);
+  useEffect(() => { setStandalone(isStandalone()); setIosTab(isIosDevice()); }, []);
   // "Can't install" holds for this visit only: an install the app can't see (an Android
   // Chrome tab) must never lock somebody out.
   const [installLater, setInstallLater] = useState(false);
@@ -452,11 +453,16 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
     if (!data?.applicable) return [] as SetupStep[];
     return remainingSteps({
       phone: !computer,
-      installed: standalone || !!data.phoneOpened || installLater,
-      garmin: !!data.garmin, strava: !!data.strava, noWatch: !!data.noWatch, push: !!data.push,
+      // Only the installed app itself counts: phone_app_opened_at is stamped by any phone
+      // visit, a Safari tab included, so it would skip the install step in Safari.
+      installed: standalone || installLater,
+      garmin: !!data.garmin, strava: !!data.strava, noWatch: !!data.noWatch,
+      // An iPhone's Safari tab cannot be asked for notifications (only the installed app
+      // can): somebody who chose "continue in the browser" is not stuck on a step that fails.
+      push: !!data.push || (iosTab && !standalone),
       birthDate: data.birthDate ?? null, heightCm: data.heightCm ?? null, sizes: Object.values(data.sizes || {}),
     });
-  }, [data, computer, standalone, installLater]);
+  }, [data, computer, standalone, installLater, iosTab]);
   useEffect(() => { if (steps.length) setWalked(true); }, [steps.length]);
 
   const done = steps.length === 0 && walked && !closed;

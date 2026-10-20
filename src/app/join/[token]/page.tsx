@@ -108,7 +108,10 @@ export default function JoinPage() {
   const [step, setStep] = useState<'auth' | 'info' | 'garmin' | 'mfa' | 'connecting' | 'done'>('auth');
   const computer = useIsComputer();
   // The illustrated install guide over the done screen, while it is tried (lib/install/v2).
-  const guideV2 = usePreviewOnboardingV2();
+  // With the required setup on, this page is details + Strava for everyone and the
+  // install comes after, from the setup's welcome — so the v2 install-first guide is off
+  // here even on a phone that kept `mc-onb-v2` from the landing page's join button.
+  const guideV2 = usePreviewOnboardingV2() && !SETUP_GATE_FOR_ALL;
   // A phone that already went through the guide (on the landing) is not walked
   // through it again in full: it gets the "saved" screen, which offers it once more.
   const [guideClosed, setGuideClosed] = useState(() => {

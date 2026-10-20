@@ -19,6 +19,7 @@ import { ExecutionScoreProvider } from '@/components/activity/execution-context'
 import { NotificationsStep } from '@/components/onboarding/NotificationsStep';
 import { FirstRunFlow } from '@/components/onboarding/FirstRunFlow';
 import { SetupGate } from '@/components/setup/SetupGate';
+import { useSetupCohort } from '@/lib/setup/use-cohort';
 import { Spinner } from '@/components/ui';
 import { AccessBlocked } from '@/components/AccessBlocked';
 import { apiHeaders, useApi } from '@/lib/api';
@@ -66,6 +67,10 @@ export default function AppLayout({
   const [viewingPerson] = useState(isViewingPerson);
   // The required setup (components/setup/SetupGate) owns the screen the same way.
   const [setupActive, setSetupActive] = useState(false);
+  // Its members already answered install / notifications / Garmin there: the older asks
+  // below stay off for them (lib/setup/use-cohort). Off while unknown, so none flashes.
+  const setupCohort = useSetupCohort();
+  const olderAsks = setupCohort === false;
   const popupsAllowed = !isRunChat && !tourActive && !viewingPerson && !setupActive;
   // A screen with its own top row (the academy trainee's home) folds the phone header away.
   const headerFolded = useShellHeaderHidden();
@@ -436,7 +441,7 @@ export default function AppLayout({
           <Header />
         </div>
         <ViewAsBanner />
-        {popupsAllowed && <InstallPrompt />}
+        {popupsAllowed && olderAsks && <InstallPrompt />}
         {/* Step 3 of the first run. Ordered after InstallPrompt for the same
             reason it checks `installAnswered` itself: on iOS a subscription made
             from a Safari tab is page-origin forever. It can't collide with
@@ -444,15 +449,15 @@ export default function AppLayout({
             `push_optin_trigger` flag, which only the feedback page sets, long
             after onboarding. */}
         {/* Onboarding v2: the welcome → notifications → tour sequence (FirstRunFlow). */}
-        {popupsAllowed && <FirstRunFlow />}
-        {popupsAllowed && <NotificationsStep />}
+        {popupsAllowed && olderAsks && <FirstRunFlow />}
+        {popupsAllowed && olderAsks && <NotificationsStep />}
         {popupsAllowed && <PushOptIn />}
         {/* Ordered before the connect nudge, and it silences that nudge for the
             session while it is up: "is this the right account?" has to be settled
             before "connect something else", and a Strava-only member is eligible
             for both. */}
         {popupsAllowed && <StravaAccountConfirm />}
-        {popupsAllowed && <ConnectDataSourcePopup />}
+        {popupsAllowed && olderAsks && <ConnectDataSourcePopup />}
         {/* A record broken since the last open: once, then the record's timeline. */}
         {popupsAllowed && <NewRecordSheet />}
         {!isRunChat && !viewingPerson && !setupActive && <FirstRunTour onActiveChange={setTourActive} />}

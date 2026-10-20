@@ -1,4 +1,5 @@
 import { APP_URL, APPROVER_EMAILS } from '@/lib/constants';
+import { SETUP_GATE_FOR_ALL } from '@/lib/setup/flag';
 import { joinLinkV2 } from '@/lib/install/flag';
 import { openInAppHref } from '@/lib/open-in-app';
 import { renderEmail, renderSetupProgress, renderJourney, renderSteps, renderScanOnPhone, renderTip, renderNextUp, esc, type SetupProgressRow } from './template';
@@ -351,6 +352,24 @@ export async function notifyRegistrationApproved(user: {
   // same structure as notifyUserApproved: the tracker, the next step, one button.
   const group = user.groupName ? memberGroupName(user.groupName) : '';
   const placed = group ? `שובצתם לקבוצה: ${group}.` : '';
+  // The required setup on: one mail whoever approved — details, Strava, then install.
+  if (SETUP_GATE_FOR_ALL) {
+    return sendEmail({
+      template: 'registration_approved',
+      to: user.email,
+      subject: '✅ ההרשמה אושרה! ככה נכנסים לאפליקציה של מדרגות',
+      replyTo: ADMIN_EMAIL,
+      athleteId: user.athleteId ?? null,
+      signupRequestId: user.signupRequestId ?? null,
+      html: renderEmail({
+        eyebrow: 'ההרשמה אושרה',
+        title: 'ההרשמה שלכם אושרה 🎉',
+        preheader: placed ? `${placed} נשארו שלוש דקות: להיכנס עם Strava ולהתקין.` : 'נשארו שלוש דקות: להיכנס עם Strava ולהתקין.',
+        paragraphs: [placed ? `${placed} ברוכים הבאים למדרגות!` : 'ברוכים הבאים למדרגות!'],
+        ...setupWayInBlocks(user.token, 'plural'),
+      }),
+    });
+  }
   if (user.v2) {
     const link = joinLinkV2(APP_URL, user.token, true);
     return sendEmail({
@@ -703,7 +722,31 @@ function remindered(built: BuiltEmail, reminder?: boolean): BuiltEmail {
  * install guide (?onb=v2), a QR for a computer and the Safari tip — the club approval
  * mail's, which is the one that worked. Replies go to a person (see the senders below).
  */
+
+/**
+ * The way in once the required setup is on (lib/setup/flag), for every "you're in" mail:
+ * the link, the details already on file, Strava, then the install from the setup's
+ * welcome video — and the icon opens signed in. One wording for the club and the academy.
+ */
+function setupWayInBlocks(token: string, you: 'plural' | 'single') {
+  const p = you === 'plural';
+  return {
+    bodyHtml: renderJourney(2)
+      + renderNextUp('הבא בתור', 'נכנסים לאפליקציה', p ? 'שלוש דקות, והמסך יוביל אתכם.' : 'שלוש דקות, והמסך יוביל אותך.')
+      + renderSteps([
+        { title: 'פותחים את הקישור בטלפון', sub: 'באייפון — ב-Safari' },
+        { title: 'מאשרים את הפרטים ונכנסים עם Strava', sub: p ? 'החשבון שכבר יש לכם' : 'החשבון שכבר יש לך' },
+        { title: 'מוסיפים למסך הבית', sub: 'סרטון קצר מראה איך, והאפליקציה נפתחת מחוברת' },
+      ]),
+    cta: { label: 'להתחלה ←', href: `${APP_URL}/join/${token}` },
+    afterCtaHtml: renderScanOnPhone(`${APP_URL}/api/public/qr?t=${encodeURIComponent(token)}`)
+      + renderTip('💡 באייפון ההתקנה עובדת רק דרך <b>Safari</b>. אם המייל נפתח בתוך Gmail, המסך הראשון יסביר איך לעבור.'),
+    notes: [p ? 'הקישור אישי, אל תעבירו אותו לאף אחד.' : 'הקישור אישי — אל תעבירו אותו לאף אחד.', p ? 'נתקעתם? פשוט תשיבו למייל הזה.' : 'נתקעת? פשוט להשיב למייל הזה.'],
+  };
+}
+
 function academyInstallBlocks(token: string) {
+  if (SETUP_GATE_FOR_ALL) return setupWayInBlocks(token, 'single');
   return {
     bodyHtml: renderJourney(2)
       + renderNextUp('הבא בתור', 'מתקינים את האפליקציה בטלפון', 'דקה אחת, והמסך יראה לך בדיוק איך.')
