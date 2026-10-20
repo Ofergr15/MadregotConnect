@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { APP_VERSION } from '@/lib/version';
 import { isStandalone } from '@/lib/pwa';
@@ -78,6 +78,22 @@ function screenState(): 'empty' | 'loading' | false {
 
 /** A page still on its spinner this long after the route settled is stuck, not slow. */
 const STILL_LOADING_MS = 10_000;
+/**
+ * The slow watch's own look: the screen's state as screenState reads it, and also the
+ * app-wide spinner before any screen has mounted (no <main> yet), which is the commonest
+ * slow wait of all (the whole app waiting on its first answer) and screenState skips.
+ */
+function slowState(): 'loading' | false {
+  if (document.querySelector('main')) return screenState() === 'loading' ? 'loading' : false;
+  const spinning = !!document.querySelector('[role="status"], [aria-busy="true"]');
+  // Not counting the notice's own words, or showing it would end it a second later.
+  const own = (document.querySelector('[data-slow-notice]') as HTMLElement | null)?.innerText.length ?? 0;
+  return spinning && (document.body.innerText || '').trim().length - own < 20 ? 'loading' : false;
+}
+
+/** The slow watch: filed silently at 5 s, told at 8 s. */
+const SLOW_REPORT_MS = 5_000;
+const SLOW_NOTICE_MS = 8_000;
 
 /** The probe's own channel, so the listeners are installed exactly once. */
 const BLANK_EVENT = 'mc:blank';
@@ -306,5 +322,31 @@ export function ClientEventReporter() {
     return () => { clearTimeout(t); if (again) clearTimeout(again); };
   }, [pathname]);
 
-  return null;
+  /* The slow watch (Ofer, 10-19), on every screen: still on its spinner at 5 s is filed
+   * as a bug, silently ('slow:…', its own finding in lib/bugs/detectors); still at 8 s,
+   * the person is told it is taking longer, may try again, and that it was reported. */
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    setSlow(false);
+    const fire = (detail: string) => window.dispatchEvent(new CustomEvent(BLANK_EVENT, { detail }));
+    const t5 = setTimeout(() => { try { if (slowState()) fire('slow:page:5s'); } catch { /* never break the page */ } }, SLOW_REPORT_MS);
+    const t8 = setTimeout(() => { try { if (slowState()) setSlow(true); } catch { /* never break the page */ } }, SLOW_NOTICE_MS);
+    return () => { clearTimeout(t5); clearTimeout(t8); };
+  }, [pathname]);
+  // The notice goes as soon as the screen has something in it.
+  useEffect(() => {
+    if (!slow) return;
+    const i = setInterval(() => { try { if (!slowState()) setSlow(false); } catch { /* ignore */ } }, 1000);
+    return () => clearInterval(i);
+  }, [slow]);
+
+  if (!slow) return null;
+  return (
+    <div dir="rtl" role="alert" data-slow-notice className="fixed inset-x-3 bottom-[calc(84px+env(safe-area-inset-bottom))] z-[60] mx-auto max-w-md rounded-[18px] bg-white px-4 py-3.5 shadow-[0_12px_30px_-12px_rgba(0,0,0,0.4)]">
+      <b className="block text-[15px] text-[#1D1E26]">משהו לוקח יותר מהרגיל</b>
+      <p className="mt-0.5 text-[13px] leading-snug text-[#5F5F6B]">המסך עדיין נטען. אפשר לחכות עוד רגע או לנסות שוב.</p>
+      <button type="button" onClick={() => window.location.reload()} className="mt-2.5 flex min-h-[44px] w-full items-center justify-center rounded-[13px] bg-[#1525FF] text-[15px] font-extrabold text-white">לנסות שוב</button>
+      <p className="mt-2 text-[12px] font-bold text-[#12A150]">✓ דיווחנו על זה אוטומטית למנהל האפליקציה</p>
+    </div>
+  );
 }
