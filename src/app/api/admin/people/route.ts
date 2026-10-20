@@ -43,6 +43,10 @@ interface AthleteRow {
   last_seen_at: string | null;
   created_at: string | null;
   onboarding_completed_at: string | null;
+  is_academy?: boolean | null;
+  is_core_runner?: boolean | null;
+  avatar_url?: string | null;
+  extra_roles?: string[] | null;
 }
 
 export async function GET(request: Request) {
@@ -58,7 +62,7 @@ export async function GET(request: Request) {
       // reads them: the credentials never leave this function.
       supabase
         .from('athletes')
-        .select('id, name, role, group_id, pending_group_id, pending_group_from, status, approved, garmin_auth, strava_auth, last_seen_at, created_at, onboarding_completed_at')
+        .select('id, name, role, group_id, pending_group_id, pending_group_from, status, approved, garmin_auth, strava_auth, last_seen_at, created_at, onboarding_completed_at, is_academy, is_core_runner, avatar_url, extra_roles')
         .eq('coach_id', COACH_ID)
         .or(NOT_ADMIN)
         .order('name'),
@@ -162,6 +166,12 @@ export async function GET(request: Request) {
       pushDead: pushLooksDead(devicesOf.get(a.id) || [], sentTo.get(a.id) || 0),
       openedAs: opened.get(a.id)?.as ?? null,
       openedAt: opened.get(a.id)?.at ?? null,
+      // The areas the People wall filters by, and the face it draws (2026-10-20).
+      isAcademy: !!a.is_academy,
+      isCore: !!a.is_core_runner,
+      // A Strava placeholder ("avatar/athlete/large.png") is no photo.
+      avatarUrl: a.avatar_url && /^https?:\/\//.test(a.avatar_url) ? a.avatar_url : null,
+      extraRoles: a.extra_roles ?? [],
     }));
 
     return NextResponse.json({ today: israelToday(), people });

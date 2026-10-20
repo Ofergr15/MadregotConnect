@@ -55,6 +55,8 @@ export async function GET(request: Request) {
         : { title: `🏁 ${story.name}, השנה שלך בריצה`, body: `${s.km.toLocaleString('en-US')} ק״מ ב־${key.period.slice(0, 4)}. לחיצה ותראה.` };
     }
   } catch { /* the sheet shows "no numbers yet" */ }
+  // The week's numbers exist only on Saturday (the cron builds them); the push's shape is fixed.
+  if (key.feature === 'weekly') push = { title: 'השבוע שלך מוכן 🏅', body: 'הק״מ של השבוע ומה שבלט בו — לחיצה לסטורי של השבוע.' };
   const e = effectiveFor(settings, key.period, inst, numbers?.runs ?? null);
   const ct = inst?.custom_text;
   return NextResponse.json({

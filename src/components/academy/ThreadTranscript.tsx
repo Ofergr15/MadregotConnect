@@ -119,6 +119,7 @@ export function ThreadTranscript({
   const [draft, setDraft] = useState('');
   const [shown, setShown] = useState(THREAD_PAGE);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLTextAreaElement>(null);
   /** scrollHeight before "הודעות קודמות" grew the list, so the reader stays where they were. */
   const anchorRef = useRef<number | null>(null);
   const hidden = Math.max(0, messages.length - shown);
@@ -138,6 +139,14 @@ export function ThreadTranscript({
     el.scrollTop = el.scrollHeight;
   }, [visible.length, messages.length, isSheet]);
 
+  // The box grows with what is typed, like WhatsApp's, up to five lines; then it scrolls.
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 5 * 24 + 16)}px`;
+  }, [draft]);
+
   const showOlder = () => {
     if (scrollRef.current) anchorRef.current = scrollRef.current.scrollHeight - scrollRef.current.scrollTop;
     setShown((n) => n + THREAD_PAGE);
@@ -153,19 +162,22 @@ export function ThreadTranscript({
   };
 
   return (
-    <div className={cn('flex flex-col', isSheet && 'min-h-0', className)} dir="rtl">
+    // The WhatsApp look (mockup ~/.cache/madregot/open-and-chat, Ofer 10-20: "where you type
+    // is unclear — it needs a box, like WhatsApp"): the warm wallpaper, white and green
+    // bubbles with the time inside, and a white rounded box that stands out from it.
+    <div className={cn('flex flex-col bg-[#efe7de] px-2.5 pt-2', isSheet ? 'min-h-0' : 'rounded-[18px] pb-2', className)} dir="rtl">
       <div ref={scrollRef} className={cn(isSheet && 'min-h-0 flex-1 overflow-y-auto overscroll-contain')}>
       {hidden > 0 && (
         <button
           type="button"
           onClick={showOlder}
-          className="mx-auto flex min-h-[44px] items-center px-4 text-xs font-bold text-brand-600"
+          className="mx-auto my-1 flex min-h-[36px] items-center rounded-full bg-white px-4 text-xs font-bold text-brand-600 shadow-[0_1px_1px_rgba(0,0,0,0.08)]"
         >
           הודעות קודמות
         </button>
       )}
       {messages.length === 0 ? (
-        <div className="flex items-center gap-1.5 py-6 text-xs text-ink-400">
+        <div className="mx-auto my-6 flex w-fit items-center gap-1.5 rounded-[10px] bg-[#fff8c4] px-3 py-2 text-xs text-ink-700 shadow-[0_1px_1px_rgba(0,0,0,0.08)]">
           <MessageCircle className="h-3.5 w-3.5" />
           {/* Named for what it is, not "no messages": an empty thread with a coach and
               a manager in it is a thread waiting for somebody to start, and saying so
@@ -173,7 +185,7 @@ export function ThreadTranscript({
           עוד לא נכתב כאן כלום. אפשר לפתוח.
         </div>
       ) : (
-        <div className="space-y-2.5 py-1">
+        <div className="space-y-1.5 py-1">
           <SeatLegend />
           {visible.map((m, i) => {
             const mine = isMine(m, viewerSeat, viewerId);
@@ -181,12 +193,10 @@ export function ThreadTranscript({
             return (
               <div key={m.id}>
                 {needsDaySeparator(visible, i) && <DaySeparator at={m.at} />}
-                <Bubble message={m} mine={mine} segments={segments} />
-                {mine && last && viewerSeat !== 'trainee' && (
-                  <p className="mt-0.5 px-10 text-[11px] text-ink-400">
-                    {seenAt && Date.parse(seenAt) >= Date.parse(m.at) ? <><b className="text-brand-600">✓✓</b> נקרא</> : <>✓ נשלח</>}
-                  </p>
-                )}
+                <Bubble message={m} mine={mine} segments={segments}
+                  // ✓✓ in blue once the trainee read it — staff only, the one seat whose reading is tracked.
+                  ticks={mine ? (viewerSeat !== 'trainee' && seenAt && Date.parse(seenAt) >= Date.parse(m.at) ? 'read' : 'sent') : null}
+                  label={mine && last && viewerSeat !== 'trainee'} />
               </div>
             );
           })}
@@ -202,12 +212,12 @@ export function ThreadTranscript({
           type="button"
           onClick={readOnly.onTap}
           data-testid="thread-composer-readonly"
-          className={cn('mt-2 flex w-full items-center gap-2', isSheet && 'shrink-0 border-t border-page pt-2')}
+          className={cn('mt-2 flex w-full items-end gap-2', isSheet && 'shrink-0 pb-2')}
         >
-          <span className="flex min-h-[44px] flex-1 items-center rounded-xl border border-page bg-page/60 px-3 text-base text-ink-400">
+          <span className="flex min-h-[46px] flex-1 items-center rounded-[24px] bg-white px-4 text-base text-ink-400 shadow-[0_1px_2px_rgba(0,0,0,0.12)]">
             {readOnly.label}
           </span>
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-page text-ink-300">
+          <span className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full bg-white text-ink-300 shadow-[0_1px_2px_rgba(0,0,0,0.12)]">
             <Send className="h-4 w-4" />
           </span>
         </button>
@@ -217,38 +227,40 @@ export function ThreadTranscript({
         <div className={cn('mt-2 flex gap-1.5 overflow-x-auto [scrollbar-width:none]', isSheet && 'shrink-0')}>
           {quickReplies.map((q) => (
             <button key={q} type="button" onClick={() => setDraft((d) => (d.trim() ? `${d.trim()} ${q}` : q))}
-              className="min-h-[34px] shrink-0 rounded-full border border-brand-600/25 px-3 text-[12.5px] font-bold text-brand-600">{q}</button>
+              className="min-h-[34px] shrink-0 rounded-full bg-white px-3 text-[12.5px] font-bold text-brand-600 shadow-[0_1px_1px_rgba(0,0,0,0.1)]">{q}</button>
           ))}
         </div>
       ) : null}
 
       {onSend && !readOnly && (
-        <div className={cn('mt-2 flex items-end gap-2', isSheet && 'shrink-0 border-t border-page pt-2')}>
+        <div className={cn('mt-2 flex items-end gap-2', isSheet && 'shrink-0 pb-2')}>
           <textarea
+            ref={boxRef}
             value={draft}
             onChange={e => setDraft(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); }
             }}
             rows={1}
-            placeholder="כתוב הודעה…"
+            placeholder="הודעה"
             aria-label="הודעה חדשה"
             dir="auto"
             /* 16px, not the 14px the older FeedbackThread composer uses: iOS Safari
                zooms the whole page when a field under 16px takes focus, and a chat
                composer is the single most-focused field on any screen. */
-            className="min-h-[44px] flex-1 resize-none rounded-xl border border-page bg-page/60 px-3 py-2.5 text-base text-ink-700 placeholder:text-ink-400 focus:border-brand-600 focus:outline-none"
+            className="min-h-[46px] flex-1 resize-none rounded-[24px] bg-white px-4 py-[11px] text-base leading-6 text-ink-900 shadow-[0_1px_2px_rgba(0,0,0,0.12)] placeholder:text-ink-400 focus:outline-none"
           />
           <button
             onClick={() => void send()}
             disabled={!draft.trim() || sending}
             aria-label="שלח"
             className={cn(
-              'flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-all',
-              draft.trim() && !sending ? 'bg-brand-600 text-white active:scale-90' : 'bg-page text-ink-400',
+              'flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full text-white shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-all',
+              draft.trim() && !sending ? 'bg-brand-600 active:scale-90' : 'bg-brand-600/45',
             )}
           >
-            <Send className="h-4 w-4" />
+            {/* The arrow points the way the text goes: left, in Hebrew. */}
+            <Send className="h-[18px] w-[18px] -scale-x-100" />
           </button>
         </div>
       )}
@@ -260,10 +272,16 @@ function Bubble({
   message,
   mine,
   segments,
+  ticks = null,
+  label = false,
 }: {
   message: ThreadMessage;
   mine: boolean;
   segments?: SegmentVerdict[];
+  /** Mine only: ✓ sent / ✓✓ read, beside the time. */
+  ticks?: 'sent' | 'read' | null;
+  /** Spell it out ("נקרא") on the newest one, so the marks need no legend. */
+  label?: boolean;
 }) {
   const { seat, authorName, text, at, feedback } = message;
 
@@ -300,9 +318,10 @@ function Bubble({
       {mine ? <span className="w-[30px] shrink-0" /> : <SeatAvatar seat={seat} name={authorName} />}
       {/* Mine: the solid blue bubble of any chat app (mockup academy-chat). Others keep
           their seat's tint and name, because three seats share this thread. */}
+      {/* WhatsApp's bubbles: mine green, the others white with the writer's seat colour on
+          the name; the corner nearest the speaker is the "tail". */}
       <div
-        className={cn('max-w-[78%] rounded-[20px] px-3 py-2', mine ? 'rounded-es-md bg-brand-600 text-white' : 'rounded-ee-md border-s-[3px] text-ink-700')}
-        style={mine ? undefined : { background: style.bg, borderInlineStartColor: style.ink }}
+        className={cn('max-w-[78%] rounded-[12px] px-2.5 pb-1 pt-1.5 text-ink-900 shadow-[0_1px_1px_rgba(0,0,0,0.1)]', mine ? 'rounded-se-[4px] bg-[#d9fdd3]' : 'rounded-ss-[4px] bg-white')}
       >
         {!mine && (
           <div className="mb-0.5 flex items-center gap-1 text-[12px] font-extrabold" style={{ color: style.ink }}>
@@ -311,14 +330,16 @@ function Bubble({
             <span>· {style.word}</span>
           </div>
         )}
-        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed" dir="auto">
+        <p className="whitespace-pre-wrap break-words text-[15px] leading-snug" dir="auto">
           {/* Somebody typed this, so the numbers in it cannot be wrapped by hand:
               a coach writing "8×1000" was being read as "1000×8". */}
           <BidiText text={text} />
         </p>
         {/* 11px, not 10: the audit's floor. */}
-        <div className={cn('mt-0.5 text-[11px]', mine ? 'text-white/75' : 'text-ink-400')}>
-          {fmtTime(at)}
+        <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-[#667781]">
+          {label && ticks && <span>{ticks === 'read' ? 'נקרא' : 'נשלח'}</span>}
+          <bdi dir="ltr">{fmtTime(at)}</bdi>
+          {ticks && <b className={ticks === 'read' ? 'text-[#2f8fdb]' : undefined} aria-label={ticks === 'read' ? 'נקרא' : 'נשלח'}>{ticks === 'read' ? '✓✓' : '✓'}</b>}
         </div>
       </div>
     </div>
@@ -327,10 +348,8 @@ function Bubble({
 
 function DaySeparator({ at }: { at: string }) {
   return (
-    <div className="flex items-center gap-2 py-2">
-      <div className="h-px flex-1 bg-page" />
-      <span className="text-[11px] font-semibold text-ink-400">{fmtDay(at)}</span>
-      <div className="h-px flex-1 bg-page" />
+    <div className="flex justify-center py-2">
+      <span className="rounded-[8px] bg-white px-2.5 py-1 text-[12px] font-semibold text-ink-500 shadow-[0_1px_1px_rgba(0,0,0,0.08)]">{fmtDay(at)}</span>
     </div>
   );
 }

@@ -51,13 +51,13 @@ async function nudgeOne(
   // whole nudge, and a nudge is the thing that TELLS a member to fill these in.
   let { data: athlete } = await supabase
     .from('athletes')
-    .select(`id, name, email, last_seen_at, ${SETUP_COLUMNS}, ${KIT_SIZE_COLUMNS_100}`)
+    .select(`id, name, email, last_seen_at, invite_token, ${SETUP_COLUMNS}, ${KIT_SIZE_COLUMNS_100}`)
     .eq('id', athleteId)
     .maybeSingle();
   if (!athlete) {
     ({ data: athlete } = await supabase
       .from('athletes')
-      .select(`id, name, email, last_seen_at, ${SETUP_COLUMNS}`)
+      .select(`id, name, email, last_seen_at, invite_token, ${SETUP_COLUMNS}`)
       .eq('id', athleteId)
       .maybeSingle());
   }
@@ -129,6 +129,8 @@ async function nudgeOne(
       name: athlete.name as string,
       gaps,
       athleteId,
+      // Somebody who never got in gets their own link and the steps, not the generic sign-in.
+      token: (athlete as { invite_token?: string | null }).invite_token ?? null,
       // The same marked checklist the snapshot mail draws, from the state that was
       // computed above anyway. Note this list DOES include 'notifications', which
       // `gaps` deliberately drops: a push cannot ask you to turn on push, but this

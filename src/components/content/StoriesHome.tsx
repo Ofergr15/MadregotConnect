@@ -57,10 +57,11 @@ export function StoriesHome({ live, today }: { live: LiveRow[]; today: string })
 
       {features.length > 0 && (
         <section className="overflow-hidden rounded-[18px] bg-card">
-          <div className="flex min-h-[56px] items-center gap-[11px] px-3.5 pb-2.5 pt-3">
+          <Link href="/dashboard/stories" className="flex min-h-[56px] items-center gap-[11px] px-3.5 pb-2.5 pt-3 active:opacity-70">
             <span aria-hidden className="grid h-[34px] w-[34px] place-items-center rounded-[9px] bg-[#7638FA] text-[17px]">✨</span>
             <b className="flex-1 text-[17px] font-bold tracking-[-0.2px] text-ink-900">סיפורים</b>
-          </div>
+            <ChevronLeft className="h-5 w-5 text-[#c4c4c9]" />
+          </Link>
           {FEATURE_ORDER.map((f) => {
             const s = features.find((x) => x.feature === f);
             if (!s) return null;

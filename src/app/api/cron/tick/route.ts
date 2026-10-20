@@ -26,7 +26,8 @@ import { CLUB_ACCOUNT_ROLE } from '@/lib/notifications/prefs';
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
 import { createAndSendSurvey, notifySurveyNonResponders, rsvpSettlesPaceGroup } from '@/lib/surveys';
 import { israelNow, israelToday, getPlanWeekStart, addDaysToDateStr } from '@/lib/utils';
-import { storyGateMany } from '@/lib/stories/gate';
+import { readStorySettings, storyGateMany } from '@/lib/stories/gate';
+import { effectiveFor, readInstances } from '@/lib/stories/instances';
 import {
   buildLast7Report, formatReportPace, reportIsEmpty,
   type Last7Report, type ReportActivity,
@@ -597,6 +598,9 @@ async function run(request: Request) {
   // Saturday, so the push and the story count the same days. Who did not run gets
   // nothing. The club's week goes on the feed as one post at the same time.
   if (weekday === 6 && hour >= 12 && hour < 20) {
+    // The weekly settings, for the club-wide push switch and each person's choices (below).
+    // Its time is NOT applied: the week story is Saturday 12:00 to Sunday 20:00 by design.
+    const weeklySettings = await readStorySettings('weekly');
     const reportTo = israelToday(now);              // today, the last day of the week
     const weekStart = addDaysToDateStr(reportTo, -6);
     // Two weeks back, for "more than last week"; one day past the end for late runs.
@@ -654,7 +658,14 @@ async function run(request: Request) {
         // to get the push — testers while it is in testing, nobody while it is off,
         // paused, or the settings can't be read. Fails closed.
         const gated = await storyGateMany('weekly', Array.from(per.keys()));
-        const runnerIds = Array.from(per.keys()).filter((id) => gated.has(id));
+        // Per person (story_instances, period = this Saturday): skipped, off, or no push — and the club-wide push switch.
+        const { map: weeklyInst } = await readInstances(supabase, 'weekly', [reportTo]).catch(() => ({ map: new Map() }));
+        const runnerIds = Array.from(per.keys()).filter((id) => {
+          if (!gated.has(id)) return false;
+          if (!weeklySettings) return true;
+          const e = effectiveFor(weeklySettings, reportTo, weeklyInst.get(`${id}:${reportTo}`) ?? null);
+          return e.on && e.sendPush;
+        });
         const allSubs = await subscriptionsForAthletes(runnerIds);
         const subsByAthlete = new Map<string, typeof allSubs>();
         for (const s of allSubs) {

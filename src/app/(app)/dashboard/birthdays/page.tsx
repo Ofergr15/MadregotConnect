@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
-import { apiHeaders, useApi } from '@/lib/api';
+import { useApi } from '@/lib/api';
 import { FeedAvatar } from '@/components/FeedAvatar';
-import { Sheet, SkeletonList } from '@/components/ui';
+import { SkeletonList } from '@/components/ui';
+import { FeatureSettings, StateCard, type StoriesHome } from '@/components/stories/StoryAdmin';
 import { Group, SectionHead } from '@/components/content/hub-ui';
 import { birthdayHref, birthdayReady, dayWord, shortDate } from '@/lib/stories/area';
 import type { BirthdayConfig } from '@/lib/birthday-year/server';
@@ -19,25 +20,16 @@ import { cn } from '@/lib/utils';
 
 interface Up { athleteId: string; name: string | null; avatarUrl: string | null; period: string; bucket: string; status: string; summary: string }
 interface Prep { athleteId: string; name: string | null; avatarUrl: string | null; birthday: string; config: BirthdayConfig }
-interface Settings { settings: Array<{ feature: string; state: StoryState }>; reach: Record<string, Record<StoryState, number>>; paused: boolean }
 
 const VARS = { '--c': '#e0306e', '--c2': '#fde8ef', '--ci': '#a01d4c' } as CSSProperties;
-const STATES: Array<[StoryState, string, string]> = [
-  ['off', 'כבוי', 'שום דבר לא יוצא לחוגגים'],
-  ['self', 'רק אני', 'רק את/ה רואה, לתצוגה. בלי התראות'],
-  ['testers', 'בדיקה', 'רק לבודקים'],
-  ['all', 'כולם', 'כל חוגג במועדון'],
-];
 
 /** "היום" / "מחר", else the date ("ש׳ 24.10"). */
 const when = (day: string, today: string) => { const w = dayWord(day, today); return w === 'היום' || w === 'מחר' ? w : shortDate(day); };
 
 export default function BirthdaysPage() {
-  const { data: st, mutate: reSt } = useApi<Settings>('/api/admin/stories');
+  const { data: st, mutate: reSt } = useApi<StoriesHome>('/api/admin/stories');
   const { data: up, error } = useApi<{ today: string; rows: Up[] }>('/api/admin/stories/upcoming?feature=birthday');
   const { data: prep } = useApi<{ rows: Prep[] }>('/api/admin/birthdays');
-  const [picking, setPicking] = useState(false);
-  const [busy, setBusy] = useState(false);
 
   const state = st?.settings?.find((s) => s.feature === 'birthday')?.state ?? 'off';
   const today = up?.today ?? '';
@@ -49,15 +41,6 @@ export default function BirthdaysPage() {
   const waiting = known ? rows.filter((r) => !skipped(r) && !birthdayReady(cfgOf(r.athleteId, r.period))) : [];
   const week = rows.filter((r) => !waiting.includes(r));
   const later = (prep?.rows ?? []).filter((p) => !rows.some((r) => r.athleteId === p.athleteId));
-
-  const setState = async (s: StoryState) => {
-    setBusy(true);
-    try {
-      await fetch('/api/admin/stories', { method: 'PUT', headers: await apiHeaders(true), body: JSON.stringify({ feature: 'birthday', state: s }) });
-      await reSt();
-      setPicking(false);
-    } finally { setBusy(false); }
-  };
 
   const row = (r: { athleteId: string; name: string | null; avatarUrl: string | null; period: string }, tail: ReactNode, sub: string) => (
     <Link key={`${r.athleteId}:${r.period}`} href={birthdayHref(r.athleteId, r.period)} className="flex min-h-[60px] items-center gap-3 px-3.5 py-2 active:bg-page">
@@ -81,16 +64,7 @@ export default function BirthdaysPage() {
         <h1 className="flex-1 text-[30px] font-extrabold tracking-[-0.4px] text-ink-900">יום הולדת</h1>
       </div>
 
-      <div className="flex min-h-[64px] items-center gap-3 rounded-[16px] bg-card px-3.5 py-2.5">
-        <span className={cn('h-3 w-3 rounded-full', state === 'all' ? 'bg-[#1FA55B]' : state === 'off' ? 'bg-[#c7c7cc]' : 'bg-[#D97706]')} />
-        <span className="min-w-0 flex-1">
-          <b className="block text-[16px] text-ink-900">{STATES.find((s) => s[0] === state)?.[1]}{st?.paused ? ' · הכל מושהה' : ''}</b>
-          <small className="block text-13 text-ink-400">{STATES.find((s) => s[0] === state)?.[2]}</small>
-        </span>
-        <button type="button" onClick={() => setPicking(true)} className="min-h-[38px] rounded-full bg-ink-900 px-4 text-[14px] font-bold text-white">
-          {state === 'off' ? 'להדליק' : 'לשנות'}
-        </button>
-      </div>
+      {st && <StateCard feature="birthday" home={st} onChanged={() => void reSt()} />}
 
       {!up && !error && <div className="mt-4"><SkeletonList count={3} /></div>}
       {error && <p className="mt-4 text-sm font-bold text-accent-red-ink">לא הצלחנו לטעון</p>}
@@ -114,21 +88,7 @@ export default function BirthdaysPage() {
           null, shortDate(p.birthday)))}</Group>
       </>)}
 
-      <Sheet open={picking} onOpenChange={setPicking} title="מי מקבל">
-        <div className="space-y-2 px-4 pb-6" dir="rtl">
-          {STATES.map(([s, label, sub]) => (
-            <button key={s} type="button" disabled={busy} onClick={() => void setState(s)}
-              className={cn('flex min-h-[60px] w-full items-center gap-3 rounded-[16px] px-3.5 py-2.5 text-start', s === state ? 'bg-ink-900 text-white' : 'bg-page')}>
-              <span className="min-w-0 flex-1">
-                <b className="block text-[16px]">{label}</b>
-                <small className={cn('block text-13', s === state ? 'text-white/70' : 'text-ink-400')}>
-                  {sub}{(s === 'testers' || s === 'all') && st?.reach?.birthday ? ` · ${st.reach.birthday[s]} אנשים` : ''}
-                </small>
-              </span>
-            </button>
-          ))}
-        </div>
-      </Sheet>
+      {st && <FeatureSettings feature="birthday" home={st} onChanged={() => void reSt()} />}
     </div>
   );
 }

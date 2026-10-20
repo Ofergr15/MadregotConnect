@@ -68,8 +68,8 @@ export const FEATURE_ORDER: StoryFeature[] = ['birthday', 'weekly', 'annual'];
 
 export const FEATURE_META: Record<StoryFeature, { emoji: string; title: string; href: string }> = {
   birthday: { emoji: '🎂', title: 'יום הולדת', href: '/dashboard/birthdays' },
-  weekly: { emoji: '📅', title: 'סיכום שבועי', href: '/dashboard/stories' },
-  annual: { emoji: '🏁', title: 'סיכום שנתי', href: '/dashboard/stories' },
+  weekly: { emoji: '📅', title: 'סיכום שבועי', href: '/dashboard/stories/weekly' },
+  annual: { emoji: '🏁', title: 'סיכום שנתי', href: '/dashboard/stories/annual' },
 };
 
 export const STATE_TAG: Record<StoryState, { label: string; tone: 'off' | 'test' | 'on' }> = {
