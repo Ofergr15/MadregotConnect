@@ -245,7 +245,7 @@ function BaselineSection({ athleteId, setup, onSaved }: { athleteId: string; set
       setBusy(false);
     }
   };
-  const chip = (on: boolean) => cn('min-h-[40px] rounded-pill px-3.5 text-[13.5px] font-bold', on ? 'bg-brand-600 text-white' : 'bg-white text-ink-700');
+  const chip = (on: boolean) => cn('min-h-[40px] shrink-0 whitespace-nowrap rounded-pill px-3 text-[13.5px] font-bold', on ? 'bg-brand-600 text-white' : 'bg-white text-ink-700');
 
   return (
     <section className="rounded-2xl border-[1.5px] border-brand-600/20 bg-[#F7F8FF] p-3.5">
@@ -273,7 +273,7 @@ function BaselineSection({ athleteId, setup, onSaved }: { athleteId: string; set
         </p>
       )}
 
-      <div className="mb-2.5 flex flex-wrap gap-1.5">
+      <div className="-mx-1 mb-2.5 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none]">
         {(Object.keys(BASELINE_DISTANCES) as BaselineDistance[]).map((d) => (
           <button key={d} type="button" aria-pressed={distance === d} onClick={() => pick(d)} className={chip(distance === d)}>{BASELINE_DISTANCES[d].label}</button>
         ))}
@@ -300,14 +300,14 @@ function BaselineSection({ athleteId, setup, onSaved }: { athleteId: string; set
           );
         })}
       </div>
-      <div className="mb-2 mt-1.5 flex flex-wrap gap-1.5 px-0.5 text-[11.5px]">
-        <span className="text-ink-400">ממלאים אחד — השני מתמלא לבד ·</span>
-        {(['race', 'estimate'] as const).map((o) => (
-          <button key={o} type="button" onClick={() => { setOrigin(o); setDirty(true); }} className={cn('font-bold', origin === o ? 'text-brand-600' : 'text-ink-400')}>
-            {o === 'race' ? 'תוצאה אחרונה' : 'הערכה של המאמן'}
+      <p className="mt-1.5 px-0.5 text-[11.5px] text-ink-400">ממלאים אחד — השני מתמלא לבד</p>
+      <div className="mb-2.5 mt-1.5 flex gap-1.5" role="group" aria-label="מאיפה התוצאה">
+        {(['sheet', 'race', 'estimate'] as const).filter((o) => o !== 'sheet' || !!sheet).map((o) => (
+          <button key={o} type="button" aria-pressed={origin === o} onClick={() => { setOrigin(o); setDirty(true); }}
+            className={cn('min-h-[36px] rounded-pill px-3 text-[12.5px] font-bold', origin === o ? 'bg-brand-600/10 text-brand-600' : 'bg-white text-ink-400')}>
+            {o === 'sheet' ? 'מהקובץ' : o === 'race' ? 'תוצאה' : 'הערכה'}
           </button>
         ))}
-        {origin === 'sheet' && <span className="font-bold text-brand-600">מהקובץ</span>}
       </div>
 
       <p className="mb-1.5 text-[13px] font-bold text-ink-700">הקצבים המוצעים · ✎ למי שרוצה לשנות</p>

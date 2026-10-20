@@ -6,6 +6,8 @@ import { useTranslations } from 'next-intl';
 import { Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiHeaders } from '@/lib/api';
+import { Sheet } from '@/components/ui';
+import type { LibraryKind } from '@/lib/academy/library';
 import {
   addStep, bookTotals, fieldValue, nudgeField, profileBar, quickFields, setField, wheelOptions,
   type BookStep, type FieldRef, sessionGlance, toLibrarySteps,
@@ -181,7 +183,7 @@ export function AdjustScreen({
           </div>
         )}
 
-        {draft.source === 'book' && model && <SaveAsNew draft={draft} model={model} />}
+        {draft.source === 'book' && model && <SaveAsNew draft={draft} model={model} thresholdSec={T} paceAdjust={A} />}
 
         {/* What the trainee reads on the day and on the watch — the coach's words, editable. */}
         <label className="block">
@@ -288,26 +290,81 @@ function Glance({ steps, thresholdSec, paceAdjust }: { steps: BookStep[]; thresh
   );
 }
 
-/** "לשמור כגרסה חדשה בספר": a NEW entry from the edited steps — the original is never changed. */
-function SaveAsNew({ draft, model }: { draft: Draft; model: BookStep[] }) {
+/** "16 × 200 מ׳ ב־3:29": the glance's main set as words — the name a saved version is offered. */
+function suggestedName(g: ReturnType<typeof sessionGlance>, fallback: string): string {
+  const len = (l: { measure: 'distance' | 'time'; value: number } | null) => !l ? ''
+    : l.measure === 'distance' ? (l.value >= 1000 ? `${Math.round(l.value / 100) / 10} ק״מ` : `${Math.round(l.value)} מ׳`)
+      : (l.value >= 60 ? `${clockText(l.value)} דק׳` : `${Math.round(l.value)} שנ׳`);
+  if (!g.main) return fallback;
+  const set = g.main.count ? `${g.main.count} × ${len(g.main.work)}` : len(g.main.work);
+  return set ? `${set}${g.main.paceSec ? ` ב־${paceText(g.main.paceSec)}` : ''}` : fallback;
+}
+
+const KINDS: LibraryKind[] = ['intervals', 'tempo', 'long', 'easy', 'hills', 'test'];
+
+/**
+ * "לשמור כגרסה חדשה בספר": a NEW entry from the edited steps, under a name the coach gives it
+ * (offered: the main set at these paces) and a kind — the original is never changed. A name
+ * the book already has is said before saving.
+ */
+function SaveAsNew({ draft, model, thresholdSec, paceAdjust }: { draft: Draft; model: BookStep[]; thresholdSec: number | null; paceAdjust: PaceAdjust | null }) {
+  const t = useTranslations('workoutBook');
+  const { data } = useFavourites();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [kind, setKind] = useState<LibraryKind>(draft.kind);
   const [state, setState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle');
   const changed = !!draft.original && JSON.stringify(model) !== JSON.stringify(draft.original);
   if (!changed) return null;
+  const trimmed = name.trim();
+  const taken = !!trimmed && (data?.entries ?? []).some(e => e.name.trim() === trimmed);
+  const start = () => {
+    setName(suggestedName(sessionGlance(model, thresholdSec, paceAdjust), draft.name));
+    setKind(draft.kind); setState('idle'); setOpen(true);
+  };
   const save = async () => {
+    if (!trimmed) return;
     setState('busy');
-    const body = (scope: 'academy' | 'mine') => JSON.stringify({ name: `${draft.name} (גרסה)`, kind: draft.kind, notes: draft.notes, steps: toLibrarySteps(model), scope });
+    const body = (scope: 'academy' | 'mine') => JSON.stringify({ name: trimmed, kind, notes: draft.notes, steps: toLibrarySteps(model), scope });
     try {
       let res = await fetch('/api/academy/library', { method: 'POST', headers: await apiHeaders(true), body: body('academy') });
       if (res.status === 403) res = await fetch('/api/academy/library', { method: 'POST', headers: await apiHeaders(true), body: body('mine') });
       setState(res.ok ? 'done' : 'error');
+      if (res.ok) setOpen(false);
     } catch {
       setState('error');
     }
   };
   return (
-    <button type="button" onClick={() => void save()} disabled={state === 'busy' || state === 'done'}
-      className="min-h-[44px] px-1 text-start text-[14.5px] font-bold text-brand-600 disabled:text-ink-400">
-      {state === 'done' ? '✓ נשמר כגרסה חדשה בספר' : state === 'error' ? 'לא נשמר — נסו שוב' : '＋ לשמור כגרסה חדשה בספר'}
-    </button>
+    <>
+      <button type="button" onClick={start} disabled={state === 'done'}
+        className="min-h-[44px] px-1 text-start text-[14.5px] font-bold text-brand-600 disabled:text-ink-400">
+        {state === 'done' ? `✓ נשמר בספר: ${trimmed}` : '＋ לשמור כגרסה חדשה בספר'}
+      </button>
+      <Sheet open={open} onOpenChange={setOpen} title="גרסה חדשה בספר">
+        <div className="space-y-3 px-4 pb-6" dir="rtl">
+          <label className="block">
+            <span className="mb-1.5 block px-1 text-13 font-bold text-ink-400">שם האימון</span>
+            <input value={name} onChange={e => setName(e.target.value)} dir="auto" aria-label="שם האימון" maxLength={60}
+              className={cn(CARD, 'block min-h-[52px] w-full px-4 text-[17px] font-bold text-ink-900 outline-none')} />
+          </label>
+          {!trimmed && <p className="px-1 text-[13px] font-bold text-accent-red-ink">צריך שם</p>}
+          {taken && <p className="px-1 text-[13px] font-bold text-[#8A4308]">כבר יש בספר אימון בשם הזה — כדאי שם אחר</p>}
+          <div>
+            <span className="mb-1.5 block px-1 text-13 font-bold text-ink-400">סוג</span>
+            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+              {KINDS.map(k => (
+                <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}
+                  className={cn('h-11 shrink-0 whitespace-nowrap rounded-full px-4 text-[15px] font-bold', kind === k ? 'bg-ink-900 text-white' : 'bg-white text-ink-500')}>
+                  {t(`chip.${k}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+          {state === 'error' && <p className="px-1 text-[13px] font-bold text-accent-red-ink">לא נשמר — נסו שוב</p>}
+          <PrimaryButton onClick={() => void save()} disabled={!trimmed || state === 'busy'} busy={state === 'busy'} className="w-full">שמירה בספר</PrimaryButton>
+        </div>
+      </Sheet>
+    </>
   );
 }

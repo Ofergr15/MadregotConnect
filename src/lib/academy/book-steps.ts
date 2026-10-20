@@ -850,6 +850,39 @@ function kmText(metres: number): string {
   return Number.isInteger(km) ? String(km) : String(Math.round(km * 10) / 10);
 }
 
+/** A rep this short is an accent on a run, not a set (≤ 30 s, or ≤ 150 m) — `15 × 200 מ׳` is a set. */
+const isShortRep = (len: Length) => (len.measure === 'time' ? len.value <= 30 : len.value <= 150);
+/** More strides than this is a session of its own. */
+const MAX_STRIDES = 10;
+/** Strides may be at most this share of the session's time. */
+const STRIDES_SHARE = 0.2;
+/** Faster work beyond this share of the session is a set of its own, not a run with strides. */
+const SET_SHARE = 0.05;
+/** From this far, a run with strides is the long run. */
+const LONG_RUN_M = 14000;
+
+function stridesOf(steps: BookStep[], reps: Array<Extract<BookStep, { kind: 'reps' }>>, totals: BookTotals): string | null {
+  const strides = reps.filter(r => r.count >= 2 && r.count <= MAX_STRIDES && isShortRep(r.work));
+  if (!strides.length || !(totals.durationSec > 0)) return null;
+  const work = (list: typeof reps) => list.reduce((sum, r) => sum + bookTotals([{ ...r, rest: null }], null).durationSec, 0);
+  if (work(reps) > totals.durationSec * STRIDES_SHARE) return null;
+  // A real set beside them (3 × 2 דק׳ in tempo) is the session, strides or not.
+  const set = reps.filter(r => !strides.includes(r) && toneOf(r.effort) !== 'e');
+  const fastRuns = steps.filter(st => st.kind === 'run' && st.role === 'main' && !!st.effort && toneOf(st.effort) !== 'e');
+  // A long run with faster kilometres in it is still the long run (24 ק״מ, 15 of them faster).
+  const longRun = totals.distanceM >= LONG_RUN_M;
+  if (work(set) + (longRun ? 0 : bookTotals(fastRuns, null).durationSec) > totals.durationSec * SET_SHARE) return null;
+  const n = strides.reduce((sum, r) => sum + r.count, 0);
+  if (totals.distanceM >= LONG_RUN_M) return `ארוכה ${kmText(Math.round(totals.distanceM / 500) * 500)} ק״מ + ${n} האצות`;
+  const timed = steps.some(st => st.kind === 'run' && st.length?.measure === 'time');
+  const base = timed
+    ? `קל ${Math.round(totals.durationSec / 300) * 5} דק׳`
+    : `קל ${kmText(Math.round(totals.distanceM / 500) * 500)} ק״מ`;
+  const one = strides[0];
+  const sameShape = strides.every(r => r.work.measure === one.work.measure && r.work.value === one.work.value);
+  return sameShape ? `${base} + ${n} × ${repLengthText(one.work)} האצות` : `${base} + ${n} האצות`;
+}
+
 function repLengthText(len: Length): string {
   if (len.measure === 'time') {
     return len.value % 60 === 0 ? `${len.value / 60} דק׳` : `${len.value} שנ׳`;
@@ -877,13 +910,18 @@ export function structureName(steps: BookStep[]): string {
       return `סדרות ${Math.min(...values)}–${Math.max(...values)}${unit ? ` ${unit}` : ''}`;
     }
   }
+  // Strides on a run (Ofer, 2026-10-20): a session whose reps are short
+  // (≤ 30 s or ≤ 150 m, at most ten) and a small part of it is named for the RUN, with the strides after it — "קל 45 דק׳ + 6 × 20
+  // שנ׳ האצות", "ארוכה 24 ק״מ + 2 האצות" — not "6 × 20 שנ׳", which reads as an interval session.
+  const accents = stridesOf(steps, reps, totals);
+  if (accents) return accents;
   const main = reps.find(r => toneOf(r.effort) !== 'e' || reps.length === 1) ?? reps[0];
   if (main) {
     const strides = toneOf(main.effort) === 'f' && main.work.measure === 'distance' && main.work.value <= 200
       && steps.some(s => s.kind === 'run' && s.role === 'main' && toneOf(s.effort) === 'e');
     if (strides) {
       const run = steps.find(s => s.kind === 'run' && s.role === 'main');
-      return `${kmText(run && run.kind === 'run' && run.length?.measure === 'distance' ? run.length.value : totals.distanceM)} ק״מ קל + האצות`;
+      return `קל ${kmText(run && run.kind === 'run' && run.length?.measure === 'distance' ? run.length.value : totals.distanceM)} ק״מ + ${main.count} האצות`;
     }
     // Only `טמפו` is said of a set of reps — `5 × 1 ק״מ` at threshold is how the club names
     // it, and `5 × 1 ק״מ סף` is not a phrase anybody uses.

@@ -3915,7 +3915,8 @@
       "long": "Long",
       "easy": "Easy",
       "hills": "Hills",
-      "test": "Test"
+      "test": "Test",
+      "fav": "Favourites"
     },
     "mostUsed": "Most used",
     "noMatch": "No workout matches.",
@@ -4092,7 +4093,10 @@
     "fromClubNote": "No personal plan for this week yet: this is the senior group's week, at {name}'s pace.",
     "coachPaceBanner": "{name}'s paces come from the baseline you set — until the first test.",
     "resetBook": "As in the book",
-    "recent": "Recent"
+    "recent": "Recent",
+    "allWorkouts": "All workouts",
+    "usedTimes": "Used <m>{count}</m> times",
+    "lastUsed": "Last:"
   },
   "viewAs": {
     "title": "View as",
