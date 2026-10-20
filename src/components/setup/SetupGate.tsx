@@ -15,14 +15,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { mutate } from 'swr';
-import { Bell, CalendarClock, Check, ChevronLeft, MapPin, Route, Smartphone, Trophy, UserRound, Watch } from 'lucide-react';
+import { Bell, CalendarClock, Check, ChevronLeft, MapPin, Route, Trophy, Watch } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { isIosDevice, isStandalone, subscribeToPush } from '@/lib/pwa';
 import { useIsComputer } from '@/lib/install/use-computer';
 import { CLOTHING_SIZES, SOCK_SIZES } from '@/lib/kit-sizes';
 import { EU_SHOE_SIZES } from '@/lib/shoe-catalog';
 import { remainingSteps, SETUP_ORDER, type SetupStep } from '@/lib/setup/gate';
-import { InstallGuide } from '@/components/install/InstallGuide';
 import { useInstallStep } from '@/components/onboarding/InstallStepProvider';
 
 type SizeKey = 'shoeSize' | 'shirtSize' | 'pantsSize' | 'tightsSize' | 'socksSize';
@@ -62,7 +61,7 @@ function StravaMark({ className }: { className?: string }) {
   );
 }
 
-function Shell({ step, title, sub, children, foot }: { step: number; title: ReactNode; sub?: ReactNode; children?: ReactNode; foot?: ReactNode }) {
+function Shell({ step, title, sub, badge, children, foot }: { step: number; title: ReactNode; sub?: ReactNode; badge?: ReactNode; children?: ReactNode; foot?: ReactNode }) {
   return (
     <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#F2F2F7]" dir="rtl" role="dialog" aria-modal="true" aria-label="הגדרת האפליקציה" data-testid="setup-gate">
       <div className="mx-auto flex min-h-[100dvh] max-w-[480px] flex-col px-[18px] pt-[max(14px,env(safe-area-inset-top))]" style={{ color: INK }}>
@@ -74,6 +73,7 @@ function Shell({ step, title, sub, children, foot }: { step: number; title: Reac
             <p className="mb-1 text-[13px] font-extrabold" style={{ color: BLUE }}>שלב {step} מתוך 4</p>
           </>
         )}
+        {badge}
         {title && <h1 className="mb-2 text-[29px] font-black leading-[1.15] tracking-[-0.6px]">{title}</h1>}
         {sub && <p className="mb-[18px] text-[15.5px] leading-normal" style={{ color: SOFT }}>{sub}</p>}
         {children}
@@ -111,79 +111,50 @@ function Benefits({ rows }: { rows: Array<[ReactNode, string]> }) {
   );
 }
 
-// ── 0 · welcome ─────────────────────────────────────────────────────────────
-// The first thing a new member sees: the real install video (recorded on an iPhone —
-// install, open the icon, sign in with the emailed code), playing in place on the
-// video's own blue, and the four steps ahead. "מתחילים" opens the step-by-step guide.
-const INTRO_STEPS: Array<[ReactNode, string]> = [
-  [<Smartphone key="i" className="h-[19px] w-[19px]" />, 'התקנה'],
-  [<Watch key="w" className="h-[19px] w-[19px]" />, 'שעון'],
-  [<Bell key="b" className="h-[19px] w-[19px]" />, 'התראות'],
-  [<UserRound key="d" className="h-[19px] w-[19px]" />, 'פרטים'],
-];
-
-function IntroStep({ onStart, onSkip }: { onStart: () => void; onSkip: () => void }) {
-  const name = firstName();
-  const [ios, setIos] = useState(true);
-  useEffect(() => setIos(isIosDevice()), []);
-  return (
-    <div className="fixed inset-0 z-[70] overflow-y-auto text-white" dir="rtl" role="dialog" aria-modal="true" aria-label="ברוכים הבאים" data-testid="setup-gate"
-      style={{ background: 'linear-gradient(180deg,#2730CD 0%,#1B23A8 38%,#0B0E3D 100%)' }}>
-      <div className="mx-auto flex min-h-[100dvh] max-w-[480px] flex-col items-center px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-[max(18px,env(safe-area-inset-top))]">
-        {/* eslint-disable-next-line @next/next/no-img-element -- the club's wordmark */}
-        <img src="/images/wordmark-white.png" alt="מדרגות" className="h-[30px] w-auto opacity-95" />
-        <h1 className="mt-4 text-center text-[28px] font-black leading-tight tracking-[-0.5px]">ברוכים הבאים{name ? `, ${name}` : ''}</h1>
-        <p className="mt-1.5 text-center text-[15.5px] font-semibold text-white/80">4 צעדים קצרים, כ-3 דקות — ואתם בפנים</p>
-
-        <div className="relative mt-4 flex min-h-0 w-full flex-1 justify-center">
-          {ios ? (
-            <div className="relative h-full max-h-[440px] overflow-hidden rounded-[26px] shadow-[0_0_0_1px_rgba(255,255,255,.14),0_24px_50px_-18px_rgba(0,0,0,.7)]" style={{ aspectRatio: '540 / 960' }}>
-              <video src="/videos/install-iphone.mp4" poster="/videos/install-iphone-poster.jpg" autoPlay muted loop playsInline className="block h-full w-full object-cover" />
-              <span className="absolute start-2.5 top-2.5 rounded-full bg-black/45 px-2.5 py-1 text-[12px] font-extrabold backdrop-blur">איך מתקינים · 30 שניות</span>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center">
-              {/* eslint-disable-next-line @next/next/no-img-element -- the app's own icon */}
-              <img src="/images/icon-192.png" alt="" className="h-28 w-28 rounded-[28px] shadow-[0_20px_40px_-12px_rgba(0,0,0,.6)]" />
-              <p className="mt-4 text-[15px] font-bold text-white/85">התקנה בלחיצה אחת, בלי חנות אפליקציות</p>
-            </div>
-          )}
-        </div>
-
-        <ol className="mt-5 grid w-full grid-cols-4 gap-2">
-          {INTRO_STEPS.map(([icon, label], i) => (
-            <li key={label} className="flex flex-col items-center gap-1.5">
-              <span className="relative flex h-11 w-11 items-center justify-center rounded-full"
-                style={i === 0 ? { background: '#FF5315', boxShadow: '0 0 0 4px rgba(255,83,21,.25)' } : { background: 'rgba(255,255,255,.12)' }}>
-                {icon}
-                <b className="absolute -end-1 -top-1 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-white text-[11px] font-black text-[#1B23A8]">{i + 1}</b>
-              </span>
-              <span className={`text-[13px] font-extrabold ${i === 0 ? 'text-white' : 'text-white/75'}`}>{label}</span>
-            </li>
-          ))}
-        </ol>
-
-        <button type="button" onClick={onStart} className="mt-5 flex h-14 w-full items-center justify-center rounded-[18px] bg-white text-[17px] font-black text-[#1525FF] shadow-[0_14px_30px_-12px_rgba(0,0,0,.6)]">
-          מתחילים בהתקנה
-        </button>
-        <button type="button" onClick={onSkip} className="mt-1 h-11 text-[14px] font-bold text-white/75 underline underline-offset-2">לא מצליחים להתקין? ממשיכים בדפדפן</button>
-      </div>
-    </div>
-  );
-}
-
-// ── 1 · install ─────────────────────────────────────────────────────────────
-// The app's own install guide — the recorded demo beside the step-by-step text — as the
-// landing page and the end of /join show it. Blocking: its one way out is "can't install?
-// continue in the browser", which holds for this visit only.
+// ── 1 · welcome + install ───────────────────────────────────────────────────
+// The first thing a newly approved member sees. The real install video (recorded on an
+// iPhone — share, add to home screen, open the icon, sign in with the emailed code) IS the
+// install step: no separate guide after it. A browser tab can't see the install happen, so
+// "הוספתי" says where to go next — the icon — and the gate picks up there.
 function InstallStep({ onSkip }: { onSkip: () => void }) {
   const install = useInstallStep();
   const prompt = install.offer?.kind === 'prompt' ? install.offer.prompt : null;
+  const name = firstName();
+  const [ios, setIos] = useState(true);
+  const [added, setAdded] = useState(false);
+  useEffect(() => setIos(isIosDevice()), []);
   return (
-    <div className="fixed inset-0 z-[70] overflow-y-auto" role="dialog" aria-modal="true" aria-label="התקנת האפליקציה" data-testid="setup-gate">
-      <InstallGuide canPrompt={!!prompt} onInstall={prompt ? () => prompt.prompt() : undefined}
-        onLater={onSkip} onDone={onSkip} onEscape={onSkip} memberName={firstName() || null} blocking />
-    </div>
+    <Shell step={1} title={`ברוכים הבאים${name ? `, ${name}` : ''}`}
+      sub="עוד 4 צעדים קצרים ונכנסים. מתחילים בהתקנה — הכל בסרטון."
+      badge={<span className="mb-3 inline-flex items-center gap-1.5 self-start rounded-full bg-[#E3F4EA] px-3 py-1.5 text-[13.5px] font-extrabold text-[#0E7A3C]"><Check className="h-4 w-4" strokeWidth={3} aria-hidden />הבקשה שלך אושרה</span>}
+      foot={added ? (
+        <div className={`${CARD} flex items-center gap-3 p-3.5`} role="status">
+          {/* eslint-disable-next-line @next/next/no-img-element -- the app's own icon, as it sits on the home screen */}
+          <img src="/images/icon-192.png" alt="" className="h-12 w-12 shrink-0 rounded-[12px] shadow" />
+          <p className="text-[15px] font-bold leading-snug">מעולה. עכשיו סוגרים את הדפדפן ופותחים את <b>מדרגות</b> מהמסך הבית — ושם ממשיכים.</p>
+        </div>
+      ) : (
+        <>
+          {prompt
+            ? <Primary onClick={() => prompt.prompt()}>התקנה</Primary>
+            : <Primary onClick={() => setAdded(true)}>הוספתי למסך הבית</Primary>}
+          <Quiet onClick={onSkip}>לא מצליחים להתקין? ממשיכים בדפדפן</Quiet>
+        </>
+      )}>
+      <div className="flex min-h-0 flex-1 justify-center">
+        {ios ? (
+          <div className="relative h-full max-h-[460px] overflow-hidden rounded-[24px] bg-[#1B23A8] shadow-[0_1px_2px_rgba(0,0,0,.06),0_18px_36px_-18px_rgba(0,0,0,.35)]" style={{ aspectRatio: '540 / 960' }} data-testid="install-video">
+            <video src="/videos/install-iphone.mp4" poster="/videos/install-iphone-poster.jpg" autoPlay muted loop playsInline className="block h-full w-full object-cover" />
+          </div>
+        ) : (
+          <div className={`${CARD} flex w-full items-center gap-3.5 self-start p-4`}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- the app's own icon */}
+            <img src="/images/icon-192.png" alt="" className="h-16 w-16 rounded-[16px] shadow-md" />
+            <div><b className="block text-[17px]">מדרגות</b><span className="text-[14px]" style={{ color: SOFT }}>התקנה בלחיצה אחת, בלי חנות אפליקציות</span></div>
+          </div>
+        )}
+      </div>
+    </Shell>
   );
 }
 
@@ -217,7 +188,10 @@ function WatchStep({ onNoWatch, busy }: { onNoWatch: () => void; busy: boolean }
           </button>
         ))}
       </div>
-      <p className="mx-1.5 mt-3 text-[14px] font-bold leading-snug" style={{ color: SOFT }}>הכי טוב לחבר את שניהם — כך נמשוך כמה שיותר נתונים.</p>
+      <div className="mt-3 flex items-start gap-3 rounded-[18px] border border-[#D5DAFF] bg-[#EEF0FF] p-3.5">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white" style={{ color: BLUE }}><Watch className="h-[18px] w-[18px]" aria-hidden /></span>
+        <p className="text-[14.5px] leading-snug" style={{ color: INK }}><b className="block text-[15.5px] font-black" style={{ color: BLUE }}>הכי שווה: לחבר את שניהם</b>ככה אנחנו מושכים כמה שיותר נתונים — וגם האימונים נשלחים לשעון.</p>
+      </div>
       <p className="mb-[7px] ms-1.5 mt-4 text-[13px] font-extrabold" style={{ color: '#6B6C76' }}>מה זה נותן</p>
       <Benefits rows={[
         [<Route key="r" className="h-[18px] w-[18px]" />, 'הריצות נכנסות לתוכנית ולנוכחות'],
@@ -450,7 +424,6 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
   // "Can't install" holds for this visit only: an install the app can't see (an Android
   // Chrome tab) must never lock somebody out.
   const [installLater, setInstallLater] = useState(false);
-  const [introDone, setIntroDone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
   // Somebody who walked at least one step sees the closing screen once it is all done.
@@ -476,11 +449,7 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
   if (done) return <DoneStep connected={!!data?.connected} onClose={() => setClosed(true)} />;
 
   const at = steps[0];
-  if (at === 'install') {
-    return introDone
-      ? <InstallStep onSkip={() => setInstallLater(true)} />
-      : <IntroStep onStart={() => setIntroDone(true)} onSkip={() => setInstallLater(true)} />;
-  }
+  if (at === 'install') return <InstallStep onSkip={() => setInstallLater(true)} />;
   if (at === 'watch') {
     return <WatchStep busy={busy} onNoWatch={async () => {
       setBusy(true);
