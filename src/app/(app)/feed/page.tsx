@@ -44,6 +44,7 @@ import { OnboardingTestReset } from '@/components/onboarding/OnboardingTestReset
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import { GoalRaceBanner } from '@/components/GoalRaceBanner';
 import { CelebrationStories } from '@/components/feed/CelebrationStories';
+import { PinnedFrame } from '@/components/feed/PinnedPosts';
 import { RunTogetherStrip } from '@/components/run-together/FeedStrip';
 import { StaffSessionPhotos } from '@/components/feed/StaffSessionPhotos';
 import { useQualitySessionAccess } from '@/lib/quality-session/use-access';
@@ -203,6 +204,10 @@ export default function FeedPage() {
   // published, and out of the list meanwhile so the card is not there twice.
   const { data: photosTop } = useApi<{ id: string | null }>('/api/feed/session-photos');
   const [photosItem, setPhotosItem] = useState<FeedItem | null>(null);
+  // "נעוץ בראש הפיד" (160): the club's pinned posts sit above the list and out of it.
+  const { data: pinnedData } = useApi<{ items: Array<FeedItem & { pinnedUntil: string }> }>('/api/feed/pinned');
+  const pinned = useMemo(() => pinnedData?.items ?? [], [pinnedData]);
+  const pinnedKey = pinned.map((p) => p.id).join(',');
   useEffect(() => {
     const id = photosTop?.id;
     if (!id) { setPhotosItem(null); return; }
@@ -494,7 +499,9 @@ export default function FeedPage() {
   const openComment = useCallback((i: FeedItem) => setCommentItem(i), []);
   const feedList = useMemo(() => {
             // Celebrations live in the row of circles at the top, never in the list.
+            const pinnedIds = new Set(pinnedKey ? pinnedKey.split(',') : []);
             const visible = items.filter(item => item.id !== focusItem?.id && item.id !== photosItem?.id
+              && !pinnedIds.has(item.id)
               && !(item.type === 'announcement' && toCelebration(item.payload)));
             const entries = groupFeedItems(visible, myAthleteId);
             let lastDay = '';
@@ -540,7 +547,7 @@ export default function FeedPage() {
                 </Fragment>
               );
             });
-  }, [items, focusItem?.id, photosItem?.id, myAthleteId, isStaff, handleDelete, openComment]);
+  }, [items, focusItem?.id, photosItem?.id, pinnedKey, myAthleteId, isStaff, handleDelete, openComment]);
 
   return (
     <div
@@ -624,6 +631,13 @@ export default function FeedPage() {
           The day's birthdays and celebrations as a row of circles, always first
           (CelebrationStories). Nothing on a day with nothing to celebrate. */}
       <CelebrationStories onComment={i => setCommentItem(i)} />
+      {/* ═══ PINNED ═══ the club's posts pinned to the top until their time (PinnedPosts). */}
+      {pinned.filter((p) => p.id !== focusItem?.id).map((p) => (
+        <PinnedFrame key={p.id} until={p.pinnedUntil}>
+          <FeedCard item={p} commentCount={p.commentCount} myAthleteId={myAthleteId} isStaff={isStaff}
+            onComment={i => setCommentItem(i)} onDelete={handleDelete} />
+        </PinnedFrame>
+      ))}
       {/* "לרוץ ביחד" — the open runs, only when there are some (2026-10-19). */}
       <RunTogetherStrip />
 

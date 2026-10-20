@@ -24,6 +24,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!survey) return NextResponse.json({ error: 'Survey not found' }, { status: 404 });
 
     let myResponse: number | null = null;
+    // Every answer of mine: one, or several on a survey with more than one answer (160).
+    let myResponses: number[] = [];
     let results: SurveyResult[] | null = null;
     if (athleteId) {
       // Identity from the verified session, not the `x-user-email` header this
@@ -42,8 +44,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         .select('option_index')
         .eq('survey_id', id)
         .eq('athlete_id', athleteId)
-        .maybeSingle();
-      myResponse = resp?.option_index ?? null;
+        .order('option_index');
+      myResponses = ((resp || []) as Array<{ option_index: number }>).map((r) => r.option_index);
+      myResponse = myResponses[0] ?? null;
 
       // WHO PICKED WHAT (feedback #91: "who is coming tomorrow and in which pack —
       // it'd be nice to see the results and who voted for which pack"). A signed-in
@@ -67,7 +70,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    return NextResponse.json({ survey, myResponse, results });
+    return NextResponse.json({ survey, myResponse, myResponses, results });
   } catch (err: unknown) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }

@@ -4,11 +4,12 @@ import { requireApprover } from '@/lib/auth/require-approver';
 import { resolveAudience, sendPushLocalized } from '@/lib/push';
 import { publishAnnouncement } from '@/lib/feed/announce';
 import { audienceTargets, readAudience, splitMessage } from '@/lib/publish/model';
-import { publishClubPost } from '@/lib/publish/server';
+import { hasMigration160, pinPost, postWithText, publishClubPost } from '@/lib/publish/server';
+import { MIGRATION_160, pinUntil, readPinChoice } from '@/lib/publish/pin';
 
 export const dynamic = 'force-dynamic';
 
-// POST { text, imageUrl?, audience: { mode: all|groups|people, groupIds?, athleteIds? }, scheduleAt?, push }
+// POST { text, imageUrl?, audience: { mode: all|groups|people, groupIds?, athleteIds? }, scheduleAt?, push, pin?, pinDate? }
 //   -> { feedItemId? , notifications: n, sent }
 //
 // "לפרסם › הודעה" (mockup publish, C1). With the push: one scheduled_notifications row per
@@ -27,9 +28,13 @@ export async function POST(request: Request) {
   const scheduleAt = typeof b?.scheduleAt === 'string' && !Number.isNaN(Date.parse(b.scheduleAt)) && Date.parse(b.scheduleAt) > Date.now() + 60000
     ? new Date(b.scheduleAt).toISOString() : null;
   const db = createServerClient();
+  // "נעוץ בראש הפיד" (160). Not for a scheduled message: its post does not exist yet.
+  const pin = scheduleAt ? null : pinUntil(readPinChoice(b?.pin), new Date(), { date: typeof b?.pinDate === 'string' ? b.pinDate : null });
   try {
+    if (pin && !(await hasMigration160(db))) return NextResponse.json({ error: MIGRATION_160 }, { status: 409 });
     if (b?.push === false) {
       const id = await publishClubPost(db, { body: text, media: imageUrl ? [{ path: '', url: imageUrl, w: null, h: null }] : [], payload: { message: true } });
+      if (pin && id) await pinPost(db, id, pin);
       return NextResponse.json({ feedItemId: id, notifications: 0, sent: 0 });
     }
     const { title, body } = splitMessage(text);
@@ -54,6 +59,7 @@ export async function POST(request: Request) {
       await db.from('scheduled_notifications').update({ status: 'sent', last_sent_at: new Date().toISOString(), sent_count: r.sent }).eq('id', created.id);
       await publishAnnouncement(db, created);
     }
+    if (pin) { const id = await postWithText(db, text); if (id) await pinPost(db, id, pin); }
     return NextResponse.json({ notifications: rows, sent, scheduled: !!scheduleAt });
   } catch (err) {
     console.error('[publish/message] failed:', err);

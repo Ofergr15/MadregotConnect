@@ -11,7 +11,16 @@ import { cn } from '@/lib/utils';
 // for everyone, a ✓ on mine; closed surveys only show results. The survey and the vote are the
 // existing /api/surveys/[id] routes; the card around it is the post's own (likes, comments).
 
-interface Answer { survey: { options_he: string[]; closes_at: string | null }; myResponse: number | null; results: Array<{ optionIndex: number; people: Array<{ id: string }> }> | null }
+interface Answer {
+  survey: { options_he: string[]; closes_at: string | null; multi_answer?: boolean };
+  myResponse: number | null;
+  /** All of mine — several on a survey with more than one answer (migration 160). */
+  myResponses?: number[];
+  results: Array<{ optionIndex: number; people: Array<{ id: string }> }> | null;
+}
+
+/** The publish screen's preview (mockup publish-preview-v2): the card as it will look, before it exists. */
+export interface SurveyDraft { options: string[]; closesAt: string | null; multi: boolean }
 
 function closesIn(iso: string | null, t: ReturnType<typeof useTranslations>): string | null {
   if (!iso) return null;
@@ -22,20 +31,27 @@ function closesIn(iso: string | null, t: ReturnType<typeof useTranslations>): st
   return t('surveyClosesHours', { n: Math.max(1, Math.round(ms / 3600000)) });
 }
 
-export function SurveyVote({ surveyId, myAthleteId }: { surveyId: string; myAthleteId: string | null }) {
+export function SurveyVote({ surveyId, myAthleteId, draft }: { surveyId: string | null; myAthleteId: string | null; draft?: SurveyDraft }) {
   const t = useTranslations('publish');
   const me = myAthleteId || (typeof window !== 'undefined' ? localStorage.getItem('athlete_id') : null);
-  const { data, mutate } = useApi<Answer>(me ? `/api/surveys/${surveyId}?athleteId=${me}` : `/api/surveys/${surveyId}`);
+  const { data: live, mutate } = useApi<Answer>(draft || !surveyId ? null : me ? `/api/surveys/${surveyId}?athleteId=${me}` : `/api/surveys/${surveyId}`);
   const [busy, setBusy] = useState(false);
+  const data: Answer | undefined = draft
+    ? { survey: { options_he: draft.options, closes_at: draft.closesAt, multi_answer: draft.multi }, myResponse: null, myResponses: [], results: null }
+    : live;
   if (!data?.survey) return null;
+  const multi = data.survey.multi_answer === true;
   const closed = !!data.survey.closes_at && Date.parse(data.survey.closes_at) < Date.now();
   const counts = data.survey.options_he.map((_, i) => data.results?.find((r) => r.optionIndex === i)?.people.length ?? 0);
-  const total = counts.reduce((a, b) => a + b, 0);
-  const voted = data.myResponse !== null;
+  // The share is of the people who answered: with several answers each, the bars add up past 100%.
+  const voters = new Set((data.results || []).flatMap((r) => r.people.map((p) => p.id))).size;
+  const total = multi ? voters : counts.reduce((a, b) => a + b, 0);
+  const mineAll = data.myResponses ?? (data.myResponse !== null ? [data.myResponse] : []);
+  const voted = mineAll.length > 0;
   const showResults = voted || closed;
 
   const vote = async (i: number) => {
-    if (!me || busy || closed) return;
+    if (draft || !surveyId || !me || busy || closed) return;
     setBusy(true);
     try {
       const res = await fetch(`/api/surveys/${surveyId}/respond`, { method: 'POST', headers: await bearerHeaders(), body: JSON.stringify({ athleteId: me, optionIndex: i }) });
@@ -47,19 +63,23 @@ export function SurveyVote({ surveyId, myAthleteId }: { surveyId: string; myAthl
     <div className="mt-3 space-y-2" dir="rtl">
       {data.survey.options_he.map((o, i) => {
         const pct = total ? Math.round((counts[i] / total) * 100) : 0;
-        const mine = data.myResponse === i;
+        const mine = mineAll.includes(i);
         return (
           <button key={i} type="button" disabled={closed || busy} onClick={() => vote(i)} aria-pressed={mine}
-            className={cn('relative flex min-h-[48px] w-full items-center overflow-hidden rounded-[14px] px-3.5 text-start text-[15px] font-bold', showResults ? 'bg-page' : 'border-[1.5px] border-brand-600/30 bg-card text-brand-600')}>
-            {showResults && <span aria-hidden className={cn('absolute inset-y-0 start-0', mine ? 'bg-brand-600/15' : 'bg-ink-900/[0.06]')} style={{ width: `${pct}%` }} />}
-            <span dir="auto" className="relative min-w-0 flex-1 truncate text-ink-900">{o}{mine && <span className="text-brand-600"> ✓</span>}</span>
+            className={cn('relative flex min-h-[48px] w-full items-center gap-2.5 overflow-hidden rounded-[14px] px-3.5 text-start text-[15px] font-bold', showResults ? 'bg-page' : 'border-[1.5px] border-brand-600/30 bg-card text-brand-600')}>
+            {showResults && <span aria-hidden className={cn('absolute inset-y-0 start-0', mine ? 'bg-brand-600/15' : 'bg-ink-900/[0.06]')} style={{ width: `${Math.min(100, pct)}%` }} />}
+            {/* More than one answer: squares, like a checklist; one answer: no mark until voted. */}
+            {multi && (
+              <span aria-hidden className={cn('relative grid h-[20px] w-[20px] shrink-0 place-items-center rounded-[6px] border-2 text-[12px] font-black', mine ? 'border-brand-600 bg-brand-600 text-white' : 'border-ink-300 bg-card')}>{mine ? '✓' : ''}</span>
+            )}
+            <span dir="auto" className="relative min-w-0 flex-1 truncate text-ink-900">{o}{mine && !multi && <span className="text-brand-600"> ✓</span>}</span>
             {showResults && <span className={cn('relative shrink-0 text-sm', mine ? 'text-brand-600' : 'text-ink-500')}><bdi dir="ltr">{pct}%</bdi></span>}
           </button>
         );
       })}
       <div className="flex items-center justify-between px-1 text-xs font-semibold text-ink-400">
-        <span>{t('surveyAnswered', { n: total })}{closesIn(data.survey.closes_at, t) ? <> · {closesIn(data.survey.closes_at, t)}</> : null}</span>
-        <Link href={`/dashboard/surveys/${surveyId}`} className="inline-flex min-h-[36px] items-center font-bold text-brand-600">{t('whoAnswered')} ‹</Link>
+        <span>{draft ? (multi ? 'אפשר לבחור כמה תשובות' : 'תשובה אחת') : t('surveyAnswered', { n: total })}{!draft && multi ? ' · אפשר לבחור כמה' : ''}{closesIn(data.survey.closes_at, t) ? <> · {closesIn(data.survey.closes_at, t)}</> : null}</span>
+        {!draft && surveyId && <Link href={`/dashboard/surveys/${surveyId}`} className="inline-flex min-h-[36px] items-center font-bold text-brand-600">{t('whoAnswered')} ‹</Link>}
       </div>
     </div>
   );

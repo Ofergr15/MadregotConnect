@@ -165,7 +165,7 @@ export function shapePostResults(p: {
   comments: number;
   delivered: number | null;
   members: Member[];
-  survey?: { options: string[]; responses: number[] } | null;
+  survey?: { options: string[]; responses: number[]; voters?: number } | null;
 }): PostResults {
   const byId = new Map(p.members.map((m) => [m.id, m]));
   const likers = [...new Set(p.likerIds)].map((id) => ({ id, name: byId.get(id)?.name ?? '' })).filter((l) => l.name);
@@ -180,7 +180,8 @@ export function shapePostResults(p: {
     const counts = p.survey.options.map((_, i) => p.survey!.responses.filter((r) => r === i).length);
     const top = Math.max(0, ...counts);
     votes = p.survey.options.map((option, i) => ({ option, count: counts[i], leading: top > 0 && counts[i] === top }));
-    answered = p.survey.responses.length;
+    // People, not rows: with more than one answer a person has a row per answer (160).
+    answered = p.survey.voters ?? p.survey.responses.length;
   }
   return { likes: new Set(p.likerIds).size, likers, comments: p.comments, delivered: p.delivered, members: p.members.length, votes, answered, notSeen };
 }

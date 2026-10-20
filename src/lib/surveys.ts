@@ -22,6 +22,8 @@ export async function createAndSendSurvey(opts: {
   push?: boolean;
   /** ISO; null = open until somebody closes it. */
   closesAt?: string | null;
+  /** More than one answer per person (migration 160). */
+  multi?: boolean;
 }): Promise<{ survey: { id: string; [key: string]: unknown }; sent: number }> {
   const supabase = createServerClient();
   const cleanOptionsHe = opts.optionsHe.map((o) => o.trim()).filter(Boolean);
@@ -37,6 +39,7 @@ export async function createAndSendSurvey(opts: {
       audience_id: opts.audienceType === 'all' || opts.audienceType === 'academy' ? null : opts.audienceId || null,
       created_by: opts.createdBy || null,
       ...(opts.closesAt ? { closes_at: opts.closesAt } : {}),
+      ...(opts.multi ? { multi_answer: true } : {}),
     })
     .select()
     .single();

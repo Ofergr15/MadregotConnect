@@ -3,7 +3,8 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireApprover } from '@/lib/auth/require-approver';
 import { createAndSendSurvey } from '@/lib/surveys';
 import { closesAt } from '@/lib/publish/model';
-import { publishClubPost } from '@/lib/publish/server';
+import { MIGRATION_160, pinUntil, readPinChoice } from '@/lib/publish/pin';
+import { hasMigration160, pinPost, publishClubPost } from '@/lib/publish/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,11 +25,14 @@ export async function GET(request: Request) {
 
     const surveyIds = (surveys || []).map((s) => s.id);
     const { data: responses } = surveyIds.length
-      ? await supabase.from('survey_responses').select('survey_id, option_index').in('survey_id', surveyIds)
+      ? await supabase.from('survey_responses').select('survey_id, option_index, athlete_id').in('survey_id', surveyIds)
       : { data: [] };
 
     const countsBySurvey = new Map<string, number[]>();
+    // People, not rows: a survey with more than one answer has a row per answer (160).
+    const people = new Map<string, Set<string>>();
     for (const r of responses || []) {
+      const who = people.get(r.survey_id) ?? new Set<string>(); who.add(r.athlete_id); people.set(r.survey_id, who);
       const arr = countsBySurvey.get(r.survey_id) || [];
       arr[r.option_index] = (arr[r.option_index] || 0) + 1;
       countsBySurvey.set(r.survey_id, arr);
@@ -37,7 +41,7 @@ export async function GET(request: Request) {
     const withCounts = (surveys || []).map((s) => ({
       ...s,
       counts: s.options_he.map((_: string, i: number) => countsBySurvey.get(s.id)?.[i] || 0),
-      totalResponses: (countsBySurvey.get(s.id) || []).reduce((a, b) => a + (b || 0), 0),
+      totalResponses: people.get(s.id)?.size ?? 0,
     }));
 
     return NextResponse.json({ surveys: withCounts });
@@ -69,6 +73,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'At least 2 options are required' }, { status: 400 });
     }
 
+    // More than one answer, and pinned to the top (both 160): refused before anything is made.
+    const multi = body.multi === true;
+    const pin = pinUntil(readPinChoice(body.pin), new Date(), { date: typeof body.pinDate === 'string' ? body.pinDate : null, closesAt: closes });
+    if ((multi || pin) && !(await hasMigration160(createServerClient()))) {
+      return NextResponse.json({ error: MIGRATION_160 }, { status: 409 });
+    }
+
     const { survey, sent } = await createAndSendSurvey({
       questionHe: question_he,
       questionEn: question_en,
@@ -79,11 +90,13 @@ export async function POST(request: Request) {
       createdBy: actorEmail,
       closesAt: closes,
       push: body.push !== false,
+      multi,
     });
     // The survey on the feed, to answer in place (FeedCard's SurveyCard reads payload.surveyId).
     let feedItemId: string | null = null;
     if (body.feed === true) {
       feedItemId = await publishClubPost(createServerClient(), { body: question_he.trim(), payload: { surveyId: survey.id } });
+      if (pin && feedItemId) await pinPost(createServerClient(), feedItemId, pin);
     }
 
     return NextResponse.json({ survey, sent, feedItemId });

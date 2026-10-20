@@ -1,6 +1,6 @@
 'use client';
 
-import { SurveyVote } from '@/components/feed/SurveyVote';
+import { SurveyVote, type SurveyDraft } from '@/components/feed/SurveyVote';
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -104,7 +104,8 @@ export function AuthorRow({ item }: { item: FeedItem }) {
       <span className="shrink-0 rounded-full" style={pack && pack.index >= 0 ? { boxShadow: `0 0 0 2px #fff, 0 0 0 4px ${pack.hex}` } : undefined}>
         <FeedAvatar name={item.author.name} url={item.author.avatarUrl} className="h-[34px] w-[34px]" />
       </span>
-      <div className="min-w-0">
+      {/* flex-1: a short second line ("עכשיו") left the block too narrow and cut the name. */}
+      <div className="min-w-0 flex-1">
         <p className="text-[15px] font-bold text-ink-900 leading-tight truncate">{item.author.name}</p>
         <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-400 leading-tight">
           <WhenLabel item={item} />
@@ -1044,6 +1045,15 @@ export function FeedCard({
     case 'announcement': {
       // A survey from "לפרסם" (mockup publish, C4): answered right here.
       const surveyId = typeof item.payload?.surveyId === 'string' ? item.payload.surveyId : null;
+      // The publish screen's preview of a survey not yet made (mockup publish-preview-v2).
+      const draft = item.payload?.surveyDraft as SurveyDraft | undefined;
+      if (draft) {
+        return (
+          <PostCard item={item} commentCount={commentCount} onComment={handleComment} onDelete={handleDelete}>
+            <SurveyVote surveyId={null} myAthleteId={myAthleteId} draft={draft} />
+          </PostCard>
+        );
+      }
       if (surveyId) {
         return (
           <PostCard item={item} commentCount={commentCount} onComment={handleComment} onDelete={handleDelete}>

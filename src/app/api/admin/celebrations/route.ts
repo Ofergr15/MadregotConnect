@@ -74,8 +74,11 @@ export async function GET(request: Request) {
     const surveyRows = (openSurveys || []) as Array<{ id: string; question_he: string; created_at: string; closes_at: string | null }>;
     const answers = new Map<string, number>();
     if (surveyRows.length) {
-      const { data: resp } = await db.from('survey_responses').select('survey_id').in('survey_id', surveyRows.map((x) => x.id));
-      for (const r of (resp || []) as Array<{ survey_id: string }>) answers.set(r.survey_id, (answers.get(r.survey_id) ?? 0) + 1);
+      const { data: resp } = await db.from('survey_responses').select('survey_id, athlete_id').in('survey_id', surveyRows.map((x) => x.id));
+      // People, not rows: a survey with more than one answer has a row per answer (160).
+      const who = new Map<string, Set<string>>();
+      for (const r of (resp || []) as Array<{ survey_id: string; athlete_id: string }>) { const s = who.get(r.survey_id) ?? new Set<string>(); s.add(r.athlete_id); who.set(r.survey_id, s); }
+      for (const [k, v] of who) answers.set(k, v.size);
     }
     const surveys: Row[] = surveyRows.map((x) => ({
       id: x.id, source: 'survey', emoji: '📊', label: 'סקר', title: x.question_he, day: dayOf(x.created_at),

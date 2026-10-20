@@ -1,11 +1,11 @@
 /* The celebrations row (CelebrationStories.tsx). Scoped under .mcel. Not ".ring": that is
    Tailwind's ring utility, whose box-shadow drew over the gradient and got cut off at the top. */
-.mcel .cring{background:conic-gradient(from 210deg,#F7797D,#FFC75F,#8E7CFF,#5BC0EB,#F7797D)}
-.mcel .cring.seen{background:#D7D7DC}
-.mcel .cring.brand,.mcel-sheet .cring.brand{background:conic-gradient(from 200deg,#1525FF,#5BC0EB,#1525FF)}
-.mcel .cring.brand.seen{background:#D7D7DC}
-.mcel .cring.week{background:conic-gradient(from 210deg,#1525FF,#159AFF,#8E7CFF,#1525FF)}
-.mcel .cring.week.seen{background:#D7D7DC}
+/* Unseen: one bright ring around the whole circle, Instagram's colours, with a soft glow
+   (mockup circles-seen, 10-20). Seen: no ring at all — the photo and its white edge. */
+.mcel .cring,.mcel .cring.brand,.mcel .cring.week{background:conic-gradient(from 210deg,#FFD600,#FF7A00,#FF0069,#D300C5,#7638FA,#FFD600);padding:3.5px;box-shadow:0 0 12px -3px rgba(255,0,105,.45)}
+.mcel-sheet .cring.brand{background:conic-gradient(from 210deg,#FFD600,#FF7A00,#FF0069,#D300C5,#7638FA,#FFD600)}
+.mcel .cring.seen,.mcel .cring.brand.seen,.mcel .cring.week.seen{background:transparent;box-shadow:none}
+.mcel .cring.seen>span.block{box-shadow:0 0 0 1px #E6E6EC}
 .mcel .strip{scrollbar-width:none}
 /* The "tap me" hint until the first tap (CelebrationStories TAPPED_KEY): a ring breathing
    out of the circle, and a small hand on the first one. */

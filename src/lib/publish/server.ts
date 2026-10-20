@@ -2,6 +2,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { BUCKET_LABEL, clock, parseRecordUrl } from './model';
 import { sessionDayLabel, toSessionPhotos } from '@/lib/quality-session/photos';
+import { isMissingColumn } from './pin';
 
 // The writes and reads behind "לפרסם" (lib/publish/model.ts for the rules).
 
@@ -107,8 +108,13 @@ export async function recentPublished(db: Db, limit = 6): Promise<RecentItem[]> 
   const answers = new Map<string, number>();
   const delivered = new Map<string, number>();
   await Promise.all([
-    surveyIds.length ? db.from('survey_responses').select('survey_id').in('survey_id', surveyIds).then(({ data: resp }) => {
-      for (const r of (resp || []) as Array<{ survey_id: string }>) answers.set(r.survey_id, (answers.get(r.survey_id) ?? 0) + 1);
+    // People, not rows: a survey with more than one answer has a row per answer (160).
+    surveyIds.length ? db.from('survey_responses').select('survey_id, athlete_id').in('survey_id', surveyIds).then(({ data: resp }) => {
+      const who = new Map<string, Set<string>>();
+      for (const r of (resp || []) as Array<{ survey_id: string; athlete_id: string }>) {
+        const s = who.get(r.survey_id) ?? new Set<string>(); s.add(r.athlete_id); who.set(r.survey_id, s);
+      }
+      for (const [k, v] of who) answers.set(k, v.size);
     }) : null,
     // A survey's push is its own scheduled_notifications row (api/admin/surveys); a message's
     // post carries the id of the row that sent it (lib/feed/announce.ts).
@@ -138,4 +144,30 @@ export async function recentPublished(db: Db, limit = 6): Promise<RecentItem[]> 
       ...(photos ? { thumb: r.media?.[0]?.url ?? null, photos: r.media?.length ?? 0 } : {}),
     };
   });
+}
+
+/**
+ * Is migration 160 in this database? One cheap probe of the column; a missing one is
+ * isMissingColumn (lib/publish/pin.ts). Pin and multi-answer requests are refused
+ * with MIGRATION_160 until it is, so a post is never half made.
+ */
+export async function hasMigration160(db: Db): Promise<boolean> {
+  const { error } = await db.from('feed_items').select('pinned_until').limit(1);
+  if (!error) return true;
+  if (isMissingColumn(error)) return false;
+  throw error;
+}
+
+/** Pin a post until `until` (ISO). */
+export async function pinPost(db: Db, id: string, until: string): Promise<void> {
+  const { error } = await db.from('feed_items').update({ pinned_until: until }).eq('id', id);
+  if (error) throw error;
+}
+
+/** The club post a just-sent message became (lib/feed/announce.ts folds packs into one): newest with that text. */
+export async function postWithText(db: Db, text: string): Promise<string | null> {
+  const { data } = await db.from('feed_items').select('id').eq('type', 'announcement').is('author_athlete_id', null)
+    .eq('body', text).gte('occurred_at', new Date(Date.now() - 10 * 60 * 1000).toISOString())
+    .order('occurred_at', { ascending: false }).limit(1);
+  return ((data || []) as Array<{ id: string }>)[0]?.id ?? null;
 }

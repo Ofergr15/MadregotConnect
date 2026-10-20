@@ -26,14 +26,17 @@ export async function GET(request: Request) {
     const votes = new Map<string, number[]>();
     const delivered = new Map<string, number>();
     const posts = new Map<string, string>();
+    // People, not rows: a survey with more than one answer has a row per answer (160).
+    const voters = new Map<string, Set<string>>();
     if (ids.length) {
       const [{ data: resp }, { data: notes }, { data: feed }] = await Promise.all([
-        db.from('survey_responses').select('survey_id, option_index').in('survey_id', ids),
+        db.from('survey_responses').select('survey_id, option_index, athlete_id').in('survey_id', ids),
         db.from('scheduled_notifications').select('survey_id, sent_count').in('survey_id', ids),
         db.from('feed_items').select('id, payload').eq('type', 'announcement').is('deleted_at', null).in('payload->>surveyId', ids),
       ]);
-      for (const r of (resp || []) as Array<{ survey_id: string; option_index: number }>) {
+      for (const r of (resp || []) as Array<{ survey_id: string; option_index: number; athlete_id: string }>) {
         const list = votes.get(r.survey_id) ?? []; list.push(r.option_index); votes.set(r.survey_id, list);
+        const who = voters.get(r.survey_id) ?? new Set<string>(); who.add(r.athlete_id); voters.set(r.survey_id, who);
       }
       for (const n of (notes || []) as Array<{ survey_id: string; sent_count: number | null }>) delivered.set(n.survey_id, (delivered.get(n.survey_id) ?? 0) + (n.sent_count ?? 0));
       for (const f of (feed || []) as Array<{ id: string; payload: { surveyId?: string } | null }>) if (f.payload?.surveyId) posts.set(f.payload.surveyId, f.id);
@@ -48,7 +51,7 @@ export async function GET(request: Request) {
           closesOn: r.closes_at ? dayOf(r.closes_at) : null,
           open: !r.closes_at || Date.parse(r.closes_at) > now,
           options: (r.options_he || []).map((o, i) => ({ option: o, count: v.filter((x) => x === i).length })),
-          answers: v.length, delivered: delivered.get(r.id) ?? null, postId: posts.get(r.id) ?? null,
+          answers: voters.get(r.id)?.size ?? 0, delivered: delivered.get(r.id) ?? null, postId: posts.get(r.id) ?? null,
         };
       }),
     });

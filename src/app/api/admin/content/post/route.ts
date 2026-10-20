@@ -32,7 +32,7 @@ export async function GET(request: Request) {
       surveyId
         ? Promise.all([
           db.from('surveys').select('options_he').eq('id', surveyId).maybeSingle(),
-          db.from('survey_responses').select('option_index').eq('survey_id', surveyId),
+          db.from('survey_responses').select('option_index, athlete_id').eq('survey_id', surveyId),
         ])
         : Promise.resolve(null),
       // The same row the hub shows, so the header and the "delivered" number match it.
@@ -47,6 +47,7 @@ export async function GET(request: Request) {
       survey: survey ? {
         options: ((survey[0].data as { options_he?: string[] } | null)?.options_he) ?? [],
         responses: ((survey[1].data || []) as Array<{ option_index: number }>).map((r) => r.option_index),
+        voters: new Set(((survey[1].data || []) as Array<{ athlete_id: string }>).map((r) => r.athlete_id)).size,
       } : null,
     });
     return NextResponse.json({

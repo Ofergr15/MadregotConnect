@@ -18,6 +18,7 @@ import type { WeekStory as WeekStoryData } from '@/lib/week-story/server';
 import { WeekStory } from '@/components/week-story/WeekStory';
 import { useSearchParams } from 'next/navigation';
 import { useAthleteId } from '@/lib/use-athlete-id';
+import { firstUnseen, ringState } from '@/lib/feed/ring-state';
 import './celebrations.css';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -25,7 +26,7 @@ import './celebrations.css';
 // direction B of ~/.cache/madregot/celebrations/top-options.html, "a better-made
 // version"). Each circle is the person's real photo in a coloured ring with the
 // occasion's emoji on it; ▶ on the ring means there is a video. A circle once
-// opened greys out, like a story. Tapping opens a sheet: a short confetti burst,
+// opened loses its ring, like a story (10-20: no ring at all once seen). Tapping opens a sheet: a short confetti burst,
 // the greeting, the video, the like and the comments — and a swipe to the next.
 // Nothing renders on a day with nothing to celebrate.
 // ═════════════════════════════════════════════════════════════════════════════
@@ -48,7 +49,7 @@ const readSeen = (): string[] => {
 };
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
-function Circle({ entry, seen, hint, hand, onOpen }: { entry: Entry; seen: boolean; hint: boolean; hand: boolean; onOpen: () => void }) {
+export function Circle({ entry, seen, hint, hand, onOpen }: { entry: Entry; seen: boolean; hint: boolean; hand: boolean; onOpen: () => void }) {
   const kind = CELEBRATION_TYPES[entry.celebration.type];
   const people = entry.honorees;
   const lead = people[0];
@@ -58,7 +59,8 @@ function Circle({ entry, seen, hint, hand, onOpen }: { entry: Entry; seen: boole
     <button type="button" onClick={onOpen} className="flex w-[72px] shrink-0 flex-col items-center text-center active:opacity-80" aria-label={`${kind.label}: ${people.map(p => p.name).join(', ')}`}>
       <span className={cn('cring relative rounded-full p-[3px]', seen && 'seen', hint && 'breathe')}>
         {hand && <span aria-hidden className="chand">👆</span>}
-        <span className="block rounded-full border-[3px] border-card">
+        {/* bg-card: initials have no fill of their own, and the ring showed through them. */}
+        <span className="block rounded-full border-[3px] border-card bg-card">
           {lead
             ? <FeedAvatar name={lead.name} url={lead.avatarUrl} className="h-[54px] w-[54px] text-[15px]" />
             : <span className="flex h-[54px] w-[54px] items-center justify-center rounded-full bg-page text-2xl">{kind.emoji}</span>}
@@ -79,7 +81,7 @@ function Circle({ entry, seen, hint, hand, onOpen }: { entry: Entry; seen: boole
 interface ClubMessage { id: string; title: string; text: string }
 
 /** The Madregot circle, first on the row: the club's message (lib/feed/club-stories.ts). */
-function ClubCircle({ unseen, hint, hand, onOpen }: { unseen: boolean; hint: boolean; hand: boolean; onOpen: () => void }) {
+export function ClubCircle({ unseen, hint, hand, onOpen }: { unseen: boolean; hint: boolean; hand: boolean; onOpen: () => void }) {
   return (
     <button type="button" onClick={onOpen} className="flex w-[72px] shrink-0 flex-col items-center text-center active:opacity-80" aria-label="הודעה ממדרגות">
       <span className={cn('cring brand relative rounded-full p-[3px]', !unseen && 'seen', hint && 'breathe')}>
@@ -88,7 +90,6 @@ function ClubCircle({ unseen, hint, hand, onOpen }: { unseen: boolean; hint: boo
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/images/logo.png" alt="" className="h-[54px] w-[54px] rounded-full object-contain p-1" />
         </span>
-        {unseen && <span className="absolute end-0.5 top-0.5 h-3 w-3 rounded-full border-2 border-card bg-[#FF3B30]" />}
       </span>
       <span className="mt-1.5 w-full truncate text-[12px] font-bold leading-tight text-ink-900">מדרגות</span>
       <span className="w-full truncate text-[10.5px] leading-tight text-ink-400">הודעה</span>
@@ -226,6 +227,25 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
   const { data } = useApi<{ today: string; entries: Entry[]; club?: ClubMessage[] }>('/api/feed/celebrations');
   const club = useMemo(() => data?.club ?? [], [data]);
   const [clubOpen, setClubOpen] = useState(false);
+  const [clubStart, setClubStart] = useState(0);
+  const clubSlidesRef = useRef<HTMLDivElement>(null);
+  // The club sheet opens on its first new message: scrolled there once laid out.
+  useEffect(() => {
+    if (!clubOpen || clubStart === 0) return;
+    let frames = 0; let raf = 0;
+    const land = () => {
+      const el = clubSlidesRef.current;
+      if (el && el.clientWidth > 0) {
+        const sign = getComputedStyle(el).direction === 'rtl' ? -1 : 1;
+        const left = sign * clubStart * el.clientWidth;
+        el.scrollTo({ left, behavior: 'instant' as ScrollBehavior });
+        if (Math.abs(el.scrollLeft - left) < 2) return;
+      }
+      if (++frames < 30) raf = requestAnimationFrame(land);
+    };
+    raf = requestAnimationFrame(land);
+    return () => cancelAnimationFrame(raf);
+  }, [clubOpen, clubStart]);
   const myId = useAthleteId();
   // Each birthday's year is fetched as soon as the strip is there, not when its circle is
   // opened: the slide's "השנה של…" button then shows with the greeting, not seconds after.
@@ -301,7 +321,9 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
 
   if (entries.length === 0 && club.length === 0 && !week) return null;
   const hinting = !tapped;
-  const clubUnseen = club.some((m) => !seen.includes(`club:${m.id}`));
+  const clubKeys = club.map((m) => `club:${m.id}`);
+  // The ring while ANY message in it is new; opened, it starts at the first new one.
+  const clubUnseen = ringState(clubKeys, seen) === 'new';
   // Unseen first, like stories: what is new is what you see without scrolling.
   const order = entries.map((e, i) => ({ e, i })).sort((a, b) => Number(seen.includes(a.e.item.id)) - Number(seen.includes(b.e.item.id)));
 
@@ -316,7 +338,7 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
         )}
         {club.length > 0 && (
           <ClubCircle unseen={clubUnseen} hint={hinting && clubUnseen} hand={hinting}
-            onOpen={() => { setClubOpen(true); markTapped(); club.forEach((m) => markSeen(`club:${m.id}`)); }} />
+            onOpen={() => { setClubStart(firstUnseen(clubKeys, seen)); setClubOpen(true); markTapped(); club.forEach((m) => markSeen(`club:${m.id}`)); }} />
         )}
         {order.map(({ e, i }, k) => (
           <Circle
@@ -352,7 +374,7 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
       </Sheet>
       <Sheet open={clubOpen} onOpenChange={setClubOpen} className="mcel-sheet">
         <div className="mcel-sheet" dir="rtl">
-          <div className="slides flex overflow-x-auto">
+          <div ref={clubSlidesRef} className="slides flex overflow-x-auto">
             {club.map((m) => (
               <div key={m.id} className="slide w-full shrink-0 px-6 pb-2 pt-3 text-center">
                 <span className="cring brand mx-auto block h-[84px] w-[84px] rounded-full p-[3px]">

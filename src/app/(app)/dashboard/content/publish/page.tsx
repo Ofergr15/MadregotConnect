@@ -12,11 +12,18 @@ import { cn, GROUP_HEX } from '@/lib/utils';
 import { sortByPaceGroup } from '@/lib/plans/pace-group';
 import { Switch } from '@/components/ui';
 import { Avatar } from '@/components/day-session/WatchSend';
-import { CHEER_REASONS, cheerText, plainText, splitMessage, type AudienceChoice, type AudienceMode, type CheerReason, type CloseChoice } from '@/lib/publish/model';
+import { CHEER_REASONS, cheerText, closesAt, plainText, splitMessage, type AudienceChoice, type AudienceMode, type CheerReason, type CloseChoice } from '@/lib/publish/model';
+import { MIGRATION_160, MIGRATION_TEXT, pinUntil, type PinChoice } from '@/lib/publish/pin';
+import { ClubCirclePreview, CheerCirclePreview, draftItem, FeedPreview, LockPreview, PinSetting, PreviewStage, type Place } from '@/components/publish/PublishPreview';
+import type { CelebrationType } from '@/lib/feed/celebration';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // לפרסם (mockup publish, C1–C3): a message, a cheer, a survey — each a post on the feed with
 // likes and comments, the push optional. ?type=message|cheer|survey; the hub links here.
+// Since 10-20 (mockup publish-preview-v2) every kind opens with "איך זה ייראה" — the
+// feed's own card / circle / notification fed the draft — and shares one set of
+// settings: where it shows, pinned to the top and for how long, the notification;
+// a survey also takes more than one answer. Pin and multi need migration 160.
 // ═════════════════════════════════════════════════════════════════════════════
 
 type Kind = 'message' | 'cheer' | 'survey';
@@ -39,43 +46,6 @@ function useClub() {
       .sort((p, q) => p.name.localeCompare(q.name));
     return { groups, people, loaded: !!a && !!g };
   }, [a, g]);
-}
-
-/**
- * What the Madregot circle will look like (lib/feed/club-stories.ts): the row at the top
- * of the feed with the circle first, and the message it opens. Drawn with the same
- * shapes as components/feed/CelebrationStories.tsx, as the text is typed.
- */
-function CirclePreview({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="space-y-2">
-      <p className={LABEL}>ככה זה ייראה</p>
-      <div className="rounded-[22px] bg-card px-3 pb-3 pt-3">
-        <p className="mb-2 px-1 text-[12px] font-extrabold text-ink-400">🎉 חוגגים השבוע</p>
-        <div className="flex w-[72px] flex-col items-center text-center">
-          <span className="relative rounded-full p-[3px]" style={{ background: 'conic-gradient(from 200deg,#1525FF,#5BC0EB,#1525FF)' }}>
-            <span className="block rounded-full border-[3px] border-card bg-white">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/images/logo.png" alt="" className="h-[54px] w-[54px] rounded-full object-contain p-1" />
-            </span>
-            <span className="absolute end-0.5 top-0.5 h-3 w-3 rounded-full border-2 border-card bg-[#FF3B30]" />
-          </span>
-          <span className="mt-1.5 text-[12px] font-bold text-ink-900">מדרגות</span>
-          <span className="text-[10.5px] text-ink-400">הודעה</span>
-        </div>
-      </div>
-      <div className="overflow-hidden rounded-[22px] bg-card px-6 pb-5 pt-3 text-center shadow-[0_-1px_0_#E6E6EC]">
-        <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-[#D7D7DC]" />
-        <span className="mx-auto block h-[72px] w-[72px] rounded-full p-[3px]" style={{ background: 'conic-gradient(from 200deg,#1525FF,#5BC0EB,#1525FF)' }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/logo.png" alt="" className="block h-full w-full rounded-full border-[3px] border-card bg-white object-contain p-1" />
-        </span>
-        <h3 className="mt-3 text-[19px] font-black leading-tight text-ink-900">{title || 'הכותרת (השורה הראשונה)'}</h3>
-        <p className="mt-1.5 whitespace-pre-line text-[14.5px] leading-relaxed text-ink-700">{text || 'הטקסט (מהשורה השנייה)'}</p>
-        <span className="mt-4 flex min-h-[44px] w-full items-center justify-center rounded-2xl bg-brand-600 text-[15px] font-extrabold text-white">סגירה</span>
-      </div>
-    </div>
-  );
 }
 
 function Seg<T extends string>({ value, options, onChange }: { value: T; options: Array<[T, string]>; onChange: (v: T) => void }) {
@@ -151,16 +121,6 @@ function AudiencePicker({ value, onChange, groups, people, singleGroup }: {
   );
 }
 
-function LockPreview({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-[18px] bg-[#F2F2F7] px-3.5 py-2.5">
-      <div className="flex items-center gap-2 text-xs font-bold text-ink-400"><span aria-hidden>🏃</span>MADREGOT<span className="ms-auto font-normal">עכשיו</span></div>
-      <p dir="auto" className="mt-1 text-[15px] font-bold leading-snug text-ink-900">{title}</p>
-      <p dir="auto" className="line-clamp-2 text-[15px] leading-snug text-ink-700">{body}</p>
-    </div>
-  );
-}
-
 export default function PublishPage() {
   const t = useTranslations('publish');
   const router = useRouter();
@@ -189,6 +149,13 @@ export default function PublishPage() {
   const [days, setDays] = useState<1 | 2 | 7>(1);
   const [cheerDays, setCheerDays] = useState<1 | 3 | 7>(1);
   const [circlePush, setCirclePush] = useState(false);
+  // "נעוץ בראש הפיד" (160): a message's or a survey's post first in the feed until its time.
+  const [pin, setPin] = useState(false);
+  const [pinChoice, setPinChoice] = useState<PinChoice>('day');
+  const [pinDate, setPinDate] = useState('');
+  const [sPin, setSPin] = useState(false);
+  const [sPinChoice, setSPinChoice] = useState<PinChoice>('close');
+  const [multi, setMulti] = useState(false);
   // cheer
   const { data: sug } = useApi<{ suggestions: Suggestion[] }>(kind === 'cheer' ? '/api/admin/cheers/suggestions' : null);
   const [who, setWho] = useState<{ id: string; name: string } | null>(null);
@@ -224,7 +191,12 @@ export default function PublishPage() {
     setBusy(true); setMsg(null);
     try {
       const res = await fetch(url, { method: 'POST', headers: await bearerHeaders(), body: JSON.stringify(body) });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const out = await res.json().catch(() => ({}));
+        // Pin / more than one answer before 160 is in the database: said plainly, nothing was posted.
+        if ((out as { error?: string }).error === MIGRATION_160) { setMsg({ ok: false, text: MIGRATION_TEXT }); return; }
+        throw new Error();
+      }
       setMsg({ ok: true, text: t('published') });
       setTimeout(() => router.push('/dashboard/content'), 900);
     } catch { setMsg({ ok: false, text: t('failed') }); } finally { setBusy(false); }
@@ -236,6 +208,21 @@ export default function PublishPage() {
     : kind === 'cheer' ? !!who && !!(cheer ?? autoCheer).trim()
       : !!question.trim() && cleanOptions.length >= 2 && (sAudience.mode === 'all' || sAudience.groupIds.length === 1);
 
+  // A scheduled message is posted later, by the cron: its pin would start now, so it has none.
+  const canPin = place !== 'circle' && !(push && when === 'later');
+  const pinBody = pin && canPin ? { pin: pinChoice, pinDate: pinChoice === 'date' && pinDate ? new Date(pinDate).toISOString() : null } : {};
+  const now = new Date();
+  const msgPinned = pin && canPin ? pinUntil(pinChoice, now, { date: pinDate ? new Date(pinDate).toISOString() : null }) : null;
+  const surveyCloses = closesAt(closes, now);
+  const surveyPinned = sPin ? pinUntil(sPinChoice, now, { date: pinDate ? new Date(pinDate).toISOString() : null, closesAt: surveyCloses }) : null;
+  const msgPlaces: Place[] = [
+    ...(place !== 'circle' ? ['feed' as const] : []),
+    ...(place !== 'feed' ? ['circle' as const] : []),
+    ...((place === 'circle' ? circlePush : push) ? ['push' as const] : []),
+  ];
+  const cheerType: CelebrationType = reason === 'race' ? 'race' : reason === 'birthday' ? 'birthday' : reason === 'other' || reason === 'comeback' ? 'other' : 'achievement';
+  const cheerShown = plainText(cheer ?? autoCheer);
+
   const submit = () => {
     if (!canSend || busy) return;
     if (kind === 'message') {
@@ -245,18 +232,19 @@ export default function PublishPage() {
         // The circle first, quietly; the feed post (and its push, if on) is the send below.
         void (async () => {
           await fetch('/api/admin/club-stories', { method: 'POST', headers: await bearerHeaders(), body: JSON.stringify({ ...toCircle, push: false }) }).catch(() => null);
-          void send('/api/admin/publish/message', { text, imageUrl, audience, push, scheduleAt: push && when === 'later' && at ? new Date(at).toISOString() : null });
+          void send('/api/admin/publish/message', { text, imageUrl, audience, push, scheduleAt: push && when === 'later' && at ? new Date(at).toISOString() : null, ...pinBody });
         })();
         return;
       }
-      void send('/api/admin/publish/message', { text, imageUrl, audience, push, scheduleAt: push && when === 'later' && at ? new Date(at).toISOString() : null });
+      void send('/api/admin/publish/message', { text, imageUrl, audience, push, scheduleAt: push && when === 'later' && at ? new Date(at).toISOString() : null, ...pinBody });
     } else if (kind === 'cheer') {
       void send('/api/admin/cheers', { athleteId: who!.id, reason, text: cheer ?? autoCheer, push, days: cheerDays });
     } else {
       void send('/api/admin/surveys', {
         question_he: question, options_he: cleanOptions, closes,
         audience_type: sAudience.mode === 'groups' ? 'group' : 'all', audience_id: sAudience.mode === 'groups' ? sAudience.groupIds[0] : null,
-        push, feed: true,
+        push, feed: true, multi,
+        ...(sPin ? { pin: sPinChoice, pinDate: sPinChoice === 'date' && pinDate ? new Date(pinDate).toISOString() : null } : {}),
       });
     }
   };
@@ -268,6 +256,27 @@ export default function PublishPage() {
       </div>
       <h1 className="text-[26px] font-black text-ink-700">{t(`title_${kind}`)}</h1>
       <Seg value={kind} options={[['message', `📣 ${t('typeMessage')}`], ['cheer', `🏅 ${t('typeCheer')}`], ['survey', `📊 ${t('typeSurvey')}`]]} onChange={(k) => { setKind(k); setMsg(null); }} />
+
+      {kind === 'message' && (
+        <PreviewStage places={msgPlaces}>
+          {(p) => p === 'feed' ? <FeedPreview item={draftItem({ body: text || 'מה שתכתבו יופיע כאן', imageUrl })} pinnedUntil={msgPinned} />
+            : p === 'circle' ? <ClubCirclePreview title={preview.title} text={preview.body} />
+              : <LockPreview title={preview.title} body={preview.body} />}
+        </PreviewStage>
+      )}
+      {kind === 'cheer' && (
+        <PreviewStage places={push ? ['circle', 'push'] : ['circle']}>
+          {(p) => p === 'circle' ? <CheerCirclePreview name={who?.name ?? ''} type={cheerType} text={cheerShown} />
+            : <LockPreview title={who ? `🏅 מגיע ל־${who.name.split(' ')[0]} ברכה` : '🏅 ברכה'} body={cheerShown.slice(0, 160)} />}
+        </PreviewStage>
+      )}
+      {kind === 'survey' && (
+        <PreviewStage places={push ? ['feed', 'push'] : ['feed']}>
+          {(p) => p === 'feed'
+            ? <FeedPreview item={draftItem({ body: question || 'השאלה', payload: { surveyDraft: { options: options.map((o, i) => o.trim() || `תשובה ${i + 1}`), closesAt: surveyCloses, multi } } })} pinnedUntil={surveyPinned} />
+            : <LockPreview title={question || 'השאלה'} body="לחצו לענות על הסקר" />}
+        </PreviewStage>
+      )}
 
       {kind === 'message' && (
         <>
@@ -294,7 +303,6 @@ export default function PublishPage() {
               <p className="px-1 text-13 leading-snug text-ink-400">{t('circleSub')}</p>
               <p className={LABEL}>{t('circleDays')}</p>
               <Seg value={String(days) as '1' | '2' | '7'} options={[['1', t('days_1')], ['2', t('days_2')], ['7', t('days_7')]]} onChange={(v) => setDays(Number(v) as 1 | 2 | 7)} />
-              <CirclePreview title={preview.title} text={preview.body} />
             </>
           )}
           {place === 'circle' && (
@@ -315,6 +323,7 @@ export default function PublishPage() {
             </div>
           </div>
           </>)}
+          {canPin && <PinSetting on={pin} setOn={setPin} choice={pinChoice} setChoice={setPinChoice} date={pinDate} setDate={setPinDate} choices={['evening', 'day', '3d', 'week', 'date']} />}
           {place !== 'circle' && push && (
             <>
               <p className={LABEL}>{t('when')}</p>
@@ -322,7 +331,6 @@ export default function PublishPage() {
               {when === 'later' && (
                 <input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} dir="ltr" className={cn(CARD, 'min-h-[48px] w-full px-4 text-base font-bold')} />
               )}
-              {text.trim() && <LockPreview title={preview.title} body={preview.body} />}
             </>
           )}
         </>
@@ -402,10 +410,15 @@ export default function PublishPage() {
           {options.length < 6 && (
             <button type="button" onClick={() => setOptions((l) => [...l, ''])} className={cn(CARD, 'flex min-h-[50px] w-full items-center gap-2 px-4 text-[15px] font-bold text-brand-600')}><Plus className="h-4 w-4" />{t('addOption')}</button>
           )}
+          <div className={cn(CARD, 'flex min-h-[56px] items-center justify-between gap-3 px-4 py-2')}>
+            <span className="min-w-0"><b className="block text-[15px] text-ink-900">אפשר לסמן יותר מתשובה אחת</b><small className="block text-13 text-ink-400">{multi ? 'ריבועים — כל אחד מסמן כמה שרוצה' : 'כל אחד בוחר תשובה אחת'}</small></span>
+            <Switch checked={multi} onChange={setMulti} activeColor="bg-[#1FA55B]" ariaLabel="אפשר לסמן יותר מתשובה אחת" />
+          </div>
           <p className={LABEL}>{t('closes')}</p>
           <Seg value={closes} options={[['tomorrow', t('closesTomorrow')], ['week', t('closesWeek')], ['none', t('closesNever')]]} onChange={setCloses} />
           <p className={LABEL}>{t('toWhom')}</p>
           <AudiencePicker singleGroup value={sAudience} onChange={setSAudience} groups={club.groups} people={club.people} />
+          <PinSetting on={sPin} setOn={setSPin} choice={sPinChoice} setChoice={setSPinChoice} date={pinDate} setDate={setPinDate} choices={['close', 'day', '3d', 'week', 'date']} />
           <div className={cn(CARD, 'flex min-h-[56px] items-center justify-between gap-3 px-4 py-2')}>
             <span className="min-w-0"><b className="block text-[15px] text-ink-900">{t('pushLabel')}</b><small className="block text-13 text-ink-400">{t('surveyFeedSub')}</small></span>
             <Switch checked={push} onChange={setPush} activeColor="bg-[#1FA55B]" ariaLabel={t('pushLabel')} />
