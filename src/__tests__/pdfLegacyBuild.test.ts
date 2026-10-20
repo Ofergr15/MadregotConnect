@@ -17,6 +17,13 @@ describe('pdf.js build', () => {
       expect(read(f)).not.toMatch(/import\('pdfjs-dist'\)/);
     }
   });
+  // #134: with the browser loading the plan's embedded subset fonts, the text drew in a
+  // fallback font at the PDF's widths — spread letters, lost colons, Hebrew out of order.
+  it('the viewers draw glyphs themselves (disableFontFace)', () => {
+    for (const f of ['components/PlanPdfViewer.tsx', 'components/NutritionPlanView.tsx']) {
+      expect(read(f)).toMatch(/getDocument\(\{ url, disableFontFace: true \}\)/);
+    }
+  });
   it('and the worker is the legacy one too', () => {
     expect(readFileSync(new URL('../../scripts/copy-pdf-worker.mjs', import.meta.url), 'utf8')).toMatch(/join\(dirname\(pkg\), 'legacy', 'build', 'pdf\.worker\.min\.mjs'\)/);
   });

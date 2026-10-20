@@ -160,7 +160,12 @@ export function PlanPdfViewer({ url, title }: Props) {
         // (Map.prototype.getOrInsertComputed). See scripts/copy-pdf-worker.mjs.
         const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
         pdfjs.GlobalWorkerOptions.workerSrc = WORKER_SRC;
-        task = pdfjs.getDocument({ url });
+        // disableFontFace: pdf.js draws each glyph itself instead of handing the PDF's
+        // embedded fonts to the browser. The plans are exported with subset fonts
+        // (AAAAAC+Aptos, ArialMT…) the browser's font loader rejects; pdf.js then fell
+        // back to a system font at the PDF's widths — letters spread apart, colons and
+        // geresh gone, Hebrew out of order ("כשעושים זום … לא ברור מה יש בתכנית", #134).
+        task = pdfjs.getDocument({ url, disableFontFace: true });
         const doc = await task.promise;
         if (cancelled) return;
         const loaded = await Promise.all(

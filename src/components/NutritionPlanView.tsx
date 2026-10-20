@@ -85,7 +85,8 @@ export function NutritionPlanView({ url, title, onTextAvailable }: Props) {
         // Legacy build, as in PlanPdfViewer: iOS 18 Safari lacks what the modern one uses.
         const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
         pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
-        const doc = await pdfjs.getDocument({ url }).promise;
+        // Same as PlanPdfViewer: glyphs drawn by pdf.js, not the browser's font loader (#134).
+        const doc = await pdfjs.getDocument({ url, disableFontFace: true }).promise;
         const lines: TextLine[] = [];
         for (let n = 1; n <= doc.numPages; n++) {
           const page = await doc.getPage(n);
