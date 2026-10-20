@@ -46,6 +46,7 @@ import { GoalRaceBanner } from '@/components/GoalRaceBanner';
 import { CelebrationStories } from '@/components/feed/CelebrationStories';
 import { RunTogetherStrip } from '@/components/run-together/FeedStrip';
 import { StaffSessionPhotos } from '@/components/feed/StaffSessionPhotos';
+import { useQualitySessionAccess } from '@/lib/quality-session/use-access';
 import { ClubUpdatesCard } from '@/components/club-updates/ClubUpdatesCard';
 import { toCelebration } from '@/lib/feed/celebration';
 import { BirthdayYearCard } from '@/components/birthday/BirthdayYearCard';
@@ -156,6 +157,8 @@ export default function FeedPage() {
   const [myName, setMyName] = useState(() => stored('athlete_name') || '');
   const [myAthleteId, setMyAthleteId] = useState<string | null>(() => stored('athlete_id'));
   const [isStaff, setIsStaff] = useState(() => !!stored('coach_email'));
+  // The two staff cards of a quality / long-run morning go to the same people (lib/quality-session/access.ts).
+  const qsAccess = useQualitySessionAccess();
   // New items from a refresh that arrived while the reader was down the list:
   // held behind a pill instead of pushing the list under their thumb.
   const [pendingFresh, setPendingFresh] = useState<{ items: FeedItem[]; cursor: string | null; count: number } | null>(null);
@@ -642,7 +645,7 @@ export default function FeedPage() {
 
       {/* ═══ THE SESSION'S PHOTOS, FOR STAFF ═══ from 07:00 on a quality day: the folder,
           what the quarter-hourly check found, and the editor's publish (StaffSessionPhotos). */}
-      <StaffSessionPhotos enabled={isStaff} />
+      <StaffSessionPhotos enabled={isStaff && qsAccess} />
 
       {/* ═══ THE SESSION'S PHOTOS ═══
           After a quality session, once someone has posted the album link (#106):

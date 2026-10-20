@@ -7,14 +7,14 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { getPlanWeekStart } from '@/lib/utils';
 import { normalizeStoredLaps } from '@/lib/garmin/laps';
-import { classifyWorkout } from '@/lib/plans/session-summary';
+import { classifyWorkout, type WorkoutType } from '@/lib/plans/session-summary';
 import { isOptionalWorkout } from '@/lib/plans/normalize-plan';
 import { buildSession, type ActivityRow, type AthleteRow, type AttendanceRow, type GroupRow } from '@/lib/pack-stories/build';
 import { sessionLabel } from '@/lib/pack-stories/model';
 import type { Pack } from '@/lib/pack-stories/model';
 import type { PlanRep, PlanTargets } from './parts';
 import { PLAN_DAYS_KEY, parsePlanDays, type PlanDays } from './plan-days';
-import { QUALITY_TYPES, detectReps, fromMinutes, repPace, toMinutes, type QsSession, type QualityWorkout } from './model';
+import { QUALITY_TYPES, SHARE_TYPES, detectReps, fromMinutes, repPace, toMinutes, type QsSession, type QualityWorkout } from './model';
 
 type Db = ReturnType<typeof createServerClient>;
 
@@ -23,17 +23,21 @@ type Db = ReturnType<typeof createServerClient>;
  * optional extra is never the club's session, and a day with a warm-up / main /
  * cool-down split is a quality day when any of its parts is.
  */
-export function qualityWorkout(workouts: ParsedWorkout[] | null | undefined, dow: number): QualityWorkout | null {
+export function qualityWorkout(workouts: ParsedWorkout[] | null | undefined, dow: number, types: WorkoutType[] = SHARE_TYPES): QualityWorkout | null {
   const day = (workouts || [])
     .filter(w => w.dayOfWeek === dow && w.partKind !== 'evening' && !isOptionalWorkout(w))
     .sort((a, b) => (a.partIndex ?? 1) - (b.partIndex ?? 1));
-  for (const w of day) {
-    const type = classifyWorkout(w);
-    if (QUALITY_TYPES.includes(type)) return { name: (w.name || '').trim(), type };
+  // A quality part wins over a long run on the same morning (a long run with a set in it is the set).
+  for (const want of [QUALITY_TYPES, ['long_run'] as WorkoutType[]]) {
+    for (const w of day) {
+      const type = classifyWorkout(w);
+      if (types.includes(type) && want.includes(type)) {
+        return type === 'long_run' ? { name: (w.name || '').trim(), type, long: true } : { name: (w.name || '').trim(), type };
+      }
+    }
   }
   return null;
 }
-
 
 const addDays = (date: string, n: number) => {
   const d = new Date(`${date}T12:00:00Z`);
@@ -58,9 +62,9 @@ async function loadPlan(supabase: Db, date: string): Promise<unknown> {
   return plan?.parsed_workouts ?? null;
 }
 
-const workoutOf = (stored: unknown, date: string): QualityWorkout | null => {
+const workoutOf = (stored: unknown, date: string, types: WorkoutType[] = SHARE_TYPES): QualityWorkout | null => {
   for (const workouts of planWorkoutLists(stored)) {
-    const found = qualityWorkout(workouts, dowOf(date));
+    const found = qualityWorkout(workouts, dowOf(date), types);
     if (found) return found;
   }
   return null;
@@ -111,7 +115,8 @@ const isMarked = (date: string, special: string[], planDays: PlanDays) =>
 const dayWorkout = (stored: unknown, date: string, special: string[], planDays: PlanDays): QualityWorkout | null => {
   const picked = planDays[weekOf(date)];
   if (picked?.includes(dowOf(date))) return markedOf(stored, date, false);
-  const planned = picked ? null : workoutOf(stored, date);
+  // A picked week decides its QUALITY days by the pick alone; its long run is still the plan's.
+  const planned = picked ? workoutOf(stored, date, ['long_run']) : workoutOf(stored, date);
   return planned ?? (special.includes(date) ? markedOf(stored, date, true) : null);
 };
 

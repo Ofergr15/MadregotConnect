@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { apiHeaders, useApi } from '@/lib/api';
 import { getViewMode, useIsSuperUser } from '@/lib/impersonation';
 import { GROUP_HEX } from '@/lib/utils';
+import { PackShareFlow, type PackChoice } from '@/components/share/PackShareFlow';
 import { ShareSheet } from '@/components/ShareSheet';
 import { fetchFeedItemByActivity } from '@/lib/feed-client';
 import { withoutHeartRate, type FeedItem } from '@/lib/feed/project';
@@ -115,6 +116,9 @@ export default function QualitySessionPage() {
   const [done, setDone] = useState<Partial<Record<0 | Pack, boolean>>>({});
   const [detail, setDetail] = useState(false);
   const [shareItem, setShareItem] = useState<FeedItem | null>(null);
+  // "שיתוף כל הדבוקות": one look picked on pack 1, drawn on every pack (PackShareFlow).
+  const [packShare, setPackShare] = useState<PackChoice[] | null>(null);
+  const [askedAll, setAskedAll] = useState(false);
   const [opening, setOpening] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [marking, setMarking] = useState(false);
@@ -145,6 +149,21 @@ export default function QualitySessionPage() {
     ? (a, b) => b.runner.run.dist - a.runner.run.dist
     : (a, b) => (a.key ?? Infinity) - (b.key ?? Infinity) || b.runner.run.dist - a.runner.run.dist), [seen, sortBy]);
   const picked = seen.find(s => s.runner.run.id === sel[pack]) || null;
+
+  // Every pack with runners, its runners longest first, and who is on its card: the one
+  // picked on this screen, else the longest run of the morning.
+  const packChoices = useMemo<PackChoice[]>(() => ([1, 2, 3] as Pack[]).flatMap(p => {
+    const list = (byPack[p] || []).slice().sort((a, b) => b.runner.run.dist - a.runner.run.dist);
+    if (!list.length) return [];
+    const runners = list.map(s => ({ id: s.runner.run.id, name: s.runner.run.name, km: s.runner.run.dist / 1000, paceSec: s.runner.run.pace || null }));
+    const chosen = list.some(s => s.runner.run.id === sel[p]) ? sel[p]! : runners[0].id;
+    return [{ pack: p, title: shareTitle(p, sess?.workout ?? null), runners, chosen }];
+  }), [byPack, sel, sess]);
+  // From the feed's card (?all=1): straight into the one-look flow, once.
+  useEffect(() => {
+    if (askedAll || !packChoices.length || typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('all') === '1') { setAskedAll(true); setPackShare(packChoices); }
+  }, [askedAll, packChoices]);
 
   if (!allowed) {
     const exitViewAs = () => { localStorage.removeItem('view_as_role'); window.location.reload(); };
@@ -308,6 +327,9 @@ export default function QualitySessionPage() {
                     return <span key={p} className={done[p] ? 'ok' : ''}>{done[p] ? '✓ ' : ''}{packName(p)}{who ? `: ${first(who.runner.run.name)}` : ''}</span>;
                   })}
                 </div>
+                {packChoices.length > 1 && (
+                  <button className="btn all" onClick={() => setPackShare(packChoices)}>שיתוף כל הדבוקות · מראה אחד</button>
+                )}
                 <button className="btn" disabled={!picked} onClick={() => { setDetail(true); top(); }}>
                   {picked ? <>לאימון של <bdi dir="ltr">{first(picked.runner.run.name)}</bdi> ›</> : `בחר רץ ב${packName(pack)}`}
                 </button>
@@ -315,6 +337,9 @@ export default function QualitySessionPage() {
             </>
           )}
         </>
+      )}
+      {packShare && (
+        <PackShareFlow packs={packShare} onClose={() => setPackShare(null)} onShared={p => setDone(d => ({ ...d, [p]: true }))} />
       )}
       {shareItem && (
         <ShareSheet subject={{ kind: 'workout', item: shareItem }} onClose={closeShare} onShared={() => { shared.current = true; }} />

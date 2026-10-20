@@ -8,6 +8,8 @@ import { thinHrTrace } from '@/lib/share/hr-trace';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
 const EDITOR = readFileSync(join(SRC, 'components/share/WorkoutShareEditor.tsx'), 'utf8');
+// The editor's render options live in the look (lib/share/workout-look.ts, 2026-10-20): its strip + the look = the two.
+const LOOK = readFileSync(join(SRC, 'lib/share/workout-look.ts'), 'utf8');
 const SHEET = readFileSync(join(SRC, 'components/ShareSheet.tsx'), 'utf8');
 const RENDER = readFileSync(join(SRC, 'lib/feed/share-image.ts'), 'utf8');
 const DETAILS = readFileSync(join(SRC, 'app/api/activities/details/route.ts'), 'utf8');
@@ -289,7 +291,7 @@ describe('the lap chart in the editor', () => {
   });
 
   it('is the editor\'s alone until rollout: the club\'s sheet keeps its chart', () => {
-    expect(EDITOR.match(/editorChart: true/g)).toHaveLength(2);
+    expect((EDITOR + LOOK).match(/editorChart: true/g)).toHaveLength(2);
     expect(SHEET).not.toMatch(/editorChart/);
     expect(RENDER).toMatch(/const trace = c\.editorChart && act\.hrTrace/);
     expect(RENDER).toMatch(/if \(c\.editorChart && !labelled && !taken\.some\(y => Math\.abs\(y - topY\) < p\(11\)\)\) \{\s*ctx\.fillText\(formatPace\(fast\), start, topY\);/);
@@ -297,7 +299,7 @@ describe('the lap chart in the editor', () => {
 
   it('runs time left to right for everyone, the scale kept on the right', () => {
     expect(EDITOR).not.toMatch(/useIsSuperUser/);
-    expect(EDITOR.match(/timeLtr: true,/g)).toHaveLength(2);
+    expect((EDITOR + LOOK).match(/timeLtr: true,/g)).toHaveLength(2);
     expect(SHEET).not.toMatch(/timeLtr/);
     expect(RENDER).toMatch(/const trtl = rtl && !c\.timeLtr;/);
     expect(RENDER).toMatch(/const barsStart = trtl \? start \+ dir \* gutter : rtl \? x0 : x0 \+ gutter;/);

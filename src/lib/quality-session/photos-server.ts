@@ -1,6 +1,6 @@
 import type { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
-import { sessionPhotosFoundCopy } from '@/lib/notifications/copy';
+import { sessionPhotosStartedCopy } from '@/lib/notifications/copy';
 import { addDaysToDateStr, israelNow, israelToday } from '@/lib/utils';
 import { COACH_ID, SUPER_USER_EMAIL } from '@/lib/constants';
 import { sessionFolderReadyCopy, sessionPhotosCopy } from '@/lib/notifications/copy';
@@ -157,6 +157,19 @@ export const WATCH_FROM_HOUR = 7;
 export const WATCH_UNTIL_HOUR = 15;
 /** Every quarter of an hour (Ofer, 10-19). The tick runs every five minutes. */
 const WATCH_EVERY_MS = 14 * 60_000;
+/**
+ * The first hour and a half of the morning (07:00–08:30, Ofer 10-20): the photos start
+ * coming in then, so the folder is looked at on every tick. A doubled tick (two
+ * minutes apart) still looks once.
+ */
+export const FAST_FROM_MIN = 7 * 60;
+export const FAST_UNTIL_MIN = 8 * 60 + 30;
+const FAST_EVERY_MS = 4 * 60_000;
+
+/** How long since the last look before the folder is looked at again, at this Israel minute of the folder's own day. */
+export function watchEveryMs(minuteOfDay: number, sameDay: boolean): number {
+  return sameDay && minuteOfDay >= FAST_FROM_MIN && minuteOfDay <= FAST_UNTIL_MIN ? FAST_EVERY_MS : WATCH_EVERY_MS;
+}
 
 export async function editorIds(supabase: Db): Promise<string[]> {
   return qualitySessionRecipientIds(supabase, SUPER_USER_EMAIL);
@@ -175,7 +188,7 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
   const drive = driveWriter();
   if (!drive) return [];
   const fired: string[] = [];
-  const { hour } = israelNow(now);
+  const { hour, minute } = israelNow(now);
   const today = israelToday(now);
   const ledger = await readFolderLedger(supabase);
   let dirty = false;
@@ -215,7 +228,8 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
     const entry = ledger[date];
     if (!entry || !entry.folderId || entry.skipped || entry.autoFeed === false) continue;
     const inWindow = date === today ? hour >= WATCH_FROM_HOUR : hour < WATCH_UNTIL_HOUR;
-    if (!inWindow || (entry.checkedAt && now.getTime() - Date.parse(entry.checkedAt) < WATCH_EVERY_MS)) continue;
+    const every = watchEveryMs(hour * 60 + minute, date === today);
+    if (!inWindow || (entry.checkedAt && now.getTime() - Date.parse(entry.checkedAt) < every)) continue;
     entry.checkedAt = now.toISOString();
     dirty = true;
     const card = await cardFor(supabase, date);
@@ -229,24 +243,26 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
     entry.previews = list.urls.slice(0, 3);
     if (!entry.autoPublish) {
       // Approval (the default since 10-19): nothing reaches the club by itself. The
-      // editors hear once per new batch; the staff card at the top of their feed decides.
+      // editors hear ONCE, when the morning's first photos land ("מתחילות לעלות",
+      // Ofer 10-20); after that the staff card's count moves and nobody is pushed
+      // again. `notifiedCount` set is the ledger's "already told".
       const told = entry.notifiedCount ?? 0;
       const fresh = list.urls.length - Math.max(told, have);
-      if (fresh > 0) {
+      if (fresh > 0 && told === 0 && !card) {
         for (const athleteId of await editorIds(supabase)) {
           try {
             await notifyAthlete({
               athleteId,
               kind: 'session_folder',
-              copy: (locale) => sessionPhotosFoundCopy(locale, { count: fresh, first: !card && told === 0 }),
+              copy: (locale) => sessionPhotosStartedCopy(locale, { count: list.urls.length }),
               url: '/feed',
               tag: `session-photos-found-${date}`,
             });
           } catch { /* best effort */ }
         }
-        entry.notifiedCount = list.urls.length;
         fired.push(`sessionPhotosFound:${date}:${fresh}`);
       }
+      if (fresh > 0) entry.notifiedCount = list.urls.length;
       continue;
     }
     if (list.urls.length <= have) continue;

@@ -230,12 +230,15 @@ describe('a day marked special', () => {
   // Friday 2026-10-02: a long run with reps in it, not a quality type.
   const friday = [w({ dayOfWeek: 5, name: 'ארוכה 40', description: '40 ק״מ עם 5×500' })];
 
-  it('is a quality day only once marked, named after the morning', async () => {
+  it('a long run is a share morning of its own (10-20); marked, it is special', async () => {
     const { loadQualityWorkout } = await import('@/lib/quality-session/server');
-    expect(await loadQualityWorkout(db(friday, []) as never, '2026-10-02')).toBeNull();
+    expect(await loadQualityWorkout(db(friday, []) as never, '2026-10-02')).toMatchObject({ name: 'ארוכה 40', type: 'long_run', long: true });
     const got = await loadQualityWorkout(db(friday, ['2026-10-02']) as never, '2026-10-02');
-    expect(got).toMatchObject({ name: 'ארוכה 40', special: true });
-    expect(await loadQualityWorkout(db(friday, ['2026-10-01']) as never, '2026-10-02')).toBeNull();
+    expect(got).toMatchObject({ name: 'ארוכה 40' });
+    expect(got?.special).toBeUndefined();
+    const easy = [w({ dayOfWeek: 5, name: 'קלה', description: '8 ק״מ קל' })];
+    expect(await loadQualityWorkout(db(easy, []) as never, '2026-10-02')).toBeNull();
+    expect(await loadQualityWorkout(db(easy, ['2026-10-02']) as never, '2026-10-02')).toMatchObject({ name: 'קלה', special: true });
   });
 
   it('a real quality day stays one, not "special"', async () => {
