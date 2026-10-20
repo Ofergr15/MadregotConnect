@@ -458,12 +458,21 @@ function Academy({ d }: { d: Data }) {
         <span className="text-[12.5px] font-extrabold text-ink-400">מתאמנים באקדמיה</span>
         <div className="flex flex-wrap items-baseline gap-1.5"><b className="text-[44px] font-black leading-tight"><B>{a.trainees.length}</B></b><span className="font-bold text-ink-500">מתאמנים · <B>{a.coaches}</B> מאמנים</span></div>
         <p className="text-[12.5px] text-ink-400">{a.trainees.map((t) => `${t.name} — ${dm(t.joined)}`).join(' · ')}</p>
+        {/* The joins in order, and the next one still to come (mockup). */}
+        <div className="mt-3.5 flex items-center">
+          {[...a.trainees].sort((p, q) => p.joined.localeCompare(q.joined)).map((t, i) => (
+            <div key={t.id} className="contents">
+              {i > 0 && <div className="mx-1 mb-3.5 h-0.5 flex-1 bg-[#C2185B]" />}
+              <div className="flex flex-col items-center gap-[3px]"><i className="block h-3.5 w-3.5 rounded-full bg-[#C2185B]" /><span className="text-[10.5px] text-ink-400"><B>{dm(t.joined)}</B></span></div>
+            </div>
+          ))}
+          <div className="mx-1 mb-3.5 h-0.5 flex-1 bg-[repeating-linear-gradient(90deg,#C9CCD6_0_4px,transparent_4px_8px)]" />
+          <div className="flex flex-col items-center gap-[3px]"><i className="block h-3.5 w-3.5 rounded-full bg-[#E6E7EC]" /><span className="text-[10.5px] text-ink-400">הבא</span></div>
+        </div>
       </Card>
       <Sub>מתאמנים · שבוע מול שבוע</Sub>
       <Card>
-        <CardHead title="מתאמנים בכל שבוע" side="מאז ההשקה" />
-        <CountColumns weeks={ws} values={tw} color={PINK} soft="#F3D3E2" nowLabel="השבוע" />
-        <Legend items={[{ label: 'השבוע', color: PINK }, { label: 'שבועות קודמים', color: '#F3D3E2' }, { label: 'הצטרף מתאמן', color: '#15803d' }]} />
+        <CountColumns weeks={ws} values={tw} color={PINK} track="#F7EEF3" />
         <Tri items={[[<B key="a">{tw.at(-1)}</B>, 'השבוע'], [<B key="b">{(tw.at(-1) ?? 0) - (tw.at(-2) ?? 0)}</B>, 'מול שבוע שעבר'], [<B key="c">+{(tw.at(-1) ?? 0) - (tw.at(-5) ?? 0)}</B>, 'ב-4 שבועות']]} />
       </Card>
       <Sub>המשפך · מאז שנפתח</Sub>
