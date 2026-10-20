@@ -16,7 +16,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { NAMES_KEY, PhotosLoading } from '@/components/photos/PhotosLoading';
-import { ArrowRight, ImageOff, Search, X } from 'lucide-react';
+import { ArrowRight, ImageOff, Search, X, MoreHorizontal } from 'lucide-react';
 import { preload } from 'swr';
 import { apiFetcher, useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -87,7 +87,10 @@ function FolderCard({ f, onOpen, onMenu }: { f: Folder; onOpen: () => void; onMe
   const t = useTranslations('photosPage');
   const press = useLongPress(onMenu);
   const [down, setDown] = useState(false);
+  // "⋯" on the white strip (Ofer 10-20): the long press's menu, where it can be seen.
+  // A sibling over the card, not inside it — a button cannot hold a button.
   return (
+    <div className="relative h-full">
     <button
       onClick={() => { if (!press.fired.current) onOpen(); }}
       onPointerDown={() => { prefetchFolder(f.id); setDown(true); press.start(); }}
@@ -95,18 +98,23 @@ function FolderCard({ f, onOpen, onMenu }: { f: Folder; onOpen: () => void; onMe
       onPointerLeave={() => { setDown(false); press.cancel(); }}
       onPointerCancel={() => { setDown(false); press.cancel(); }}
       onContextMenu={(e) => { e.preventDefault(); onMenu(); }}
-      className={cn('relative block w-full overflow-hidden rounded-[20px] bg-card text-start shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-transform duration-150 [-webkit-touch-callout:none] select-none', down && 'scale-[0.97]')}
+      className={cn('relative flex h-full w-full flex-col justify-start overflow-hidden rounded-[20px] bg-card text-start shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-transform duration-150 [-webkit-touch-callout:none] select-none', down && 'scale-[0.97]')}
     >
       <div className="relative h-[118px] w-full">
         <Cover src={f.covers[0]} blur={f.coverBlur} />
         <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-extrabold text-white"><bdi dir="ltr">{f.count}</bdi></span>
         {f.pinned && <span className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-extrabold text-ink-900">📌</span>}
       </div>
-      <div className="px-2.5 pb-2.5 pt-2">
+      <div className="px-2.5 pb-2.5 pe-9 pt-2">
         <b className="line-clamp-2 block text-[13.5px] font-extrabold leading-tight text-ink-900" dir="auto">{folderTitle(f)}</b>
         <span className="text-[11.5px] text-ink-400">{subline(f, t('count', { n: f.count }))}</span>
       </div>
     </button>
+    <button type="button" aria-label="אפשרויות לתיקייה" onClick={onMenu}
+      className="absolute bottom-1 end-0.5 grid h-11 w-11 place-items-center rounded-full text-ink-400 active:bg-page">
+      <MoreHorizontal className="h-5 w-5" />
+    </button>
+    </div>
   );
 }
 
