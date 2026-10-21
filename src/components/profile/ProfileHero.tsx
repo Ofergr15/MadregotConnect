@@ -15,7 +15,7 @@ import type { ReactNode } from 'react';
  * action is (edit, follow) belong to the page that knows whose profile it is, so
  * both come in as nodes.
  */
-export function ProfileHero({ photo, name, nameAside, chips, counts, actions }: {
+export function ProfileHero({ photo, name, nameAside, chips, counts, actions, core = false }: {
   /** 88px circle — the page decides whether it opens or uploads. */
   photo: ReactNode;
   name: string;
@@ -24,6 +24,8 @@ export function ProfileHero({ photo, name, nameAside, chips, counts, actions }: 
   chips?: ReactNode;
   counts: ReactNode;
   actions?: ReactNode;
+  /** In the גרעין: a glowing gold ring around the photo (mockup core-profile C1, 10-21). */
+  core?: boolean;
 }) {
   return (
     <section className="relative -mx-4 -mt-5 sm:-mx-6">
@@ -32,7 +34,9 @@ export function ProfileHero({ photo, name, nameAside, chips, counts, actions }: 
       </div>
       <div className="-mt-10 px-4 sm:px-6">
         <div className="flex gap-3">
-          <div className="relative h-[88px] w-[88px] flex-none rounded-full ring-4 ring-page shadow-md">{photo}</div>
+          <div className={core
+            ? 'relative h-[88px] w-[88px] flex-none rounded-full shadow-[0_0_0_3px_#fff,0_0_0_6px_#d6ab48,0_0_24px_4px_rgba(214,171,72,0.45)]'
+            : 'relative h-[88px] w-[88px] flex-none rounded-full ring-4 ring-page shadow-md'}>{photo}</div>
           {/* The row starts inside the band (-mt-10); the text starts under it. */}
           <div className="min-w-0 flex-1 self-start pt-[46px]">
             <div className="flex items-center gap-1.5">

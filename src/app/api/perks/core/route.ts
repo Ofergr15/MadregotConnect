@@ -22,13 +22,16 @@ export async function GET(request: Request) {
   const rows = (data || []) as Array<Record<string, unknown>>;
   const coreRows = rows.filter((p) => p.tier === 'core_runner');
   let name: string | null = null;
+  let gender: string | null = null;
   if (caller.athleteId) {
-    const { data: a } = await db.from('athletes').select('name').eq('id', caller.athleteId).maybeSingle();
+    const { data: a } = await db.from('athletes').select('name, gender').eq('id', caller.athleteId).maybeSingle();
     name = (a as { name?: string | null } | null)?.name ?? null;
+    gender = (a as { gender?: string | null } | null)?.gender ?? null;
   }
   return NextResponse.json({
     preview: !core,
     name,
+    gender,
     clubCount: rows.filter((p) => p.tier !== 'core_runner').length,
     perks: coreRows.map((p) => ({
       id: p.id, sponsorName: p.sponsor_name, title: p.title_he, description: p.description_he, imageUrl: p.image_url,

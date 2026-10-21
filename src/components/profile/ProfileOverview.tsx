@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import './core.css';
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Camera, Loader2 } from 'lucide-react';
@@ -72,6 +73,10 @@ export function ProfileOverview({
     part === 'header' && athleteId ? `/api/athletes/${athleteId}/public` : null,
   );
   const isCore = me?.isCoreRunner === true;
+  // The core runner's own perks summary — the badge's gender and the row's counts.
+  const { data: core } = useApi<{ gender: string | null; perks: Array<{ tone: string | null }> }>(isCore && onEditProfile && part === 'header' ? '/api/perks/core' : null);
+  const coreWord = core?.gender === 'female' ? 'רצת גרעין' : 'רץ גרעין';
+  const coreNow = core?.perks.filter((p) => p.tone === 'now').length ?? 0;
   // Used for the mark beside the name and nothing else. There is deliberately no
   // perks row on this screen: the entitlement explains itself where the perks
   // actually are (Partnerships names the tier on the exclusive ones), so a
@@ -128,9 +133,19 @@ export function ProfileOverview({
                     </div>
             }
             name={athleteName}
-            nameAside={isCore ? <CoreRunnerBadge className="text-base" /> : undefined}
+            core={isCore && !!onEditProfile}
+            nameAside={isCore && !onEditProfile ? <CoreRunnerBadge className="text-base" /> : undefined}
             chips={
               <>
+                {/* C1 (10-21): Hebrew in the profile; English stays on the card itself. */}
+                {isCore && onEditProfile && (
+                  <Link href="/dashboard/core" className="relative inline-flex items-center gap-1.5 overflow-hidden rounded-full bg-[#0c0c0d] py-1 pe-3 ps-1.5">
+                    <span className="mc-core-shine" aria-hidden />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/images/logo.png" alt="" className="mc-core-emb h-[18px] w-[18px] object-contain" />
+                    <span className="mc-core-foil text-[12.5px] font-black">{coreWord}</span>
+                  </Link>
+                )}
                 {profilePackChip(pub?.groupName, pub?.isAcademy ? pub.academyBand?.name : null) && (
                   <HeroChip brand>{profilePackChip(pub?.groupName, pub?.isAcademy ? pub.academyBand?.name : null)}</HeroChip>
                 )}
@@ -160,12 +175,17 @@ export function ProfileOverview({
               ) : undefined
             }
           />
-          {/* ═══ הגרעין שלי ═══ — core runners only: their perks page (mockup core-perks, 10-21). */}
+          {/* ═══ הגרעין שלי ═══ — core runners only (mockup core-profile C1, 10-21). */}
           {isCore && onEditProfile && (
-            <Link href="/dashboard/core" className="flex min-h-[60px] items-center gap-3 rounded-[16px] border-[1.5px] border-[#E7C04A] bg-gradient-to-br from-[#fffaf0] to-white px-3.5 py-2.5 active:opacity-80">
-              <span aria-hidden className="grid h-9 w-9 place-items-center rounded-[10px] bg-[#1a1a1a] text-[18px] text-[#FFD600]">🌟</span>
-              <span className="min-w-0 flex-1"><b className="block text-[15.5px] text-ink-900">הגרעין שלי</b><small className="block text-12 text-ink-400">ההטבות של רצי הגרעין</small></span>
-              <span className="text-[#c4c4c9]">‹</span>
+            <Link href="/dashboard/core" className="relative flex min-h-[64px] items-center gap-3 overflow-hidden rounded-[20px] bg-[#0c0c0d] px-4 py-3 text-white shadow-[0_14px_30px_-14px_rgba(122,92,18,0.8)] active:opacity-90">
+              <span aria-hidden className="absolute inset-0 bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.02)_0_1px,transparent_1px_3px),radial-gradient(80%_140%_at_85%_50%,rgba(255,214,120,0.16),transparent_60%)]" />
+              <span className="mc-core-shine" aria-hidden />
+              <span className="relative min-w-0 flex-1">
+                <span className="mc-core-foil block text-[11px] font-black">מדרגות · הגרעין</span>
+                <b className="block text-[17px]">ההטבות שלי</b>
+                <small className="block text-12 text-[#ffecbe]/70">{core ? `${core.perks.length} הטבות · ${coreNow} זמינות עכשיו` : 'הטבות לרצי הגרעין'}</small>
+              </span>
+              <span className="relative text-[20px] text-[#d6ab48]">‹</span>
             </Link>
           )}
           {/* ═══ SETUP PROGRESS — new members only, then gone for good ═══ */}

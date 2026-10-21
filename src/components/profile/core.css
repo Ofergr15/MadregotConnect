@@ -1,0 +1,9 @@
+/* The gold shine that crosses the core badge and row every few seconds (mockup core-profile C1). */
+@keyframes mc-core-shine { 0% { transform: translateX(-120%); } 60%, 100% { transform: translateX(220%); } }
+.mc-core-shine { position: absolute; top: 0; bottom: 0; width: 40%; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255, 240, 190, 0.28), transparent);
+  animation: mc-core-shine 3.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .mc-core-shine { animation: none; display: none; } }
+.mc-core-foil { background: linear-gradient(100deg, #9b7826, #f6dd8d 30%, #fff3cc 50%, #d6ab48 70%, #8c6a1c);
+  -webkit-background-clip: text; background-clip: text; color: transparent; }
+.mc-core-emb { filter: invert(1) sepia(1) saturate(5) hue-rotate(-6deg) brightness(1.05); mix-blend-mode: screen; }
