@@ -365,10 +365,13 @@ export function BestEfforts({ a }: { a: RunAnalysisData }) {
   );
 }
 
-export function Times({ total, moving }: { total: number; moving: number | null }) {
+export function Times({ total, moving, timer }: { total: number; moving: number | null; timer?: number | null }) {
   const t = useTranslations('runAnalysis');
   const net = moving && moving <= total ? moving : total;
   const pause = Math.max(0, total - net);
+  // The watch's timer, when it is a third number: Garmin's headline "Time", which leaves out
+  // only the minutes the watch was stopped (a Strava row has no timer of its own).
+  const showTimer = !!timer && timer !== net && Math.abs(timer - net) >= 5 && timer <= total;
   return (
     <section className="rounded-card bg-card p-3.5">
       <div className="flex gap-2">
@@ -376,6 +379,11 @@ export function Times({ total, moving }: { total: number; moving: number | null 
           <div key={l} className={cn('flex flex-1 flex-col rounded-[14px] p-2.5', k ? 'bg-[#FFF4E5]' : 'bg-[#F4F5F8]')}><b className={cn('text-lg font-black', k && 'text-[#B45309]')}><B>{v}</B></b><span className="text-[11px] text-ink-400">{l}</span></div>
         ))}
       </div>
+      {showTimer && (
+        <p className="mt-2 text-[11.5px] leading-relaxed text-ink-400">
+          {t('timerLine', { timer: clock(timer!), stopped: clock(Math.max(0, total - timer!)) })}
+        </p>
+      )}
     </section>
   );
 }

@@ -6406,7 +6406,7 @@
     "gapNote": "\"On flat ground\" — grade-adjusted pace: how fast the same effort would be with no climbs or descents. Faster than the actual pace uphill, slower downhill.",
     "pauseTime": "Stopped",
     "netTime": "Moving time",
-    "totalTime": "Total time",
+    "totalTime": "Elapsed time",
     "loadVeryHigh": "Load {n} — very high for one session (easy ~50–100, tempo ~150–250); give it 2–3 easy days.",
     "loadHigh": "Load {n} — a hard session.",
     "loadMid": "Load {n} — a normal session.",
@@ -6502,7 +6502,8 @@
     "heatCost": "heat cost per km",
     "heatHigh": "Heat and humidity slowed you by about {s} s/km — your real pace is faster than it reads. Drink plenty today.",
     "heatLow": "Comfortable — the heat cost only about {s} s/km.",
-    "heatNone": "Great running weather — no heat cost."
+    "heatNone": "Great running weather — no heat cost.",
+    "timerLine": "Watch timer (Garmin's Time): {timer} · the watch was stopped {stopped}"
   },
   "weekTab": {
     "title": "This week",

@@ -205,11 +205,17 @@ export function ActivityDetailBody({
       {/* Was this the workout that was asked for — as ONE row. The full breakdown
           (axis, reps, measured table) is a tap away instead of ~900px above the
           charts. Renders nothing for a viewer who may not read this score. */}
-      {/* #136: with the wall clock known, total = it and net = the timer — Strava's
-          "Elapsed" and "Moving" exactly (Garmin's own moving figure runs a few seconds
-          under its timer). Older rows have no wall clock: the trace's last second is
-          start to finish, and the timer is the floor. */}
-      {!mapOnly && <Times total={act.elapsed_duration ?? Math.max(act.duration || 0, trace?.stream?.t.at(-1) ?? 0)} moving={act.elapsed_duration ? act.duration : act.moving_duration ?? null} />}
+      {/* #136, the same three for every source (2026-10-21): total = start to finish
+          (Garmin elapsedDuration / Strava elapsed_time; the trace's last second for a row
+          synced before 166), moving = Garmin's movingDuration / Strava's moving_time — the
+          "Moving Time" both apps show — and stopped is the gap. The net used to be the
+          watch's TIMER on a Garmin run (1:50:52 on the 10 × 1600 of 10-20, where Garmin
+          and Strava say 1:49) and the moving time on a Strava one. The timer is Garmin's
+          headline "Time", so it stays, as a line under them. */}
+      {!mapOnly && <Times
+        total={act.elapsed_duration ?? Math.max(act.duration || 0, trace?.stream?.t.at(-1) ?? 0)}
+        moving={act.moving_duration ?? act.duration ?? null}
+        timer={act.duration ?? null} />}
       {!mapOnly && an?.conditions && <Conditions c={an.conditions} />}
 
       {/* The watch ran a workout with reps: that IS the plan against execution (RunAnalysis). */}
