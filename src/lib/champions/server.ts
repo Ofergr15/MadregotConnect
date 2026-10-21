@@ -44,14 +44,14 @@ export async function readResults(db: Db): Promise<{ ready: boolean; rows: Resul
   };
 }
 
-export interface Suggestion { activityId: string; athleteId: string; name: string; avatarUrl: string | null; distance: ChampDistance; watchSeconds: number; raceName: string | null; raceDate: string; gender?: string | null }
+export interface Suggestion { activityId: string; athleteId: string; name: string; avatarUrl: string | null; distance: ChampDistance; watchSeconds: number; raceName: string | null; raceDate: string; gender?: string | null; location?: string | null }
 
 /** Race-day runs at a race distance, not yet a result — newest first. */
 export async function readSuggestions(db: Db, taken: Set<string>): Promise<Suggestion[]> {
   const { data } = await db.from('race_matches')
-    .select('activity_id, athlete_id, evidence, athlete_activities(distance, duration, start_time), events(name)')
+    .select('activity_id, athlete_id, evidence, athlete_activities(distance, duration, start_time), events(name, location)')
     .eq('is_race', true).order('created_at', { ascending: false }).limit(300);
-  const rows = (data || []) as unknown as Array<{ activity_id: string; athlete_id: string; evidence: { eventName?: string } | null; athlete_activities: { distance: number | null; duration: number | null; start_time: string } | null; events: { name: string } | null }>;
+  const rows = (data || []) as unknown as Array<{ activity_id: string; athlete_id: string; evidence: { eventName?: string } | null; athlete_activities: { distance: number | null; duration: number | null; start_time: string } | null; events: { name: string; location: string | null } | null }>;
   const fit = rows.flatMap((r) => {
     const a = r.athlete_activities;
     const d = distanceOf(a?.distance);
@@ -66,6 +66,7 @@ export async function readSuggestions(db: Db, taken: Set<string>): Promise<Sugge
     distance: d, watchSeconds: Math.round(a.duration!), raceName: r.events?.name ?? r.evidence?.eventName ?? null,
     raceDate: new Date(a.start_time).toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }),
     gender: who.get(r.athlete_id)?.gender ?? null,
+    location: r.events?.location ?? null,
   }));
   // Only what is worth an approval (Ofer 10-20): a runner's fastest per distance, and
   // only when it enters a top 10 (table.ts relevantSuggestions). Here, so the admin's

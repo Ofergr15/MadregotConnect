@@ -1,16 +1,18 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { apiHeaders, useApi } from '@/lib/api';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { AthleteLink } from '@/components/AthleteLink';
 import { Sheet, SkeletonList } from '@/components/ui';
 import {
-  CHAMP_DISTANCES, DISTANCE_LABEL, fmtRaceTime, parseRaceTime,
+  CHAMP_DISTANCES, DISTANCE_LABEL, DISTANCE_LONG, TOP, fmtRaceTime, parseRaceTime, placeOf, relevantSuggestions,
   type Board, type ChampDistance, type ChampScope, type ChampSex, type Ranked, type ResultRow,
 } from '@/lib/champions/table';
 import { cn } from '@/lib/utils';
 import { personMatches } from '@/lib/search/match';
+import { hintActivityAthlete } from '@/lib/activity/open-hint';
 
 // אלופי המדרגות (mockup ~/.cache/madregot/champions, Ofer 10-20): official race times
 // per distance, a podium with the faces, the pack (1, 2, 3 — not א ב ג), top 10, and the
@@ -133,7 +135,7 @@ function Row({ r, me }: { r: Ranked; me?: boolean }) {
   );
 }
 
-interface Suggestion { activityId: string; athleteId: string; name: string; distance: ChampDistance; watchSeconds: number; raceName: string | null; raceDate: string }
+interface Suggestion { activityId: string; athleteId: string; name: string; avatarUrl: string | null; gender?: string | null; location?: string | null; distance: ChampDistance; watchSeconds: number; raceName: string | null; raceDate: string }
 interface Athlete { id: string; name: string | null; status?: string | null }
 
 /** Staff: confirm race-day runs with the official time, add one by hand, take one off. */
@@ -167,6 +169,19 @@ function ManageSheet({ open, onOpenChange, onChanged }: { open: boolean; onOpenC
         {msg && <p role="status" className="rounded-xl bg-page px-3 py-2 text-13 font-bold text-ink-700">{msg}</p>}
         {data && !data.ready && <p className="text-13 text-accent-red-ink">מיגרציה 163 עוד לא הודבקה.</p>}
 
+        {(data?.suggestions.length ?? 0) > 0 && (
+          <Waiting
+            suggestions={data!.suggestions}
+            results={data!.results}
+            busy={busy}
+            onApprove={(list) => call('POST', list.length === 1 ? { ...list[0] } : { bulk: list }).then((ok) => {
+              if (ok && list.length > 1) setMsg(`✓ אושרו ${list.length} · ${DISTANCE_LONG[list[0].distance]} בטבלה`);
+              return ok;
+            })}
+            onReject={(s) => void call('POST', { bulk: [{ ...s, seconds: s.watchSeconds, rejected: true }] }).then((ok) => ok && setMsg('לא נכנס לטבלה'))}
+          />
+        )}
+
         <div className="rounded-[16px] bg-page p-3">
           <b className="block text-[15px] text-ink-900">הוספת תוצאה רשמית</b>
           <input value={form.q} onChange={(e) => setForm({ ...form, q: e.target.value, athleteId: '' })} placeholder="מי" aria-label="מי"
@@ -189,21 +204,6 @@ function ManageSheet({ open, onOpenChange, onChanged }: { open: boolean; onOpenC
             onClick={async () => { if (await add({ athleteId: form.athleteId, distance: form.distance, seconds: parseRaceTime(form.time), raceName: form.raceName, raceDate: form.raceDate })) setForm({ ...form, athleteId: '', q: '', time: '', raceName: '' }); }}
             className="mt-2 min-h-[46px] w-full rounded-xl bg-[#1525FF] text-[15px] font-extrabold text-white disabled:opacity-50">להוסיף לטבלה</button>
         </div>
-
-        {(data?.suggestions.length ?? 0) > 0 && (
-          <div>
-            <div className="flex items-center justify-between gap-2 px-1">
-              <b className="text-13 text-ink-400">מחכים לאישור · מהשעון, ביום מרוץ</b>
-              <button type="button" disabled={busy}
-                onClick={() => void call('POST', { bulk: data!.suggestions.map((s) => ({ ...s, seconds: s.watchSeconds })) }).then((ok) => ok && setMsg(`אושרו ${data!.suggestions.length}. אפשר לערוך כל אחד למטה`))}
-                className="min-h-[36px] rounded-full bg-[#1525FF] px-3 text-13 font-extrabold text-white">לאשר את כל {data!.suggestions.length}</button>
-            </div>
-            {data!.suggestions.slice(0, 40).map((s) => (
-              <SuggestionRow key={s.activityId} s={s} busy={busy} onAdd={(sec) => add({ ...s, seconds: sec })}
-                onReject={() => void call('POST', { bulk: [{ ...s, seconds: s.watchSeconds, rejected: true }] }).then((ok) => ok && setMsg('לא נכנס לטבלה'))} />
-            ))}
-          </div>
-        )}
 
         {(data?.results.length ?? 0) > 0 && (
           <div>
@@ -256,20 +256,145 @@ function ResultEdit({ r, busy, onSave, onCancel }: { r: ResultRow; busy: boolean
   );
 }
 
-function SuggestionRow({ s, busy, onAdd, onReject }: { s: Suggestion; busy: boolean; onAdd: (seconds: number | null) => Promise<boolean>; onReject: () => void }) {
-  const [time, setTime] = useState(fmtRaceTime(s.watchSeconds));
+const israelToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+const isWomanG = (g?: string | null) => /^(f|female|woman|נקבה|אישה)$/i.test((g || '').trim());
+const dmShort = (iso: string) => `${Number(iso.slice(8, 10))}.${Number(iso.slice(5, 7))}`;
+type Approval = Suggestion & { seconds: number };
+
+/**
+ * The race-day runs waiting for approval (mockup ~/.cache/madregot/champions-approval.html,
+ * Ofer 10-21): a tab per distance, the podium as it will stand, and each run with the
+ * place it takes, where it was (race · date · place) and a link to the run itself. The
+ * official time is typed over the watch's and the places move at once; a run that falls
+ * out of the top 10 drops under the line. "Approve all" is the open distance only.
+ */
+function Waiting({ suggestions, results, busy, onApprove, onReject }: {
+  suggestions: Suggestion[]; results: ResultRow[]; busy: boolean;
+  onApprove: (list: Approval[]) => Promise<boolean>; onReject: (s: Suggestion) => void;
+}) {
+  const counts = new Map<ChampDistance, number>();
+  for (const s of suggestions) counts.set(s.distance, (counts.get(s.distance) ?? 0) + 1);
+  const [dist, setDist] = useState<ChampDistance>(counts.has('half') ? 'half' : (CHAMP_DISTANCES.find((d) => counts.has(d)) ?? 'half'));
+  const open = counts.has(dist) ? dist : (CHAMP_DISTANCES.find((d) => counts.has(d)) ?? dist);
+  // What is being typed, and the official times once typed (on Enter or leaving the box —
+  // so a half-typed time does not throw the row around).
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  const [fixed, setFixed] = useState<Record<string, number>>({});
+  const today = israelToday();
+
+  const secondsOf = (s: Suggestion) => fixed[s.activityId] ?? s.watchSeconds;
+  const commit = (s: Suggestion) => {
+    const sec = parseRaceTime(typed[s.activityId] ?? '');
+    if (sec) setFixed((f) => ({ ...f, [s.activityId]: sec }));
+    setTyped((t) => { const n = { ...t }; delete n[s.activityId]; return n; });
+  };
+  const here = suggestions.filter((s) => s.distance === open);
+  const asRow = (s: Suggestion): ResultRow => ({
+    id: `w:${s.activityId}`, athleteId: s.athleteId, name: s.name, avatarUrl: s.avatarUrl, gender: s.gender ?? null,
+    pack: null, distance: s.distance, seconds: secondsOf(s), raceName: s.raceName, raceDate: s.raceDate,
+  });
+  const waitingRows = here.map(asRow);
+  const pool = [...results, ...waitingRows];
+  // Still worth a place with the times as typed (the same rule as the server's list).
+  const keep = new Set(relevantSuggestions(results, here.map((s) => ({ ...s, watchSeconds: secondsOf(s) })), today).map((s) => s.activityId));
+  const ranked = here
+    .map((s) => ({ s, seconds: secondsOf(s), place: placeOf(pool, asRow(s), today) ?? 99, inTop: keep.has(s.activityId) }))
+    .sort((a, b) => a.seconds - b.seconds);
+  const inTop = ranked.filter((r) => r.inTop);
+  const out = ranked.filter((r) => !r.inTop);
+  const podium = inTop.filter((r) => r.place <= 3).sort((a, b) => a.place - b.place);
+  const race = here[0]?.raceName;
+
+  const row = ({ s, seconds, place, inTop: on }: (typeof ranked)[number]) => {
+    const edited = seconds !== s.watchSeconds;
+    const where = [s.raceName || 'מרוץ', dmShort(s.raceDate), s.location].filter(Boolean).join(' · ');
+    const run = `/dashboard/activities/${s.activityId}`;
+    const hint = () => hintActivityAthlete(s.activityId, s.athleteId);
+    return (
+      <div key={s.activityId} className={cn('border-t-[0.5px] border-black/[0.08] px-2.5 py-2 first:border-t-0', !on && 'opacity-55', edited && 'bg-[#EEF0FF]')}>
+        <div className="flex items-center gap-2">
+          <span className={cn('w-6 shrink-0 text-center text-[15px] font-black tabular-nums', place === 1 ? 'text-[#C8961E]' : place === 2 ? 'text-[#8A93A3]' : place === 3 ? 'text-[#B4652A]' : 'text-ink-400')}>
+            {on && place <= TOP ? place : '—'}
+          </span>
+          <Link href={run} onClick={hint} className="flex min-w-0 flex-1 items-center gap-2">
+            <FeedAvatar name={s.name} url={s.avatarUrl} className="h-9 w-9 shrink-0 text-[13px]" />
+            <span className="min-w-0">
+              <b dir="auto" className="block text-[14.5px] leading-tight text-ink-900">{s.name}</b>
+              {edited
+                ? <span className="block text-[11.5px] font-bold text-[#1525FF]">בשעון <bdi dir="ltr">{fmtRaceTime(s.watchSeconds)}</bdi></span>
+                : isWomanG(s.gender) && <span className="text-[11px] font-bold text-[#9D174D]">נשים</span>}
+            </span>
+          </Link>
+          <input
+            value={typed[s.activityId] ?? fmtRaceTime(seconds)}
+            onChange={(e) => setTyped((t) => ({ ...t, [s.activityId]: e.target.value }))}
+            onBlur={() => commit(s)}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+            dir="ltr" inputMode="numeric" aria-label={`זמן רשמי · ${s.name}`}
+            className={cn('h-[36px] w-[76px] shrink-0 rounded-[10px] text-center text-[15px] font-extrabold tabular-nums', edited ? 'bg-white text-[#1525FF]' : 'bg-page text-ink-900')}
+          />
+          <button type="button" disabled={busy} aria-label={`לאשר · ${s.name}`} onClick={() => void onApprove([{ ...s, seconds }])}
+            className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-[#15803d] text-[16px] font-black text-white disabled:opacity-50">✓</button>
+          <button type="button" disabled={busy} aria-label={`לא · ${s.name}`} onClick={() => onReject(s)}
+            className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-page text-[15px] font-black text-ink-500 disabled:opacity-50">✕</button>
+        </div>
+        {/* Where it was, and the run itself (Ofer 10-21: "race, date, location — and a link to the run"). */}
+        <Link href={run} onClick={hint} className="ms-[76px] mt-0.5 flex min-h-[26px] items-center gap-1 text-[12px] text-ink-500">
+          <span aria-hidden>📍</span>
+          <span dir="auto" className="min-w-0 truncate">{where}</span>
+          <span className="ms-auto shrink-0 font-bold text-[#1525FF]">לריצה ‹</span>
+        </Link>
+      </div>
+    );
+  };
+
   return (
-    <div className="mt-1.5 rounded-[14px] bg-page px-3 py-2">
-      <div className="flex items-center justify-between gap-2 text-[14px]">
-        <b dir="auto" className="truncate">{s.name}</b>
-        <span className="shrink-0 text-12 text-ink-400">{DISTANCE_LABEL[s.distance]} · {s.raceName || 'מרוץ'} · {dm(s.raceDate)}</span>
+    <div>
+      <section className="overflow-hidden rounded-[24px] px-3.5 pt-3.5 text-white" style={{ background: 'radial-gradient(120% 90% at 85% 0%, #5B3FC4 0%, #23208F 55%, #151364 100%)' }}>
+        <p className="text-[12px] font-bold opacity-75">מחכים לאישור · מהשעון, ביום מרוץ</p>
+        <p dir="auto" className="mt-0.5 text-[19px] font-black leading-tight">{DISTANCE_LONG[open]}{race ? ` · ${race}` : ''}</p>
+        <div className="mt-3 flex gap-1 rounded-full bg-white/[0.12] p-[3px]" role="tablist">
+          {CHAMP_DISTANCES.map((d) => (
+            <button key={d} type="button" role="tab" aria-selected={open === d} disabled={!counts.has(d)} onClick={() => setDist(d)}
+              className={cn('min-h-[34px] flex-1 rounded-full text-[13px] font-bold disabled:opacity-35', open === d ? 'bg-white text-[#23208F]' : 'text-white/75')}>
+              {DISTANCE_LABEL[d]}<span className="ms-1 text-[11px] opacity-70">{counts.get(d) ?? 0}</span>
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 flex items-end justify-center gap-2.5">
+          {[podium[1], podium[0], podium[2]].map((r, i) => r ? (
+            <div key={r.s.activityId} className="flex w-[96px] flex-col items-center text-center">
+              <span className="block overflow-hidden rounded-full border-[3px]" style={{ borderColor: ['#E6E9EF', '#F7D774', '#F3C3A0'][i], width: i === 1 ? 66 : 54, height: i === 1 ? 66 : 54 }}>
+                <FeedAvatar name={r.s.name} url={r.s.avatarUrl} className="h-full w-full text-[18px]" />
+              </span>
+              <b dir="auto" className="mt-1.5 block max-w-full truncate text-[12.5px]">{r.s.name}</b>
+              <span dir="ltr" className="block text-[12px] tabular-nums opacity-80">{fmtRaceTime(r.seconds)}</span>
+              <span className="mt-1.5 grid w-full place-items-center rounded-t-[12px] text-[20px] font-black"
+                style={{ height: [46, 64, 34][i], color: ['#8A93A3', '#C8961E', '#B4652A'][i], background: `linear-gradient(180deg, ${['#E6E9EF', '#F7D774', '#F3C3A0'][i]}, rgba(255,255,255,.85))` }}>{r.place}</span>
+            </div>
+          ) : <div key={i} className="w-[96px]" />)}
+        </div>
+      </section>
+
+      <div className="mx-1 mb-1.5 mt-3 flex items-baseline justify-between">
+        <b className="text-13 text-ink-500">{inTop.length} נכנסים לטבלה</b>
+        <span className="text-[12px] text-ink-400">זמן מהשעון — לתקן לרשמי</span>
       </div>
-      <div className="mt-1.5 flex gap-2">
-        <input value={time} onChange={(e) => setTime(e.target.value)} dir="ltr" inputMode="numeric" aria-label="זמן רשמי" className="min-h-[40px] min-w-0 flex-1 rounded-xl bg-white px-3 text-base" />
-        <button type="button" disabled={busy} onClick={() => void onAdd(parseRaceTime(time))} className="min-h-[40px] rounded-xl bg-ink-900 px-3 text-13 font-bold text-white">לאשר</button>
-        <button type="button" disabled={busy} onClick={onReject} className="min-h-[40px] rounded-xl bg-white px-3 text-13 font-bold text-ink-500">לא</button>
+      <div className="overflow-hidden rounded-[20px] bg-card">
+        {inTop.map(row)}
+        {out.length > 0 && <p className="bg-[#fff5f5] px-3 py-2 text-[11.5px] font-extrabold text-accent-red-ink">מחוץ לטופ 10 — לא ייכנסו</p>}
+        {out.map(row)}
       </div>
-      <small className="mt-1 block text-[11.5px] text-ink-400">בשעון: {fmtRaceTime(s.watchSeconds)} — לתקן לזמן הרשמי לפני האישור</small>
+      {inTop.length > 1 && (
+        <div className="sticky bottom-2 z-10 mt-3">
+          <button type="button" disabled={busy}
+            onClick={() => void onApprove(inTop.map((r) => ({ ...r.s, seconds: r.seconds }))).then((ok) => ok && setFixed({}))}
+            className="min-h-[52px] w-full rounded-full text-[16px] font-black text-white shadow-[0_10px_24px_rgba(35,32,143,0.35)] disabled:opacity-60"
+            style={{ background: 'linear-gradient(135deg, #23208F, #5B3FC4)' }}>
+            לאשר את כל {inTop.length} · {DISTANCE_LABEL[open]}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
