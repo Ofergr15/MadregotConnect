@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Gift, Copy, CheckCircle2, ExternalLink } from 'lucide-react';
@@ -114,17 +115,19 @@ function BenefitsPageContent() {
       <p className="text-sm text-ink-400" dir="rtl">{t('subtitle')}</p>
 
       {showCoreBanner && (
-        <div className="flex items-center gap-3 rounded-card bg-card p-3.5" dir="rtl">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-600/15 text-base">
+        // Opens "הגרעין שלי" — the core perks with their status, maps and contacts (10-21).
+        <Link href="/dashboard/core" className="flex items-center gap-3 rounded-card bg-gradient-to-br from-[#1a1a1a] via-[#3a2f12] to-[#7a5c12] p-3.5 text-white" dir="rtl">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-base">
             <CoreRunnerBadge />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-ink-700">{t('coreMemberTitle')}</p>
-            <p className="mt-0.5 text-xs leading-relaxed text-ink-400">
+            <p className="text-sm font-bold text-[#FFD600]">{t('coreMemberTitle')}</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-white/80">
               {t('coreMemberNote', { count: corePerks.length })}
             </p>
           </div>
-        </div>
+          <span className="text-white/60">‹</span>
+        </Link>
       )}
 
       {isLoading && !data ? (

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { notifyAthlete } from '@/lib/push';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { CORE_RUNNER_ROLE, isCoreRunner, isLegacyCoreRunner } from '@/lib/core-runner';
@@ -97,6 +98,8 @@ export async function PUT(request: Request) {
     const body = (await request.json().catch(() => ({}))) as {
       athleteId?: string;
       isCoreRunner?: boolean;
+      /** false = add quietly, without the welcome push. */
+      notify?: boolean;
     };
     if (!body.athleteId || typeof body.isCoreRunner !== 'boolean') {
       return NextResponse.json({ error: 'athleteId and isCoreRunner are required' }, { status: 400 });
@@ -137,7 +140,29 @@ export async function PUT(request: Request) {
     // the caller, and requireSession is memoised per token — so the athlete picks
     // it up within the cache TTL on their next request. Worth knowing when
     // testing on yourself: your own 🌰 will not appear on the very next tap.
-    return NextResponse.json({ success: true, isCoreRunner: body.isCoreRunner, roleReset: clearingLegacy });
+    // Into the גרעין: one push, "ברוך/ה הבא/ה לגרעין", opening "הגרעין שלי" with the
+    // welcome sheet (mockup core-perks, Ofer 10-21). Opt out per call with notify:false.
+    let pushed = false;
+    if (body.isCoreRunner && body.notify !== false) {
+      try {
+        const [{ data: who }, { count }] = await Promise.all([
+          supabase.from('athletes').select('name, gender').eq('id', body.athleteId).maybeSingle(),
+          supabase.from('club_perks').select('id', { count: 'exact', head: true }).eq('active', true).eq('tier', 'core_runner'),
+        ]);
+        const w = who as { name?: string | null; gender?: string | null } | null;
+        const first = (w?.name || '').trim().split(/\s+/)[0];
+        const she = w?.gender === 'female';
+        const r = await notifyAthlete({
+          athleteId: body.athleteId, kind: 'core_welcome', url: '/dashboard/core?welcome=1', tag: 'core-welcome', category: 'achievements',
+          title: `🌟 ${she ? 'ברוכה הבאה' : 'ברוך הבא'} לגרעין${first ? `, ${first}` : ''}!`,
+          body: `${count ?? 0} הטבות מחכות לך: נעליים, פיזיו, LIFT ועוד`,
+        });
+        pushed = (r.delivered ?? 0) > 0;
+      } catch (err) {
+        console.warn('core welcome push failed', err);
+      }
+    }
+    return NextResponse.json({ success: true, isCoreRunner: body.isCoreRunner, roleReset: clearingLegacy, pushed });
   } catch (error) {
     console.error('Failed to update core-runner flag:', error);
     return NextResponse.json({ error: 'Failed to update' }, { status: 500 });

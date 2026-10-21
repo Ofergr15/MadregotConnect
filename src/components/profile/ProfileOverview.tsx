@@ -160,6 +160,14 @@ export function ProfileOverview({
               ) : undefined
             }
           />
+          {/* ═══ הגרעין שלי ═══ — core runners only: their perks page (mockup core-perks, 10-21). */}
+          {isCore && onEditProfile && (
+            <Link href="/dashboard/core" className="flex min-h-[60px] items-center gap-3 rounded-[16px] border-[1.5px] border-[#E7C04A] bg-gradient-to-br from-[#fffaf0] to-white px-3.5 py-2.5 active:opacity-80">
+              <span aria-hidden className="grid h-9 w-9 place-items-center rounded-[10px] bg-[#1a1a1a] text-[18px] text-[#FFD600]">🌟</span>
+              <span className="min-w-0 flex-1"><b className="block text-[15.5px] text-ink-900">הגרעין שלי</b><small className="block text-12 text-ink-400">ההטבות של רצי הגרעין</small></span>
+              <span className="text-[#c4c4c9]">‹</span>
+            </Link>
+          )}
           {/* ═══ SETUP PROGRESS — new members only, then gone for good ═══ */}
           <SetupProgressCard onOpen={onOpenSetup} />
         </>
