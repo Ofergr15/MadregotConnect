@@ -215,6 +215,12 @@ export function AcademyShell({
   // lands on the screen it was opened from. Next's own state is kept in each entry.
   type NavState = { mcAcademy: true; section: AcademySection; thread: string | null; plan: string | null; member: string | null };
   const navFirst = useRef(true);
+  /** How many academy screens deep this visit is — "back" inside the academy uses history while > 0. */
+  const navDepth = useRef(0);
+  /** Where a screen was opened from, for its "‹ חזרה ל…" chip (audit #4, #5, #9). */
+  const [cameFrom, setCameFrom] = useState<{ label: string } | null>(null);
+  /** The trainee sheet was opened from the migration board: closing it goes back there (#6). */
+  const reopenMigration = useRef(false);
   const navExpected = useRef<NavState | null>(null);
   const sameNav = (a: Partial<NavState> | null | undefined, b: NavState) =>
     !!a && a.section === b.section && (a.thread ?? null) === b.thread && (a.plan ?? null) === b.plan && (a.member ?? null) === b.member;
@@ -241,6 +247,7 @@ export function AcademyShell({
     }
     if (sameNav(window.history.state as Partial<NavState> | null, st)) return;
     window.history.pushState({ ...(window.history.state ?? {}), ...st }, '', url.toString());
+    navDepth.current += 1;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section, threadAthlete, planAthlete, selectedId]);
   useEffect(() => {
@@ -248,14 +255,22 @@ export function AcademyShell({
       const b = e.state as Partial<NavState> | null;
       if (!b?.mcAcademy) return;
       navExpected.current = { mcAcademy: true, section: b.section!, thread: b.thread ?? null, plan: b.plan ?? null, member: b.member ?? null };
+      navDepth.current = Math.max(0, navDepth.current - 1);
+      setCameFrom(null);
       setSection(b.section!); setThreadAthlete(b.thread ?? null); setPlanAthlete(b.plan ?? null); setSelectedId(b.member ?? null);
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
+  /** Back inside the academy: the previous academy screen when there is one, else home. */
+  const back = useCallback(() => {
+    if (navDepth.current > 0) window.history.back();
+    else { setCameFrom(null); setThreadAthlete(null); setPlanAthlete(null); setSection('overview'); }
+  }, []);
+
   const go = useCallback((s: AcademySection) => {
-    setThreadAthlete(null); setPlanAthlete(null);
+    setThreadAthlete(null); setPlanAthlete(null); setCameFrom(null);
     if (s !== 'members') setTraineeFilter(null);
     setSection(sectionAllowed(s, manager) ? s : 'overview');
   }, [manager]);
@@ -516,6 +531,12 @@ export function AcademyShell({
       )}
 
       <div className={cn('mt-2.5', compact && 'mt-0 md:mt-2.5')}>
+        {/* Opened from a trainee or from Home: one tap back there (coach-area audit #4, #5, #9). */}
+        {cameFrom && section !== 'overview' && (
+          <button type="button" onClick={back} className="mb-2 inline-flex min-h-[40px] items-center gap-1 rounded-full bg-card px-3.5 text-[14px] font-bold text-[#007aff] shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
+            ‹ חזרה {cameFrom.label === 'לבית' ? 'לבית' : `ל־${cameFrom.label}`}
+          </button>
+        )}
         {section === 'overview' ? (
           <AcademyHome
             data={members}
@@ -527,7 +548,7 @@ export function AcademyShell({
             suggestionBusy={assigning}
             capacity={capacity}
             isManager={manager}
-            onSquare={(k) => { setTraineeFilter(k); setSection('members'); }}
+            onSquare={(k) => { setTraineeFilter(k); setCameFrom({ label: 'לבית' }); setSection('members'); }}
             onSuggestion={(s) => void runSuggestion(s)}
             onSuggestionMore={setMore}
             onQuick={onQuick}
@@ -553,11 +574,11 @@ export function AcademyShell({
             // "לבנות שבוע קל": this week copied to next, light, for that trainee alone.
             onLightWeek={(id) => setCopyOpen({ athleteId: id, weekStart: thisWeek, only: [id], mode: 'light' })}
             onWrite={openThread}
-            topBar={{ onBack: () => go('overview'), search: searchButton, backLabel: 'חזרה לבית' }}
+            topBar={{ onBack: back, search: searchButton, backLabel: 'חזרה' }}
           />
         ) : section === 'members' ? (
           traineeFilter ? (
-            <FilteredTrainees members={roster} filter={traineeFilter} onClear={() => setTraineeFilter(null)} onSelect={(m) => setSelectedId(m.athleteId)} />
+            <FilteredTrainees members={roster} filter={traineeFilter} onClear={() => { if (cameFrom) back(); else setTraineeFilter(null); }} onSelect={(m) => setSelectedId(m.athleteId)} />
           ) : (
             <>
             {manager && <ImportEntry onOpen={() => setImportOpen(true)} />}
@@ -634,7 +655,7 @@ export function AcademyShell({
 
       {/* ── The move-in board (migration path) ── */}
       {migrationOpen && (
-        <MigrationBoard onClose={() => { setMigrationOpen(false); void reload(); }} onSelect={(id) => { setMigrationOpen(false); setSelectedId(id); }} />
+        <MigrationBoard onClose={() => { setMigrationOpen(false); void reload(); }} onSelect={(id) => { setMigrationOpen(false); reopenMigration.current = true; setSelectedId(id); }} />
       )}
 
       {/* ── Existing trainees: השלמת פרטים, and "לתקן" from a home approval card ── */}
@@ -793,7 +814,11 @@ export function AcademyShell({
       <MemberSheet
         member={selected}
         weekStart={thisWeek}
-        onOpenChange={(o) => { if (!o) setSelectedId(null); }}
+        onOpenChange={(o) => {
+          if (o) return;
+          setSelectedId(null);
+          if (reopenMigration.current) { reopenMigration.current = false; setTimeout(() => setMigrationOpen(true), SHEET_HANDOFF_MS); }
+        }}
         onRemove={manager ? (id) => void removeFromAcademy(id) : undefined}
         removing={!!selected && saving === selected.athleteId}
         coaches={members?.coaches}
@@ -802,8 +827,8 @@ export function AcademyShell({
         onChanged={reload}
         onChangeCoach={manager ? (m) => { setSelectedId(null); setTimeout(() => setCoachMove(m), SHEET_HANDOFF_MS); } : undefined}
         onOpenThread={openThread}
-        onOpenPlan={openPlan}
-        onOpenTests={() => { setSelectedId(null); go('tests'); }}
+        onOpenPlan={(id) => { setCameFrom({ label: (selected?.name || '').split(/\s+/)[0] || 'מתאמן' }); openPlan(id); }}
+        onOpenTests={() => { const label = (selected?.name || '').split(/\s+/)[0] || 'מתאמן'; setSelectedId(null); go('tests'); setCameFrom({ label }); }}
         onWriteWorkout={(id) => router.push(`/dashboard/academy/week?athleteId=${encodeURIComponent(id)}`)}
         canViewAs={canViewAs}
       />

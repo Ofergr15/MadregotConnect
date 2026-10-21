@@ -64,6 +64,13 @@ function Progress() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-2.5 sm:px-6 sm:py-8" dir="rtl">
       <div className={cn('relative flex min-h-[44px] items-center justify-center', folded && TOP_BAR)}>
+        {/* A coach on a trainee's progress: back to the academy screen they came from (audit #12). */}
+        {view === 'progress' && linked && (
+          <button type="button" onClick={() => (window.history.length > 1 ? window.history.back() : window.location.assign('/dashboard/academy'))}
+            className="absolute start-0 flex min-h-[44px] items-center gap-0.5 text-[16px] font-bold text-brand-600">
+            <ChevronRight className="h-5 w-5" aria-hidden />{t('back')}
+          </button>
+        )}
         {view !== 'progress' && (
           <Link href={hrefFor('progress')} replace scroll={false}
             className="absolute start-0 flex min-h-[44px] items-center gap-0.5 text-[16px] font-bold text-brand-600">
