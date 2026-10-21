@@ -29,7 +29,7 @@ import { JOIN_TOKEN_KEY, isUnauthorizedError, sessionlessSignInPath } from '@/li
 import { shouldSyncOnOpen, stravaOpenSyncKey } from '@/lib/providers/open-sync';
 import { getSupabase } from '@/lib/supabase/client';
 import { primeFeedFirstPage } from '@/lib/feed-client';
-import { markAppReady } from '@/lib/app-ready';
+import { markAppReady, onAppReady } from '@/lib/app-ready';
 import { PhoneAppStrip, PhoneOpenBeacon } from '@/components/onboarding/PhoneAppStrip';
 import { REVIEW_LAST_PATH_KEY } from '@/lib/review-context';
 import {
@@ -357,6 +357,10 @@ export default function AppLayout({
       } catch {
         return; // private mode: no stamp to read and none to write, so don't ask
       }
+      // After the first screen is up: this POST (Strava's API behind it, ~1.2 s) went out
+      // with the screen's own reads and competed with them on every open.
+      await new Promise<void>((resolve) => { onAppReady(() => setTimeout(resolve, 1500)); });
+      if (cancelled) return;
       try {
         const res = await fetch('/api/strava/sync-activities', {
           method: 'POST',

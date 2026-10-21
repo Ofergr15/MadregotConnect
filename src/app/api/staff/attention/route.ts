@@ -36,23 +36,26 @@ export async function GET(request: Request) {
     }
     const supabase = createServerClient();
     const today = israelToday();
-    const [scope, { data, error }] = await Promise.all([
+    const since = `${addDaysToDateStr(today, -WAITING_DAYS)}T00:00:00Z`;
+    // The thread messages by date, in the same wave — not `.in(feedback_id, <every id>)`
+    // after it: that long list was the slowest read on the staff tab bar (16 s once under
+    // load, 2026-10-20). A message is never older than its feedback, so the window holds them all.
+    const [scope, { data, error }, { data: msgs }] = await Promise.all([
       staffAthleteScope(supabase, caller),
       supabase
         .from('workout_feedback')
         .select('id, athlete_id, created_at, pain, wants_feedback, comment, coach_reply_at')
-        .gte('created_at', `${addDaysToDateStr(today, -WAITING_DAYS)}T00:00:00Z`)
+        .gte('created_at', since)
         .or('pain.eq.true,wants_feedback.eq.true,comment.not.is.null'),
+      supabase.from('workout_feedback_messages').select('feedback_id, sender_athlete_id, created_at').gte('created_at', since),
     ]);
     if (error) return NextResponse.json({ pain: 0, wantsReply: 0, people: 0, total: 0 });
     type Row = { id: string; athlete_id: string; created_at: string; pain: boolean | null; wants_feedback: boolean | null; comment: string | null; coach_reply_at: string | null };
     const rows = inScope(data as Row[], scope, (r) => r.athlete_id);
-    const { data: msgs } = rows.length
-      ? await supabase.from('workout_feedback_messages').select('feedback_id, sender_athlete_id, created_at').in('feedback_id', rows.map((r) => r.id))
-      : { data: [] };
     const owner = new Map(rows.map((r) => [r.id, r.athlete_id]));
     const thread = new Map<string, Array<{ createdAt: string; fromStaff: boolean }>>();
     for (const m of (msgs || []) as Array<{ feedback_id: string; sender_athlete_id: string; created_at: string }>) {
+      if (!owner.has(m.feedback_id)) continue;
       thread.set(m.feedback_id, [...(thread.get(m.feedback_id) || []), { createdAt: m.created_at, fromStaff: m.sender_athlete_id !== owner.get(m.feedback_id) }]);
     }
     const waiting = rows.filter((r) => isWaiting({

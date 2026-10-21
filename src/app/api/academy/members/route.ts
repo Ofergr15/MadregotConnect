@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import {
@@ -98,6 +99,10 @@ export async function GET(request: Request) {
     const extraRolesRead = isManager
       ? Promise.resolve(supabase.from('athletes').select('id, extra_roles').eq('coach_id', COACH_ID))
       : null;
+    // The bands and the multi-coach check need nothing from the roster either: sent with
+    // it, read below (they were two more trips after it).
+    const bandsRead = Promise.resolve(supabase.from('academy_bands').select('id, band_number, name, goal, pace_profile').eq('active', true));
+    const multiCoachRead = isManager ? hasTraineeCoachesTable(supabase) : Promise.resolve(undefined);
     const paired = await supabase.from('athletes').select(COLS_PAIRED).eq('coach_id', COACH_ID);
     if (paired.error) {
       hasPairing = false;
@@ -149,7 +154,7 @@ export async function GET(request: Request) {
     const scope: 'academy' | 'coach' = isManager ? 'academy' : 'coach';
     // Can a trainee have several coaches yet (migration 135)? The manager's
     // "שיבוץ מאמנים" picker says "one coach until the database update" when not.
-    const multiCoach = isManager && hasPairing ? await hasTraineeCoachesTable(supabase) : undefined;
+    const multiCoach = isManager && hasPairing ? await multiCoachRead : undefined;
 
     // The goal bands (דבוקות). Read whole — six rows — and sent to every staff
     // caller: a coach needs the band names to read their own trainees, not only
@@ -158,10 +163,7 @@ export async function GET(request: Request) {
     // (which is exactly when it's being set up).
     const bandById = new Map<string, AcademyBand>();
     if (hasPairing) {
-      const { data: bandRows, error: bandErr } = await supabase
-        .from('academy_bands')
-        .select('id, band_number, name, goal, pace_profile')
-        .eq('active', true);
+      const { data: bandRows, error: bandErr } = await bandsRead;
       if (!bandErr) {
         for (const b of bandRows || []) bandById.set(b.id, toBand(b));
       }
@@ -197,17 +199,22 @@ export async function GET(request: Request) {
     // Activity aggregation. Paged because PostgREST caps a response at 1000
     // rows and all-time totals would silently undercount past that — the same
     // trap /api/academy/stats already guards.
-    const acts: any[] = [];
-    for (let offset = 0; ; offset += 1000) {
-      const { data: page, error } = await supabase
-        .from('athlete_activities')
-        .select('athlete_id, distance, duration, start_time')
-        .in('athlete_id', memberIds)
-        .range(offset, offset + 999);
-      if (error || !page || page.length === 0) break;
-      acts.push(...page);
-      if (page.length < 1000) break;
-    }
+    const tailRead = Promise.all([
+      computeAcademyWeekAdherence({ weekStart }),
+      supabase.from('benchmark_results').select('id', { count: 'exact', head: true })
+        .eq('coach_id', COACH_ID).eq('status', 'pending'),
+      supabase.from('weekly_plans').select('athlete_id').in('athlete_id', memberIds).eq('week_start_date', weekStart),
+      supabase.from('academy_tests').select('athlete_id, status').in('athlete_id', memberIds),
+    ]);
+    // Ordered, and the shared pager (lib/supabase/paginate): the hand-rolled walk had
+    // no order, so a page boundary could repeat or skip a run, and went one page at a time.
+    const acts = await fetchAllRows<any>((from, to) => supabase
+      .from('athlete_activities')
+      .select('athlete_id, distance, duration, start_time')
+      .in('athlete_id', memberIds)
+      .order('start_time')
+      .order('id')
+      .range(from, to)).catch(() => [] as any[]);
 
     type Acc = { km: number; runs: number; dur: number };
     const zero = (): Acc => ({ km: 0, runs: 0, dur: 0 });
@@ -237,35 +244,20 @@ export async function GET(request: Request) {
       if (r.start_time && (!prev || r.start_time > prev)) lastAt.set(r.athlete_id, r.start_time);
     }
 
-    // Planned-vs-actual for the same week, from the one implementation the
-    // compliance tab and the weekly-report cron already share.
-    const adherence = await computeAcademyWeekAdherence({ weekStart });
+    // Planned-vs-actual for the same week (the compliance tab's and the weekly cron's own
+    // implementation), the pending results queue, whose PERSONAL week is still unwritten
+    // and who has an approved test: four reads that need only the member ids, together
+    // (they ran one after another, 2026-10-20 speed pass). Each guarded as before — a read
+    // error reads as "unknown", never as a false alarm.
+    const [adherence, pend, plansRes, testsRes] = await tailRead;
     const adherenceById = new Map(adherence.athletes.map((a) => [a.athleteId, a.week]));
-
-    // Pending results queue — a manager signal, and cheap to fold in here
-    // rather than making the overview wait on a second round trip. Guarded:
-    // `status` may be unmigrated, in which case nothing is pending.
-    let pendingResults = 0;
-    const pend = await supabase
-      .from('benchmark_results')
-      .select('id', { count: 'exact', head: true })
-      .eq('coach_id', COACH_ID)
-      .eq('status', 'pending');
-    if (!pend.error) pendingResults = pend.count || 0;
-
-    // The manager's "מחכה לך" (academy-dash.html): whose PERSONAL week is still unwritten,
-    // and who has no approved test (their paces then fall back to the band). Both guarded:
-    // a read error reads as "unknown" (undefined), never as a false alarm.
+    const pendingResults = pend.error ? 0 : pend.count || 0;
     const personal = new Set<string>();
-    let personalKnown = false;
-    const plansRes = await supabase.from('weekly_plans').select('athlete_id')
-      .in('athlete_id', memberIds).eq('week_start_date', weekStart);
-    if (!plansRes.error) { personalKnown = true; for (const r of plansRes.data || []) personal.add(r.athlete_id); }
+    const personalKnown = !plansRes.error;
+    if (personalKnown) for (const r of plansRes.data || []) personal.add(r.athlete_id);
     const tested = new Set<string>();
-    let testsKnown = false;
-    const testsRes = await supabase.from('academy_tests').select('athlete_id, status').in('athlete_id', memberIds);
-    if (!testsRes.error) {
-      testsKnown = true;
+    const testsKnown = !testsRes.error;
+    if (testsKnown) {
       for (const r of testsRes.data || []) if ((r.status ?? 'approved') === 'approved') tested.add(r.athlete_id);
     }
 

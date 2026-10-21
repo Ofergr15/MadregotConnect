@@ -70,6 +70,8 @@ export async function GET(request: Request) {
     const academyRows = (rows || []).filter(a => a.is_academy);
     const coachMap = isManager ? null : await coachIdsByTrainee(supabase, undefined, academyRows);
     const roster = academyRows.filter(a => !coachMap || coachesTrainee(coachMap, a.id, caller.athleteId));
+    // The coach pairs for the rows are read now, alongside the chat service, not after it.
+    const pairsRead = coachMap ? Promise.resolve(coachMap) : coachIdsByTrainee(supabase, undefined, academyRows);
 
     if (roster.length === 0) {
       return NextResponse.json({ ...buildInbox([]), scope: isManager ? 'academy' : 'coach' });
@@ -155,7 +157,7 @@ export async function GET(request: Request) {
 
     // Each row names the trainee's coaches too, so the list can show the pair — the trainee
     // in purple, the coach in green (academy-dash.html). Read-only, a display field.
-    const pairs = coachMap ?? await coachIdsByTrainee(supabase, undefined, academyRows);
+    const pairs = await pairsRead;
     const nameOf = new Map((rows || []).map(a => [a.id, a.name || '']));
     const avatarOf = new Map((rows || []).map(a => [a.id, (a as { avatar_url?: string | null }).avatar_url ?? null]));
     const viewer = (rows || []).find(a => a.id === caller.athleteId) as { gender?: string | null } | undefined;

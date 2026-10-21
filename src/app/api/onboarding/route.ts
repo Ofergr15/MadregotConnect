@@ -68,6 +68,9 @@ export async function GET(request: Request) {
       .select('id', { count: 'exact', head: true })
       .eq('athlete_id', auth.user.athleteId)
       .then((r) => r);
+    // The phone-app state needs only the push count, so it starts as soon as that lands —
+    // alongside the row, not after it (one wave fewer on this every-screen read).
+    const phoneRead = pushRead.then((r) => phoneAppState(auth.user.athleteId!, r.count ?? 0, new URL(request.url).origin));
 
     let migrated = true;
     let { data: row, error } = await supabase
@@ -112,7 +115,7 @@ export async function GET(request: Request) {
             .maybeSingle()
             .then(({ data: group }) => (group?.name as string | undefined) || null)
         : Promise.resolve(null),
-      phoneAppState(auth.user.athleteId, pushCount ?? 0, new URL(request.url).origin),
+      phoneRead,
     ]);
 
     const state = computeSetupState({

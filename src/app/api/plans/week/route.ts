@@ -56,7 +56,10 @@ export async function GET(req: NextRequest) {
     const whose = asTrainee ?? caller.athleteId;
     // A week can have more than one row (e.g. a draft + a pushed version) —
     // prefer 'pushed', same precedence as /api/dashboard/weekly.
-    const [{ data: rowsRaw }, ownCounts] = await Promise.all([
+    // Everything this answer may need goes out at once (it was three waves in a row, on
+    // every home and feed open): the row that says academy-only, the day sessions and the
+    // reader's lane are read alongside the plan rows, and dropped when they turn out unused.
+    const [{ data: rowsRaw }, ownCounts, whoseRow, daySessionsAll, laneRead] = await Promise.all([
       supabase
         .from('weekly_plans')
         .select('parsed_workouts, status, created_at, athlete_id')
@@ -65,19 +68,20 @@ export async function GET(req: NextRequest) {
         .eq('week_start_date', weekStart),
       // A trainee who left the academy reads the club's week again (scope-server.ts).
       ownPlanRowsCount(whose),
+      laneParam ? supabase.from('athletes').select('is_academy, group_id').eq('id', whose).maybeSingle().then((r) => r.data) : Promise.resolve(null),
+      daySessionWorkouts(weekStart),
+      laneOf ? groupNumberForAthlete(supabase, laneOf, weekStart) : Promise.resolve(null),
     ]);
     // An academy-only trainee's "my week" (their own card, or their coach's `&academy=1` read)
     // is only the week their coach writes — never the club's rows or day sessions.
-    const academyOnly = !!laneParam && (!forOther || !!asTrainee) && isAcademyOnly(
-      (await supabase.from('athletes').select('is_academy, group_id').eq('id', whose).maybeSingle()).data,
-    );
+    const academyOnly = !!laneParam && (!forOther || !!asTrainee) && isAcademyOnly(whoseRow);
     const rows = forOther && !asTrainee ? (rowsRaw || []).filter((r) => !r.athlete_id) : rowsForReader(withoutOwnRows(rowsRaw, ownCounts), whose, academyOnly);
 
     // The caller's own academy week first, never another trainee's (lib/plans/scope.ts).
     const plan = pickPlan(rows, whose);
 
     // One-day sessions on days the plan leaves empty are the week's too (lib/day-session/week-merge.ts).
-    const dayWorkouts = academyOnly ? [] : await daySessionWorkouts(weekStart);
+    const dayWorkouts = academyOnly ? [] : daySessionsAll;
     if (!plan) {
       if (dayWorkouts.length) {
         return NextResponse.json({ hasPlan: true, hasClubPlan: false, weekStart, publishedAt: null, lane: null, ownPlan: false, ...buildWeekBreakdown({ workouts: dayWorkouts }) });
@@ -88,7 +92,7 @@ export async function GET(req: NextRequest) {
     let parsed = plan.parsed_workouts;
     let lane: Lane | null = null;
     if (laneOf && !plan.athlete_id) {
-      lane = (await groupNumberForAthlete(supabase, laneOf, weekStart)) as Lane;
+      lane = laneRead as Lane;
       const workouts = laneWorkouts(plan.parsed_workouts, lane);
       // An empty lane would read as "no plan"; lane 1's week is better than none.
       if (workouts.length) parsed = { workouts };

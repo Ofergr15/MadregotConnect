@@ -42,7 +42,9 @@ describe('an academy-only trainee\'s week is only their own', () => {
   it('the week route applies it to "my week" and to the coach\'s academy read, and skips club day sessions', () => {
     const route = readFileSync('src/app/api/plans/week/route.ts', 'utf8');
     expect(route).toMatch(/rowsForReader\(withoutOwnRows\(rowsRaw, ownCounts\), whose, academyOnly\)/);
-    expect(route).toMatch(/academyOnly \? \[\] : await daySessionWorkouts/);
+    // Read alongside the plan (one wave), dropped for an academy-only reader.
+    expect(route).toMatch(/daySessionWorkouts\(weekStart\)/);
+    expect(route).toMatch(/academyOnly \? \[\] : daySessionsAll/);
   });
 });
 
