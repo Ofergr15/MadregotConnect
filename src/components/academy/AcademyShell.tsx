@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useRef, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import {
@@ -207,6 +207,52 @@ export function AcademyShell({
     if (tab === 'registrations' && isManager) setRegistrationsOpen(true);
     if (linkThread) setThreadAthlete(linkThread);
   }, [linkTab, linkThread, isManager]);
+
+  // ── History (coach-area audit 10-21, #1–#3) ───────────────────────────────
+  // Every academy screen is a browser-history entry: the section, the open trainee
+  // sheet, the thread, the plan. The phone's back (iOS swipe) then walks back through
+  // the academy instead of leaving it for the feed, and coming back from the week page
+  // lands on the screen it was opened from. Next's own state is kept in each entry.
+  type NavState = { mcAcademy: true; section: AcademySection; thread: string | null; plan: string | null; member: string | null };
+  const navFirst = useRef(true);
+  const navExpected = useRef<NavState | null>(null);
+  const sameNav = (a: Partial<NavState> | null | undefined, b: NavState) =>
+    !!a && a.section === b.section && (a.thread ?? null) === b.thread && (a.plan ?? null) === b.plan && (a.member ?? null) === b.member;
+  useEffect(() => {
+    const st: NavState = { mcAcademy: true, section, thread: threadAthlete, plan: planAthlete, member: selectedId };
+    const url = new URL(window.location.href);
+    // A deep link is applied once; leaving ?tab= behind made every remount jump back to it (#10).
+    url.searchParams.delete('tab'); url.searchParams.delete('thread');
+    if (navFirst.current) {
+      navFirst.current = false;
+      const back = window.history.state as Partial<NavState> | null;
+      // Returning to this page (back from the week page): restore where the coach was.
+      if (back?.mcAcademy && !linkTab && !linkThread && !sameNav(back, st)) {
+        navExpected.current = { mcAcademy: true, section: back.section!, thread: back.thread ?? null, plan: back.plan ?? null, member: back.member ?? null };
+        setSection(back.section!); setThreadAthlete(back.thread ?? null); setPlanAthlete(back.plan ?? null); setSelectedId(back.member ?? null);
+        return;
+      }
+      window.history.replaceState({ ...(window.history.state ?? {}), ...st }, '', url.toString());
+      return;
+    }
+    if (navExpected.current) {
+      const hit = sameNav(navExpected.current, st);
+      if (hit) { navExpected.current = null; return; }
+    }
+    if (sameNav(window.history.state as Partial<NavState> | null, st)) return;
+    window.history.pushState({ ...(window.history.state ?? {}), ...st }, '', url.toString());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section, threadAthlete, planAthlete, selectedId]);
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      const b = e.state as Partial<NavState> | null;
+      if (!b?.mcAcademy) return;
+      navExpected.current = { mcAcademy: true, section: b.section!, thread: b.thread ?? null, plan: b.plan ?? null, member: b.member ?? null };
+      setSection(b.section!); setThreadAthlete(b.thread ?? null); setPlanAthlete(b.plan ?? null); setSelectedId(b.member ?? null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   const go = useCallback((s: AcademySection) => {
     setThreadAthlete(null); setPlanAthlete(null);
@@ -573,7 +619,9 @@ export function AcademyShell({
         ) : section === 'results' ? (
           <AcademyResults />
         ) : section === 'threads' ? (
-          <AcademyThreads key={threadAthlete ?? 'inbox'} initialOpenId={threadAthlete} />
+          <AcademyThreads key={threadAthlete ?? 'inbox'} initialOpenId={threadAthlete}
+            // Opened from a trainee (or Home): back returns there, not to the inbox (#3).
+            onExit={threadAthlete ? () => window.history.back() : undefined} />
         ) : section === 'payments' && manager ? (
           <AcademyPayments />
         ) : section === 'settings' && manager ? (

@@ -556,8 +556,9 @@ async function savePast(
       updated_at: now,
     });
   }
-  let written = 0;
-  for (const r of rows) {
+  // Side by side, not one after another (coach-area audit 10-21, P1): each row keeps its
+  // own fallback and its own failure, but a round of twenty no longer waits twenty trips.
+  const counts = await Promise.all(rows.map(async (r) => {
     let res: { data: unknown; error: unknown } = await supabase
       .from('academy_tests')
       .upsert(r, { onConflict: 'athlete_id,test_date,protocol', ignoreDuplicates: true })
@@ -568,10 +569,10 @@ async function savePast(
         .upsert(withoutColumns([r], ['status', 'submitted_by', 'submitted_at', 'approved_by', 'approved_at'])[0], { onConflict: 'athlete_id,test_date,protocol', ignoreDuplicates: true })
         .select('id');
     }
-    if (res.error) console.error('POST /api/academy/tests: a past test failed:', res.error);
-    else written += Array.isArray(res.data) ? res.data.length : res.data ? 1 : 0;
-  }
-  return written;
+    if (res.error) { console.error('POST /api/academy/tests: a past test failed:', res.error); return 0; }
+    return Array.isArray(res.data) ? res.data.length : res.data ? 1 : 0;
+  }));
+  return counts.reduce((a, b) => a + b, 0);
 }
 
 /**

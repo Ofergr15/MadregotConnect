@@ -15,18 +15,20 @@ import { AcademyThreadPanel } from './AcademyThreadPanel';
 // band and the order is now different. A stale list would still be showing them as
 // owed an answer.
 
-export function AcademyThreads({ initialOpenId = null }: {
+export function AcademyThreads({ initialOpenId = null, onExit }: {
   /**
    * A thread to open straight away — the `?thread=<traineeId>` a staff push lands
    * on (lib/academy/deep-links.ts). Followed when it changes too, so a second push
    * tapped while this tab is already showing opens the new thread.
    */
   initialOpenId?: string | null;
+  /** When the thread was opened from elsewhere (a trainee sheet): its back goes there. */
+  onExit?: () => void;
 } = {}) {
   const [openId, setOpenId] = useState<string | null>(initialOpenId);
   useEffect(() => { if (initialOpenId) setOpenId(initialOpenId); }, [initialOpenId]);
 
   if (!openId) return <ThreadInbox onOpen={setOpenId} />;
 
-  return <AcademyThreadPanel athleteId={openId} onBack={() => setOpenId(null)} />;
+  return <AcademyThreadPanel athleteId={openId} onBack={onExit && openId === initialOpenId ? onExit : () => setOpenId(null)} />;
 }

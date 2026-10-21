@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAthleteId } from '@/lib/use-athlete-id';
 import { WeekBoard } from '@/components/academy/book/WeekBoard';
 import { TraineeHeader } from '@/components/academy/TraineeHeader';
@@ -11,11 +11,16 @@ import { TraineeHeader } from '@/components/academy/TraineeHeader';
 // route's decision (`mayCoach`), not this page's.
 function Week() {
   const params = useSearchParams();
+  const router = useRouter();
   const own = useAthleteId();
   const athleteId = params.get('athleteId') || own;
   if (!athleteId) return null;
   return (
     <div className="mx-auto max-w-3xl space-y-3">
+      {/* Back to where the coach came from — the academy restores that screen from history
+          (coach-area audit 10-21, #2); a link opened cold goes to the academy itself. */}
+      <button type="button" onClick={() => (window.history.length > 1 ? router.back() : router.push('/dashboard/academy'))}
+        className="inline-flex min-h-[44px] items-center text-[17px] text-[#007aff]" dir="rtl">‹ חזרה</button>
       {/* A coach looking at a trainee: who they are, their goal and their volume first. */}
       {params.get('athleteId') && params.get('athleteId') !== own && <TraineeHeader athleteId={athleteId} />}
       <WeekBoard athleteId={athleteId} initialWeek={params.get('weekStart')} />

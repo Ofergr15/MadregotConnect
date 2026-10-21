@@ -131,16 +131,17 @@ export async function POST(request: Request) {
     }
 
     const outcome: RoundOutcome = { invited: [], failed: [] };
-    for (const athleteId of athleteIds) {
-      const { error } = await supabase
-        .from('academy_test_invitations')
-        .insert({
-          athlete_id: athleteId,
-          protocol,
-          proposed_slots: slots,
-          status: 'proposed',
-          created_by: caller.athleteId || null,
-        });
+    // Side by side (coach-area audit 10-21, P2); each athlete keeps its own answer below.
+    const results = await Promise.all(athleteIds.map(async (athleteId) => ({ athleteId, error: (await supabase
+      .from('academy_test_invitations')
+      .insert({
+        athlete_id: athleteId,
+        protocol,
+        proposed_slots: slots,
+        status: 'proposed',
+        created_by: caller.athleteId || null,
+      })).error })));
+    for (const { athleteId, error } of results) {
 
       if (!error) {
         outcome.invited.push(athleteId);

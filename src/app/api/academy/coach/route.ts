@@ -80,13 +80,16 @@ export async function PUT(request: Request) {
     // trusted from the picker: the picker is built from the same list, but this
     // endpoint is reachable without it.
     const coachNames: string[] = [];
+    // One read for all of them, not one per coach (coach-area audit 10-21, P3).
+    const { data: coachRows, error: coachErr } = await supabase
+      .from('athletes')
+      .select('id, name, role, extra_roles')
+      .in('id', coachIds)
+      .eq('coach_id', COACH_ID);
+    const byId = new Map(((coachRows || []) as Array<{ id: string; name: string; role: string | null; extra_roles: string[] | null }>).map((c) => [c.id, c]));
     for (const coachId of coachIds) {
-      const { data: coach, error } = await supabase
-        .from('athletes')
-        .select('id, name, role, extra_roles')
-        .eq('id', coachId)
-        .eq('coach_id', COACH_ID)
-        .maybeSingle();
+      const coach = byId.get(coachId);
+      const error = coachErr;
       if (error || !coach) {
         return NextResponse.json({ error: 'No such coach in this club' }, { status: 404 });
       }
