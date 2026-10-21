@@ -335,6 +335,7 @@ function AccountSection({ person: p, onDone }: { person: Person; onDone: () => v
   const [busy, setBusy] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<'pause' | 'remove' | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
   const call = async (key: string, url: string, method: string, body: Record<string, string>) => {
     setBusy(key);
     try {
@@ -370,15 +371,85 @@ function AccountSection({ person: p, onDone }: { person: Person; onDone: () => v
           <span className="min-w-0 flex-1"><span className="block text-[15.5px] text-ink-700">{paused ? t('accResume') : confirm === 'pause' ? t('accPauseConfirm') : t('accPause')}</span>
             <span className="block text-[12.5px] text-ink-400">{done === 'pause' ? '✓' : paused ? t('accResumeSub') : t('accPauseSub')}</span></span>
         </button>
-        <button type="button" disabled={!!busy}
-          onClick={() => (confirm === 'remove' ? call('remove', '/api/admin/entry-queue/remove', 'POST', { athleteId: p.id, action: 'remove' }) : setConfirm('remove'))}
-          className="flex min-h-[52px] w-full items-center gap-3 px-3.5 text-start active:bg-page/60 disabled:opacity-60">
-          <span className="grid h-[30px] w-[30px] place-items-center rounded-lg bg-accent-red text-white"><UserMinus className="h-4 w-4" /></span>
-          <span className="min-w-0 flex-1"><span className="block text-[15.5px] font-medium text-accent-red">{done === 'remove' ? `✓ ${t('accRemoved')}` : confirm === 'remove' ? t('accRemoveConfirm') : t('accRemove')}</span>
-            <span className="block text-[12.5px] text-ink-400">{t('accRemoveSub')}</span></span>
-        </button>
+        {p.status === 'removed' ? (
+          <button type="button" disabled={!!busy} onClick={() => call('remove', '/api/admin/entry-queue/remove', 'POST', { athleteId: p.id, action: 'restore' })}
+            className="flex min-h-[52px] w-full items-center gap-3 px-3.5 text-start active:bg-page/60 disabled:opacity-60">
+            <span className="grid h-[30px] w-[30px] place-items-center rounded-lg bg-[#1FA55B] text-white"><UserMinus className="h-4 w-4" /></span>
+            <span className="min-w-0 flex-1"><span className="block text-[15.5px] font-medium text-ink-700">{done === 'remove' ? '✓ הוחזר/ה' : 'להחזיר למועדון'}</span>
+              <span className="block text-[12.5px] text-ink-400">יצטרכו לחבר מחדש את גרמין / סטרבה</span></span>
+          </button>
+        ) : (
+          <button type="button" disabled={!!busy} onClick={() => setRemoving(true)}
+            className="flex min-h-[52px] w-full items-center gap-3 px-3.5 text-start active:bg-page/60 disabled:opacity-60">
+            <span className="grid h-[30px] w-[30px] place-items-center rounded-lg bg-accent-red text-white"><UserMinus className="h-4 w-4" /></span>
+            <span className="min-w-0 flex-1"><span className="block text-[15.5px] font-medium text-accent-red">{done === 'soft' ? '✓ הוסר/ה מהמועדון' : 'מחיקת משתמש'}</span>
+              <span className="block text-[12.5px] text-ink-400">הסרה רכה, או מחיקה גורפת של הכל</span></span>
+          </button>
+        )}
       </div>
+      <DeleteUserSheet person={p} open={removing} onOpenChange={setRemoving} onDone={(mode) => { setDone(mode); setRemoving(false); onDone(); }} />
     </div>
+  );
+}
+
+/**
+ * מחיקת משתמש (Ofer 10-21): two ways, each confirmed before it runs.
+ *   הסרה רכה — out of the club, nothing pulled from Garmin / Strava any more, the history
+ *     kept; reversible from this screen.
+ *   מחיקה גורפת — every row about them, the account and the login. Irreversible: the
+ *     admin types the person's name to confirm (api/admin/people/delete).
+ */
+function DeleteUserSheet({ person: p, open, onOpenChange, onDone }: { person: Person; open: boolean; onOpenChange: (o: boolean) => void; onDone: (mode: 'soft' | 'full') => void }) {
+  const [mode, setMode] = useState<'soft' | 'full' | null>(null);
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const name = (p.name || '').trim();
+  const run = async () => {
+    if (!mode) return;
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch('/api/admin/people/delete', { method: 'POST', headers: await bearerHeaders(), body: JSON.stringify({ athleteId: p.id, mode, confirmName: typed }) });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { setErr(body.error === 'protected' ? 'אי אפשר למחוק אדמין או חשבון מוגן' : body.error === 'yourself' ? 'אי אפשר למחוק את עצמך' : body.error === 'confirm name' ? 'השם לא תואם' : 'המחיקה נכשלה'); return; }
+      onDone(mode);
+    } catch { setErr('המחיקה נכשלה'); } finally { setBusy(false); }
+  };
+  const close = (o: boolean) => { onOpenChange(o); if (!o) { setMode(null); setTyped(''); setErr(null); } };
+  return (
+    <Sheet open={open} onOpenChange={close} title={`מחיקת ${name || 'משתמש'}`}>
+      <div className="space-y-3 px-4 pb-6" dir="rtl">
+        {!mode && (<>
+          <button type="button" onClick={() => setMode('soft')} className="flex w-full items-start gap-3 rounded-[16px] bg-page p-3.5 text-start">
+            <span className="text-[22px]">🚪</span>
+            <span className="min-w-0 flex-1"><b className="block text-[16px] text-ink-900">הסרה רכה</b>
+              <small className="block text-13 leading-relaxed text-ink-500">יוצא/ת מהמועדון ולא מופיע/ה בשום מקום. מפסיקים למשוך נתונים מגרמין וסטרבה. ההיסטוריה נשמרת, ואפשר להחזיר מכאן.</small></span>
+          </button>
+          <button type="button" onClick={() => setMode('full')} className="flex w-full items-start gap-3 rounded-[16px] border-[1.5px] border-accent-red/40 bg-accent-red/5 p-3.5 text-start">
+            <span className="text-[22px]">🗑️</span>
+            <span className="min-w-0 flex-1"><b className="block text-[16px] text-accent-red-ink">מחיקה גורפת</b>
+              <small className="block text-13 leading-relaxed text-ink-500">מוחקים הכל: ריצות, פוסטים, תגובות, לייקים, תוכניות, אקדמיה, תמונות, התראות, והחשבון עצמו. בלתי הפיך.</small></span>
+          </button>
+        </>)}
+        {mode === 'soft' && (<>
+          <p className="text-[15px] leading-relaxed text-ink-700">להסיר את <b>{name}</b> מהמועדון? מפסיקים למשוך את הנתונים שלו/ה, וההיסטוריה נשמרת.</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setMode(null)} className="min-h-[50px] flex-1 rounded-[14px] bg-page text-[15px] font-bold">חזרה</button>
+            <button type="button" disabled={busy} onClick={() => void run()} className="min-h-[50px] flex-1 rounded-[14px] bg-ink-900 text-[15px] font-bold text-white disabled:opacity-50">{busy ? '…' : 'להסיר'}</button>
+          </div>
+        </>)}
+        {mode === 'full' && (<>
+          <p className="text-[15px] leading-relaxed text-ink-700">כל מה שקשור ל־<b>{name}</b> יימחק לצמיתות, כולל הכניסה לאפליקציה. אין דרך לשחזר.</p>
+          <label className="block"><span className="mb-1 block text-13 font-bold text-ink-500">כדי לאשר, כתבו את השם: <b dir="auto">{name}</b></span>
+            <input value={typed} onChange={(e) => setTyped(e.target.value)} dir="auto" autoComplete="off" className="min-h-[46px] w-full rounded-xl bg-page px-3 text-base" /></label>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setMode(null)} className="min-h-[50px] flex-1 rounded-[14px] bg-page text-[15px] font-bold">חזרה</button>
+            <button type="button" disabled={busy || typed.trim() !== name} onClick={() => void run()} className="min-h-[50px] flex-1 rounded-[14px] bg-accent-red text-[15px] font-bold text-white disabled:opacity-40">{busy ? 'מוחק…' : 'למחוק הכל'}</button>
+          </div>
+        </>)}
+        {err && <p role="alert" className="text-center text-13 font-bold text-accent-red-ink">{err}</p>}
+      </div>
+    </Sheet>
   );
 }
 

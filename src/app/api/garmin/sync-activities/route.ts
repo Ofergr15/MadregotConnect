@@ -140,7 +140,8 @@ export async function runSyncRequest(request: Request) {
       const base = supabase.from('athletes').select(cols);
       const filtered = athleteId
         ? base.eq('id', athleteId)
-        : base.eq('coach_id', COACH_ID).not('garmin_auth', 'is', null);
+        // Nobody who left the club (people/delete soft) is pulled, credentials or not.
+        : base.eq('coach_id', COACH_ID).not('garmin_auth', 'is', null).neq('status', 'removed');
       const ordered =
         !athleteId && stalestFirst
           ? filtered.order('garmin_last_sync_at', { ascending: true, nullsFirst: true })
