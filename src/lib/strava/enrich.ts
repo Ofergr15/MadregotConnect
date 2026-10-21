@@ -6,6 +6,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { decrypt, encrypt } from '@/lib/encryption';
+import { ensureGpxBucket, GPX_BUCKET, gpxRef } from './gpx-store';
 import {
   StravaClient,
   hasUsefulLaps,
@@ -20,7 +21,6 @@ import {
   type StravaTokens,
 } from './client';
 
-const BUCKET = 'run-chat';
 
 export function isMissingColumnError(
   error: { code?: string; message?: string } | null | undefined,
@@ -31,13 +31,6 @@ export function isMissingColumnError(
     error.code === 'PGRST204' ||
     /does not exist|schema cache/i.test(error.message || '')
   );
-}
-
-async function ensureBucket(supabase: SupabaseClient) {
-  const { data } = await supabase.storage.getBucket(BUCKET);
-  if (!data) {
-    await supabase.storage.createBucket(BUCKET, { public: true, fileSizeLimit: 20_000_000 });
-  }
 }
 
 /** Access token for an athlete, refreshing (and persisting) when close to expiry. */
@@ -158,16 +151,16 @@ export async function enrichStravaActivity(
         startTimeIso: new Date(startTimeLocal).toISOString(),
         activityId: stravaActivityId,
       });
-      await ensureBucket(supabase);
+      // The private bucket, and a reference on the row — never a public link (gpx-store).
+      await ensureGpxBucket(supabase);
       const gpxPath = `${athleteId}/${stravaActivityId}.gpx`;
-      await supabase.storage
-        .from(BUCKET)
+      const { error: gpxError } = await supabase.storage
+        .from(GPX_BUCKET)
         .upload(gpxPath, Buffer.from(gpx, 'utf8'), {
           contentType: 'application/gpx+xml',
           upsert: true,
         });
-      const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(gpxPath);
-      strava_gpx_url = urlData.publicUrl;
+      if (!gpxError) strava_gpx_url = gpxRef(gpxPath);
     }
 
     // `[]` (not null) when Strava has nothing, so callers know the run was

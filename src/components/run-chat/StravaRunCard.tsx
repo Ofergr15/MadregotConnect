@@ -24,6 +24,7 @@ import {
 import type { StravaRunAttachment } from '@/lib/run-chat/attachments';
 import { LapsTable } from './LapsTable';
 import { RunChatImage } from './RunChatImage';
+import { gpxHref } from '@/lib/strava/gpx-store';
 
 function durationText(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
@@ -132,7 +133,8 @@ export function StravaRunCard({ attachment }: { attachment: StravaRunAttachment 
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button asChild variant="ghost" size="icon-sm" className="h-7 w-7 text-slate-400 hover:bg-white/5 hover:text-white">
-                      <a href={attachment.gpx_url} download="activity.gpx" aria-label="GPX">
+                      {/* Through the gated route: a card posted before 2026-10-21 still holds the bucket's old public link. */}
+                      <a href={gpxHref(attachment.run.id)} download="activity.gpx" aria-label="GPX">
                         <Download className="h-4 w-4" />
                       </a>
                     </Button>

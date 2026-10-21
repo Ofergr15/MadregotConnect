@@ -28,6 +28,7 @@ import {
 } from '@/lib/stream/server';
 import { getStravaActivityUrl } from '@/lib/strava/client';
 import { ensureLapsArtifact } from '@/lib/run-chat/run-artifacts';
+import { gpxHref, readGpx } from '@/lib/strava/gpx-store';
 import {
   downsampleRoute,
   RUN_ATTACHMENT_VERSION,
@@ -346,21 +347,17 @@ export async function POST(
           .maybeSingle();
         if (!act) return 'No activity found.';
         if (act.strava_gpx_url) {
-          try {
-            const res = await fetch(act.strava_gpx_url);
-            if (res.ok) {
-              const gpx = await res.text();
-              // Cap for model context
-              return gpx.length > 80_000
-                ? `${gpx.slice(0, 80_000)}\n…[truncated]`
-                : gpx;
-            }
-          } catch {
-            /* fall through */
+          // From the private bucket (lib/strava/gpx-store); there is no public link any more.
+          const gpx = await readGpx(supabase as never, act.strava_gpx_url).catch(() => null);
+          if (gpx) {
+            // Cap for model context
+            return gpx.length > 80_000
+              ? `${gpx.slice(0, 80_000)}\n…[truncated]`
+              : gpx;
           }
           return JSON.stringify({
-            strava_gpx_url: act.strava_gpx_url,
-            note: 'Could not download GPX body; URL available.',
+            has_gpx: true,
+            note: 'Could not read the GPX body.',
             streams_meta: act.strava_streams,
             gps_point_count: Array.isArray(act.gps_points) ? act.gps_points.length : 0,
           });
@@ -563,7 +560,8 @@ export async function POST(
           ? getStravaActivityUrl(summary.strava_activity_id)
           : null,
         chat_url: `/dashboard/run-chat/${summary.id}`,
-        gpx_url: row?.strava_gpx_url || null,
+        // The gated route, never the bucket (lib/strava/gpx-store).
+        gpx_url: row?.strava_gpx_url ? gpxHref(summary.id) : null,
         laps_image_url: lapsImageUrl,
         route_points: downsampleRoute(row?.gps_points as RoutePoint[] | null, 20),
       });

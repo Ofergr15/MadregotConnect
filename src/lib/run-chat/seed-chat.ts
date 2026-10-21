@@ -25,6 +25,7 @@ import {
 import { AI_USER_ID } from '@/lib/stream/server';
 import { getStravaActivityUrl, type StravaLap } from '@/lib/strava/client';
 import { activitySummary, type RunActivity } from './run-analysis';
+import { gpxHref } from '@/lib/strava/gpx-store';
 import {
   downsampleRoute,
   RUN_ATTACHMENT_VERSION,
@@ -434,7 +435,8 @@ async function ensureActualsSeedMessage(
       (attachment) =>
         attachment.type === 'strava_run' &&
         attachment.version === RUN_ATTACHMENT_VERSION &&
-        (!activity.strava_gpx_url || attachment.gpx_url === activity.strava_gpx_url) &&
+        // A card from before 2026-10-21 holds the old public link: rebuilt, so it gets the route.
+        (!activity.strava_gpx_url || attachment.gpx_url === gpxHref(activity.id)) &&
         // Laps can land after the card was posted (Strava enrichment runs on
         // the next sync) — a stale lap count means the card must be rebuilt.
         Number((attachment.run as Record<string, unknown> | undefined)?.lap_count || 0) === lapCount &&
@@ -467,7 +469,7 @@ async function ensureActualsSeedMessage(
     run: activitySummary(activity),
     strava_url: stravaUrl,
     chat_url: `/dashboard/run-chat/${activity.id}`,
-    gpx_url: activity.strava_gpx_url ?? null,
+    gpx_url: activity.strava_gpx_url ? gpxHref(activity.id) : null,
     laps_image_url: lapsUrl,
   };
   // The run card renders the laps image itself; a separate image attachment
