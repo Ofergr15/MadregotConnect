@@ -223,10 +223,14 @@ export async function runSyncRequest(request: Request) {
           continue;
         }
 
+        // Only the ids in this list (≤100). Reading ALL of the athlete's rows hit
+        // PostgREST's 1,000-row cap for long-time members: their newest runs fell off
+        // the answer, looked new on every sync, and the #136 backfill below never saw them.
         const { data: existing } = await supabase
           .from('athlete_activities')
           .select('garmin_activity_id')
-          .eq('athlete_id', athlete.id);
+          .eq('athlete_id', athlete.id)
+          .in('garmin_activity_id', runActivities.map(a => a.activityId));
 
         const existingIds = new Set((existing || []).map(e => e.garmin_activity_id));
         const freshActivities = runActivities.filter(a => !existingIds.has(a.activityId));

@@ -187,7 +187,7 @@ function fakeSupabase() {
       // `select('garmin_activity_id')` — the athlete's already-stored ids.
       return { data: [], error: null };
     };
-    for (const method of ['select', 'not', 'order', 'limit', 'gte', 'lte', 'is', 'returns']) {
+    for (const method of ['select', 'not', 'order', 'limit', 'gte', 'lte', 'is', 'in', 'returns']) {
       self[method] = () => self;
     }
     self.eq = (col: string, value: string) => {
