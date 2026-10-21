@@ -35,6 +35,7 @@ export async function GET(request: Request) {
       discountCode: p.discount_code, redeemUrl: p.redeem_url,
       status: p.status_he ?? null, tone: p.status_tone ?? null, where: p.where_he ?? null,
       locations: Array.isArray(p.locations) ? p.locations : [], whatsapp: p.whatsapp ?? null, website: p.website ?? null,
+      highlights: Array.isArray(p.highlights) ? p.highlights : [], how: typeof p.how_he === 'string' ? p.how_he.split('\n').map((l: string) => l.trim()).filter(Boolean) : [],
     })),
   });
 }
