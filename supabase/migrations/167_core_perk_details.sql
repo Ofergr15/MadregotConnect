@@ -18,10 +18,13 @@ ALTER TABLE club_perks ADD COLUMN IF NOT EXISTS website TEXT;
 -- What Ofer gave for the core perks, 2026-10-21.
 UPDATE club_perks SET title_he = 'גיפטקארד נעליים', status_he = 'הגיפטקארדים סופקו השבוע', status_tone = 'now',
   where_he = 'מימוש בחנויות HOKA: מנדרין והדרך',
-  locations = '[{"name":"HOKA מנדרין","query":"HOKA מנדרין"},{"name":"HOKA הדרך","query":"HOKA הדרך"}]'
+  locations = jsonb_build_array(
+    jsonb_build_object('name', 'HOKA מנדרין', 'query', 'HOKA מנדרין'),
+    jsonb_build_object('name', 'HOKA הדרך', 'query', 'HOKA הדרך'))
   WHERE sponsor_name = 'HOKA' AND tier = 'core_runner';
 UPDATE club_perks SET status_he = 'טיפול אחד בחודש', status_tone = 'now', where_he = 'הסניף ברחוב המקצוע 5',
-  whatsapp = '972549478223', locations = '[{"name":"PhysyoutLV · המקצוע 5","query":"רחוב המקצוע 5"}]'
+  whatsapp = '972549478223',
+  locations = jsonb_build_array(jsonb_build_object('name', 'PhysyoutLV · המקצוע 5', 'query', 'רחוב המקצוע 5'))
   WHERE sponsor_name = 'PhysyoutLV' AND tier = 'core_runner';
 UPDATE club_perks SET status_he = 'מנוי שנתי', status_tone = 'now' WHERE sponsor_name = 'LIFT' AND tier = 'core_runner';
 UPDATE club_perks SET title_he = '₪600 לרבעון בתזונת ספורט',
