@@ -95,7 +95,8 @@ export const enteredVerb = (gender: string | null) => (isWoman(gender) ? 'נכנ
  * that enter a top 10, and at most one per distance per runner"): a runner's fastest
  * run at a distance, and only when it would stand in the top 10 of a table it belongs
  * to — its sex or everyone, this year or all time. A run slower than the runner's own
- * official result at that distance changes no table, so it is never one of them.
+ * official result at that distance changes no table, so it is never one of them. The
+ * waiting runs are judged together, so approving all of them never overfills a table.
  * Keeps the given (newest-first) order.
  */
 export interface SuggestionLike {
@@ -109,17 +110,23 @@ export function relevantSuggestions<S extends SuggestionLike>(results: ResultRow
     const b = fastest.get(k);
     if (!b || s.watchSeconds < b.watchSeconds) fastest.set(k, s);
   }
+  // The waiting runs compete with each other too, not only with the official results:
+  // on an empty table fifteen halves each "enter the top 10" alone, and "approve all"
+  // would let in fifteen. Judged together, approving them all fills each table exactly.
+  const rows: ResultRow[] = [...fastest.values()].map((s) => ({
+    id: `suggestion:${s.activityId}`, athleteId: s.athleteId, name: s.name, avatarUrl: s.avatarUrl, gender: s.gender ?? null,
+    pack: null, distance: s.distance, seconds: s.watchSeconds, raceName: s.raceName, raceDate: s.raceDate,
+  }));
+  const all = [...results, ...rows];
   const keep = new Set<string>();
-  for (const s of fastest.values()) {
-    const row: ResultRow = {
-      id: `suggestion:${s.activityId}`, athleteId: s.athleteId, name: s.name, avatarUrl: s.avatarUrl, gender: s.gender ?? null,
-      pack: null, distance: s.distance, seconds: s.watchSeconds, raceName: s.raceName, raceDate: s.raceDate,
-    };
-    const sexes: ChampSex[] = isWoman(row.gender) ? ['women', 'all'] : isMan(row.gender) ? ['men', 'all'] : ['all'];
-    const scopes: ChampScope[] = ['year', 'all'];
-    const enters = sexes.some((sex) => scopes.some((scope) =>
-      board([...results, row], { distance: s.distance, sex, scope, today }).top.some((r) => r.id === row.id)));
-    if (enters) keep.add(s.activityId);
+  for (const distance of new Set(rows.map((r) => r.distance))) {
+    for (const sex of ['men', 'women', 'all'] as ChampSex[]) {
+      for (const scope of ['year', 'all'] as ChampScope[]) {
+        for (const r of board(all, { distance, sex, scope, today }).top) {
+          if (r.id.startsWith('suggestion:')) keep.add(r.id.slice('suggestion:'.length));
+        }
+      }
+    }
   }
   return suggestions.filter((s) => keep.has(s.activityId));
 }

@@ -38,3 +38,17 @@ describe('race-day runs that reach the admin', () => {
     expect(relevantSuggestions(thisYear, [sug('s1', 'a3', 2400)], T)).toHaveLength(0);
   });
 });
+
+describe('the waiting runs are judged together', () => {
+  it('fifteen halves on an empty table: only the ten fastest wait', () => {
+    const many = Array.from({ length: 15 }, (_, i) => sug(`h${i}`, `m${i}`, 4400 + i * 20, { distance: 'half' }));
+    const out = relevantSuggestions([], many, T);
+    expect(out.map((s) => s.activityId).sort()).toEqual(Array.from({ length: 10 }, (_, i) => `h${i}`).sort());
+  });
+  it('a woman past the mixed ten still waits for the women\'s table', () => {
+    const many = Array.from({ length: 12 }, (_, i) => sug(`h${i}`, `m${i}`, 4400 + i * 20, { distance: 'half' }));
+    const out = relevantSuggestions([], [...many, sug('w', 'w1', 6000, { distance: 'half', gender: 'female' })], T);
+    expect(out.some((s) => s.activityId === 'w')).toBe(true);
+    expect(out).toHaveLength(11);
+  });
+});
