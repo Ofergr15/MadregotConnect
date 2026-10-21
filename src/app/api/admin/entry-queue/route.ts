@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { intakeLines } from '@/lib/join/intake';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaffCaller } from '@/lib/auth/self-or-staff';
 import { readMaintenance } from '@/lib/maintenance';
@@ -85,11 +86,19 @@ async function readOrphanRequests(
   const orphans = (data as unknown as Array<Record<string, unknown>>)
     .filter((r) => !r.athlete_id && !athleteEmails.has(String(r.email || '').toLowerCase().trim()));
   // The form's name (131), read on its own so a missing column costs only the names.
+  // The sign-up's answers (158) with it: who the person is, before the approver decides.
   const fullNames = new Map<string, string>();
+  const intakes = new Map<string, string[]>();
   if (orphans.length) {
-    const { data: named } = await supabase.from('signup_requests').select('id, full_name').in('id', orphans.map((r) => r.id as string));
-    for (const n of (named || []) as Array<{ id: string; full_name: string | null }>) {
+    const ids = orphans.map((r) => r.id as string);
+    const withIntake = await supabase.from('signup_requests').select('id, full_name, intake').in('id', ids);
+    const named: unknown[] | null = withIntake.error
+      ? (await supabase.from('signup_requests').select('id, full_name').in('id', ids)).data
+      : withIntake.data;
+    for (const n of (named || []) as Array<{ id: string; full_name: string | null; intake?: unknown }>) {
       if (n.full_name?.trim()) fullNames.set(n.id, n.full_name.trim());
+      const lines = intakeLines(n.intake);
+      if (lines.length) intakes.set(n.id, lines);
     }
   }
   return orphans
@@ -100,6 +109,7 @@ async function readOrphanRequests(
       createdAt: (r.created_at as string) || null,
       groupId: (r.group_id as string) || null,
       fullName: fullNames.get(r.id as string) || null,
+      intake: intakes.get(r.id as string) || [],
     }));
 }
 

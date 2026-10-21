@@ -169,6 +169,8 @@ export interface PendingSignupRequest {
   groupId: string | null;
   /** The name typed on the public form (migration 131), when it asked. */
   fullName?: string | null;
+  /** The unified sign-up's answers (signup_requests.intake, 158), as lines (lib/join/intake intakeLines). */
+  intake?: string[];
 }
 
 /** The count per stage, in STAGE_ORDER — what the bar at the top is drawn from. */

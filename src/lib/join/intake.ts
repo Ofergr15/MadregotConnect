@@ -1,4 +1,4 @@
-import type { Distance } from './pace';
+import { clock, type Distance } from './pace';
 
 /**
  * What the unified sign-up adds to a club request (signup_requests.intake, migration
@@ -43,4 +43,26 @@ export function cleanIntake(raw: unknown): Intake | null {
     heardWho: text(r.heardWho, 60),
     academyInterest: r.academyInterest === true,
   };
+}
+
+const DISTANCE_HE: Record<Distance, string> = { marathon: 'מרתון', half: 'חצי מרתון', '10k': '10 ק״מ', '5k': '5 ק״מ' };
+
+/**
+ * The sign-up's answers as short Hebrew lines for the approval queue — who this person
+ * is before the approver decides: their best time (and where), how they came to us,
+ * and whether the academy interests them. Nothing when the request carried no intake.
+ */
+export function intakeLines(raw: unknown): string[] {
+  const i = cleanIntake(raw);
+  if (!i) return [];
+  const out: string[] = [];
+  if (i.bestDistance && i.bestSeconds) {
+    const where = [i.race, i.year].filter(Boolean).join(' ');
+    out.push(`${DISTANCE_HE[i.bestDistance]} ${clock(i.bestSeconds)}${where ? ` · ${where}` : ''}`);
+  } else if (i.noRace) {
+    out.push('עוד לא רץ/ה מרוץ');
+  }
+  if (i.heardFrom) out.push(`הגיע/ה דרך: ${HEARD_LABEL[i.heardFrom]}${i.heardWho ? ` — ${i.heardWho}` : ''}`);
+  if (i.academyInterest) out.push('מתעניין/ת גם באקדמיה');
+  return out;
 }

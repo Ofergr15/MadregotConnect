@@ -85,12 +85,16 @@ export async function missingForAthletes(
 ): Promise<Map<string, MissingOnWatch>> {
   const out = new Map<string, MissingOnWatch>();
   if (!athletes.length) return out;
-  const { planId, planDays, clubSent } = await clubWeek(db, weekStart);
-  const { data } = await db.from('workout_deliveries')
-    .select('athlete_id, plan_id, workout_date, workout_key, status, error_message, workout_data, created_at')
-    .in('athlete_id', athletes.map((a) => a.id))
-    .gte('workout_date', weekStart)
-    .lte('workout_date', addDaysToDateStr(weekStart, 6));
+  // The club week and the deliveries do not depend on each other: together (the feed's
+  // watch card waited for them one after the other).
+  const [{ planId, planDays, clubSent }, { data }] = await Promise.all([
+    clubWeek(db, weekStart),
+    db.from('workout_deliveries')
+      .select('athlete_id, plan_id, workout_date, workout_key, status, error_message, workout_data, created_at')
+      .in('athlete_id', athletes.map((a) => a.id))
+      .gte('workout_date', weekStart)
+      .lte('workout_date', addDaysToDateStr(weekStart, 6)),
+  ]);
   const rows = (data || []) as Row[];
   for (const a of athletes) {
     const mine = rows.filter((r) => r.athlete_id === a.id);

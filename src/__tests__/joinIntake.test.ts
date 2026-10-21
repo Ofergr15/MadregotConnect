@@ -15,3 +15,13 @@ describe('cleanIntake', () => {
   });
   it('no race yet is kept', () => expect(cleanIntake({ noRace: true })?.noRace).toBe(true));
 });
+
+describe('the approval queue reads the sign-up', () => {
+  it('best time with the race, how they came and who, the academy', async () => {
+    const { intakeLines } = await import('@/lib/join/intake');
+    expect(intakeLines({ bestDistance: 'marathon', bestSeconds: 3 * 3600 + 5 * 60, race: 'ולנסיה', year: 2025, heardFrom: 'club-member', heardWho: 'דני', academyInterest: true }))
+      .toEqual(['מרתון 3:05:00 · ולנסיה 2025', 'הגיע/ה דרך: חבר/ה במועדון — דני', 'מתעניין/ת גם באקדמיה']);
+    expect(intakeLines({ noRace: true, heardFrom: 'instagram' })).toEqual(['עוד לא רץ/ה מרוץ', 'הגיע/ה דרך: אינסטגרם']);
+    expect(intakeLines(null)).toEqual([]);
+  });
+});

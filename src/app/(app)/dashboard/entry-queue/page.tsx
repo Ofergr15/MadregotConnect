@@ -728,6 +728,14 @@ export default function EntryQueuePage() {
                     <p className="text-xs text-ink-400 mt-0.5" dir="rtl">
                       {t('orphanLine', { date: dateOnly(r.createdAt) || '—' })}
                     </p>
+                    {/* What they told the unified sign-up (lib/join/intake): best time, how they came, the academy. */}
+                    {!!r.intake?.length && (
+                      <div className="mt-1.5 flex flex-wrap gap-1" dir="rtl">
+                        {r.intake.map((line) => (
+                          <span key={line} className="rounded-full bg-brand-600/10 px-2 py-0.5 text-[12px] font-semibold text-brand-700">{line}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
