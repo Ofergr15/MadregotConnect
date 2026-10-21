@@ -126,29 +126,46 @@ function CoreScreen() {
   );
 }
 
-/** The wallet-pass card: logo, CORE · year, the name, the three counts. */
+/**
+ * The member card (mockup ~/.cache/madregot/core-card, Ofer 10-21: "black, this one, but
+ * centre the logo on the circle"): brushed black, the Madregot emblem in gold inside two
+ * thin gold rings — logo and rings share ONE centred box so they can't drift apart —
+ * MADREGOT / CORE in foil at the top, the name in English at the bottom.
+ */
 function MemberCard({ name, preview, perks, welcome }: { name: string | null; preview: boolean; perks: CorePerk[]; welcome?: string }) {
   const now = perks.filter((p) => p.tone === 'now').length;
   const soon = perks.filter((p) => p.tone === 'soon').length;
+  const foil = 'bg-[linear-gradient(100deg,#9b7826,#f6dd8d_30%,#fff3cc_50%,#d6ab48_70%,#8c6a1c)] bg-clip-text text-transparent';
   return (
-    <section className="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-[#0d0d0d] via-[#1c1709] to-[#3d2d06] p-[18px] text-white shadow-[0_18px_40px_-18px_rgba(122,92,18,0.7)]">
-      <span aria-hidden className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(115deg,rgba(255,214,0,0.05)_0_2px,transparent_2px_14px)]" />
-      <span aria-hidden className="pointer-events-none absolute -end-20 -top-28 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(255,214,0,0.28),transparent_65%)]" />
-      <div className="relative flex items-center justify-between">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <span className="grid h-10 w-10 place-items-center rounded-[12px] bg-white"><img src="/images/logo.png" alt="" className="h-[34px] w-[34px] object-contain" /></span>
-        <span className="text-[11px] font-black tracking-[2px] text-[#FFD600]">CORE · {YEAR}{preview ? ' · תצוגה' : ''}</span>
-      </div>
-      <h1 dir="auto" className="relative mt-5 text-[26px] font-black tracking-[-0.3px]">
-        {welcome ? `${welcome}, ברוך/ה הבא/ה לגרעין 🌟` : name || 'הגרעין'}
-      </h1>
-      <p className="relative mt-0.5 text-[12.5px] text-white/70">{welcome ? 'הצוות בחר בך. הנה מה שמגיע לך מעכשיו.' : 'רץ/ת גרעין · מדרגות'}</p>
-      <div className="relative mt-4 flex border-t border-[#FFD600]/25 pt-3">
+    <div className="space-y-2">
+      <section dir="ltr" className="relative mx-auto aspect-[1.586] w-full overflow-hidden rounded-[18px] bg-[#0c0c0d] text-left shadow-[0_30px_50px_-24px_rgba(0,0,0,0.55),0_2px_6px_rgba(0,0,0,0.2),inset_0_0_0_1px_rgba(255,230,160,0.18)]">
+        <span aria-hidden className="absolute inset-0 bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.018)_0_1px,transparent_1px_3px),radial-gradient(90%_120%_at_50%_45%,rgba(255,214,120,0.10),transparent_60%)]" />
+        {/* The emblem and its rings: one box, centred on the card's upper half. */}
+        <span aria-hidden className="absolute left-1/2 top-[43%] grid h-[62%] aspect-square -translate-x-1/2 -translate-y-1/2 place-items-center">
+          <span className="absolute inset-0 rounded-full border border-[#d6ab48]/45" />
+          <span className="absolute inset-[9%] rounded-full border border-[#d6ab48]/30" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/logo.png" alt="" className="relative h-[74%] w-[74%] object-contain opacity-[0.42] mix-blend-screen [filter:invert(1)_sepia(1)_saturate(5)_hue-rotate(-6deg)_brightness(1.05)]" />
+        </span>
+        <span aria-hidden className="absolute inset-0 bg-[linear-gradient(118deg,transparent_35%,rgba(255,255,255,0.10)_48%,transparent_60%)]" />
+        <span className={cn('absolute left-[5%] top-[7%] text-[10px] font-extrabold tracking-[3.5px]', foil)}>MADREGOT</span>
+        <span className={cn('absolute right-[5%] top-[7%] text-[10px] font-extrabold tracking-[3px]', foil)}>CORE{preview ? ' · PREVIEW' : ''}</span>
+        <b className="absolute bottom-[15%] left-[5%] right-[5%] truncate text-[17px] font-bold uppercase tracking-[2.6px] text-[#f4f1ea]">{name || 'MADREGOT CORE'}</b>
+        <span className="absolute bottom-[7%] left-[5%] text-[9.5px] tracking-[2.4px] text-[#ffecbe]/60">MEMBER SINCE {YEAR}</span>
+        <span className="absolute bottom-[7%] right-[5%] text-[9.5px] tracking-[2.4px] text-[#ffecbe]/60">CORE RUNNER</span>
+      </section>
+      {welcome && (
+        <div className="px-1 text-center">
+          <h2 className="text-[22px] font-black text-ink-900">{welcome}, ברוך/ה הבא/ה לגרעין 🌟</h2>
+          <p className="text-[13.5px] text-ink-500">הצוות בחר בך. הנה מה שמגיע לך מעכשיו.</p>
+        </div>
+      )}
+      <div className="flex rounded-[16px] bg-card py-2.5 text-center">
         {[[perks.length, 'הטבות'], [now, 'זמינות עכשיו'], [soon, 'בקרוב']].map(([n, l]) => (
-          <div key={String(l)} className="flex-1"><b className="block text-[20px] font-black">{n}</b><span className="text-[11px] text-white/65">{l}</span></div>
+          <div key={String(l)} className="flex-1"><b className="block text-[18px] font-black text-ink-900">{n}</b><span className="text-[11px] text-ink-400">{l}</span></div>
         ))}
       </div>
-    </section>
+    </div>
   );
 }
 
