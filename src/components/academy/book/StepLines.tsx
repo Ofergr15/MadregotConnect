@@ -300,6 +300,7 @@ export function StepLines({
                 type="button"
                 onClick={() => onStepMenu(line.step)}
                 aria-label={t('stepMenu.more')}
+                data-tour="step-menu"
                 className="relative grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] text-ink-400 after:absolute after:-inset-[5px] after:content-['']"
               >
                 <MoreHorizontal className="h-5 w-5" aria-hidden />

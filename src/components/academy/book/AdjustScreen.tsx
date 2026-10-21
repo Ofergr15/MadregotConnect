@@ -98,7 +98,7 @@ export function AdjustScreen({
             )}
             {blocked && <p className="text-center text-sm font-bold text-[#8A4308]">{t('noTestBlock', { name: traineeName })}</p>}
             {sendError && <p className="text-center text-sm font-bold text-accent-red-ink">{sendError}</p>}
-            <PrimaryButton onClick={() => onSend(draft)} disabled={blocked} busy={sending}>{t('putOn', { day: dayLabel, name: traineeName.split(' ')[0] || traineeName })}</PrimaryButton>
+            <div data-tour="day-send"><PrimaryButton onClick={() => onSend(draft)} disabled={blocked} busy={sending}>{t('putOn', { day: dayLabel, name: traineeName.split(' ')[0] || traineeName })}</PrimaryButton></div>
           </>
         }
       >

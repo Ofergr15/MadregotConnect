@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils';
 import { Sheet } from '@/components/ui';
 import { formatPace, parsePaceString } from '@/lib/garmin/pace';
 import { ZONE_INTENSITY, zoneCentrePace } from '@/lib/academy/library';
+import { Hotspot } from '@/components/tour/Hotspot';
+import { HOTSPOTS } from '@/lib/tour/hotspots';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The trainee's pace zones as the coach sees them (Ofer, 2026-10-20, mockups/coach-baseline):
@@ -84,6 +86,7 @@ export function ZoneRows({ athleteId, previewThresholdSec, onSaved }: {
           הטסט החדש החליף את הקצבים שקבעת ביד — אלה הקצבים המוצעים לפיו.
         </p>
       )}
+      <Hotspot id="zones-edit" title={HOTSPOTS['zones-edit'].title} body={HOTSPOTS['zones-edit'].body} off={!!preview} className="space-y-1.5">
       {rows.map((r) => {
         if (!r.suggested) return null;
         const isOpen = open === r.zone;
@@ -135,6 +138,7 @@ export function ZoneRows({ athleteId, previewThresholdSec, onSaved }: {
           </div>
         );
       })}
+      </Hotspot>
       {preview && <p className="px-1 text-[11.5px] text-ink-400">✎ אחרי שמירת הבסיס — לכל מי שרוצה לשנות אזור.</p>}
     </div>
   );

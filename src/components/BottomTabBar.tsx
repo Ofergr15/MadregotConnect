@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Menu, Camera, Search, ShoppingBag, Gift, LogOut, Bug, Users, UserSearch, Compass } from 'lucide-react';
+import { Menu, Camera, Search, ShoppingBag, Gift, LogOut, Bug, Users, UserSearch, Compass, GraduationCap } from 'lucide-react';
 import { useIsSuperUser } from '@/lib/impersonation';
 import { startLiveTour } from '@/components/onboarding/LiveTour';
+import { TOUR_REPLAY_EVENT } from '@/lib/tour/store';
 import { openViewAsChooser } from '@/lib/view-as-person';
 import { cn } from '@/lib/utils';
 import { athletePrimaryOrder, resolveNavItems, useNavIdentity, type NavItem, STORE_OPEN, ADMIN_HOME_ORDER, isAdminHome } from '@/lib/nav-items';
@@ -263,6 +264,8 @@ export function BottomTabBar() {
               <MoreCard icon={Camera} label={t('photos' as any)} href="/dashboard/photos" active={isActive('/dashboard/photos')} onClick={() => setMoreOpen(false)} />
               {/* The live tour, being tried (2026-10-19): the super user starts it here. */}
               {superUser && <MoreCard icon={Compass} label="סיור באפליקציה" active={false} onClick={() => { setMoreOpen(false); setTimeout(startLiveTour, 350); }} />}
+              {/* The coach tour (lib/tour), replayed: everyone who coaches, and the super user. */}
+              {(isStaffView || superUser) && <MoreCard icon={GraduationCap} label="סיור מאמן" active={false} onClick={() => { setMoreOpen(false); setTimeout(() => window.dispatchEvent(new CustomEvent(TOUR_REPLAY_EVENT, { detail: 'coach' })), 350); }} />}
             </div>
           </div>
 

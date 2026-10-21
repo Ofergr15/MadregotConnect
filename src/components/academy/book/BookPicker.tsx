@@ -10,6 +10,8 @@ import { bookTotals, fromLibrarySteps, profileBar, structureName } from '@/lib/a
 import { filterLibrary, isUnclassified, type LibraryEntry, type LibraryKind } from '@/lib/academy/library';
 import { BarButton, CARD, FlowScreen, ProfileBar, RICH, SectionLabel, kmText } from './ui';
 import { textMatches } from '@/lib/search/match';
+import { Hotspot } from '@/components/tour/Hotspot';
+import { HOTSPOTS } from '@/lib/tour/hotspots';
 
 // ── 📖 מהספר (mockup phone 1ב) ────────────────────────────────────────────────────────────
 //
@@ -152,11 +154,13 @@ export function BookPicker({ thresholdSec, onBack, onPick }: {
             </>
           )}
           <SectionLabel>{recent.length ? t('allWorkouts') : t('mostUsed')}</SectionLabel>
-          <div className={CARD}>
-            {rows.filter(r => !recentIds.has(r.entry.id)).map(({ entry, model }) => (
-              <BookRow key={entry.id} entry={entry} model={model} thresholdSec={thresholdSec} fav={favourites.has(entry.id)} onPick={onPick} />
-            ))}
-          </div>
+          <Hotspot id="book-entry" title={HOTSPOTS['book-entry'].title} body={HOTSPOTS['book-entry'].body}>
+            <div className={CARD}>
+              {rows.filter(r => !recentIds.has(r.entry.id)).map(({ entry, model }) => (
+                <BookRow key={entry.id} entry={entry} model={model} thresholdSec={thresholdSec} fav={favourites.has(entry.id)} onPick={onPick} />
+              ))}
+            </div>
+          </Hotspot>
         </>
       )}
     </FlowScreen>

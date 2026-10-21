@@ -16,6 +16,8 @@ import { useTraineeV2 } from '@/lib/trainee/v2';
 import type { BoardView } from '@/lib/academy/deep-links';
 import { BoardViewSwitch, WeekRestRow, WeekRowV2, WeekTilesV2, WeekUnplannedRow, ComplianceLegend } from '@/components/trainee/WeekRows';
 import { TOP_BAR } from '@/components/trainee/ui';
+import { Hotspot } from '@/components/tour/Hotspot';
+import { HOTSPOTS } from '@/lib/tour/hotspots';
 
 // ── השבוע (mockup phone 4) — the same screen for the trainee and the coach ───────────────
 //
@@ -210,7 +212,7 @@ export function WeekBoard({ athleteId, initialWeek, openDate, onView, onClosed, 
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <span className="text-13 font-bold text-ink-400">{t('addOn')}</span>
           {emptyDays.map(d => (
-            <button key={d} type="button" onClick={() => setPlanning(d)}
+            <button key={d} type="button" onClick={() => setPlanning(d)} data-tour="week-add-day"
               className="h-11 rounded-full bg-white px-4 text-[15px] font-bold text-brand-600 shadow-sm">
               + {t(`dayShort.${WEEKDAY_KEYS[new Date(`${d}T12:00:00Z`).getUTCDay()]}`)}
             </button>
@@ -363,10 +365,12 @@ function GroupWeek({ athleteId, weekStart, days, today, name, replaces, onTake, 
     <section className="rounded-[18px] bg-white px-4 py-3 shadow-sm">
       <div className="flex items-center justify-between gap-2">
         <b className="text-[15px] text-ink-900">השבוע של הקבוצה</b>
-        <button type="button" disabled={busy} onClick={() => (replaces ? setConfirm(true) : void copyAll())}
-          className="min-h-[40px] shrink-0 rounded-full bg-[#F3EEFF] px-3.5 text-[13px] font-extrabold text-[#7C3AED] disabled:opacity-60">
-          ⧉ שבוע שלם מהקבוצה
-        </button>
+        <Hotspot id="week-from-club" title={HOTSPOTS['week-from-club'].title} body={HOTSPOTS['week-from-club'].body} className="shrink-0">
+          <button type="button" disabled={busy} onClick={() => (replaces ? setConfirm(true) : void copyAll())}
+            className="min-h-[40px] shrink-0 rounded-full bg-[#F3EEFF] px-3.5 text-[13px] font-extrabold text-[#7C3AED] disabled:opacity-60">
+            ⧉ שבוע שלם מהקבוצה
+          </button>
+        </Hotspot>
       </div>
       {confirm && (
         <div className="mt-2 rounded-xl bg-[#FDF0E2] px-3 py-2.5 text-[13px] font-bold text-[#8A4308]">

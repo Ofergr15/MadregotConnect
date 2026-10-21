@@ -71,6 +71,7 @@ import {
   fmtRate, initialsOf, shiftWeek, sundayOf,
   type AcademyCoachSummary, type AcademyMember, type AcademyMembersResponse,
 } from './types';
+import { CoachTourOffer } from '@/components/tour/CoachTourOffer';
 
 // The academy's staff lens: five areas under the title, each with its sub-tabs
 // (lib/academy/areas.ts), the title row with the shared search on every area,
@@ -477,6 +478,7 @@ export function AcademyShell({
 
   return (
     <div dir="rtl">
+      <CoachTourOffer enabled={section === 'overview' && !manager && !viewingAs} />
       <div className={cn('mb-2.5 flex items-center gap-2', compact && 'hidden')}>
         {!area && (
           <button type="button" onClick={() => go('overview')} aria-label="חזרה לבית"

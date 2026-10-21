@@ -22,6 +22,8 @@ import { QuickTextScreen } from './QuickTextScreen';
 import { SendScreen } from './SendScreen';
 import type { DayPlanData, Draft, SendResult } from './types';
 import { scoped } from '@/lib/academy/client-scope';
+import { useTourPractice } from '@/lib/tour/store';
+import { PRACTICE_THRESHOLD_SEC } from '@/lib/tour/coach-tour';
 
 // ── "מה ירוץ בשלישי?" — one trainee, one day (mockup phones 1 → 3) ───────────────────────
 //
@@ -96,6 +98,11 @@ export function DayPlanner({ athleteId, date, onClose, onDone, fromGroup = false
   const [primary, setPrimary] = useState<SendResult | null>(null);
 
   const go = (next: Screen) => { setBack(screen); setScreen(next); };
+  // The coach tour (lib/tour): straight to the text box, and a send that writes nothing.
+  const practice = useTourPractice();
+  useEffect(() => {
+    if (practice && screen === 'choose' && data) go('quick');
+  }, [practice, data]); // eslint-disable-line react-hooks/exhaustive-deps
   // From the week board's group line: the group's session of that day, at this trainee's paces.
   const [seeded, setSeeded] = useState(false);
   useEffect(() => {
@@ -107,6 +114,13 @@ export function DayPlanner({ athleteId, date, onClose, onDone, fromGroup = false
 
   const send = async (d: Draft) => {
     if (!data) return;
+    if (practice) {
+      // Practice: no request at all — the send screen shows what would have happened.
+      setPrimary({ athleteId, name: data.trainee.name, status: 'saved', reason: 'practice' });
+      setDraft(d);
+      go('send');
+      return;
+    }
     setSending(true);
     setSendError(null);
     try {
@@ -154,7 +168,9 @@ export function DayPlanner({ athleteId, date, onClose, onDone, fromGroup = false
     );
   }
 
-  const T = data.trainee.thresholdSec;
+  // A trainee with no test and no basis would block the practice run's send; the tour prices
+  // it at a stand-in threshold instead (nothing is sent, so nothing is wrong on a watch).
+  const T = data.trainee.thresholdSec ?? (practice ? PRACTICE_THRESHOLD_SEC : null);
   const day = t(`day.${WEEKDAY_KEYS[data.dayOfWeek]}`);
   const [, mm, dd] = date.split('-');
   const dayTitle = `${day} ${Number(dd)}.${Number(mm)}`;

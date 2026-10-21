@@ -1,7 +1,7 @@
 'use client';
 
 import type { PaceAdjust } from '@/lib/academy/pace-kinds';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { parseQuickText, quickToBook, type AssumptionCode } from '@/lib/academy/quick-text';
@@ -11,6 +11,8 @@ import {
 import { BarButton, CARD, FlowScreen, PrimaryButton, ProfileBar, RICH, SectionLabel, clockText, kmText } from './ui';
 import { StepLines } from './StepLines';
 import type { Draft } from './types';
+import { TOUR_FILL_EVENT } from '@/lib/tour/store';
+import { SAMPLE_WORKOUT } from '@/lib/tour/coach-tour';
 
 // ── ✎ לכתוב מהר (mockup phone 2ב) ────────────────────────────────────────────────────────
 //
@@ -34,6 +36,12 @@ export function QuickTextScreen({ traineeName, thresholdSec, paceAdjust, onCance
 }) {
   const t = useTranslations('workoutBook');
   const [text, setText] = useState('');
+  // The coach tour's "✨ הקלד בשבילי דוגמה".
+  useEffect(() => {
+    const fill = () => setText((cur) => cur.trim() ? cur : SAMPLE_WORKOUT);
+    window.addEventListener(TOUR_FILL_EVENT, fill);
+    return () => window.removeEventListener(TOUR_FILL_EVENT, fill);
+  }, []);
   const parse = useMemo(() => parseQuickText(text), [text]);
   const book = useMemo(() => quickToBook(parse, thresholdSec, paceAdjust), [parse, thresholdSec, paceAdjust]);
   const steps = book.steps;
@@ -65,9 +73,10 @@ export function QuickTextScreen({ traineeName, thresholdSec, paceAdjust, onCance
       title={t('quickTitle')}
       leading={<BarButton onClick={onCancel}>{t('cancel')}</BarButton>}
       trailing={<BarButton strong onClick={go} disabled={!ready}>{t('continue')}</BarButton>}
-      footer={<PrimaryButton onClick={go} disabled={!ready}>{t('continueToAdjust')}</PrimaryButton>}
+      footer={<div data-tour="quick-continue"><PrimaryButton onClick={go} disabled={!ready}>{t('continueToAdjust')}</PrimaryButton></div>}
     >
       <textarea
+        data-tour="quick-text"
         value={text}
         onChange={e => setText(e.target.value)}
         dir="rtl"

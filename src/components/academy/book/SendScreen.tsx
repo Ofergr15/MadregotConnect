@@ -13,6 +13,7 @@ import { mainStepIndex } from '@/lib/academy/book-steps';
 import { BarButton, CARD, FlowScreen, PrimaryButton, RICH, SectionLabel, clockText, initials } from './ui';
 import { draftSteps, mainPace } from './DayPlanner';
 import type { DayPlanData, Draft, SendResult } from './types';
+import { useTourPractice } from '@/lib/tour/store';
 
 // ── לשלוח (mockup phone 3) ───────────────────────────────────────────────────────────────
 //
@@ -39,6 +40,7 @@ export function SendScreen({ data, draft, day, primary, onBack, onClose }: {
   onClose: () => void;
 }) {
   const t = useTranslations('workoutBook');
+  const practice = useTourPractice();
   const T = data.trainee.thresholdSec;
   const pace = mainPace(draft.model, T, data.trainee.paceAdjust);
   const isReps = draft.model ? draft.model[mainStepIndex(draft.model)]?.kind === 'reps' : false;
@@ -116,6 +118,11 @@ export function SendScreen({ data, draft, day, primary, onBack, onClose }: {
         ? <PrimaryButton onClick={onClose}>{t('close')}</PrimaryButton>
         : <PrimaryButton onClick={() => void finish()} busy={busy} disabled={save && !kindChosen(saveKind)}>{picked.size ? t('sendAlso', { n: picked.size }) : t('finish')}</PrimaryButton>}
     >
+      {practice && (
+        <p role="status" className="rounded-2xl bg-[#EEF0FF] px-4 py-3 text-center text-[15px] font-black text-brand-600">
+          🎓 תרגול — לא נשלח. שום דבר לא נשמר ולא הגיע לשעון.
+        </p>
+      )}
       <div className={cn(CARD, 'p-4 text-center')}>
         <div className={cn(
           'mx-auto grid h-[76px] w-[76px] place-items-center rounded-full text-[40px] font-black',

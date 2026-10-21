@@ -5,6 +5,7 @@ import { SWR_DEFAULTS } from '@/lib/api';
 import { persistedCacheProvider } from '@/lib/swr-persist';
 import { PostHogIdentity } from '@/components/PostHogIdentity';
 import { LiveTour } from '@/components/onboarding/LiveTour';
+import { TourOverlay } from '@/components/tour/TourOverlay';
 
 // App-wide client providers. SWRConfig gives every screen cache-first data with
 // background revalidation — the foundation of the native "opens instantly" feel.
@@ -22,6 +23,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       {/* Above the app shell, not inside it: the shell drops to a spinner on some
           navigations (access checks), and the tour must keep its place across them. */}
       <LiveTour />
+      {/* The guided tours (coach tour, mockups/coach-intro/v2.html) — same reason as above. */}
+      <TourOverlay />
     </SWRConfig>
   );
 }

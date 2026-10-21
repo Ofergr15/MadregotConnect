@@ -132,7 +132,7 @@ export function AcademyHome({
           {/* What approving does, once under the cards (the mockup's green note). */}
           {cards.length > 0 && <AfterApprovalNote name={cards.length === 1 ? cards[0].name.split(' ')[0] || null : null} />}
           {shownWaiting.length > 0 && (
-            <div className="overflow-hidden rounded-card bg-card">
+            <div data-tour="coach-waiting" className="overflow-hidden rounded-card bg-card">
               {shownWaiting.map((w) => <WaitingRow key={w.key} item={w} onClick={() => onWaiting(w)} />)}
             </div>
           )}
@@ -276,13 +276,13 @@ function TraineeRows({ members, showCoach, onOpen }: {
   members: AcademyMembersResponse['members']; showCoach: boolean; onOpen: (athleteId: string) => void;
 }) {
   return (
-    <section aria-label="המתאמנים">
+    <section aria-label="המתאמנים" data-tour="coach-trainees">
       <b className="mx-1 mb-1.5 block text-[15px] font-black text-ink-700">המתאמנים · <bdi dir="ltr">{members.length}</bdi></b>
       <div className="overflow-hidden rounded-card bg-card">
         {members.map((m) => {
           const coach = (m.academyCoachNames ?? []).filter(Boolean).map((n) => n.split(' ')[0]).join(' · ');
           return (
-            <button key={m.athleteId} type="button" onClick={() => onOpen(m.athleteId)}
+            <button key={m.athleteId} type="button" onClick={() => onOpen(m.athleteId)} data-tour="coach-trainee" data-tour-athlete={m.athleteId}
               className="flex min-h-[58px] w-full items-center gap-3 border-b border-page px-3 py-2 text-start last:border-b-0 active:bg-page/60">
               <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-[#F1EAFE] text-[11px] font-black text-[#7C3AED]">
                 {m.avatarUrl
@@ -470,6 +470,7 @@ function WaitingRow({ item, onClick }: { item: WaitingItem; onClick: () => void 
   const tool = TOOL_KINDS.has(item.kind);
   return (
     <button type="button" onClick={onClick}
+      {...(item.kind === 'no_plan' && item.target.athleteId ? { 'data-tour': 'coach-trainee', 'data-tour-athlete': item.target.athleteId } : {})}
       className={cn('flex w-full items-center gap-2.5 border-b border-page/70 px-3 text-start last:border-0 active:bg-page/40', tool ? 'min-h-[58px] py-2' : 'h-[58px]')}>
       <span className={cn('grid h-9 w-9 shrink-0 place-items-center rounded-xl', cls)}><Icon className="h-[18px] w-[18px]" /></span>
       <span className="min-w-0 flex-1">
