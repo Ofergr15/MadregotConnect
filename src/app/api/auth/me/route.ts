@@ -90,6 +90,9 @@ export async function GET(request: Request) {
     // trip only when it's needed: if the full select errors, fall back to the
     // two columns that decide membership, and the other two read as "no".
     type Row = { is_academy?: boolean; approved?: boolean; first_seen_at?: string | null; is_story_editor?: boolean; group_id?: string | null };
+    // The club-manager list rides along with the row (it was its own trip after it).
+    const managersRead = import('@/lib/club-numbers/access')
+      .then(({ clubManagers }) => clubManagers(supabase)).catch(() => [] as string[]);
     const full = await supabase
       .from('athletes')
       .select('is_academy, approved, first_seen_at, is_story_editor, group_id')
@@ -150,7 +153,7 @@ export async function GET(request: Request) {
     const qualitySession = isSuper || row?.is_story_editor === true;
     // "מנהל מדרגות" (lib/club-numbers/access): a list, not a role — it adds the ניהול tab with the club's numbers.
     let isClubManager = false;
-    try { const { clubManagers } = await import('@/lib/club-numbers/access'); isClubManager = (await clubManagers(supabase)).includes(athleteId); } catch { isClubManager = false; }
+    try { isClubManager = (await managersRead).includes(athleteId); } catch { isClubManager = false; }
 
     return NextResponse.json({ role: auth.user.role || 'runner', roles, membership, isAcademy: !!row?.is_academy,
       // In the academy and in no club group: the academy home only, never the club's week.

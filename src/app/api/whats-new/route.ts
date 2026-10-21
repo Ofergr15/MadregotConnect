@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaffCaller, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { APP_VERSION } from '@/lib/version';
@@ -66,7 +66,10 @@ export async function GET(request: Request) {
   // Deploy bookkeeping, not the viewer's — but an admin viewing the app as
   // somebody (lib/auth/view-as.ts) writes nothing, so the next real open does it.
   if (!caller.viewingAsBy) {
-    await markShipped(supabase);
+    // Bookkeeping nobody waits on, after the answer (it was two trips before it on
+    // every screen of a fresh instance). Recording this release stays in line, but it
+    // only runs once per release — the first open after a deploy.
+    after(() => markShipped(supabase));
     const recorded = await recordThisRelease(supabase, releases);
     if (recorded) releases = [recorded, ...releases];
   }
@@ -75,9 +78,12 @@ export async function GET(request: Request) {
 
   // Staff read main at a pinned commit, the same one an approval would pin, so
   // what he approves is exactly what he was shown.
-  const mainSha = staff ? await mainHead() : null;
+  // GitHub (main's notes) and the approval row together, not one after the other.
+  const [mainSha, approval] = await Promise.all([
+    staff ? mainHead() : Promise.resolve(null),
+    staff ? activeApproval(supabase) : Promise.resolve(null),
+  ]);
   const notes = (mainSha && await notesAt(mainSha)) || BUNDLED_NOTES;
-  const approval = staff ? await activeApproval(supabase) : null;
   const all = [...new Map([...BUNDLED_NOTES, ...notes].map(n => [n.id, n])).values()];
 
   const body = {

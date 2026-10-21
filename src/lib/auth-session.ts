@@ -326,9 +326,28 @@ export function mayViewAs(user: Pick<SessionUser, 'isSuperUser' | 'role' | 'role
   return user.isSuperUser || hasRole(user, 'admin');
 }
 
+/** The `email` claim of a JWT, lower-cased, without verifying anything — see resolveSession. */
+function claimedEmail(token: string): string | null {
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const json = JSON.parse(Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')) as { email?: unknown };
+    return typeof json.email === 'string' ? json.email.toLowerCase().trim() || null : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The uncached resolution: verify the JWT, then find the membership row. */
 async function resolveSession(token: string, url: string, anonKey: string): Promise<AuthResult> {
   let email = '';
+  // The membership row is looked up WHILE the token is verified, not after (2026-10-20
+  // speed pass: the two in a row were ~0.8 s before every cold request did anything).
+  // The address comes from the token's own payload, unverified at this point — so its
+  // answer is used only if verification returns the very same address; otherwise it is
+  // thrown away and the row is read for the verified one.
+  const claimed = claimedEmail(token);
+  const early = claimed ? fetchAthleteRows(createServerClient(), claimed).catch(() => null) : null;
   try {
     const { data, error } = await createClient(url, anonKey).auth.getUser(token);
     if (error) {
@@ -376,7 +395,8 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
   // Prefer an active row, then the newest, which is how /api/auth/resolve-role
   // picks among duplicates too — so the athleteId in the session matches the one
   // sign-in handed the client.
-  const { rows, approvalKnown } = await fetchAthleteRows(supabase, email);
+  const pre = claimed === email && early ? await early : null;
+  const { rows, approvalKnown } = pre ?? await fetchAthleteRows(supabase, email);
   const stravaId = stravaIdFromAuthEmail(email);
   // For a Strava login the ranker decides, because it is the one that knows the
   // Strava id IS the identity — and it is what the OAuth callback itself uses, so

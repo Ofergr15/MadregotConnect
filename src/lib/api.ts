@@ -112,7 +112,15 @@ export const SWR_DEFAULTS: SWRConfiguration = {
   revalidateOnFocus: true,
   revalidateOnReconnect: true,
   keepPreviousData: true,
-  dedupingInterval: 4000,
+  // 30 s, was 4 s (2026-10-20 speed pass): every screen mounts the shell's ~15 reads
+  // (header, badges, setup, what's new …), and with a 4 s window each tap to another
+  // screen sent all of them again — 30 requests a screen, measured. Within 30 s the
+  // cached answer is the answer; an action that changes data calls mutate(), which is
+  // not deduplicated.
+  dedupingInterval: 30_000,
+  // Coming back to the app re-checks at most once a minute (default 5 s): a glance at
+  // another app no longer sets off a burst of a dozen requests.
+  focusThrottleInterval: 60_000,
   errorRetryCount: 2,
 };
 
