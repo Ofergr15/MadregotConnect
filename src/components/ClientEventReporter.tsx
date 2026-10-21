@@ -100,6 +100,16 @@ const BLANK_EVENT = 'mc:blank';
 /** A render the error boundary caught (CrashScreen): it never reaches window 'error'. */
 const CRASH_EVENT = 'mc:crash';
 
+const NETWORK_DROP = /^(Load failed|Failed to fetch|NetworkError when attempting to fetch resource\.?|The network connection was lost\.?)$/i;
+/** A fetch the network gave up on — not an exception in our code. */
+export const isNetworkDrop = (message: string) => NETWORK_DROP.test(message.trim());
+/** The first stack line that is ours ("/_next/…chunk.js:1:2345"), or "?" when the browser gave none. */
+export function firstFrame(r: unknown): string {
+  const stack = r instanceof Error && typeof r.stack === 'string' ? r.stack : '';
+  const line = stack.split('\n').map((l) => l.trim()).find((l) => /\/_next\/|\.js:\d+/.test(l));
+  return line ? line.replace(/^at\s+/, '').replace(/^https?:\/\/[^/]+/, '').slice(0, 160) : '?';
+}
+
 export function ClientEventReporter() {
   const pathname = usePathname();
   // A ref rather than state throughout: nothing here may cause a render, and a
@@ -192,6 +202,15 @@ export function ClientEventReporter() {
     const onRejection = (e: PromiseRejectionEvent) => {
       const r = e.reason as unknown;
       const message = r instanceof Error ? r.message : typeof r === 'string' ? r : 'unhandled rejection';
+      // #126: Safari's "Load failed" (Chrome's "Failed to fetch") is a request the
+      // network dropped. With the app in the background or the phone offline that is
+      // the phone, not a bug — and it was 14 of the board's reports. Kept when the page
+      // is in front and online, now with where it came from, so the next one is findable.
+      if (isNetworkDrop(message)) {
+        if (document.visibilityState !== 'visible' || navigator.onLine === false) return;
+        record('error', `${message} @ ${firstFrame(r)}`);
+        return;
+      }
       record('error', message);
     };
     window.addEventListener('error', onError);
