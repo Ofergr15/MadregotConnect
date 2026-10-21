@@ -205,7 +205,10 @@ export function ActivityDetailBody({
       {/* Was this the workout that was asked for — as ONE row. The full breakdown
           (axis, reps, measured table) is a tap away instead of ~900px above the
           charts. Renders nothing for a viewer who may not read this score. */}
-      {!mapOnly && <Times total={act.duration} moving={act.moving_duration ?? null} />}
+      {/* #136: with the wall clock known, total = it and net = the timer — Strava's
+          "Elapsed" and "Moving" exactly (Garmin's own moving figure runs a few seconds
+          under its timer). Older rows have no wall clock and keep timer / moving. */}
+      {!mapOnly && <Times total={act.elapsed_duration ?? act.duration} moving={act.elapsed_duration ? act.duration : act.moving_duration ?? null} />}
       {!mapOnly && an?.conditions && <Conditions c={an.conditions} />}
 
       {/* The watch ran a workout with reps: that IS the plan against execution (RunAnalysis). */}
@@ -268,7 +271,7 @@ export function ActivityDetailBody({
           <MetricCards m={{
             vo2: vo2 ? Number(vo2) : null, rpe, avgHr: act.average_hr ?? null, maxHr: act.max_hr ?? null, hrCeiling: maxHR,
             cadence: cadence ? Number(cadence) : null, stride: stride ?? null,
-            moving: act.moving_duration ?? null, total: act.duration, elevation: act.elevation_gain ?? null,
+            moving: act.elapsed_duration ? act.duration : act.moving_duration ?? null, total: act.elapsed_duration ?? act.duration, elevation: act.elevation_gain ?? null,
             calories: calories ? Number(calories) : null, distanceKm: act.distance / 1000,
           }} />
         </Section>

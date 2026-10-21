@@ -231,6 +231,22 @@ export async function runSyncRequest(request: Request) {
         const existingIds = new Set((existing || []).map(e => e.garmin_activity_id));
         const freshActivities = runActivities.filter(a => !existingIds.has(a.activityId));
 
+        // #136: runs already here from before migration 166 get their wall-clock time from
+        // this same list — no extra Garmin call. A separate read, so a DB without the column
+        // only skips this (the read above must never fail: it is what stops duplicates).
+        const known = runActivities.filter(a => existingIds.has(a.activityId) && a.elapsedDuration && a.elapsedDuration >= a.duration);
+        if (known.length) {
+          const { data: noClock, error: clockErr } = await supabase.from('athlete_activities')
+            .select('id, garmin_activity_id').eq('athlete_id', athlete.id).is('elapsed_duration', null)
+            .in('garmin_activity_id', known.map(a => a.activityId));
+          if (!clockErr) {
+            for (const row of (noClock || []) as Array<{ id: string; garmin_activity_id: number }>) {
+              const a = known.find(k => k.activityId === row.garmin_activity_id);
+              if (a) await supabase.from('athlete_activities').update({ elapsed_duration: Math.round(a.elapsedDuration!) }).eq('id', row.id);
+            }
+          }
+        }
+
         // Two Garmin devices, one run. An athlete wearing a watch AND a band
         // uploads the session twice under two different activity ids, so
         // `existingIds` can't see it and the cross-source check below won't
@@ -364,6 +380,8 @@ export async function runSyncRequest(request: Request) {
               start_time: a.startTimeLocal,
               distance: Math.round(a.distance),
               duration: Math.round(a.duration),
+              // The timer above stops on pause; this one doesn't (#136, migration 166).
+              ...(a.elapsedDuration && a.elapsedDuration >= a.duration ? { elapsed_duration: Math.round(a.elapsedDuration) } : {}),
               average_pace: a.distance > 0 ? Math.round(a.duration / (a.distance / 1000)) : null,
               average_hr: a.averageHR,
               max_hr: a.maxHR,
@@ -407,7 +425,7 @@ export async function runSyncRequest(request: Request) {
           // retry drops only the column the error actually NAMES, one at a time:
           // a database without garmin_workout_id (migration 092) must not also
           // lose shoe attribution, which is what stripping both at once costs.
-          const optionalColumns = ['workout_title', 'training_effect', 'executed_workout', 'garmin_workout_id', 'laps', 'shoe_id'];
+          const optionalColumns = ['elapsed_duration', 'workout_title', 'training_effect', 'executed_workout', 'garmin_workout_id', 'laps', 'shoe_id'];
           const dropped: string[] = [];
           while (insertError && dropped.length < optionalColumns.length) {
             const failure = insertError;

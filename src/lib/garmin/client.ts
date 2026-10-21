@@ -201,6 +201,7 @@ export class GarminClient {
       hasPolyline: a.hasPolyline || false,
       steps: a.steps || null,
       workoutId: readGarminId(a.workoutId),
+      elapsedDuration: typeof a.elapsedDuration === 'number' ? a.elapsedDuration : null,
       aerobicTrainingEffect: typeof a.aerobicTrainingEffect === 'number' ? a.aerobicTrainingEffect : null,
       anaerobicTrainingEffect: typeof a.anaerobicTrainingEffect === 'number' ? a.anaerobicTrainingEffect : null,
       trainingEffectLabel: typeof a.trainingEffectLabel === 'string' ? a.trainingEffectLabel : null,

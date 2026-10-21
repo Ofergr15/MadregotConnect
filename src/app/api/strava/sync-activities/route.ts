@@ -402,6 +402,8 @@ export async function runStravaSyncRequest(request: Request) {
             end_lat: a.end_latlng?.[0] || null,
             end_lng: a.end_latlng?.[1] || null,
             moving_duration: a.moving_time ? Math.round(a.moving_time) : null,
+            // Pauses included (#136, migration 166) — `duration` above is the moving time.
+            elapsed_duration: a.elapsed_time ? Math.round(a.elapsed_time) : null,
             gps_points: route,
             has_polyline: !!route,
             shoe_id: athlete.active_shoe_id || null,
@@ -417,9 +419,9 @@ export async function runStravaSyncRequest(request: Request) {
             .maybeSingle();
 
           if (insertError?.code === '42703' || insertError?.code === 'PGRST204') {
-            // shoe_id not migrated yet — retry without it rather than failing
-            // sync for every athlete over one missing column.
-            const { shoe_id, ...rowWithoutShoe } = row;
+            // shoe_id (075) or elapsed_duration (166) not migrated yet — retry without
+            // them rather than failing sync for every athlete over one missing column.
+            const { shoe_id, elapsed_duration, ...rowWithoutShoe } = row;
             ({ data: inserted, error: insertError } = await supabase
               .from('athlete_activities')
               .upsert(rowWithoutShoe, {

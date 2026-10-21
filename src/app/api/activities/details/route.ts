@@ -60,6 +60,8 @@ const SUMMARY_COLS = `
 
 /** Same, plus the shoe attribution from migration 075 (may be unapplied). */
 const SUMMARY_COLS_WITH_SHOE = `${SUMMARY_COLS}, shoes (name)`;
+/** Plus the wall-clock time (migration 166, may be unapplied). */
+const SUMMARY_COLS_FULL = `${SUMMARY_COLS_WITH_SHOE}, elapsed_duration`;
 
 export async function GET(request: Request) {
   try {
@@ -89,7 +91,8 @@ export async function GET(request: Request) {
       return q.maybeSingle();
     };
 
-    let { data: row, error } = await runQuery(SUMMARY_COLS_WITH_SHOE);
+    let { data: row, error } = await runQuery(SUMMARY_COLS_FULL);
+    if (error) ({ data: row, error } = await runQuery(SUMMARY_COLS_WITH_SHOE));
     if (error) {
       // Pre-075 database: no shoe_id column, so the embed can't resolve.
       ({ data: row, error } = await runQuery(SUMMARY_COLS));

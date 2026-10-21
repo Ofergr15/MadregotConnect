@@ -119,6 +119,8 @@ export interface GarminActivity {
    * migration 092 and lib/plans/garmin-workout-matches.ts.
    */
   workoutId: string | null;
+  /** Wall-clock seconds, pauses included (`duration` is the timer) — migration 166. */
+  elapsedDuration?: number | null;
   /** Garmin's Training Effect for the run (0–5), its label and load — migration 160. */
   aerobicTrainingEffect?: number | null;
   anaerobicTrainingEffect?: number | null;

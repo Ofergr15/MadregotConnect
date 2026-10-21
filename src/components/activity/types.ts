@@ -31,6 +31,8 @@ export interface ActivityEntry {
   distance: number;
   duration: number;
   moving_duration?: number;
+  /** Wall clock, pauses included (migration 166); absent on older rows. */
+  elapsed_duration?: number | null;
   average_pace: number | null;
   average_hr: number | null;
   max_hr: number | null;
