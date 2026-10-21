@@ -26,6 +26,9 @@ import { attachLapsForPrs } from '@/lib/prs/attach-laps';
 import { applyPrOverrides } from '@/lib/prs/overrides';
 import { readPrOverrides } from '@/lib/prs/overrides-store';
 import { readPrExclusions } from '@/lib/prs/exclusions-store';
+import { classifyWorkout } from '@/lib/plans/session-summary';
+import { workoutPlanForGroup } from '@/lib/plans/match-athlete-activities';
+import type { ParsedWorkout } from '@/lib/ai/types';
 import { bestEffort, heatCostSec, readWorkout, recoveries, technique, type WStep } from '@/lib/run-analysis/workout';
 
 export const dynamic = 'force-dynamic';
@@ -47,6 +50,21 @@ async function weather(lat: number, lng: number, localIso: string): Promise<{ te
     if (i < 0 || h.temperature_2m[i] == null) return null;
     return { tempC: h.temperature_2m[i], dewC: h.dew_point_2m[i], humidity: h.relative_humidity_2m[i], feelsC: h.apparent_temperature?.[i] ?? null };
   } catch { return null; }
+}
+
+/** The club's own line between a long run and a normal one (lib/plans/session-summary). */
+const LONG_RUN_M = 20000;
+
+/** Was the plan session this run is matched to a quality one or a long run? */
+async function plannedHard(supabase: ReturnType<typeof createServerClient>, activityId: string): Promise<boolean> {
+  try {
+    const { data: m } = await supabase.from('activity_plan_matches').select('weekly_plan_id, workout_key, group_number').eq('activity_id', activityId).maybeSingle();
+    if (!m) return false;
+    const { data: plan } = await supabase.from('weekly_plans').select('parsed_workouts').eq('id', m.weekly_plan_id).maybeSingle();
+    const w = workoutPlanForGroup(plan?.parsed_workouts, Number(m.group_number) || 1)?.workouts.find((x: ParsedWorkout) => x.workoutKey === m.workout_key);
+    if (!w) return false;
+    return ['intervals', 'tempo', 'fartlek', 'progressive', 'long_run'].includes(classifyWorkout(w));
+  } catch { return false; }
 }
 
 export async function GET(request: Request) {
@@ -130,6 +148,9 @@ export async function GET(request: Request) {
     }
 
     const cond = row.start_lat && row.start_lng ? await weather(row.start_lat, row.start_lng, String(row.start_time)) : null;
+    // "How much faster in other conditions" is for the runs where the pace is the point — a
+    // quality session or a long run (Ofer, 2026-10-21) — not every easy jog.
+    const paceMatters = !!workout || total >= LONG_RUN_M || (cond ? await plannedHard(supabase, row.id) : false);
     const pace = row.average_pace || (total ? (row.duration || 0) / (total / 1000) : 0);
     const teRow = te.error ? null : (te.data as { training_effect?: { aerobic?: number; anaerobic?: number; label?: string | null; load?: number | null; recoveryHours?: number | null } | null } | null)?.training_effect ?? null;
 
@@ -140,7 +161,7 @@ export async function GET(request: Request) {
       efforts, prs,
       recovery: tr && workout ? recoveries(tr, workout) : [],
       technique: tr && workout ? technique(tr, workout) : [],
-      conditions: cond ? { ...cond, costSec: workout ? heatCostSec(cond.tempC, cond.dewC, workout.avgPace) : heatCostSec(cond.tempC, cond.dewC, pace) } : null,
+      conditions: cond ? { ...cond, costSec: workout ? heatCostSec(cond.tempC, cond.dewC, workout.avgPace) : heatCostSec(cond.tempC, cond.dewC, pace), calc: paceMatters } : null,
       trainingEffect: teRow,
       hrVisible: hrOk,
     // Without the trace (it lands minutes after the run) the answer is partial: never kept.

@@ -102,3 +102,39 @@ describe('activity part matcher', () => {
     expect(matches).toEqual([]);
   });
 });
+
+// Ofer, 2026-10-21: an extra run on a day whose plan was run goes against that day's extra
+// sessions only, or nowhere; and of a day's runs, the session takes the one that fits it.
+describe('extra runs and the run that fits', () => {
+  const at = (day: number, hh: number) => `2026-10-${String(18 + day).padStart(2, '0')}T${String(hh).padStart(2, '0')}:00:00+00:00`;
+  const run = (id: string, day: number, hh: number, km: number, extra: Partial<{ workout_title: string }> = {}) => ({ id, start_time: at(day, hh), distance: km * 1000, activity_name: 'Run', ...extra });
+  const session = (key: string, day: number, km: number, more: Partial<ParsedWorkout> = {}): ParsedWorkout => ({
+    dayOfWeek: day, name: key, workoutKey: key, partIndex: 1, partCount: 1, expectedDistanceM: km * 1000, steps: [], ...more,
+  });
+  const mondayEvening = session('mon-evening', 1, 7, { partIndex: 2, partCount: 2, optional: true });
+
+  it('the evening run after the quality day does not take yesterday\'s session', () => {
+    // Tuesday's 10 × 1600 was matched by the watch (so Tuesday is done); 3.5 km cool-down, 7.3 km evening.
+    const m = matchActivityParts([run('cool', 2, 7, 3.5), run('evening', 2, 19, 7.3)], [mondayEvening], 45, { doneDays: [2] });
+    expect(m).toEqual([]);
+  });
+  it('but meets an evening session planned for that same day', () => {
+    const tueEvening = session('tue-evening', 2, 7, { partIndex: 2, partCount: 2 });
+    const m = matchActivityParts([run('evening', 2, 19, 7.3)], [mondayEvening, tueEvening], 45, { doneDays: [2] });
+    expect(m.map((x) => [x.activityId, x.workoutKey])).toEqual([['evening', 'tue-evening']]);
+  });
+  it('a workout moved to the next day still counts when that day had nothing done', () => {
+    const m = matchActivityParts([run('wed', 3, 6, 12)], [session('tue-intervals', 2, 12)]);
+    expect(m.map((x) => x.workoutKey)).toEqual(['tue-intervals']);
+  });
+  it('easy, the workout, easy — the session takes the workout, not the first run', () => {
+    const quality = session('tue-quality', 2, 14, { name: 'אינטרוולים 6 × 1000' });
+    const m = matchActivityParts([run('easy1', 2, 5, 3), run('main', 2, 6, 13.5, { workout_title: '6 × 1000' }), run('easy2', 2, 8, 3)], [quality]);
+    expect(m.map((x) => x.activityId)).toEqual(['main']);
+  });
+  it('a watch workout is not an easy session\'s run when another run fits it', () => {
+    const easy = session('tue-easy', 2, 8, { name: 'שחרור' });
+    const m = matchActivityParts([run('intervals', 2, 6, 8.5, { workout_title: '8 × 400' }), run('jog', 2, 18, 7.8)], [easy]);
+    expect(m.map((x) => x.activityId)).toEqual(['jog']);
+  });
+});

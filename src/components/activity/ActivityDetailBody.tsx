@@ -207,8 +207,9 @@ export function ActivityDetailBody({
           charts. Renders nothing for a viewer who may not read this score. */}
       {/* #136: with the wall clock known, total = it and net = the timer — Strava's
           "Elapsed" and "Moving" exactly (Garmin's own moving figure runs a few seconds
-          under its timer). Older rows have no wall clock and keep timer / moving. */}
-      {!mapOnly && <Times total={act.elapsed_duration ?? act.duration} moving={act.elapsed_duration ? act.duration : act.moving_duration ?? null} />}
+          under its timer). Older rows have no wall clock: the trace's last second is
+          start to finish, and the timer is the floor. */}
+      {!mapOnly && <Times total={act.elapsed_duration ?? Math.max(act.duration || 0, trace?.stream?.t.at(-1) ?? 0)} moving={act.elapsed_duration ? act.duration : act.moving_duration ?? null} />}
       {!mapOnly && an?.conditions && <Conditions c={an.conditions} />}
 
       {/* The watch ran a workout with reps: that IS the plan against execution (RunAnalysis). */}

@@ -28,7 +28,7 @@ export interface RunAnalysisData {
   prs: Record<string, { seconds: number; date: string | null } | null>;
   recovery: Array<{ rep: number; from: number; to: number }>;
   technique: Array<{ rep: number; cadence: number; stride: number }>;
-  conditions: { tempC: number; dewC: number; humidity: number; feelsC: number | null; costSec: number } | null;
+  conditions: { tempC: number; dewC: number; humidity: number; feelsC: number | null; costSec: number; calc?: boolean } | null;
   trainingEffect: { aerobic?: number; anaerobic?: number; label?: string | null; load?: number | null; recoveryHours?: number | null } | null;
   hrVisible: boolean;
 }
@@ -398,10 +398,11 @@ export function Conditions({ c }: { c: NonNullable<RunAnalysisData['conditions']
         {op('=')}
         {tile(`${Math.round(c.feelsC ?? c.tempC)}°`, t('feels'), 'bg-[#EEF0FF]')}
       </div>
-      <div className="mt-2 flex items-center gap-2 rounded-[14px] bg-[#FFF4E5] px-3 py-2">
+      {/* The calculator only where the pace was the point: quality sessions and long runs. */}
+      {c.calc !== false && <div className="mt-2 flex items-center gap-2 rounded-[14px] bg-[#FFF4E5] px-3 py-2">
         <b className="text-lg font-black text-[#B45309]"><B>{c.costSec > 0 ? `+${c.costSec}″` : '0″'}</B></b>
         <span className="text-[12px] leading-snug text-[#8A4A0B]">{c.costSec >= 5 ? t('heatHigh', { s: c.costSec }) : c.costSec > 0 ? t('heatLow', { s: c.costSec }) : t('heatNone')}</span>
-      </div>
+      </div>}
       <p className="mt-2 text-[11.5px] leading-relaxed text-ink-400">{t('dewLine', { dew: Math.round(c.dewC) })}</p>
     </section>
   );

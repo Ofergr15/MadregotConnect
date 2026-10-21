@@ -3,6 +3,7 @@ import type { GroupedWeeklyPlans, ParsedWeeklyPlan, ParsedWorkout } from '@/lib/
 import { activityLocalDateStr, israelToday } from '@/lib/utils';
 import { loadPackLanes } from '@/lib/groups/pack-history';
 import { matchActivityParts, type MatchableActivity } from './activity-matcher';
+import { activityLocalDay } from '@/lib/utils';
 import { normalizeParsedWorkouts } from './normalize-plan';
 import {
   pairByGarminWorkoutId,
@@ -90,6 +91,12 @@ async function loadActivities(
       .returns<ActivityRow[]>();
 
   if (Date.now() >= providerPlanMissingUntil) {
+    try {
+      // With what the watch ran ("10 × 1600", 165): which run of a day is the workout.
+      return await fetchAllRows<ActivityRow>(page(`${columns}, garmin_workout_id, provider_plan_id, workout_title`));
+    } catch (error) {
+      if (!isMissingColumn(error, 'workout_title') && !isMissingColumn(error, 'provider_plan_id')) throw error;
+    }
     try {
       return await fetchAllRows<ActivityRow>(page(`${columns}, garmin_workout_id, provider_plan_id`));
     } catch (error) {
@@ -282,10 +289,11 @@ export async function findComputedActivityMatch(
     // Garmin's own attribution first, on the same precedence as the persisting
     // path — otherwise the run-chat and the coach's match panel could disagree
     // about the same activity, one showing a scored guess and the other the fact.
-    const confirmed = pairByGarminWorkoutId(
+    const garminPairs = pairByGarminWorkoutId(
       weekActivities,
       await loadDeliveries(supabase, plan.id, athleteId),
-    ).find((match) => match.activityId === activityId);
+    );
+    const confirmed = garminPairs.find((match) => match.activityId === activityId);
     if (confirmed) {
       const workout = groupPlan.workouts.find(
         (candidate: ParsedWorkout) => candidate.workoutKey === confirmed.workoutKey,
@@ -322,7 +330,16 @@ export async function findComputedActivityMatch(
       }
     }
 
-    const matches = matchActivityParts(weekActivities as MatchableActivity[], groupPlan.workouts);
+    // As the persisting path: the watch's own matches hold their runs and sessions, and
+    // their days are done — an extra run on one of them does not move to the next day.
+    const heldRuns = new Set(garminPairs.map((match) => match.activityId));
+    const heldKeys = new Set(garminPairs.map((match) => match.workoutKey));
+    const matches = matchActivityParts(
+      weekActivities.filter((activity) => !heldRuns.has(activity.id)) as MatchableActivity[],
+      groupPlan.workouts.filter((workout: ParsedWorkout) => !workout.workoutKey || !heldKeys.has(workout.workoutKey)),
+      undefined,
+      { doneDays: weekActivities.filter((activity) => heldRuns.has(activity.id)).map((activity) => activityLocalDay(activity.start_time)) },
+    );
     const hit = matches.find((match) => match.activityId === activityId);
     if (!hit) continue;
     const workout = groupPlan.workouts.find(
@@ -469,7 +486,12 @@ export async function matchAthleteActivities(
       (workout: ParsedWorkout) =>
         workout.workoutKey && !claimedWorkoutKeys.has(workout.workoutKey),
     );
-    const heuristic = matchActivityParts(availableActivities, availableWorkouts);
+    // The days already run by a claimed match: an extra run on one of them does not move
+    // to the day next to it (activity-matcher, two passes).
+    const doneDays = weekActivities
+      .filter((activity) => claimedActivityIds.has(activity.id))
+      .map((activity) => activityLocalDay(activity.start_time));
+    const heuristic = matchActivityParts(availableActivities, availableWorkouts, undefined, { doneDays });
 
     const rows = [
       ...confirmed.map((match) => ({

@@ -6404,7 +6404,7 @@
   },
   "runAnalysis": {
     "gapNote": "\"On flat ground\" — grade-adjusted pace: how fast the same effort would be with no climbs or descents. Faster than the actual pace uphill, slower downhill.",
-    "pauseTime": "Paused",
+    "pauseTime": "Stopped",
     "netTime": "Moving time",
     "totalTime": "Total time",
     "loadVeryHigh": "Load {n} — very high for one session (easy ~50–100, tempo ~150–250); give it 2–3 easy days.",

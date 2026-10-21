@@ -1,11 +1,16 @@
 import type { ParsedWorkout } from '@/lib/ai/types';
 import { activityLocalDay } from '@/lib/utils';
+import { classifyWorkout } from '@/lib/plans/session-summary';
 
 export interface MatchableActivity {
   id: string;
   start_time: string;
   distance: number | null;
   activity_name?: string | null;
+  /** "10 × 1600" when the watch ran a workout with repeats (migration 165). */
+  workout_title?: string | null;
+  /** The watch ran a workout the club pushed (migration 092). */
+  garmin_workout_id?: string | null;
 }
 
 export interface ActivityPartMatch {
@@ -45,6 +50,13 @@ const SAME_DAY_SCORE = 30;
 const DAY_SHIFT_SCORE = 12;
 const MAX_DAY_DELTA = 1;
 
+function workoutKind(workout: ParsedWorkout): 'quality' | 'easy' | 'other' {
+  try {
+    const k = classifyWorkout(workout);
+    return k === 'intervals' || k === 'tempo' || k === 'fartlek' || k === 'progressive' ? 'quality' : k === 'easy' ? 'easy' : 'other';
+  } catch { return 'other'; }
+}
+
 function pairScore(
   activity: MatchableActivity,
   workout: ParsedWorkout,
@@ -76,8 +88,19 @@ function pairScore(
     score += 15;
   }
 
+  // Which run of the day fits the session (Ofer, 2026-10-21: "easy, then the workout, then
+  // easy — find the run that fits the plan"). The order within the day decides only when
+  // the distance can't: with a distance on both sides it is a tiebreak, else the old weight.
   const partIndex = workout.partIndex || 1;
-  score += Math.max(0, 15 - Math.abs(activityOrder - partIndex) * 8);
+  const orderGap = Math.abs(activityOrder - partIndex);
+  // Same 15 for the run in the session's place, as before; being the day's 2nd or 3rd run
+  // costs 2 a step when the distance speaks, 8 when it doesn't.
+  score += difference != null ? Math.max(0, 15 - orderGap * 2) : Math.max(0, 15 - orderGap * 8);
+  // A run the watch drove as a workout is the quality session's, and not an easy one's.
+  const structured = !!activity.workout_title || !!activity.garmin_workout_id;
+  const kind = workoutKind(workout);
+  if (structured && kind === 'quality') score += 12;
+  if (structured && kind === 'easy') score -= 10;
 
   const haystack = (activity.activity_name || '').toLowerCase();
   const matchedNameTokens = (workout.activityNameTokens || []).filter(
@@ -104,14 +127,23 @@ function pairScore(
 }
 
 /**
- * Greedy one-to-one assignment after scoring every valid pair — the planned day
- * plus, at a penalty, the day either side of it.
+ * Greedy one-to-one assignment, in two passes.
+ *
+ * First every run against its own day's sessions. Then, at a penalty, the day either side —
+ * but only for a run whose own day was not done: no session of that day went to another
+ * run, here or already (`doneDays`: the days a watch workout or a coach already matched).
+ * A day shift exists for the workout moved to the next day; an EXTRA run on a day whose
+ * plan was run is not a moved workout. Ofer's evening 7 km on 2026-10-20, after the
+ * morning's 10 × 1600, took Monday's optional evening session one day back and was
+ * judged as having missed it. Extra runs meet only that day's extra sessions; with none,
+ * they stay off the plan.
  * Existing manual matches should be removed from both input arrays by the caller.
  */
 export function matchActivityParts(
   activities: MatchableActivity[],
   workouts: ParsedWorkout[],
   minimumScore = 45,
+  opts: { doneDays?: Iterable<number> } = {},
 ): ActivityPartMatch[] {
   const orderedActivities = [...activities].sort((a, b) =>
     a.start_time.localeCompare(b.start_time),
@@ -132,15 +164,27 @@ export function matchActivityParts(
   );
   pairs.sort((a, b) => b.score - a.score);
 
+  const dayOf = new Map(orderedActivities.map((a) => [a.id, activityLocalDay(a.start_time)]));
+  const done = new Set<number>(opts.doneDays ?? []);
   const usedActivities = new Set<string>();
   const usedWorkouts = new Set<string>();
   const matches: ActivityPartMatch[] = [];
-  for (const pair of pairs) {
-    if (pair.score < minimumScore) continue;
-    if (usedActivities.has(pair.activityId) || usedWorkouts.has(pair.workoutKey)) continue;
+  const take = (pair: ActivityPartMatch) => {
     usedActivities.add(pair.activityId);
     usedWorkouts.add(pair.workoutKey);
     matches.push(pair);
+  };
+  for (const pair of pairs) {
+    if (pair.evidence.dayDelta !== 0 || pair.score < minimumScore) continue;
+    if (usedActivities.has(pair.activityId) || usedWorkouts.has(pair.workoutKey)) continue;
+    take(pair);
+    done.add(pair.evidence.plannedDayOfWeek);
+  }
+  for (const pair of pairs) {
+    if (pair.evidence.dayDelta === 0 || pair.score < minimumScore) continue;
+    if (usedActivities.has(pair.activityId) || usedWorkouts.has(pair.workoutKey)) continue;
+    if (done.has(dayOf.get(pair.activityId)!)) continue;
+    take(pair);
   }
   return matches.sort((a, b) => a.evidence.activityOrder - b.evidence.activityOrder);
 }
