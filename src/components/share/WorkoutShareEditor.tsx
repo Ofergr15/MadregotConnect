@@ -645,11 +645,31 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
     />
   ) : null;
 
+  // The card's language, reachable from every tray (Ofer, 2026-10-21: "no way to write the
+  // pace and the rest in English"). It lived only under the title's part, which a card with
+  // no title — the minimal look, the stickers, the title switched off — never opens.
+  const langToggle = (small = false) => (
+    <div className={cn('flex rounded-full bg-white/[0.08] p-0.5', small && 'h-7 items-center')}>
+      {SHARE_CARD_LANGS.map(l => (
+        <button
+          key={l}
+          type="button"
+          onClick={() => setCardLang(l)}
+          aria-pressed={cardLang === l}
+          className={cn('rounded-full font-bold', small ? 'h-6 px-2.5 text-3xs' : 'min-h-[38px] px-3 text-xs', cardLang === l ? 'bg-white text-ink-900' : 'text-white/60')}
+        >
+          {l === 'he' ? 'עברית' : 'English'}
+        </button>
+      ))}
+    </div>
+  );
+
   // ── The tray: the looks, or the options of the part that was tapped ──────────
   const tray = (() => {
     if (mode === 'data' && template === 'splits') {
       return (
         <>
+          <div className="mb-2 flex justify-end">{langToggle()}</div>
           {modeControl}
           {splitMode !== 'km' && (
             <Toggle label={t('paceLabels')} on={paceLabels} onClick={() => setPaceLabels(v => !v)} />
@@ -667,6 +687,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
     if (mode === 'data') {
       return (
         <>
+          <div className="mb-2 flex justify-end">{langToggle()}</div>
           {template === 'route' && (
             <Segmented
               items={[['stats', t('routeWithStats')], ['only', t('viewRouteOnly')]]}
@@ -812,18 +833,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
             {titleOk && chip(t('partTitle'), showTitle, () => setShowTitle(v => !v))}
             {dateOk && chip(t('partDate'), showDate, () => setShowDate(v => !v))}
             {startOk && chip(t('partStart'), showStartTime, () => setShowStartTime(v => !v))}
-            <div className="ms-auto flex rounded-full bg-white/[0.08] p-0.5">
-              {SHARE_CARD_LANGS.map(l => (
-                <button
-                  key={l}
-                  onClick={() => setCardLang(l)}
-                  aria-pressed={cardLang === l}
-                  className={cn('min-h-[38px] rounded-full px-3 text-xs font-bold', cardLang === l ? 'bg-white text-ink-900' : 'text-white/60')}
-                >
-                  {l === 'he' ? 'עברית' : 'English'}
-                </button>
-              ))}
-            </div>
+            <div className="ms-auto">{langToggle()}</div>
           </div>
         </>
       );
@@ -896,7 +906,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
         })}
       </div>
     );
-    if (!stickerViews.length) return strip(cardViews, false);
+    if (!stickerViews.length) return <><div className="mb-1 flex h-7 justify-end">{langToggle(true)}</div>{strip(cardViews, false)}</>;
     return (
       <>
         {/* Two text tabs rather than a segmented pill: the tray is 124px on a short
@@ -916,6 +926,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
               {t(k === 'cards' ? 'looksCards' : 'looksStickers')}
             </button>
           ))}
+          <div className="ms-auto">{langToggle(true)}</div>
         </div>
         {shelf === 'stickers' ? strip(stickerViews, true) : strip(cardViews, false)}
       </>

@@ -137,4 +137,9 @@ describe('extra runs and the run that fits', () => {
     const m = matchActivityParts([run('intervals', 2, 6, 8.5, { workout_title: '8 × 400' }), run('jog', 2, 18, 7.8)], [easy]);
     expect(m.map((x) => x.activityId)).toEqual(['jog']);
   });
+  it('a run started from a saved watch workout with no repeats still meets an easy session', () => {
+    const easy = session('thu-easy', 4, 14, { name: 'שחרור' });
+    const m = matchActivityParts([{ ...run('thu', 4, 7, 13.8), garmin_workout_id: '1622062374' } as never], [easy]);
+    expect(m.map((x) => x.workoutKey)).toEqual(['thu-easy']);
+  });
 });

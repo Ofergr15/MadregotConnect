@@ -9,8 +9,6 @@ export interface MatchableActivity {
   activity_name?: string | null;
   /** "10 × 1600" when the watch ran a workout with repeats (migration 165). */
   workout_title?: string | null;
-  /** The watch ran a workout the club pushed (migration 092). */
-  garmin_workout_id?: string | null;
 }
 
 export interface ActivityPartMatch {
@@ -96,8 +94,10 @@ function pairScore(
   // Same 15 for the run in the session's place, as before; being the day's 2nd or 3rd run
   // costs 2 a step when the distance speaks, 8 when it doesn't.
   score += difference != null ? Math.max(0, 15 - orderGap * 2) : Math.max(0, 15 - orderGap * 8);
-  // A run the watch drove as a workout is the quality session's, and not an easy one's.
-  const structured = !!activity.workout_title || !!activity.garmin_workout_id;
+  // A run with repeats on the watch ("10 × 1600") is the quality session's, not an easy
+  // one's. Repeats, not just "started from a watch workout": a saved easy workout has a
+  // workout id too (Shahar's Thursday 13.8 km, 2026-10-15, lost his easy session to that).
+  const structured = !!activity.workout_title;
   const kind = workoutKind(workout);
   if (structured && kind === 'quality') score += 12;
   if (structured && kind === 'easy') score -= 10;
