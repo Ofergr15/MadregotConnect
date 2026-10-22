@@ -1,6 +1,6 @@
 import type { TourPrefs } from './prefs';
 
-// The "new here" dots and when they show: once the prefs are known, never after "הבנתי",
+// The "new here" dots and when they show: only while the club switch is on, once the prefs are known, never after "הבנתי",
 // and never while a tour is running.
 export const HOTSPOTS = {
   'week-from-club': { title: 'שבוע שלם מהקבוצה', body: 'לוקחים את כל השבוע של הקבוצה, מותאם לקצבים של המתאמן — ואז מתקנים ימים בודדים.' },
@@ -10,7 +10,8 @@ export const HOTSPOTS = {
 
 export type HotspotId = keyof typeof HOTSPOTS;
 
-export function hotspotVisible(id: string, ctx: { ready: boolean; prefs: TourPrefs; tourRunning: boolean }): boolean {
-  if (!ctx.ready || ctx.tourRunning) return false;
+export function hotspotVisible(id: string, ctx: { ready: boolean; prefs: TourPrefs; tourRunning: boolean; on?: boolean }): boolean {
+  // The club switch (lib/tour/switch.ts): off — and unknown — shows no dots.
+  if (!ctx.ready || ctx.tourRunning || ctx.on !== true) return false;
   return !ctx.prefs.hotspots[id];
 }

@@ -19,9 +19,9 @@ export function Hotspot({ id, title, body, children, className, off = false }: {
   className?: string;
 }) {
   const tour = useTour();
-  const { prefs, ready, save } = useTourPrefs();
+  const { prefs, ready, on, save } = useTourPrefs();
   const [open, setOpen] = useState(false);
-  const show = !off && hotspotVisible(id, { ready, prefs, tourRunning: tour.phase !== 'idle' && tour.phase !== 'done' });
+  const show = !off && hotspotVisible(id, { ready, prefs, on, tourRunning: tour.phase !== 'idle' && tour.phase !== 'done' });
   return (
     <div className={`relative ${className ?? ''}`}>
       {children}

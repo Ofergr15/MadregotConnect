@@ -9,11 +9,11 @@ import { EMPTY_PREFS, mergePrefs, readLocal, writeLocal, type TourPrefs } from '
  * `save` that writes both. `ready` once the server has answered — or failed, in which case
  * the local copy alone decides (an admin viewing somebody gets 403 on the POST; fine).
  */
-export function useTourPrefs(enabled = true): { prefs: TourPrefs; ready: boolean; save: (change: { tour?: string; state?: string; hotspot?: string; reset?: string }) => void } {
-  const { data, error, mutate } = useApi<TourPrefs>(enabled ? '/api/tours' : null);
+export function useTourPrefs(enabled = true): { prefs: TourPrefs; ready: boolean; on: boolean; isSuper: boolean; save: (change: { tour?: string; state?: string; hotspot?: string; reset?: string }) => void } {
+  const { data, error, mutate } = useApi<TourPrefs & { enabled?: boolean; isSuper?: boolean }>(enabled ? '/api/tours' : null);
   const [local, setLocal] = useState<TourPrefs>(EMPTY_PREFS);
   useEffect(() => { setLocal(readLocal()); }, []);
-  const prefs = mergePrefs(data ?? EMPTY_PREFS, local);
+  const prefs = mergePrefs(data ? { tours: data.tours ?? {}, hotspots: data.hotspots ?? {} } : EMPTY_PREFS, local);
   const save = useCallback((change: { tour?: string; state?: string; hotspot?: string; reset?: string }) => {
     const next = mergePrefs(readLocal(), EMPTY_PREFS);
     if (change.tour && change.state) next.tours[change.tour] = change.state;
@@ -28,5 +28,6 @@ export function useTourPrefs(enabled = true): { prefs: TourPrefs; ready: boolean
       } catch { /* the local copy holds */ }
     })();
   }, [mutate]);
-  return { prefs, ready: !!data || !!error, save };
+  // The club switch: unknown (or a failed read) means OFF.
+  return { prefs, ready: !!data || !!error, on: data?.enabled === true, isSuper: data?.isSuper === true, save };
 }

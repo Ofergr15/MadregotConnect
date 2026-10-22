@@ -2,11 +2,13 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, authError } from '@/lib/auth-session';
 import { applyTourChange, readTourPrefs } from '@/lib/tour/prefs';
+import { isCoachTourOn } from '@/lib/tour/switch';
 
 export const dynamic = 'force-dynamic';
 
-// GET  /api/tours → { tours, hotspots }: which guided tours this person has been through,
-//      and which "new here" dots they dismissed (lib/tour/prefs.ts).
+// GET  /api/tours → { tours, hotspots, enabled, isSuper }: which guided tours this person has
+//      been through, which "new here" dots they dismissed (lib/tour/prefs.ts), and the club
+//      switch (lib/tour/switch.ts) — off by default.
 // POST /api/tours { tour, state } | { hotspot } | { reset } — merged into
 //      athletes.notification_prefs, every other preference kept. No migration.
 export async function GET(request: Request) {
@@ -15,7 +17,8 @@ export async function GET(request: Request) {
   const db = createServerClient();
   const { data, error } = await db.from('athletes').select('notification_prefs').eq('id', auth.user.athleteId).maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(readTourPrefs(data?.notification_prefs));
+  const enabled = await isCoachTourOn(db);
+  return NextResponse.json({ ...readTourPrefs(data?.notification_prefs), enabled, isSuper: auth.user.isSuperUser === true });
 }
 
 export async function POST(request: Request) {

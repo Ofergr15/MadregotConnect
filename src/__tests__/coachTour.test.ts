@@ -6,12 +6,14 @@ import { practiceAnswer, startPractice, stopPractice, isPracticeActive } from '@
 import { applyTourChange, mergePrefs, readTourPrefs } from '@/lib/tour/prefs';
 import { hotspotVisible, HOTSPOTS } from '@/lib/tour/hotspots';
 import { readFileSync } from 'node:fs';
+import { mayToggleCoachTour, parseCoachTourOn, shouldOfferCoachTour, tourVisibility } from '@/lib/tour/switch';
 
-const h = vi.hoisted(() => ({ who: null as string | null, db: null as unknown as ReturnType<typeof createMemoryDb> }));
+const h = vi.hoisted(() => ({ who: null as string | null, db: null as unknown as ReturnType<typeof createMemoryDb>, user: null as null | { isSuperUser: boolean; role: string; roles: string[] } }));
 vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => h.db.client }));
 vi.mock('@/lib/auth-session', async (orig) => ({
   ...(await orig<object>()),
-  requireAthlete: async () => (h.who ? { ok: true, user: { athleteId: h.who } } : { ok: false, status: 401, error: 'unauthorized' }),
+  requireAthlete: async () => (h.who ? { ok: true, user: { athleteId: h.who, isSuperUser: h.user?.isSuperUser ?? false } } : { ok: false, status: 401, error: 'unauthorized' }),
+  requireSession: async () => (h.user ? { ok: true, user: { athleteId: h.who, ...h.user } } : { ok: false, status: 401, error: 'unauthorized' }),
 }));
 
 // The coach tour (mockups/coach-intro/v2.html): its state machine, the practice run that
@@ -135,10 +137,12 @@ describe('seen once: persistence, replay and the blue dots', () => {
 
   it('a dot shows once the prefs are known, never after הבנתי, never during a tour', () => {
     const none = { tours: {}, hotspots: {} };
-    expect(hotspotVisible('zones-edit', { ready: false, prefs: none, tourRunning: false })).toBe(false);
-    expect(hotspotVisible('zones-edit', { ready: true, prefs: none, tourRunning: false })).toBe(true);
-    expect(hotspotVisible('zones-edit', { ready: true, prefs: none, tourRunning: true })).toBe(false);
-    expect(hotspotVisible('zones-edit', { ready: true, prefs: { tours: {}, hotspots: { 'zones-edit': true } }, tourRunning: false })).toBe(false);
+    expect(hotspotVisible('zones-edit', { ready: false, prefs: none, tourRunning: false, on: true })).toBe(false);
+    expect(hotspotVisible('zones-edit', { ready: true, prefs: none, tourRunning: false, on: true })).toBe(true);
+    expect(hotspotVisible('zones-edit', { ready: true, prefs: none, tourRunning: false, on: false })).toBe(false);
+    expect(hotspotVisible('zones-edit', { ready: true, prefs: none, tourRunning: false })).toBe(false);
+    expect(hotspotVisible('zones-edit', { ready: true, prefs: none, tourRunning: true, on: true })).toBe(false);
+    expect(hotspotVisible('zones-edit', { ready: true, prefs: { tours: {}, hotspots: { 'zones-edit': true } }, tourRunning: false, on: true })).toBe(false);
     expect(Object.keys(HOTSPOTS)).toEqual(['week-from-club', 'book-entry', 'zones-edit']);
   });
 });
@@ -146,7 +150,7 @@ describe('seen once: persistence, replay and the blue dots', () => {
 describe('/api/tours', () => {
   const ME = uid();
   beforeEach(() => {
-    h.db = createMemoryDb({ schema: { athletes: ['id', 'notification_prefs'] } });
+    h.db = createMemoryDb({ schema: { athletes: ['id', 'notification_prefs'], app_settings: ['key', 'value'] } });
     h.db.tables.athletes.push({ id: ME, notification_prefs: { language: 'he' } });
     h.who = ME;
   });
@@ -154,10 +158,10 @@ describe('/api/tours', () => {
 
   it('saves the end state and the dots, and reads them back', async () => {
     const route = await import('@/app/api/tours/route');
-    expect(await (await route.GET(req())).json()).toEqual({ tours: {}, hotspots: {} });
+    expect(await (await route.GET(req())).json()).toEqual({ tours: {}, hotspots: {}, enabled: false, isSuper: false });
     expect((await route.POST(req({ tour: 'coach', state: 'done' }))).status).toBe(200);
     expect((await route.POST(req({ hotspot: 'book-entry' }))).status).toBe(200);
-    expect(await (await route.GET(req())).json()).toEqual({ tours: { coach: 'done' }, hotspots: { 'book-entry': true } });
+    expect(await (await route.GET(req())).json()).toMatchObject({ tours: { coach: 'done' }, hotspots: { 'book-entry': true } });
     expect(h.db.tables.athletes[0].notification_prefs).toMatchObject({ language: 'he' });
     expect((await route.POST(req({ tour: 'coach', state: 'nope' }))).status).toBe(400);
   });
@@ -166,5 +170,54 @@ describe('/api/tours', () => {
     h.who = null;
     const route = await import('@/app/api/tours/route');
     expect((await route.GET(req())).status).toBe(401);
+  });
+});
+
+describe('the club switch: ships OFF', () => {
+  it('no row, or anything but "on", is off', () => {
+    expect(parseCoachTourOn(undefined)).toBe(false);
+    expect(parseCoachTourOn(null)).toBe(false);
+    expect(parseCoachTourOn('true')).toBe(false);
+    expect(parseCoachTourOn('on')).toBe(true);
+  });
+
+  it('off: no offer, no dots, no menu row for a coach — and a labelled preview for the super user', () => {
+    expect(tourVisibility(false, false)).toEqual({ offer: false, hotspots: false, menu: false, preview: false });
+    expect(tourVisibility(false, true)).toEqual({ offer: false, hotspots: false, menu: true, preview: true });
+    expect(tourVisibility(true, false)).toEqual({ offer: true, hotspots: true, menu: true, preview: false });
+    const bar = readFileSync('src/components/BottomTabBar.tsx', 'utf8');
+    expect(bar).toContain('((isStaffView && coachTour.on) || superUser)');
+    expect(bar).toContain('(כבוי לכולם)');
+  });
+
+  it('on: the offer shows once, then never again', () => {
+    expect(shouldOfferCoachTour({ on: false, ready: true, stored: undefined })).toBe(false);
+    expect(shouldOfferCoachTour({ on: true, ready: false, stored: undefined })).toBe(false);
+    expect(shouldOfferCoachTour({ on: true, ready: true, stored: undefined })).toBe(true);
+    for (const stored of ['done', 'later', 'skipped']) expect(shouldOfferCoachTour({ on: true, ready: true, stored })).toBe(false);
+  });
+
+  it('the super-user preview runs the tour while it is off (the replay does not read the switch)', () => {
+    const s = tourReducer(IDLE, { type: 'START', tour: 'coach' }, COACH_TOUR);
+    expect(s.phase).toBe('step');
+    expect(readFileSync('src/components/tour/TourOverlay.tsx', 'utf8')).not.toMatch(/coach_tour_enabled|isCoachTourOn/);
+  });
+
+  it('only the admin or the super user may flip it', async () => {
+    expect(mayToggleCoachTour({ isSuperUser: false, role: 'academy_coach', roles: ['academy_coach'] })).toBe(false);
+    expect(mayToggleCoachTour({ isSuperUser: false, role: 'admin' })).toBe(true);
+    expect(mayToggleCoachTour({ isSuperUser: true, role: 'runner' })).toBe(true);
+    h.db = createMemoryDb({ schema: { athletes: ['id', 'notification_prefs'], app_settings: ['key', 'value'] } });
+    const sw = await import('@/app/api/tours/switch/route');
+    const put = (on: unknown) => new Request('http://x/api/tours/switch', { method: 'PUT', body: JSON.stringify({ on }) });
+    h.user = { isSuperUser: false, role: 'academy_coach', roles: ['academy_coach'] };
+    expect((await sw.PUT(put(true))).status).toBe(403);
+    expect(await (await sw.GET(new Request('http://x/api/tours/switch'))).json()).toEqual({ on: false, canToggle: false });
+    h.user = { isSuperUser: true, role: 'runner', roles: ['runner'] };
+    expect((await sw.PUT(put('yes'))).status).toBe(400);
+    expect((await sw.PUT(put(true))).status).toBe(200);
+    expect(h.db.tables.app_settings).toMatchObject([{ key: 'coach_tour_enabled', value: 'on' }]);
+    expect(await (await sw.GET(new Request('http://x/api/tours/switch'))).json()).toEqual({ on: true, canToggle: true });
+    h.user = null;
   });
 });

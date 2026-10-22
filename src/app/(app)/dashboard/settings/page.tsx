@@ -14,6 +14,7 @@ import { StoreManager } from '@/components/StoreManager';
 import { PerksManager } from '@/components/PerksManager';
 import CoreRunnersManager from '@/components/CoreRunnersManager';
 import { MaintenanceRow, MaintenanceAllowlist } from '@/components/MaintenanceToggle';
+import { CoachTourSwitchRow } from '@/components/tour/CoachTourSwitchRow';
 import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { ReminderConfig } from '@/components/ReminderConfig';
 import { MapPrefsRow } from '@/components/MapPrefsRow';
@@ -1151,6 +1152,7 @@ export default function SettingsPage() {
           {/* First card: maintenance toggle + reminders, grouped like the reference. */}
           <InsetSection>
             <MaintenanceRow />
+            <CoachTourSwitchRow />
             <InsetRow
               icon={UserIcon}
               iconBg="bg-violet-500"

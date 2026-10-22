@@ -8,6 +8,7 @@ import { Menu, Camera, Search, ShoppingBag, Gift, LogOut, Bug, Users, UserSearch
 import { useIsSuperUser } from '@/lib/impersonation';
 import { startLiveTour } from '@/components/onboarding/LiveTour';
 import { TOUR_REPLAY_EVENT } from '@/lib/tour/store';
+import { useTourPrefs } from '@/lib/tour/use-prefs';
 import { openViewAsChooser } from '@/lib/view-as-person';
 import { cn } from '@/lib/utils';
 import { athletePrimaryOrder, resolveNavItems, useNavIdentity, type NavItem, STORE_OPEN, ADMIN_HOME_ORDER, isAdminHome } from '@/lib/nav-items';
@@ -75,6 +76,7 @@ export function BottomTabBar() {
   // independently (each ask pays a full session verification server-side).
   const identity = useNavIdentity();
   const { ready, isStaffView, isSuper, viewMode } = identity;
+  const coachTour = useTourPrefs(ready && (isStaffView || superUser));
   // `fallback` so a role that resolves to nothing still gets a usable bar rather
   // than none at all.
   const navItems = ready ? resolveNavItems({ ...identity, fallback: true }) : [];
@@ -265,7 +267,9 @@ export function BottomTabBar() {
               {/* The live tour, being tried (2026-10-19): the super user starts it here. */}
               {superUser && <MoreCard icon={Compass} label="סיור באפליקציה" active={false} onClick={() => { setMoreOpen(false); setTimeout(startLiveTour, 350); }} />}
               {/* The coach tour (lib/tour), replayed: everyone who coaches, and the super user. */}
-              {(isStaffView || superUser) && <MoreCard icon={GraduationCap} label="סיור מאמן" active={false} onClick={() => { setMoreOpen(false); setTimeout(() => window.dispatchEvent(new CustomEvent(TOUR_REPLAY_EVENT, { detail: 'coach' })), 350); }} />}
+              {/* Behind the club switch (lib/tour/switch.ts): coaches see it only when it is on; the
+                  super user always, as a preview while it is off. */}
+              {((isStaffView && coachTour.on) || superUser) && <MoreCard icon={GraduationCap} label={!coachTour.on ? 'סיור מאמן (כבוי לכולם)' : 'סיור מאמן'} active={false} onClick={() => { setMoreOpen(false); setTimeout(() => window.dispatchEvent(new CustomEvent(TOUR_REPLAY_EVENT, { detail: 'coach' })), 350); }} />}
             </div>
           </div>
 
