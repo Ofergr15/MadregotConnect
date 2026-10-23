@@ -30,10 +30,21 @@ export interface ApprovalStore {
 export type GateState = 'not_needed' | 'pending' | 'approved' | 'skipped';
 
 /** One push the approval screen shows, Hebrew copy as the runners will read it. */
-export interface ApprovalPush { key: string; when: string; audience: string; title: string; body: string }
+export interface ApprovalPush {
+  key: string; when: string; audience: string; title: string; body: string;
+  /** The week-setup slot this push is (`dayBefore:2`) and its week, for editing it here. */
+  slot: string; week: string;
+  /** The default hour, and this week's change to it when there is one. */
+  hour: number; defaultHour: number;
+  audienceId: string | null; off: boolean; edited: boolean;
+  /** The defaults, for "back to the default". */
+  defaultTitle: string; defaultBody: string;
+}
 /** One team day on the approval screen. */
 export interface ApprovalDay {
   date: string;
+  /** When the admin is asked: "ראשון 20:00". */
+  askAt: string;
   dayOfWeek: number;
   workoutName: string | null;
   quality: boolean;

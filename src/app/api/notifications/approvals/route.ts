@@ -7,10 +7,16 @@ import {
   trainingDayBeforeCopy, trainingEveningBeforeCopy,
 } from '@/lib/notifications/copy';
 import {
-  APPROVAL_MODES, addDays, dowOf, gateState, withDecision,
+  APPROVAL_MODES, ASK_HOUR, addDays, dowOf, gateState, withDecision,
   type ApprovalDay, type ApprovalMode, type ApprovalPush,
 } from '@/lib/notifications/approval';
 import { loadApprovals, qualityOf, saveApprovals } from '@/lib/notifications/approval-server';
+import { loadOverrides } from '@/lib/week-setup/server';
+import { overrideFor, slotKey, withOverrideCopy, type OverrideStore } from '@/lib/week-setup/model';
+import { COACH_ID } from '@/lib/constants';
+import { planWeekStartOf } from '@/lib/utils';
+
+const DAY_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
 export const dynamic = 'force-dynamic';
 
@@ -86,11 +92,15 @@ export async function PUT(request: Request) {
 }
 
 async function view(supabase: ReturnType<typeof createServerClient>) {
-  const [store, cfgRow, athletes] = await Promise.all([
+  const [store, cfgRow, athletes, overrides, groupsRes] = await Promise.all([
     loadApprovals(supabase),
     supabase.from('app_settings').select('value').eq('key', 'reminder_config').maybeSingle(),
     allAthleteIds(),
+    loadOverrides(supabase).catch(() => ({} as OverrideStore)),
+    supabase.from('groups').select('id, name').eq('coach_id', COACH_ID),
   ]);
+  const groups = ((groupsRes.data || []) as Array<{ id: string; name: string }>).sort((a, b) => a.name.localeCompare(b.name));
+  const groupName = (id: string | null | undefined) => groups.find((g) => g.id === id)?.name ?? null;
   let cfg = DEFAULT_CFG;
   try { cfg = { ...DEFAULT_CFG, ...JSON.parse(cfgRow.data?.value || '') }; } catch { /* default */ }
 
@@ -102,17 +112,24 @@ async function view(supabase: ReturnType<typeof createServerClient>) {
     const quality = await qualityOf(supabase, date);
     const decision = store.days[date];
     const pushes: ApprovalPush[] = [];
+    const week = planWeekStartOf(date); // the team day's own plan-week, as the tick reads it
     const all = `כל הרצים (${athletes.length})`;
-    if (cfg.dayBefore.enabled) {
-      const c = trainingDayBeforeCopy('he', { day });
-      pushes.push({ key: 'dayBefore', when: `יום לפני · ${hh(cfg.dayBefore.hour)}`, audience: all, ...c });
-    }
-    if (cfg.eveningBefore.enabled) {
-      const c = trainingEveningBeforeCopy('he', { day, goingCount: 0 });
-      pushes.push({ key: 'eveningBefore', when: `יום לפני · ${hh(cfg.eveningBefore.hour)}`, audience: 'רק מי שלא אישר הגעה', ...c });
-    }
+    const prevDay = DAY_HE[(day + 6) % 7];
+    const push = (stage: 'dayBefore' | 'eveningBefore', defHour: number, c: { title: string; body: string }, audienceDefault: string) => {
+      const o = overrideFor(overrides, week, stage, day);
+      const g = groupName(o?.audience);
+      const shown = withOverrideCopy(c, o);
+      pushes.push({
+        key: stage, slot: slotKey(stage, day), week,
+        when: `${prevDay} · ${hh(o?.hour ?? defHour)}`, hour: o?.hour ?? defHour, defaultHour: defHour,
+        audience: g ? `רק ${g}` : audienceDefault, audienceId: o?.audience ?? null,
+        off: !!o?.off, edited: !!o, title: shown.title, body: shown.body, defaultTitle: c.title, defaultBody: c.body,
+      });
+    };
+    if (cfg.dayBefore.enabled) push('dayBefore', cfg.dayBefore.hour, trainingDayBeforeCopy('he', { day }), all);
+    if (cfg.eveningBefore.enabled) push('eveningBefore', cfg.eveningBefore.hour, trainingEveningBeforeCopy('he', { day, goingCount: 0 }), 'רק מי שלא אישר הגעה');
     days.push({
-      date, dayOfWeek: day,
+      date, dayOfWeek: day, askAt: `${DAY_HE[(day + 5) % 7]} ${hh(ASK_HOUR)}`,
       workoutName: quality?.name || null,
       quality: !!quality,
       state: gateState(store, date, store.mode === 'team' || !!quality),
@@ -121,5 +138,5 @@ async function view(supabase: ReturnType<typeof createServerClient>) {
       pushes,
     });
   }
-  return { mode: store.mode, today, days };
+  return { mode: store.mode, today, days, groups };
 }
