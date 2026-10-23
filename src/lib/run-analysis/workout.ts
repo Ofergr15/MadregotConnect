@@ -59,9 +59,60 @@ const weighted = (parts: Array<[number | null | undefined, number]>) => {
   return w ? Math.round(ok.reduce((s, [v, x]) => s + v * x, 0) / w) : null;
 };
 
+/**
+ * The run the watch filed under an OPEN step (Ofer, 10-23): a "הליכה" that waits for the
+ * Lap button, the button never pressed, and the whole main part — 28.7 km of 14 + 7 + 7 —
+ * logged as "recovery" in Auto Lap kilometres; the press then skipped the planned steps in
+ * seconds (10 m, 4 m, 9 m). Spotted as running-pace laps under an open recovery step,
+ * followed by near-empty laps of later steps. Those laps are handed to the steps that were
+ * skipped, in order, by each step's planned length — so the session reads as it was run.
+ */
+export function repairStuckOpenStep(laps: WLap[], steps: Map<number, WStep>): WLap[] {
+  const RUNNING = 7 * 60; // faster than 7:00/km is running, not a walk
+  const isOpenRest = (st?: WStep) => !!st && (st.durationType || '').toUpperCase() === 'OPEN'
+    && /RECOVERY|REST/.test((st.intensity || '').toUpperCase());
+  const out = laps.slice();
+  for (let i = 0; i < out.length; i++) {
+    const idx = out[i].wktStepIndex;
+    const st = idx != null ? steps.get(idx) : undefined;
+    if (!isOpenRest(st)) continue;
+    // The run of laps still on this open step, from the first that is running.
+    let j = i; while (j < out.length && out[j].wktStepIndex === idx) j++;
+    const runFrom = out.slice(i, j).findIndex((l) => l.distance >= 300 && l.duration / (l.distance / 1000) < RUNNING);
+    if (runFrom < 0) { i = j - 1; continue; }
+    const running = out.slice(i + runFrom, j);
+    const runM = running.reduce((a, l) => a + l.distance, 0);
+    if (runM < 2000) { i = j - 1; continue; }
+    // The skipped steps: the planned distance / time steps after this one whose laps are near-empty.
+    const skipped: number[] = [];
+    let k = j;
+    while (k < out.length && out[k].distance < 150 && out[k].duration < 30 && out[k].wktStepIndex != null) { skipped.push(out[k].wktStepIndex!); k++; }
+    const plan = [...new Set(skipped)].map((n) => steps.get(n)).filter((x): x is WStep => !!x && !!(x.distanceM || x.durationSec));
+    if (!plan.length) { i = j - 1; continue; }
+    // Hand the running laps to the skipped steps, each until its planned length is covered.
+    let p = 0, done = 0;
+    const handed = running.map((l) => {
+      const step = plan[Math.min(p, plan.length - 1)];
+      const lap = { ...l, wktStepIndex: step.stepIndex ?? null, intensityType: step.intensity || 'ACTIVE' };
+      done += step.distanceM ? l.distance : l.duration;
+      const goal = step.distanceM || step.durationSec || 0;
+      if (p < plan.length - 1 && done >= goal * (1 - ITERATION_SLACK)) { p++; done = 0; }
+      return lap;
+    });
+    out.splice(i + runFrom, j - (i + runFrom), ...handed);
+    // The seconds-long laps the late press made are not part of the session.
+    const tail = i + runFrom + handed.length;
+    out.splice(tail, skipped.length);
+    i = tail - 1;
+  }
+  return out;
+}
+
 /** The workout's laps merged into its steps, or null when the watch did not run a workout. */
 export function readWorkout(laps: WLap[] | null | undefined, executed: { steps?: WStep[] } | null | undefined, packIndex: number): Workout | null {
-  const ls = (laps || []).filter((l) => l && l.distance >= 0 && l.duration > 0);
+  const stepMap = new Map<number, WStep>();
+  for (const s of executed?.steps || []) if (s.stepIndex != null) stepMap.set(s.stepIndex, s);
+  const ls = repairStuckOpenStep((laps || []).filter((l) => l && l.distance >= 0 && l.duration > 0), stepMap);
   if (ls.length < 3 || !ls.some((l) => l.wktStepIndex != null)) return null;
   const steps = new Map<number, WStep>();
   for (const s of executed?.steps || []) if (s.stepIndex != null) steps.set(s.stepIndex, s);
