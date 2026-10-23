@@ -23,6 +23,8 @@ const MAP_PATH = 'mux-assets.json';
  * (counted 10-23 by walking the folders; Drive's search saw only 242) — 50 is ~17.
  */
 const SEND_PER_RUN = 50;
+/** Between two creates: Mux takes about one a second. */
+const CREATE_GAP_MS = 1100;
 /** A ceiling on what is stored (minutes), so a mistake can't run the bill up. Read per run. */
 const maxMinutes = () => Number(process.env.MUX_MAX_MINUTES || 3000);
 const PLAY_TTL_S = 6 * 3600;
@@ -93,10 +95,10 @@ async function writeMuxMap(map: MuxMap): Promise<void> {
 export async function syncMuxCopies(videos: Array<{ id: string; ms: number | null; src: () => string | null }>, deadline: number): Promise<{ sent: number; ready: number; preparing: number; errored: number; minutes: number }> {
   const map = await readMuxMap();
   let dirty = false;
-  // The ones Mux is still making — asked ten at a time (50 a run are sent now).
+  // The ones Mux is still making — four at a time: Mux allows ~5 reads a second.
   const preparing = Object.entries(map).filter(([, e]) => e.s === 'preparing');
-  for (let i = 0; i < preparing.length && Date.now() < deadline; i += 10) {
-    await Promise.all(preparing.slice(i, i + 10).map(async ([id, e]) => {
+  for (let i = 0; i < preparing.length && Date.now() < deadline; i += 4) {
+    await Promise.all(preparing.slice(i, i + 4).map(async ([id, e]) => {
       const asset = await mux<{ status: string; duration?: number; playback_ids?: Array<{ id: string; policy: string }> }>(`/video/v1/assets/${e.a}`).catch(() => null);
       if (!asset) return;
       const p = asset.playback_ids?.find((x) => x.policy === 'signed')?.id;
@@ -113,10 +115,15 @@ export async function syncMuxCopies(videos: Array<{ id: string; ms: number | nul
     if (stored() + (v.ms ?? 60_000) / 60_000 > maxMinutes()) break;
     const url = v.src();
     if (!url) continue;
+    // One new copy a second: Mux's limit on creating them (10-23: a burst got 429s and only
+    // 23 of 50 went). Paced, and a 429 ends this run's sends rather than piling on.
+    if (sent > 0) await new Promise((r) => setTimeout(r, CREATE_GAP_MS));
+    let limited = false;
     const asset = await mux<{ id: string; playback_ids?: Array<{ id: string; policy: string }> }>('/video/v1/assets', {
       method: 'POST',
       body: JSON.stringify({ inputs: [{ url }], playback_policies: ['signed'], video_quality: 'basic', passthrough: v.id }),
-    }).catch((err) => { console.warn('[mux] create failed', v.id, (err as Error).message); return null; });
+    }).catch((err) => { limited = / 429:/.test((err as Error).message); console.warn('[mux] create failed', v.id, (err as Error).message); return null; });
+    if (limited) break;
     if (!asset) continue;
     map[v.id] = { a: asset.id, s: 'preparing', p: asset.playback_ids?.find((x) => x.policy === 'signed')?.id, d: v.ms ? Math.round(v.ms / 1000) : undefined };
     sent++; dirty = true;

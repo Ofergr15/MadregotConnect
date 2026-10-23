@@ -31,7 +31,7 @@ async function run(request: Request) {
   try {
     // When each video was shot (lib/photos/video-time), first: the order of a folder waits
     // on it. A minute a run; the listing is rebuilt when something was found.
-    const times = await fillVideoTimes(Date.now() + 60_000).catch((err) => { console.warn('[cron/photos-mirror] times failed', err); return null; });
+    const times = await fillVideoTimes(Date.now() + 45_000).catch((err) => { console.warn('[cron/photos-mirror] times failed', err); return null; });
     // Stale-while-revalidate, never { expire: 0 }: that made the next person to open photos
     // wait the whole ~17 s rebuild from Drive, after every run that found a time — every 10
     // minutes (measured 10-23: list 15–17 s, the 'slow:folder:5s' bugs). Now they get the
@@ -44,7 +44,7 @@ async function run(request: Request) {
         const origin = process.env.NEXT_PUBLIC_APP_URL || 'https://www.madregot.app';
         // The folders people opened first, then the newest; in each, the newest video first.
         const list = orderForCopies((await listVideoFolders()) ?? [], await readWantedFolders().catch(() => [])).flatMap((f) => [...f.videos].reverse());
-        copies = await syncMuxCopies(list.map((v) => ({ id: v.id, ms: v.ms, src: () => { const u = signedVideoUrl(v.id); return u ? `${origin}${u}` : null; } })), Date.now() + 40_000);
+        copies = await syncMuxCopies(list.map((v) => ({ id: v.id, ms: v.ms, src: () => { const u = signedVideoUrl(v.id); return u ? `${origin}${u}` : null; } })), Date.now() + 70_000);
         if (copies.ready) revalidateTag('mux-assets', { expire: 0 });
       } catch (err) { console.warn('[cron/photos-mirror] mux failed', err); }
       // The budget guard: told once at each stage, to the admins and Ofer — and checked
@@ -70,7 +70,7 @@ async function run(request: Request) {
       if (checked.length) console.log('[cron/photos-mirror] alert receipts', checked);
     }
     // Leave room under maxDuration for the manifest write and the reply.
-    const result = await mirrorBatch(Date.now() + 120_000);
+    const result = await mirrorBatch(Date.now() + 105_000);
     // Then every folder's links ahead of the first person to open it (lib/photos/mirror.ts).
     let warmed = 0;
     try {
