@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, beforeAll } from 'vitest';
 import { generateKeyPairSync, createVerify } from 'crypto';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 // The viewing copies at Mux (Ofer chose Mux, 2026-10-23): playback links are signed for
 // one video and expire; the copy job never stores past its minutes ceiling.
@@ -61,5 +63,34 @@ describe('the copy job', () => {
     expect(r).toMatchObject({ sent: 2, preparing: 2 });
     expect(JSON.parse(stored!).a).toMatchObject({ a: 'asset-a', s: 'preparing', p: 'pb-a' });
     vi.unstubAllGlobals();
+  });
+});
+
+describe('the budget guard (Ofer, 10-23: "worried about the moment it starts to cost money")', () => {
+  it('warns at half the free minutes and stops at 80%, each told once a month', async () => {
+    const { budgetStage, FREE_DELIVERY_MINUTES: F } = await import('@/lib/photos/mux');
+    expect(budgetStage(null, '2026-10', 100)).toMatchObject({ warn: false, stop: false });
+    const half = budgetStage(null, '2026-10', F * 0.5);
+    expect(half).toMatchObject({ warn: true, stop: false });
+    const prev = { ...half.next, checkedAt: '' };
+    expect(budgetStage(prev, '2026-10', F * 0.6)).toMatchObject({ warn: false, stop: false });
+    const stop = budgetStage(prev, '2026-10', F * 0.8);
+    expect(stop).toMatchObject({ warn: false, stop: true, next: { stopped: true } });
+    // A new month starts clean.
+    expect(budgetStage({ ...stop.next, checkedAt: '' }, '2026-11', 0)).toMatchObject({ warn: false, stop: false, next: { stopped: false, warned: false } });
+  });
+  it("a stop lasts the month it was for, and no copy is served or sent under it", async () => {
+    const { budgetStopped } = await import('@/lib/photos/mux');
+    const b = { month: '2026-10', minutes: 80_000, checkedAt: '', stopped: true };
+    expect(budgetStopped(b, Date.parse('2026-10-30T12:00:00Z'))).toBe(true);
+    expect(budgetStopped(b, Date.parse('2026-11-01T00:10:00Z'))).toBe(false);
+    const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
+    expect(read('src/app/api/photos/browse/folder/route.ts')).toMatch(/budgetStopped\(budget\) \? \{\} : map/);
+    expect(read('src/lib/photos/mux.ts')).toMatch(/for \(const v of off \? \[\] : videos\)/);
+  });
+  it('its alerts go to the admins and Ofer, and are checked to have been SEEN', () => {
+    const cron = readFileSync(join(process.cwd(), 'src/app/api/cron/photos-mirror/route.ts'), 'utf8');
+    expect(cron).toMatch(/await sendConfirmedAlert\(\{\s*kind: 'video_budget'/);
+    expect(cron).toMatch(/verifyPendingAlerts\(\)/);
   });
 });

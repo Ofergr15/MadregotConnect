@@ -1285,6 +1285,27 @@ export function watchDisconnectedCopy(locale: NotificationLocale): PushCopy {
 }
 
 /** The daily "the pipe is dry" check. `hours` is how long it's been. */
+/** The videos' budget guard (lib/photos/mux): it is on, half the free viewing minutes are used, or the copies are off. */
+export function videoBudgetCopy(
+  locale: NotificationLocale,
+  p: { stage: 'on' | 'warn' | 'stop'; used: number; free: number },
+): PushCopy {
+  const pct = Math.round((p.used / p.free) * 100);
+  if (p.stage === 'on') {
+    return locale === 'he'
+      ? { title: '🎬 ניטור עלויות הסרטונים פעיל', body: `נוצלו ${pct}% מדקות הצפייה החינמיות החודש. התראה ב־50%, ובּ־80% הסרטונים עוברים לגרסה המקורית — בלי עלות` }
+      : { title: '🎬 Video cost monitoring is on', body: `${pct}% of this month's free viewing minutes used. An alert at 50%; at 80% videos switch to the originals — at no cost` };
+  }
+  if (p.stage === 'stop') {
+    return locale === 'he'
+      ? { title: '🎬 הסרטונים עברו לגרסה המקורית', body: `נוצלו ${pct}% מדקות הצפייה החינמיות החודש. כדי שלא יעלה כסף, הסרטונים מתנגנים מהמקור עד תחילת החודש הבא` }
+      : { title: '🎬 Videos switched to the originals', body: `${pct}% of this month's free viewing minutes are used. So it won't cost money, videos play from the originals until next month` };
+  }
+  return locale === 'he'
+    ? { title: '🎬 חצי מדקות הצפייה החינמיות נוצלו', body: `${pct}% מהדקות החינמיות של החודש. ב־80% הסרטונים יעברו אוטומטית לגרסה המקורית, בלי עלות` }
+    : { title: '🎬 Half the free viewing minutes are used', body: `${pct}% of this month's free minutes. At 80% the videos switch to the originals automatically, at no cost` };
+}
+
 export function syncStalledCopy(
   locale: NotificationLocale,
   p: { hours: number },

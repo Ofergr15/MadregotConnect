@@ -4,7 +4,9 @@ import { cronPaused } from '@/lib/cron-pause';
 import { mirrorBatch, warmMirrorCache } from '@/lib/photos/mirror';
 import { fillVideoTimes } from '@/lib/photos/video-time';
 import { forgetLibrary, listVideoFolders, signedVideoUrl } from '@/lib/photos/drive-browse';
-import { muxConfigured, syncMuxCopies } from '@/lib/photos/mux';
+import { checkMuxBudget, FREE_DELIVERY_MINUTES, muxConfigured, syncMuxCopies } from '@/lib/photos/mux';
+import { sendConfirmedAlert, verifyPendingAlerts } from '@/lib/notifications/confirmed-alert';
+import { videoBudgetCopy } from '@/lib/notifications/copy';
 import { revalidateTag } from 'next/cache';
 import { listFolderPhotos, listPhotoFolders } from '@/lib/photos/drive-browse';
 
@@ -40,6 +42,25 @@ async function run(request: Request) {
         copies = await syncMuxCopies(list.map((v) => ({ id: v.id, ms: v.ms, src: () => { const u = signedVideoUrl(v.id); return u ? `${origin}${u}` : null; } })), Date.now() + 40_000);
         if (copies.ready) revalidateTag('mux-assets', { expire: 0 });
       } catch (err) { console.warn('[cron/photos-mirror] mux failed', err); }
+      // The budget guard: told once at each stage, to the admins and Ofer — and checked
+      // that a phone showed it (lib/notifications/confirmed-alert; else an email says so).
+      try {
+        const budget = await checkMuxBudget();
+        if (budget?.stop) revalidateTag('mux-assets', { expire: 0 });
+        if (budget?.warn || budget?.stop || budget?.first) {
+          const stage = budget.stop ? 'stop' : budget.warn ? 'warn' : 'on';
+          await sendConfirmedAlert({
+            kind: 'video_budget', url: '/dashboard/photos', tag: `video-budget-${stage}`, category: 'management',
+            copy: (locale) => videoBudgetCopy(locale, { stage, used: budget.minutes, free: FREE_DELIVERY_MINUTES }),
+          });
+        }
+        if (budget) console.log('[cron/photos-mirror] video budget', budget);
+      } catch (err) { console.warn('[cron/photos-mirror] budget failed', err); }
+    }
+    // Every run: were the alerts sent a few minutes ago seen on a phone?
+    {
+      const checked = await verifyPendingAlerts().catch((err) => { console.warn('[cron/photos-mirror] alert check failed', err); return []; });
+      if (checked.length) console.log('[cron/photos-mirror] alert receipts', checked);
     }
     // Leave room under maxDuration for the manifest write and the reply.
     const result = await mirrorBatch(Date.now() + 120_000);

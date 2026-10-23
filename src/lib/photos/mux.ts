@@ -23,6 +23,32 @@ const SEND_PER_RUN = 15;
 const maxMinutes = () => Number(process.env.MUX_MAX_MINUTES || 3000);
 const PLAY_TTL_S = 6 * 3600;
 
+/**
+ * THE BUDGET GUARD (Ofer, 10-23: "I'm worried about the moment it starts to cost money").
+ * Pay-as-you-go carries a $20 credit a month and 100,000 free delivery minutes; storing our
+ * copies is cents, under the minutes ceiling above. What could cost is WATCHING, so the
+ * minutes watched this month are asked of Mux (its numbers lag 12 hours) every few hours:
+ * at WARN_AT of the free minutes the admins and Ofer are told; at STOP_AT the app stops
+ * using the copies until the month turns — the originals play, slower but free — and they
+ * are told again. Stopping short of 100% leaves room for the 12 hours Mux hasn't reported.
+ */
+export const FREE_DELIVERY_MINUTES = 100_000;
+export const WARN_AT = 0.5;
+export const STOP_AT = 0.8;
+const BUDGET_PATH = 'mux-budget.json';
+const BUDGET_EVERY_MS = 6 * 3600_000;
+
+export interface MuxBudget {
+  /** 'YYYY-MM' (UTC), the month the numbers are for. */
+  month: string;
+  /** Minutes Mux delivered this month, as of its last report. */
+  minutes: number;
+  checkedAt: string;
+  warned?: boolean;
+  /** The copies are off until the month turns. */
+  stopped?: boolean;
+}
+
 export interface MuxEntry {
   /** Mux asset id. */
   a: string;
@@ -72,10 +98,11 @@ export async function syncMuxCopies(videos: Array<{ id: string; ms: number | nul
     const p = asset.playback_ids?.find((x) => x.policy === 'signed')?.id;
     if (asset.status !== e.s || p !== e.p) { map[id] = { ...e, s: asset.status, p, d: asset.duration ? Math.round(asset.duration) : e.d }; dirty = true; }
   }
-  // The next ones, under the ceiling.
+  // The next ones, under the ceiling — and none while the budget guard has the copies off.
   const stored = () => Object.values(map).reduce((a, e) => a + (e.d ?? 0), 0) / 60;
   let sent = 0;
-  for (const v of videos) {
+  const off = budgetStopped(await readMuxBudget().catch(() => null));
+  for (const v of off ? [] : videos) {
     if (sent >= SEND_PER_RUN || Date.now() > deadline) break;
     if (map[v.id]) continue;
     if (stored() + (v.ms ?? 60_000) / 60_000 > maxMinutes()) break;
@@ -92,6 +119,59 @@ export async function syncMuxCopies(videos: Array<{ id: string; ms: number | nul
   if (dirty) await writeMuxMap(map);
   const all = Object.values(map);
   return { sent, ready: all.filter((e) => e.s === 'ready').length, preparing: all.filter((e) => e.s === 'preparing').length, errored: all.filter((e) => e.s === 'errored').length, minutes: Math.round(stored()) };
+}
+
+export async function readMuxBudget(): Promise<MuxBudget | null> {
+  const { data } = await createServerClient().storage.from(BUCKET).download(BUDGET_PATH);
+  if (!data) return null;
+  try { return JSON.parse(await data.text()) as MuxBudget; } catch { return null; }
+}
+
+/** Whether the copies are off for this month. A last month's stop has expired. */
+export function budgetStopped(b: MuxBudget | null, now = Date.now()): boolean {
+  return !!b?.stopped && b.month === new Date(now).toISOString().slice(0, 7);
+}
+
+/** What one check means: the stage it reached and whether that is new (so it is told once). */
+export function budgetStage(prev: MuxBudget | null, month: string, minutes: number): { warn: boolean; stop: boolean; next: Omit<MuxBudget, 'checkedAt'> } {
+  const same = prev?.month === month;
+  const warned = (same && !!prev?.warned) || minutes >= FREE_DELIVERY_MINUTES * WARN_AT;
+  const stopped = (same && !!prev?.stopped) || minutes >= FREE_DELIVERY_MINUTES * STOP_AT;
+  return {
+    warn: warned && !(same && prev?.warned),
+    stop: stopped && !(same && prev?.stopped),
+    next: { month, minutes, warned, stopped },
+  };
+}
+
+/**
+ * Ask Mux how many minutes it delivered this month (every BUDGET_EVERY_MS at most) and
+ * record the stage. Returns what is newly reached, for the cron to tell; null when it
+ * didn't check (too soon, or Mux didn't answer — then nothing changes).
+ */
+export async function checkMuxBudget(now = Date.now()): Promise<{ minutes: number; warn: boolean; stop: boolean; first: boolean } | null> {
+  const prev = await readMuxBudget();
+  if (prev && now - Date.parse(prev.checkedAt) < BUDGET_EVERY_MS && prev.month === new Date(now).toISOString().slice(0, 7)) return null;
+  const d = new Date(now);
+  const month = d.toISOString().slice(0, 7);
+  const start = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000;
+  // Mux reports only up to 12 hours ago, on the hour.
+  const end = Math.floor((now / 1000 - 13 * 3600) / 3600) * 3600;
+  let seconds = 0;
+  if (end > start) {
+    for (let page = 1; page <= 50; page++) {
+      const res = await fetch(`${API}/video/v1/delivery-usage?timeframe[]=${start}&timeframe[]=${end}&limit=100&page=${page}`, { headers: { Authorization: auth() } }).catch(() => null);
+      if (!res?.ok) { console.warn('[mux] budget check failed', res?.status); return null; }
+      const rows = ((await res.json()).data ?? []) as Array<{ delivered_seconds?: number }>;
+      seconds += rows.reduce((a, r) => a + (r.delivered_seconds ?? 0), 0);
+      if (rows.length < 100) break;
+    }
+  }
+  const minutes = Math.round(seconds / 60);
+  const { warn, stop, next } = budgetStage(prev, month, minutes);
+  await createServerClient().storage.from(BUCKET).upload(BUDGET_PATH, JSON.stringify({ ...next, checkedAt: new Date(now).toISOString() }), { contentType: 'application/json', upsert: true });
+  // `first`: the guard's very first check — the cron says it is on (and that is the test that alerts arrive).
+  return { minutes, warn, stop, first: !prev };
 }
 
 const b64u = (b: Buffer | string) => Buffer.from(b).toString('base64url');

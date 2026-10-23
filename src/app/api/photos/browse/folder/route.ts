@@ -9,10 +9,14 @@ import { FULL, THUMB, listFolderPhotos, signedImageUrl, signedVideoUrl } from '@
 import { mirroredUrls } from '@/lib/photos/mirror';
 import { exifToIso } from '@/lib/photos/video-time';
 import { unstable_cache } from 'next/cache';
-import { muxHls, muxPoster, readMuxMap, type MuxMap } from '@/lib/photos/mux';
+import { budgetStopped, muxHls, muxPoster, readMuxBudget, readMuxMap, type MuxMap } from '@/lib/photos/mux';
 
 // Which videos have a viewing copy (lib/photos/mux), cached a couple of minutes.
-const cachedMuxMap = unstable_cache((): Promise<MuxMap> => readMuxMap().catch(() => ({})), ['mux-assets-v1'], { revalidate: 120, tags: ['mux-assets'] });
+// No copies while the budget guard has them off for the month (lib/photos/mux): the originals play.
+const cachedMuxMap = unstable_cache(async (): Promise<MuxMap> => {
+  const [map, budget] = await Promise.all([readMuxMap().catch(() => ({})), readMuxBudget().catch(() => null)]);
+  return budgetStopped(budget) ? {} : map;
+}, ['mux-assets-v2'], { revalidate: 120, tags: ['mux-assets'] });
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
