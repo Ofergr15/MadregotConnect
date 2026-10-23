@@ -386,7 +386,9 @@ export async function GET(request: Request) {
       //
       // The average is still returned as `verdict.wholeRunPace` so the card can show
       // both, and `verdict.paceScope` names the stretch this row describes.
-      const { pace, paceScope } = resolveDominantPace(graded.pace, watched, blocks);
+      // Read by its steps (ranLaps): the reps already grade every block, as /api/plan-execution
+      // does — a "dominant" pace from the raw laps compared the 14 + 7 + 7 with a stride's 3:30.
+      const { pace, paceScope } = ranLaps !== laps ? { pace: graded.pace, paceScope: null } : resolveDominantPace(graded.pace, watched, blocks);
 
       return NextResponse.json({
         ...bandsPayload,

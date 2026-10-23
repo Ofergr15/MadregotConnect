@@ -653,8 +653,10 @@ export function matchLapsToSteps(
       plannedPaceMax: p.paceMax ?? null,
       actualPace,
       actualDistanceM: lap ? lap.distance : null,
-      status,
-      graded: p.graded,
+      // A few seconds and metres before the watch moved on (an open warm-up step left
+      // at 19 m, 10-23) is no rep: shown, never scored.
+      status: lap && lap.distance < 50 && lap.duration < 30 ? 'unknown' : status,
+      graded: p.graded && !(lap && lap.distance < 50 && lap.duration < 30),
       metric: p.metric,
       plannedHrMin: hrBand?.min ?? null,
       plannedHrMax: hrBand?.max ?? null,

@@ -7,7 +7,7 @@ import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 import { loadPackLanes } from '@/lib/groups/pack-history';
 import { buildVerdict, toExecutionSummary, type ExecutionSummary } from '@/lib/plan-execution/verdict';
 import { resolveDominantPace } from '@/lib/plan-execution/dominant-pace';
-import { effortReportFor, segmentReportFor } from '@/lib/plan-execution/resolve';
+import { effortReportFor, segmentReportFor, stepLaps } from '@/lib/plan-execution/resolve';
 import { PLAN_STATUSES } from '@/lib/plans/plan-status';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 import { flattenPlannedSteps } from '@/lib/academy/segments';
@@ -244,7 +244,10 @@ export async function loadFeedPlanVerdicts(
       // The same substitution the segments route makes, through the same function:
       // the row is about one stretch of the run, and `comparedMin`/`comparedMax` are
       // what let `buildVerdict` score a structured session at all.
-      const { pace, paceScope } = resolveDominantPace(graded.pace, watched, blocks);
+      // Read by the steps actually run (resolve.ts stepLaps), as the run page and
+      // /api/plan-execution grade it — else the feed's ring is a third answer (10-23: 52%).
+      const ranLaps = workout ? stepLaps({ laps: row.laps, executed_workout: workout }, laps) : laps;
+      const { pace, paceScope } = ranLaps !== laps ? { pace: graded.pace, paceScope: null } : resolveDominantPace(graded.pace, watched, blocks);
 
       const verdict = buildVerdict({
         activityId: row.id,
@@ -257,11 +260,11 @@ export async function loadFeedPlanVerdicts(
         // step to grade either, that is what makes `buildVerdict` answer
         // `ungraded` rather than score the one metric left, distance, which
         // anyone who finished the session covered.
-        segments: segmentReportFor(planned, laps, tolerances.paceSec),
+        segments: segmentReportFor(planned, ranLaps, tolerances.paceSec),
         // And the order-free count beside it, for the ~85% of runs whose laps
         // cannot be aligned step by step: without it the ring on the feed scored
         // a session that was a set short on its distance and one block's pace.
-        efforts: effortReportFor(planned, laps, tolerances.paceSec),
+        efforts: effortReportFor(planned, ranLaps, tolerances.paceSec),
         tolerances,
         workoutName: planned.name,
         paceScope,
