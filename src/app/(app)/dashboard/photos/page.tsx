@@ -21,8 +21,8 @@ import { preload } from 'swr';
 import { apiFetcher, useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { sessionDayLabel } from '@/lib/quality-session/photos';
-import { PhotoViewer } from '@/components/photos/PhotoViewer';
-import { preconnectCopies, VideoViewer, warmVideo, type ViewerVideo } from '@/components/photos/VideoViewer';
+import { MediaViewer, type MediaItem } from '@/components/photos/MediaViewer';
+import { preconnectCopies, warmVideo, type ViewerVideo } from '@/components/photos/video-slide';
 import { FolderMenu, driveLink, savePhotos } from '@/components/photos/FolderMenu';
 import { FOLDER_KINDS, KIND_LABEL, kindFromName, tagColor, type FolderKind } from '@/lib/photos/folder-kind';
 import { useNavIdentity } from '@/lib/nav-items';
@@ -205,9 +205,14 @@ function FolderView({ id }: { id: string }) {
   const router = useRouter();
   const params = useSearchParams();
   const { data, error, mutate } = useApi<FolderPhotos>(`/api/photos/browse/folder?id=${encodeURIComponent(id)}`);
-  const [open, setOpen] = useState<number | null>(null);
-  const [videoOpen, setVideoOpen] = useState<number | null>(null);
+  // The one viewer (components/photos/MediaViewer), open on this item: the whole session in
+  // the order it was shot, photos and videos together.
+  const [viewing, setViewing] = useState<string | null>(null);
   useEffect(() => { preconnectCopies(data?.videos); }, [data?.videos]);
+  const sessionItems = useMemo<MediaItem[]>(() => (data
+    ? [...data.photos.map((p) => ({ kind: 'photo' as const, ...p })), ...(data.videos ?? []).map((v) => ({ kind: 'video' as const, ...v }))]
+      .sort((a, b) => (a.t || '').localeCompare(b.t || ''))
+    : []), [data]);
   // הכל · תמונות · סרטונים; "?media=videos" lands on the videos (the home's video rows).
   const [media, setMedia] = useState<Media>(() => (params.get('media') === 'videos' ? 'videos' : params.get('media') === 'photos' ? 'photos' : 'all'));
   // The tapped tile, so the viewer can grow the photo out of it.
@@ -288,12 +293,12 @@ function FolderView({ id }: { id: string }) {
       {timeline && (
         <div className="mt-3 grid grid-cols-3 gap-[3px]">
           {timeline.map((it) => it.kind === 'photo' ? (
-            <button key={data.photos[it.k].id} type="button" onClick={(e) => { setFrom(e.currentTarget.getBoundingClientRect()); setOpen(it.k); }}
+            <button key={data.photos[it.k].id} type="button" onClick={(e) => { setFrom(e.currentTarget.getBoundingClientRect()); setViewing(data.photos[it.k].id); }}
               className="relative aspect-square overflow-hidden bg-page" aria-label={t('photoN', { n: it.k + 1 })}>
               <Cover src={data.photos[it.k].thumb || undefined} blur={data.photos[it.k].blur} />
             </button>
           ) : (
-            <button key={data.videos![it.k].id} type="button" onPointerDown={() => warmVideo(data.videos![it.k])} onClick={() => setVideoOpen(it.k)} className="relative aspect-square overflow-hidden bg-page" aria-label={`סרטון ${it.k + 1}`}>
+            <button key={data.videos![it.k].id} type="button" onPointerDown={() => warmVideo(data.videos![it.k])} onClick={(e) => { setFrom(e.currentTarget.getBoundingClientRect()); setViewing(data.videos![it.k].id); }} className="relative aspect-square overflow-hidden bg-page" aria-label={`סרטון ${it.k + 1}`}>
               <Cover src={data.videos![it.k].thumb || undefined} blur={data.videos![it.k].blur} />
               <VideoBadge ms={data.videos![it.k].ms} />
             </button>
@@ -310,7 +315,7 @@ function FolderView({ id }: { id: string }) {
               onClick={(e) => {
                 if (coverMode) { void setCover(p.id); return; }
                 if (selecting) { toggle(p.id); return; }
-                setFrom(e.currentTarget.getBoundingClientRect()); setOpen(k);
+                setFrom(e.currentTarget.getBoundingClientRect()); setViewing(p.id);
               }}
               className={cn('relative aspect-square overflow-hidden bg-page', !selecting && !coverMode && k % 7 === 0 && 'col-span-2 row-span-2')}
               aria-label={t('photoN', { n: k + 1 })}
@@ -331,7 +336,7 @@ function FolderView({ id }: { id: string }) {
           {media === 'all' && data.photos.length > 0 && <div className="flex items-baseline justify-between px-[18px] pb-2 pt-5"><b className="text-[17px] font-extrabold">סרטונים</b><span className="text-[13px] text-ink-400">{data.videos.length}</span></div>}
           <div className={cn('grid grid-cols-3 gap-[3px]', (media === 'videos' || !data.photos.length) && 'mt-3')}>
             {data.videos.map((v, k) => (
-              <button key={v.id} type="button" onPointerDown={() => warmVideo(v)} onClick={() => setVideoOpen(k)} className="relative aspect-[9/14] overflow-hidden bg-page" aria-label={`סרטון ${k + 1}`}>
+              <button key={v.id} type="button" onPointerDown={() => warmVideo(v)} onClick={(e) => { setFrom(e.currentTarget.getBoundingClientRect()); setViewing(v.id); }} className="relative aspect-[9/14] overflow-hidden bg-page" aria-label={`סרטון ${k + 1}`}>
                 <Cover src={v.thumb || undefined} blur={v.blur} />
                 <VideoBadge ms={v.ms} />
               </button>
@@ -354,13 +359,11 @@ function FolderView({ id }: { id: string }) {
         </div>
       )}
       {note && <p role="status" className="mt-3 text-center text-13 font-bold text-ink-700">{note}</p>}
-      {open != null && (
-        <PhotoViewer photos={data.photos} index={open} from={from} title={title} onClose={() => setOpen(null)} />
-      )}
-      {videoOpen != null && data.videos && (
-        <VideoViewer videos={data.videos} index={videoOpen} title={title} onClose={() => setVideoOpen(null)}
-          onShare={() => { void share(); }}
-          onCover={isAdmin ? (vid) => { setVideoOpen(null); void setCover(vid); } : undefined} />
+      {viewing && (
+        <MediaViewer items={sessionItems} startId={viewing} from={from} title={title} onClose={() => setViewing(null)}
+          filter={media === 'photos' ? 'photos' : media === 'videos' ? 'videos' : 'all'}
+          onShareFolder={() => { void share(); }}
+          onCover={isAdmin ? (mid) => { setViewing(null); void setCover(mid); } : undefined} />
       )}
     </div>
   );
@@ -522,8 +525,8 @@ function PhotosHome() {
             </section>
           ))}
           {filter !== 'all' && byMonth.length === 0 && <p className="py-8 text-center text-sm text-ink-400">אין תיקיות כאלה עדיין</p>}
-          {open != null && latestPhotos && (
-            <PhotoViewer photos={latestPhotos.photos} index={open} from={from} title={folderTitle(latest)} onClose={() => setOpen(null)} />
+          {open != null && latestPhotos?.photos[open] && (
+            <MediaViewer items={latestPhotos.photos.map((p) => ({ kind: 'photo' as const, ...p }))} startId={latestPhotos.photos[open].id} from={from} title={folderTitle(latest)} onClose={() => setOpen(null)} />
           )}
         </>
       ) : !data && !error ? (

@@ -27,11 +27,12 @@ describe('the listing and the screens', () => {
     expect(lib).toMatch(/const LIBRARY_PATH = 'library.json';/);
   });
   it('muted on every open; the videos either side are ready before it lands; the swipe settles first', () => {
-    const v = read('src/components/photos/VideoViewer.tsx');
+    const v = read('src/components/photos/MediaViewer.tsx') + read('src/components/photos/video-slide.tsx');
     expect(v).toMatch(/const \[muted, setMuted\] = useState\(true\);/);
-    expect(v).toMatch(/mode=\{k === cur \? 'play' : Math\.abs\(k - cur\) === 1 \? 'ready'/);
-    // 'metadata' got an iPhone a neighbour's list and none of its video (measured 10-23).
-    expect(v).toMatch(/preload=\{mode === 'play' \|\| useCopy \? 'auto' : 'metadata'\}/);
+    expect(v).toMatch(/const mode: SlideMode = k === cur \? 'play' : Math\.abs\(k - cur\) === 1 \? 'ready'/);
+    // 'metadata' got an iPhone a neighbour's list and none of its video, and an original's
+    // swipe waited ~0.97 s (measured 10-23): every live slide preloads its opening.
+    expect(v).toMatch(/preload="auto"/);
     // hls.js: opens at 720p (then climbs), and loads a neighbour itself.
     expect(v).toMatch(/autoStartLoad: false/);
     expect(v).toMatch(/l\.height >= 720/);
@@ -40,12 +41,23 @@ describe('the listing and the screens', () => {
     expect(v).toMatch(/muted=\{k === cur \? muted : true\}/);
     // No frosted glass over a playing video (redrawn every frame on an iPhone); the bar is its own component.
     expect(v).not.toMatch(/backdrop-blur/);
-    expect(v).toMatch(/<Progress key=\{cur\}/);
-    expect(v).toMatch(/addEventListener\('scrollend', end\)/);
-    expect(v).toMatch(/const VideoSlide = memo\(/);
+    expect(v).toMatch(/<Progress key=\{item\.id\}/);
+    expect(v).toMatch(/addEventListener\('scrollend', landed\)/);
+    expect(v).toMatch(/export const VideoSlide = memo\(/);
+  });
+  it('one viewer: the session in the order it was shot, a timeline below, the filter on top (mockup א)', () => {
+    const page = read('src/app/(app)/dashboard/photos/page.tsx');
+    expect(page).not.toMatch(/PhotoViewer|VideoViewer/);
+    expect(page).toMatch(/\.sort\(\(a, b\) => \(a\.t \|\| ''\)\.localeCompare\(b\.t \|\| ''\)\)/);
+    const v = read('src/components/photos/MediaViewer.tsx');
+    expect(v).toMatch(/function Timeline\(/);
+    expect(v).toMatch(/\['all', 'הכל'\], \['photos', 'תמונות'\], \['videos', 'סרטונים'\]/);
+    // a video as wide as it is long on the strip
+    expect(v).toMatch(/const thumbW = \(x: MediaItem\) => \(x\.kind === 'video'/);
   });
   it('no play mark is the ▶ character (an emoji on iOS)', () => {
-    expect(read('src/components/photos/VideoViewer.tsx')).not.toMatch(/>▶</);
+    expect(read('src/components/photos/MediaViewer.tsx')).not.toMatch(/>▶</);
+    expect(read('src/components/photos/video-slide.tsx')).not.toMatch(/>▶</);
     expect(read('src/app/(app)/dashboard/photos/page.tsx')).not.toMatch(/>▶</);
   });
   it('the filter is on the home and in the folder', () => {
