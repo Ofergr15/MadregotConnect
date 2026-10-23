@@ -38,6 +38,10 @@
     {
       "path": "/api/cron/photos-mirror",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/partner-orders",
+      "schedule": "20 4 * * *"
     }
   ],
   "git": {

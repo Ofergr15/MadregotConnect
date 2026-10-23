@@ -11,6 +11,7 @@ import { CLUB_PACKS, ENTRY_STEPS, type ClubNumbers } from '@/lib/club-numbers/co
 
 type Data = ClubNumbers & { access: { admin: boolean; managers: string[] } };
 import { Columns, CountColumns, Legend, Spark, WeekColumns, WeekLines, dm, monthShort } from './charts';
+import { Partners } from './Partners';
 
 /**
  * "מדרגות במספרים" — the club's numbers for its admin (mockup ~/.cache/madregot/club-numbers-v3.html,
@@ -20,7 +21,7 @@ import { Columns, CountColumns, Legend, Spark, WeekColumns, WeekLines, dm, month
 
 const TABS = [
   ['overview', 'סקירה'], ['academy', 'אקדמיה'], ['core', 'רצי גרעין'], ['growth', 'צמיחה'], ['packs', 'דבוקות'],
-  ['insights', 'תובנות'], ['stability', 'יציבות'], ['attention', 'תשומת לב'],
+  ['insights', 'תובנות'], ['stability', 'יציבות'], ['attention', 'תשומת לב'], ['partners', 'שותפויות'],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -125,6 +126,7 @@ export function ClubNumbers() {
               {tab === 'insights' && <Insights d={data} />}
               {tab === 'stability' && <Stability d={data} />}
               {tab === 'attention' && <Attention d={data} />}
+              {tab === 'partners' && <Partners />}
             </>
           )}
     </div>
