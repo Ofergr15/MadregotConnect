@@ -17,8 +17,12 @@ import { createServerClient } from '@/lib/supabase/server';
 const API = 'https://api.mux.com';
 const BUCKET = 'club-photos';
 const MAP_PATH = 'mux-assets.json';
-/** Sent per run: Mux ingests in parallel, and a run must leave time for the rest. */
-const SEND_PER_RUN = 15;
+/**
+ * Sent per run: Mux ingests in parallel, and a run must leave time for the rest (a send is
+ * one API call, ~0.3 s). 15 was 56 hours for the library — 5,059 videos, 1,470 minutes
+ * (counted 10-23 by walking the folders; Drive's search saw only 242) — 50 is ~17.
+ */
+const SEND_PER_RUN = 50;
 /** A ceiling on what is stored (minutes), so a mistake can't run the bill up. Read per run. */
 const maxMinutes = () => Number(process.env.MUX_MAX_MINUTES || 3000);
 const PLAY_TTL_S = 6 * 3600;
@@ -89,14 +93,15 @@ async function writeMuxMap(map: MuxMap): Promise<void> {
 export async function syncMuxCopies(videos: Array<{ id: string; ms: number | null; src: () => string | null }>, deadline: number): Promise<{ sent: number; ready: number; preparing: number; errored: number; minutes: number }> {
   const map = await readMuxMap();
   let dirty = false;
-  // The ones Mux is still making.
-  for (const [id, e] of Object.entries(map)) {
-    if (Date.now() > deadline) break;
-    if (e.s !== 'preparing') continue;
-    const asset = await mux<{ status: string; duration?: number; playback_ids?: Array<{ id: string; policy: string }> }>(`/video/v1/assets/${e.a}`).catch(() => null);
-    if (!asset) continue;
-    const p = asset.playback_ids?.find((x) => x.policy === 'signed')?.id;
-    if (asset.status !== e.s || p !== e.p) { map[id] = { ...e, s: asset.status, p, d: asset.duration ? Math.round(asset.duration) : e.d }; dirty = true; }
+  // The ones Mux is still making — asked ten at a time (50 a run are sent now).
+  const preparing = Object.entries(map).filter(([, e]) => e.s === 'preparing');
+  for (let i = 0; i < preparing.length && Date.now() < deadline; i += 10) {
+    await Promise.all(preparing.slice(i, i + 10).map(async ([id, e]) => {
+      const asset = await mux<{ status: string; duration?: number; playback_ids?: Array<{ id: string; policy: string }> }>(`/video/v1/assets/${e.a}`).catch(() => null);
+      if (!asset) return;
+      const p = asset.playback_ids?.find((x) => x.policy === 'signed')?.id;
+      if (asset.status !== e.s || p !== e.p) { map[id] = { ...e, s: asset.status, p, d: asset.duration ? Math.round(asset.duration) : e.d }; dirty = true; }
+    }));
   }
   // The next ones, under the ceiling — and none while the budget guard has the copies off.
   const stored = () => Object.values(map).reduce((a, e) => a + (e.d ?? 0), 0) / 60;
