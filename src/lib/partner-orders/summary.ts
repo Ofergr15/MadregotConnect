@@ -5,6 +5,8 @@ export interface PartnerSummary {
   months: Array<{ month: string; count: number; amount: number }>;
   partners: Array<{ partner: string; via: string | null; count: number; amount: number }>;
   recent: PartnerOrderRow[];
+  /** Every order, newest first — for the month a tap on the chart opens. */
+  orders: PartnerOrderRow[];
 }
 
 const ilMonth = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }).slice(0, 7);
@@ -27,7 +29,7 @@ export function summarize(rows: PartnerOrderRow[], now = new Date()): PartnerSum
   }
   return {
     total, count: sorted.length, avg: sorted.length ? total / sorted.length : 0, since: first,
-    months, partners: [...byP.values()].sort((a, b) => b.amount - a.amount), recent: sorted.slice(0, 8),
+    months, partners: [...byP.values()].sort((a, b) => b.amount - a.amount), recent: sorted.slice(0, 8), orders: sorted,
   };
 }
 

@@ -1,5 +1,15 @@
 [
   {
+    "id": "partner-month-pick",
+    "date": "2026-10-23",
+    "kind": "feature",
+    "audience": "staff",
+    "icon": "👆",
+    "title": "נגיעה בחודש בגרף השותפויות",
+    "body": "נגיעה בעמודה בגרף ״הזמנות וכסף לפי חודש״ מסמנת את החודש ומציגה מתחת לגרף את ההזמנות, הסכום והסל הממוצע שלו, וכל העסקאות של אותו חודש — כל אחת נפתחת לפרטים.",
+    "href": "/dashboard/numbers?tab=partners"
+  },
+  {
     "id": "week-story-tuesday-fixes",
     "date": "2026-10-23",
     "kind": "fix",
