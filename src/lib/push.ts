@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import webpush from 'web-push';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID, isStaffRole } from '@/lib/constants';
@@ -108,6 +109,8 @@ export interface PushPayload {
   rsvp?: { weekStart: string; day: number };
   /** Context for the SW's 'kudos' action handler. */
   kudosActivityId?: string;
+  /** What kind of push this is, for its delivery rows (lib/push-deliveries); notifyAthlete fills it. */
+  kind?: string;
 }
 
 // The scope an action button on this payload is allowed to act within, or null
@@ -125,6 +128,18 @@ export function actionScopeFor(payload: PushPayload): string | null {
 }
 
 type SubRow = { id: string; endpoint: string; p256dh: string; auth: string; athlete_id: string };
+
+type DeliveryRow = { nid: string; athlete_id: string | null; subscription_id: string | null; kind: string | null; title: string; accepted: boolean; error: string | null };
+/**
+ * One row per push per device (migration 171, lib/push-deliveries). Best effort: a missing
+ * table (171 not pasted) or a failed write never touches the send itself.
+ */
+async function recordDeliveries(rows: DeliveryRow[]): Promise<void> {
+  if (!rows.length) return;
+  try {
+    await createServerClient().from('push_deliveries').insert(rows);
+  } catch { /* the delivery log is evidence, never a reason to fail a push */ }
+}
 
 type PrefsRow = { id: string; role?: string | null; notification_prefs?: Record<string, boolean> | null };
 
@@ -490,6 +505,13 @@ export async function sendPushDetailed(
 ): Promise<{ sent: number; byAthlete: Record<string, number> }> {
   const empty = { sent: 0, byAthlete: {} as Record<string, number> };
   if (subs.length === 0) return empty;
+  // This push's own number, the same on every device (lib/push-deliveries, migration 171): each
+  // device's row says whether the push service took it, and the phone stamps it when shown.
+  const nid = randomUUID();
+  const deliveries: DeliveryRow[] = [];
+  const note = (list: SubRow[], accepted: boolean, error: string | null) => {
+    for (const s of list) deliveries.push({ nid, athlete_id: s.athlete_id || null, subscription_id: s.id, kind: payload.kind ?? payload.category ?? null, title: payload.title.slice(0, 120), accepted, error });
+  };
   if (!ensureConfigured()) {
     console.warn(`[push] VAPID keys missing — dropped "${payload.title}" for ${subs.length} subscription(s)`);
     return empty;
@@ -499,16 +521,22 @@ export async function sendPushDetailed(
   // While maintenance mode is ON, only the allowlist (+ approvers) may receive
   // ANY push — everyone else is walled off from the app, so don't nag them.
   const beforeMaintenance = subs.length;
+  const allSubs = subs;
   subs = await filterForMaintenance(subs);
+  note(allSubs.filter((x) => !subs.includes(x)), false, 'maintenance');
   if (subs.length === 0) {
+    await recordDeliveries(deliveries);
     console.warn(`[push] maintenance allowlist dropped all ${beforeMaintenance} subscription(s) for "${payload.title}"`);
     return empty;
   }
 
   // Respect each athlete's per-category notification preference (default: on).
   const beforeCategory = subs.length;
+  const wanted = subs;
   subs = await filterByCategory(subs, payload.category);
+  note(wanted.filter((x) => !subs.includes(x)), false, 'muted');
   if (subs.length === 0) {
+    await recordDeliveries(deliveries);
     console.warn(`[push] category "${payload.category}" muted by all ${beforeCategory} recipient(s) of "${payload.title}"`);
     return empty;
   }
@@ -562,6 +590,7 @@ export async function sendPushDetailed(
       const actionToken = scope ? signActionToken(s.athlete_id, scope) : null;
       const body = JSON.stringify({
         ...payload,
+        nid,
         badge,
         athleteId: s.athlete_id,
         ...(actionToken ? { actionToken } : {}),
@@ -573,8 +602,10 @@ export async function sendPushDetailed(
         );
         sent++;
         byAthlete[s.athlete_id] = (byAthlete[s.athlete_id] || 0) + 1;
+        note([s], true, null);
       } catch (err: unknown) {
         const status = (err as { statusCode?: number })?.statusCode;
+        note([s], false, String(status ?? (err as Error)?.message ?? 'unknown').slice(0, 80));
         if (status === 404 || status === 410) deadIds.push(s.id);
         // other errors (network/timeout): leave the subscription in place, but
         // say so. These were swallowed entirely, which meant an expired VAPID
@@ -588,6 +619,7 @@ export async function sendPushDetailed(
   if (deadIds.length > 0) {
     await supabase.from('push_subscriptions').delete().in('id', deadIds);
   }
+  await recordDeliveries(deliveries);
 
   // Deliberately NOT stamping last_success_at here, even though every send
   // counted above was accepted with a 2xx. Acceptance is not delivery: Apple returns
@@ -1029,6 +1061,7 @@ export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<NotifyR
     subscriptions = subs.length;
     if (subs.length > 0) {
       ({ byAthlete } = await sendPushDetailed(subs, {
+        kind: opts.kind,
         title,
         body,
         url: opts.url,
@@ -1040,6 +1073,7 @@ export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<NotifyR
       // No subscription at all: the row below is inbox-only by definition, and
       // saying so beats recording a phantom delivery.
       byAthlete = {};
+      await recordDeliveries([{ nid: randomUUID(), athlete_id: opts.athleteId, subscription_id: null, kind: opts.kind ?? null, title: title.slice(0, 120), accepted: false, error: 'no-device' }]);
     }
   } catch { /* push is best-effort — leave byAthlete undefined (unknown) */ }
 

@@ -43,10 +43,29 @@ export async function POST(request: Request) {
     if (!endpoint) return NextResponse.json({ error: 'endpoint required' }, { status: 400 });
 
     const supabase = createServerClient();
+    const now = new Date().toISOString();
     await supabase
       .from('push_subscriptions')
-      .update({ last_success_at: new Date().toISOString() })
+      .update({ last_success_at: now })
       .eq('endpoint', endpoint);
+    const { data: sub } = await supabase.from('push_subscriptions').select('id').eq('endpoint', endpoint).maybeSingle();
+    // Which push showed (lib/push-deliveries, migration 171): the push's own number and this
+    // device. Only a row this endpoint was sent, and only once.
+    const nid = typeof body?.nid === 'string' && /^[0-9a-f-]{36}$/i.test(body.nid) ? body.nid : null;
+    const subId = (sub as { id?: string } | null)?.id;
+    if (nid && subId) {
+      await supabase.from('push_deliveries').update({ shown_at: now })
+        .eq('nid', nid).eq('subscription_id', subId).is('shown_at', null);
+    } else if (subId) {
+      // A phone still on the service worker from before the number: its newest push of the
+      // last 15 minutes that is not confirmed yet — what it just showed, near enough.
+      const { data: last } = await supabase.from('push_deliveries').select('id')
+        .eq('subscription_id', subId).eq('accepted', true).is('shown_at', null)
+        .gte('sent_at', new Date(Date.now() - 15 * 60_000).toISOString())
+        .order('sent_at', { ascending: false }).limit(1).maybeSingle();
+      const id = (last as { id?: string } | null)?.id;
+      if (id) await supabase.from('push_deliveries').update({ shown_at: now }).eq('id', id);
+    }
 
     // 204 whether or not a row matched: the SW has nothing to do differently
     // either way, and not answering "is this endpoint known to you?" keeps the

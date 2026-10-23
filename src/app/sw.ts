@@ -318,6 +318,8 @@ self.addEventListener('push', (event: PushEvent) => {
     rsvp?: { weekStart: string; day: number };
     kudosActivityId?: string;
     actionToken?: string;
+    /** This push's own number (lib/push-deliveries): the receipt names which push showed. */
+    nid?: string;
   } = {};
   try {
     data = event.data ? event.data.json() : {};
@@ -395,7 +397,7 @@ self.addEventListener('push', (event: PushEvent) => {
             await fetch('/api/push/receipt', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ endpoint: sub.endpoint }),
+              body: JSON.stringify({ endpoint: sub.endpoint, nid: data.nid ?? null }),
             });
           }
         } catch { /* offline, or the receipt route is older than this SW — the notification still showed */ }

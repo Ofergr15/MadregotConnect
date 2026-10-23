@@ -1000,3 +1000,26 @@ export async function sendAcademyWeeklyReport(params: {
     }),
   });
 }
+
+/**
+ * Pushes stopped showing altogether (lib/push-deliveries): by mail, because a push about
+ * it would not arrive either (Ofer 10-23: "we cannot allow it to fall on the way").
+ */
+export async function notifyPushDown(p: { to: string; sent: number; accepted: number; shown: number; minutes: number }): Promise<SendResult> {
+  return sendEmail({
+    template: 'push_down',
+    to: [p.to],
+    subject: `⚠️ התראות לא מוצגות — 0 מתוך ${p.accepted} ב־${p.minutes} הדקות האחרונות`,
+    html: renderEmail({
+      signoff: false,
+      eyebrow: 'בריאות ההתראות',
+      title: 'שום התראה לא הוצגה בטלפונים',
+      preheader: `נשלחו ${p.sent}, אפל קיבלה ${p.accepted}, הוצגו ${p.shown}.`,
+      paragraphs: [
+        `ב־${p.minutes} הדקות האחרונות נשלחו ${p.sent} התראות, שירות ההתראות קיבל ${p.accepted}, ואף טלפון לא אישר שהציג אחת מהן.`,
+        'זה בדרך כלל אומר שהשליחה עצמה שבורה (מפתחות, שירות), לא טלפון אחד.',
+      ],
+      cta: { label: 'לבריאות ההתראות ←', href: openInAppHref(APP_URL, '/dashboard/push-health') },
+    }),
+  });
+}

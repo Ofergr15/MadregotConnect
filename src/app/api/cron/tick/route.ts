@@ -783,6 +783,70 @@ async function run(request: Request) {
     }
   }
 
+  // Pushes that did not SHOW (lib/push-deliveries, migration 171; Ofer 10-23: "we cannot
+  // allow it to not arrive and fall on the way"). Three rules, each told once:
+  //  1. an important staff push that one of its people did not confirm within 10 minutes;
+  //  2. at 09:00, who has had every push go unshown for two days (a dead phone);
+  //  3. nothing shown at all in the last 30 minutes of 20+ — by mail too, since a push won't come.
+  // To the club owner (SUPER_USER_EMAIL), never about these alerts themselves.
+  try {
+    const { readDeliveries, groupByPush, silentPeople, tally, IMPORTANT_KINDS, SELF_KIND, CONFIRM_MS, stateOf } = await import('@/lib/push-deliveries');
+    const rows = await readDeliveries(supabase, new Date(now.getTime() - 48 * 3600_000).toISOString());
+    const { data: ownerRow } = rows ? await supabase.from('athletes').select('id').eq('email', SUPER_USER_EMAIL).maybeSingle() : { data: null };
+    const owner = (ownerRow as { id?: string } | null)?.id;
+    if (rows && owner) {
+      const judged = rows.filter((r) => r.kind !== SELF_KIND);
+      const nameOf = async (ids: string[]) => {
+        const { data } = ids.length ? await supabase.from('athletes').select('id, name').in('id', ids) : { data: [] };
+        return new Map(((data || []) as { id: string; name: string | null }[]).map((a) => [a.id, (a.name || '').split(' ')[0] || '—']));
+      };
+      // 1 — important pushes, 10 to 60 minutes old, with someone who did not see them.
+      const nowMs = now.getTime();
+      const fresh = judged.filter((r) => IMPORTANT_KINDS.includes(r.kind ?? '') && nowMs - Date.parse(r.sent_at) >= CONFIRM_MS && nowMs - Date.parse(r.sent_at) < 60 * 60_000);
+      for (const g of groupByPush(fresh)) {
+        if (!g.tally.notShown) continue;
+        const tag = `pushHealth:${g.nid}`;
+        if (await already(tag)) continue;
+        const missed = [...new Set(fresh.filter((r) => r.nid === g.nid && stateOf(r, nowMs) === 'not_shown').map((r) => r.athlete_id).filter(Boolean))] as string[];
+        const names = await nameOf(missed);
+        await notifyAthlete({ athleteId: owner, kind: SELF_KIND, url: `/dashboard/push-health?nid=${g.nid}`, tag,
+          title: '⚠️ התראה לא הוצגה',
+          body: `"${g.title}" הוצגה אצל ${g.tally.shown} מתוך ${g.tally.shown + g.tally.notShown}. לא אישרו: ${missed.map((id) => names.get(id)).join(', ')}.` });
+        await markFired(tag, 1);
+        fired.push(`${tag} → owner`);
+      }
+      // 2 — at 09:00, the people whose phones show nothing.
+      if (hour === 9) {
+        const tag = `pushHealthSilent:${israelToday(now)}`;
+        const silent = silentPeople(judged, 3, nowMs);
+        if (silent.length && !(await already(tag))) {
+          const names = await nameOf(silent.map((x) => x.athleteId));
+          await notifyAthlete({ athleteId: owner, kind: SELF_KIND, url: '/dashboard/push-health', tag,
+            title: `⚠️ ${silent.length === 1 ? 'טלפון אחד לא מציג' : `${silent.length} טלפונים לא מציגים`} התראות`,
+            body: `${silent.map((x) => `${names.get(x.athleteId)} (${x.unshown})`).join(', ')} — אפל מקבלת, הטלפון לא מראה. פתיחה אחת של האפליקציה בדרך כלל מתקנת.` });
+          await markFired(tag, silent.length);
+          fired.push(`${tag} → ${silent.length}`);
+        }
+      }
+      // 3 — nothing shown at all.
+      const half = judged.filter((r) => nowMs - Date.parse(r.sent_at) >= CONFIRM_MS && nowMs - Date.parse(r.sent_at) < 40 * 60_000);
+      const t = tally(half, nowMs);
+      if (t.accepted >= 20 && t.shown === 0) {
+        const tag = `pushHealthDown:${israelToday(now)}`;
+        if (!(await already(tag))) {
+          const { notifyPushDown } = await import('@/lib/email');
+          await notifyPushDown({ to: SUPER_USER_EMAIL, sent: t.sent, accepted: t.accepted, shown: t.shown, minutes: 30 });
+          await notifyAthlete({ athleteId: owner, kind: SELF_KIND, url: '/dashboard/push-health', tag,
+            title: '⚠️ התראות לא מוצגות', body: `0 מתוך ${t.accepted} הוצגו בחצי השעה האחרונה. נשלח גם מייל.` });
+          await markFired(tag, 1);
+          fired.push(`${tag} → owner + mail`);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[tick] push health failed:', err);
+  }
+
   // אלופי המדרגות: every result goes through an admin (Ofer 10-20). Once a day at 20:00,
   // when a race-day run from the last two days waits for approval, staff get one push.
   if (hour === 20) {

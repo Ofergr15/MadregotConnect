@@ -12,6 +12,7 @@ export const STAFF_ONLY_PATHS = [
   '/dashboard/people',
   '/dashboard/roles',
   '/dashboard/access',
+  '/dashboard/push-health',
   '/dashboard/entry-queue',
   '/dashboard/athletes',
   '/dashboard/groups',

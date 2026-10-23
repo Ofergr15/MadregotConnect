@@ -86,3 +86,12 @@ describe('POST /api/push/receipt', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('the receipt names which push showed (migration 171)', () => {
+  it('still touches the subscription with only its timestamp, first', async () => {
+    await post({ endpoint: 'https://web.push.apple.com/live', nid: '0b9d6b1e-4a0e-4f3c-9b8a-1f2e3d4c5b6a' });
+    const first = ops.find((o) => o.op === 'update');
+    expect(first?.table).toBe('push_subscriptions');
+    expect(Object.keys(first?.patch || {})).toEqual(['last_success_at']);
+  });
+});

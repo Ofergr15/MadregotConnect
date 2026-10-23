@@ -19,6 +19,7 @@ export const MANAGE_GROUPS: ManageGroup[] = [
   {
     key: 'notify', title: 'התראות ותזכורות',
     items: [
+      { label: 'בריאות ההתראות', sub: 'מה באמת הוצג בטלפונים', href: '/dashboard/push-health', also: 'התראות הגיעו הוצגו' },
       { label: 'התראות', sub: 'מה נשלח לחברים', href: '/dashboard/settings?tab=notifications' },
       { label: 'תזכורות', sub: 'לפני אימון ובערב', href: '/dashboard/settings?tab=reminders' },
       { label: 'ניתוב התראות לצוות', sub: 'מי מקבל מה', href: '/dashboard/settings?tab=notifRouting' },
