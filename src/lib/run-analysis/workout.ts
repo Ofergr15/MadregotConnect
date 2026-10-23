@@ -45,11 +45,11 @@ export interface Workout {
   avgPace: number;
   avgTarget: number | null;
   avgHr: number | null;
-  /** ±3 s/km counts as on target. */
+  /** ±10 s/km counts as on target — the club tolerance the execution score uses (academy settings paceSec), so the card and the ring never disagree. */
   tolerance: number;
 }
 
-export const TOLERANCE = 3;
+export const TOLERANCE = 10;
 /** How far short of its planned length or time an iteration may close and still count as one. */
 const ITERATION_SLACK = 0.03;
 

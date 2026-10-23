@@ -23,10 +23,10 @@ describe('readWorkout', () => {
     expect(w.reps.map((r) => r.meters)).toEqual([1600, 1600, 1600]);
     expect(w.recoveryMeters).toBe(400);
   });
-  it('scores each rep against the pack\'s own target, ±3 s/km', () => {
+  it('scores each rep against the pack\'s own target, ±10 s/km', () => {
     expect(w.reps.map((r) => r.target)).toEqual([220, 220, 220]);
     expect(w.reps.map((r) => r.pace)).toEqual([220, 221, 228]);
-    expect(w.hit).toBe(2);
+    expect(w.hit).toBe(3);
     expect(readWorkout(laps, { steps }, 0)!.reps[0].target).toBe(210);
   });
   it('is null for a run the watch did not run as a workout', () => {
