@@ -80,7 +80,15 @@ export function repairStuckOpenStep(laps: WLap[], steps: Map<number, WStep>): WL
     let j = i; while (j < out.length && out[j].wktStepIndex === idx) j++;
     const runFrom = out.slice(i, j).findIndex((l) => l.distance >= 300 && l.duration / (l.distance / 1000) < RUNNING);
     if (runFrom < 0) { i = j - 1; continue; }
-    const running = out.slice(i + runFrom, j);
+    let running = out.slice(i + runFrom, j);
+    // What was really run, not only the plan: a first kilometre far slower than the rest is
+    // the walk ending into the block (10-23: 5:37, then 4:03–4:10) — it stays a recovery.
+    const paceOf = (l: WLap) => l.duration / (l.distance / 1000);
+    const med = running.map(paceOf).sort((x, y) => x - y)[Math.floor(running.length / 2)];
+    let lead = 0;
+    while (lead < running.length - 1 && paceOf(running[lead]) > med * 1.2) lead++;
+    if (lead) { running = running.slice(lead); }
+    const startAt = i + runFrom + lead;
     const runM = running.reduce((a, l) => a + l.distance, 0);
     if (runM < 2000) { i = j - 1; continue; }
     // The skipped steps: the planned distance / time steps after this one whose laps are near-empty.
@@ -90,7 +98,8 @@ export function repairStuckOpenStep(laps: WLap[], steps: Map<number, WStep>): WL
     const plan = [...new Set(skipped)].map((n) => steps.get(n)).filter((x): x is WStep => !!x && !!(x.distanceM || x.durationSec));
     if (!plan.length) { i = j - 1; continue; }
     // Hand the running laps to the skipped steps, each until its planned length is covered.
-    let p = 0, done = 0;
+    // The slow lead-in still covered the block's first kilometre, so it counts toward its length.
+    let p = 0, done = out.slice(i + runFrom, startAt).reduce((x, l) => x + l.distance, 0);
     const handed = running.map((l) => {
       const step = plan[Math.min(p, plan.length - 1)];
       const lap = { ...l, wktStepIndex: step.stepIndex ?? null, intensityType: step.intensity || 'ACTIVE' };
@@ -99,9 +108,9 @@ export function repairStuckOpenStep(laps: WLap[], steps: Map<number, WStep>): WL
       if (p < plan.length - 1 && done >= goal * (1 - ITERATION_SLACK)) { p++; done = 0; }
       return lap;
     });
-    out.splice(i + runFrom, j - (i + runFrom), ...handed);
+    out.splice(startAt, j - startAt, ...handed);
     // The seconds-long laps the late press made are not part of the session.
-    const tail = i + runFrom + handed.length;
+    const tail = startAt + handed.length;
     out.splice(tail, skipped.length);
     i = tail - 1;
   }
