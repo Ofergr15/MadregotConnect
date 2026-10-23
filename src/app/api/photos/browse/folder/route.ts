@@ -9,7 +9,7 @@ import { FULL, THUMB, listFolderPhotos, signedImageUrl, signedVideoUrl } from '@
 import { mirroredUrls } from '@/lib/photos/mirror';
 import { exifToIso } from '@/lib/photos/video-time';
 import { unstable_cache } from 'next/cache';
-import { muxHls, muxPreview, readMuxMap, type MuxMap } from '@/lib/photos/mux';
+import { muxHls, muxPoster, readMuxMap, type MuxMap } from '@/lib/photos/mux';
 
 // Which videos have a viewing copy (lib/photos/mux), cached a couple of minutes.
 const cachedMuxMap = unstable_cache((): Promise<MuxMap> => readMuxMap().catch(() => ({})), ['mux-assets-v1'], { revalidate: 120, tags: ['mux-assets'] });
@@ -48,13 +48,12 @@ export async function GET(request: Request) {
       videos: res.videos.map((v) => ({
         id: v.id, ms: v.ms, w: v.w, h: v.h, at: v.at, t: exifToIso(v.at),
         thumb: m.thumb[v.id] ?? signedImageUrl(v.id, THUMB),
-        poster: m.full[v.id] ?? signedImageUrl(v.id, FULL),
+        poster: muxPoster(copies[v.id]) ?? m.full[v.id] ?? signedImageUrl(v.id, FULL),
         blur: m.lqip[v.id] ?? null,
         src: signedVideoUrl(v.id),
-        // The viewing copy, when Mux has made it: plays at once on any phone; and a few
-        // moving seconds of it to show while it starts.
+        // The viewing copy, when Mux has made it: plays at once on any phone (its first
+        // frame is the poster, above).
         hls: muxHls(copies[v.id]),
-        preview: muxPreview(copies[v.id]),
       })),
     });
   } catch (error) {

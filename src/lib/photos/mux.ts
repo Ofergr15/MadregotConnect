@@ -114,16 +114,24 @@ export function signMux(playbackId: string, aud: 'v' | 't' | 'g', extra: Record<
   } catch { return null; }
 }
 
-/** The copy's HLS link, signed; null when the video has no ready copy (the original plays). */
+/**
+ * The copy's HLS link, signed; null when the video has no ready copy (the original plays).
+ * Never under 720p: a phone with no history of the network otherwise opens on 360p and
+ * climbs, so every video began blurred (measured 10-23) — an iPhone plays this list itself.
+ */
 export function muxHls(entry: MuxEntry | undefined): string | null {
   if (!entry?.p || entry.s !== 'ready') return null;
-  const token = signMux(entry.p, 'v');
+  const token = signMux(entry.p, 'v', { min_resolution: '720p' });
   return token ? `https://stream.mux.com/${entry.p}.m3u8?token=${token}` : null;
 }
 
-/** A moving preview of the first seconds (aud 'g'): what the player shows while it loads. */
-export function muxPreview(entry: MuxEntry | undefined): string | null {
+/**
+ * The copy's first frame as the poster (aud 't'): sharp, from Mux's CDN, and the very frame
+ * playback starts on, so nothing jumps when it begins. (A moving preview was tried first:
+ * Mux makes those 640px at most, and full screen it read as low quality.)
+ */
+export function muxPoster(entry: MuxEntry | undefined): string | null {
   if (!entry?.p || entry.s !== 'ready') return null;
-  const token = signMux(entry.p, 'g', { width: 320, fps: 12, start: 0, end: 3 });
-  return token ? `https://image.mux.com/${entry.p}/animated.webp?token=${token}` : null;
+  const token = signMux(entry.p, 't', { width: 1080, time: 0 });
+  return token ? `https://image.mux.com/${entry.p}/thumbnail.webp?token=${token}` : null;
 }

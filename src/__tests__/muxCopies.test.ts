@@ -17,7 +17,7 @@ vi.mock('@/lib/supabase/server', () => ({
     upload: async (_p: string, body: string) => { stored = body; return { error: null }; },
   }) } }),
 }));
-const { muxHls, signMux, syncMuxCopies } = await import('@/lib/photos/mux');
+const { muxHls, muxPoster, signMux, syncMuxCopies } = await import('@/lib/photos/mux');
 
 describe('a playback link', () => {
   it('is an RS256 JWT for one video that the public key verifies, and expires', () => {
@@ -33,6 +33,16 @@ describe('a playback link', () => {
   it('only for a ready copy', () => {
     expect(muxHls({ a: 'x', s: 'preparing', p: 'play1' })).toBeNull();
     expect(muxHls({ a: 'x', s: 'ready', p: 'play1' })).toMatch(/^https:\/\/stream\.mux\.com\/play1\.m3u8\?token=/);
+  });
+  const claimsOf = (url: string | null) => JSON.parse(Buffer.from(new URL(url!).searchParams.get('token')!.split('.')[1], 'base64url').toString());
+  it('never opens under 720p (it began at 360p and climbed)', () => {
+    expect(claimsOf(muxHls({ a: 'x', s: 'ready', p: 'play1' }))).toMatchObject({ aud: 'v', min_resolution: '720p' });
+  });
+  it('has the first frame, sharp, as its poster', () => {
+    expect(muxPoster({ a: 'x', s: 'preparing', p: 'play1' })).toBeNull();
+    const url = muxPoster({ a: 'x', s: 'ready', p: 'play1' });
+    expect(url).toMatch(/^https:\/\/image\.mux\.com\/play1\/thumbnail\.webp\?token=/);
+    expect(claimsOf(url)).toMatchObject({ aud: 't', width: 1080, time: 0 });
   });
 });
 
