@@ -63,7 +63,8 @@ function Legend({ items }: { items: Array<{ label: string; color?: string; line?
   );
 }
 
-/** Columns per rep on a pace axis (faster = taller), the pack's target as a black tick. */
+const OFF_RED = '#d9434a';
+/** Columns per rep on a pace axis (faster = taller) inside the band they are judged by; red when outside. */
 function RepColumns({ reps, height = 180, showHr = true, labels }: { reps: Seg[]; height?: number; showHr?: boolean; labels?: string[] }) {
   const W = 330; const PT = 22; const PB = showHr ? 30 : 18; const PR = 34; const ih = height - PT - PB; const iw = W - PR - 4;
   // The band each bar is judged by (mockup ~/.cache/madregot/run-1023, Ofer 10-23: "the chart
@@ -86,9 +87,9 @@ function RepColumns({ reps, height = 180, showHr = true, labels }: { reps: Seg[]
         return (
           <g key={i}>
             {tl != null && th != null && <rect x={x - 5} y={y(tl - TOL)} width={bw + 10} height={y(th + TOL) - y(tl - TOL)} rx={4} fill={GREEN} fillOpacity={0.16} />}
-            <rect x={x} y={y(p)} width={bw} height={PT + ih - y(p)} rx={4} fill={GREEN} fillOpacity={0.88} />
-            {tl != null && th != null && <rect x={x - 3} y={y(tl) - 1} width={bw + 6} height={Math.max(2, y(th) - y(tl) + 2)} fill="#16171F" />}
-            <text x={x + bw / 2} y={labels ? Math.min(PT + ih - 4, y(p) + 14) : y(p) - 5} textAnchor="middle" className={labels ? 'text-[12px] font-black' : 'text-[10px] font-black'} fill={labels ? '#fff' : GREEN}>{formatPace(p)}</text>
+            <rect x={x} y={y(p)} width={bw} height={PT + ih - y(p)} rx={4} fill={r.onTarget === false ? OFF_RED : GREEN} fillOpacity={0.88} />
+            {/* No target line (was a solid black bar — "ugly", Ofer 10-23, mockup run-reps-v2 option A): the band is the target, the bar's colour the verdict. */}
+            <text x={x + bw / 2} y={labels ? Math.min(PT + ih - 4, y(p) + 14) : y(p) - 5} textAnchor="middle" className={labels ? 'text-[12px] font-black' : 'text-[10px] font-black'} fill={labels ? '#fff' : r.onTarget === false ? OFF_RED : GREEN}>{formatPace(p)}</text>
             <text x={x + bw / 2} y={PT + ih + 12} textAnchor="middle" className={labels ? 'fill-ink-900 text-[10.5px] font-extrabold' : 'fill-ink-400 text-[10px]'}>{labels?.[i] ?? i + 1}{r.onTarget ? ' ✓' : ''}</text>
             {showHr && r.hr != null && <text x={x + bw / 2} y={PT + ih + 25} textAnchor="middle" className="text-[9px] font-bold" fill="#C2410C">{r.hr}</text>}
           </g>
@@ -437,7 +438,7 @@ export function RepsDetail({ w, maxHr }: { w: Workout; maxHr: number }) {
   const rows: Array<[string, Array<number | null>, (v: number) => string, (v: number) => string | undefined]> = [
     [t('avgHrShort'), w.reps.map((r) => r.hr), String, (v) => ZONE_COLOR[zoneOf(v, maxHr)]],
     [t('maxHrShort'), w.reps.map((r) => r.maxHr), String, (v) => ZONE_COLOR[zoneOf(v, maxHr)]],
-    [t('gap'), w.reps.map((r) => r.gap), formatPace, () => undefined],
+    [t('gap'), w.reps.map((r) => r.gap), formatPace, () => '#6B6F85'], // soft grey, not black
   ];
   return (
     <Card title={t('reps')} sub={t('repsSub')}>
