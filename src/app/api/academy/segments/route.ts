@@ -17,6 +17,7 @@ import {
 } from '@/lib/academy/segments';
 import { buildVerdict } from '@/lib/plan-execution/verdict';
 import { stepLaps } from '@/lib/plan-execution/resolve';
+import { isSatellite, type RunRow } from '@/lib/plan-execution/satellite';
 import { resolveDominantPace } from '@/lib/plan-execution/dominant-pace';
 import { gradePlanBlocks, traceFromLaps, traceFromStream } from '@/lib/academy/execution';
 import { gradeWatchSteps } from '@/lib/academy/watch-steps';
@@ -251,6 +252,12 @@ export async function GET(request: Request) {
       // the run, and the caller's chart has an activity on screen either way.
       if (emitVerdict) return NextResponse.json({ ...bandsPayload, verdict: null, reason });
       return NextResponse.json({ segments: [], aligned: false, reason });
+    }
+
+    // The warm-up or cool-down saved as its own run is part of the session, not a try at it.
+    if (isSatellite(activity as RunRow, dayActs as RunRow[])) {
+      if (emitVerdict) return NextResponse.json({ ...bandsPayload, verdict: null, reason: 'warmup or cooldown of another run' });
+      return NextResponse.json({ segments: [], aligned: false, reason: 'warmup or cooldown of another run' });
     }
 
     // 3) Ensure laps — fetch on-demand from Garmin if not cached.

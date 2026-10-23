@@ -1,4 +1,5 @@
 import { readWorkout } from '@/lib/run-analysis/workout';
+import { satelliteIds } from './satellite';
 /**
  * Plan vs. Execution — turning rows into verdicts.
  *
@@ -330,6 +331,8 @@ export async function resolveExecutionVerdict(
   if (!data) return null;
 
   const row = data as unknown as ActivityRow;
+  // A warm-up or cool-down saved on its own (satellite.ts) is not graded against the session.
+  if ((await satelliteIds(supabase, [row])).has(row.id)) return verdictFor(row, null, tolerances, []);
   const matched = await ensureMatchedWorkout(supabase, row.id, row.athlete_id, opts);
   const workout = matched?.workout ?? null;
   const laps = workout ? await ensureLaps(supabase, row, workout, !!opts.readOnly) : [];

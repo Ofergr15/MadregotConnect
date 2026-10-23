@@ -113,7 +113,7 @@ export function ActivityDetailBody({
   const ago = minutesSinceEnd(act.start_time, act.duration);
   const { data: trace } = useActivityStream(act.id, ago != null && ago >= -5 && ago < STREAM_WAIT_MIN);
   // The workout the watch ran, the efforts, the weather — /api/activities/analysis (RunAnalysis.tsx).
-  const { data: an, mutate: reAnalyse } = useRunAnalysis(mapOnly ? null : act.id);
+  const { data: an, isLoading: analysing, mutate: reAnalyse } = useRunAnalysis(mapOnly ? null : act.id);
   // Read again once a late trace lands: the efforts, recoveries and cadence come from it.
   const traced = !!trace?.stream;
   useEffect(() => { if (traced && an && !an.recovery?.length && !an.efforts?.length) void reAnalyse(); }, [traced]); // eslint-disable-line react-hooks/exhaustive-deps -- once, when the trace lands
@@ -219,7 +219,9 @@ export function ActivityDetailBody({
       {!mapOnly && an?.conditions && <Conditions c={an.conditions} />}
 
       {/* The watch ran a workout with reps: that IS the plan against execution (RunAnalysis). */}
-      {!mapOnly && an?.workout ? <WorkoutCard a={an} score={verdict?.status === 'graded' ? verdict.score : null} /> : !mapOnly && (
+      {/* Nothing until the analysis answers: the old module used to show for a few seconds
+          and then be replaced by the workout card (Ofer 10-23: "a huge bug"). */}
+      {!mapOnly && analysing && !an ? null : !mapOnly && an?.workout ? <WorkoutCard a={an} score={verdict?.status === 'graded' ? verdict.score : null} /> : !mapOnly && (
         <ExecutionQuality
           verdict={verdict}
           splits={splits}

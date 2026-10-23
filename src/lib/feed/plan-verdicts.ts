@@ -7,6 +7,7 @@ import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 import { loadPackLanes } from '@/lib/groups/pack-history';
 import { buildVerdict, toExecutionSummary, type ExecutionSummary } from '@/lib/plan-execution/verdict';
 import { resolveDominantPace } from '@/lib/plan-execution/dominant-pace';
+import { satelliteIds } from '@/lib/plan-execution/satellite';
 import { effortReportFor, segmentReportFor, stepLaps } from '@/lib/plan-execution/resolve';
 import { PLAN_STATUSES } from '@/lib/plans/plan-status';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
@@ -194,7 +195,10 @@ export async function loadFeedPlanVerdicts(
       return cached;
     };
 
+    // Warm-ups and cool-downs saved on their own are part of a session, never a try at it.
+    const satellites = await satelliteIds(supabase, runs).catch(() => new Set<string>());
     for (const row of runs) {
+      if (satellites.has(row.id)) continue;
       const date = activityLocalDateStr(row.start_time);
       const weekStart = planWeekStartOf(date);
       const lane = laneOn(row.athlete_id, date);
