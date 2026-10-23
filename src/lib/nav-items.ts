@@ -5,7 +5,7 @@ import {
   Calendar, Users, Layers, Clock, User, Settings,
   Route, MessageSquare, Bug, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
   BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift, ShieldCheck, Gauge, Trophy,
-  UsersRound, Megaphone, TrendingUp, Sun, Sparkles,
+  UsersRound, Megaphone, TrendingUp, Sun, Sparkles, LineChart,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
@@ -121,6 +121,17 @@ export const COACH_TOOLS_ITEM: NavItem = { href: '/dashboard/coach-tools', tab: 
 /** "ניהול" for a "מנהל מדרגות" who holds no staff role: the club's numbers (lib/club-numbers/access). */
 /** "מספרים" — the admin home bar's own tab for /dashboard/numbers ("מדרגות במספרים"). */
 export const NUMBERS_TAB_ITEM: NavItem = { href: '/dashboard/numbers', tab: 'numbers', labelKey: 'numbersTab', icon: Gauge };
+/**
+ * The coach space's own bar (lib/coach-space): היום · השבוע · רצים · תובנות, then עוד with
+ * everything else. Only while the club switch is on (or the super user's preview), only for
+ * `coach`. Not part of ALL_NAV_ITEMS: no permission row grants these, the switch does.
+ */
+export const COACH_SPACE_ITEMS: NavItem[] = [
+  { href: '/dashboard/coach/today', tab: 'coach-today', labelKey: 'coachToday', icon: Sun },
+  { href: '/dashboard/coach/week', tab: 'coach-week', labelKey: 'coachWeek', icon: CalendarDays },
+  { href: '/dashboard/coach/runners', tab: 'coach-runners', labelKey: 'coachRunners', icon: UsersRound },
+  { href: '/dashboard/coach/insights', tab: 'coach-insights', labelKey: 'coachInsights', icon: LineChart },
+];
 export const CLUB_NUMBERS_ITEM: NavItem = { href: '/dashboard/numbers', tab: 'club-numbers', labelKey: 'coachTools', icon: Gauge };
 // Store and Benefits are static "More" sheet rows, not gated by
 // role_tab_permissions (roadmap #9, #5) — every role can reach them.

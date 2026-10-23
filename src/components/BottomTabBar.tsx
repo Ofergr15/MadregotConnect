@@ -11,7 +11,8 @@ import { TOUR_REPLAY_EVENT } from '@/lib/tour/store';
 import { useTourPrefs } from '@/lib/tour/use-prefs';
 import { openViewAsChooser } from '@/lib/view-as-person';
 import { cn } from '@/lib/utils';
-import { athletePrimaryOrder, resolveNavItems, useNavIdentity, type NavItem, STORE_OPEN, ADMIN_HOME_ORDER, NUMBERS_TAB_ITEM, isAdminHome } from '@/lib/nav-items';
+import { athletePrimaryOrder, resolveNavItems, useNavIdentity, type NavItem, STORE_OPEN, ADMIN_HOME_ORDER, NUMBERS_TAB_ITEM, isAdminHome, COACH_SPACE_ITEMS } from '@/lib/nav-items';
+import { useCoachSpace } from '@/lib/coach-space/use-coach-space';
 import { startViewAs, stopViewAs, MAINTENANCE_MODE, VIEW_AS_SCENARIOS } from '@/lib/impersonation';
 import { Sheet } from '@/components/ui';
 import { useApi } from '@/lib/api';
@@ -86,6 +87,8 @@ export function BottomTabBar() {
   // How many runners wait for an answer (lib/feedback/waiting.ts) — a number, not just a dot (2026-10-19).
   const attentionCount = attention ? (attention.people ?? attention.total) : 0;
   const attentionDot = attentionCount > 0;
+  // The coach space (lib/coach-space): a coach's bar is its four tabs + עוד while the switch is on.
+  const coachSpace = useCoachSpace(identity);
 
   if (!ready || navItems.length === 0) return null;
 
@@ -94,7 +97,10 @@ export function BottomTabBar() {
   // An academy member's bar trades Program for Academy — see athletePrimaryOrder.
   // The admin home's bar: five flat tabs, no "עוד" (lib/nav-items ADMIN_HOME_ORDER).
   const adminHome = isAdminHome(identity);
-  const primaryOrder = adminHome
+  const coachBar = !adminHome && !identity.isOperator && coachSpace.bar;
+  const primaryOrder = coachBar
+    ? COACH_SPACE_ITEMS.map(i => i.tab)
+    : adminHome
     ? ADMIN_HOME_ORDER
     : identity.isOperator
     ? OPERATOR_PRIMARY_ORDER
@@ -103,7 +109,9 @@ export function BottomTabBar() {
       : [...athletePrimaryOrder(ATHLETE_PRIMARY_ORDER, identity.isAcademyMember, identity.traineeV2), ...(identity.isClubManager ? ['club-numbers'] : [])];
   const maxPrimary = adminHome ? 6 : !isStaffView && identity.isClubManager ? 5 : 4;
   // The admin home's bar carries the numbers as a flat tab of its own; nothing else grants it.
-  const barItems = adminHome && !navItems.some(i => i.tab === 'numbers') ? [...navItems, NUMBERS_TAB_ITEM] : navItems;
+  const barItems = coachBar
+    ? [...COACH_SPACE_ITEMS, ...navItems]
+    : adminHome && !navItems.some(i => i.tab === 'numbers') ? [...navItems, NUMBERS_TAB_ITEM] : navItems;
   const byTab = new Map(barItems.map(i => [i.tab, i]));
   const primary: NavItem[] = [];
   for (const tab of primaryOrder) {
@@ -115,7 +123,7 @@ export function BottomTabBar() {
   // with the staff FAB's own target (a role missing some of its preferred tabs
   // must not fall back onto the one destination the FAB already covers).
   for (const item of barItems) {
-    if (primary.length >= maxPrimary) break;
+    if (primary.length >= maxPrimary || coachBar) break;
     if (isStaffView && STAFF_NEVER_PRIMARY.has(item.tab)) continue;
     // Review has two permanent homes of its own now — the button beside the logo
     // in the Header and the static card in the sheet below — so it must never be
@@ -165,7 +173,7 @@ export function BottomTabBar() {
         {isNew && (
           <span className="absolute top-0.5 left-1/2 -translate-x-1/2 rounded-[6px] bg-brand-600 px-1.5 text-[9px] font-bold leading-[14px] text-white">חדש</span>
         )}
-        {!isNew && tab === 'coach-tools' && attentionDot && (
+        {!isNew && (tab === 'coach-tools' || tab === 'coach-today') && attentionDot && (
           <span className="absolute top-0.5 left-1/2 ms-2 flex h-[17px] min-w-[17px] items-center justify-center rounded-full border-2 border-card bg-accent-red px-1 text-[10px] font-extrabold leading-none text-white tabular-nums" aria-label={`${attentionCount} מחכים לתשובה`}>
             {attentionCount > 9 ? '9+' : attentionCount}
           </span>
