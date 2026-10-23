@@ -11,7 +11,7 @@ import { fetchFeedItemByActivity } from '@/lib/feed-client';
 import { withoutHeartRate, type FeedItem } from '@/lib/feed/project';
 import { fmtPace, type Pack } from '@/lib/pack-stories/model';
 import { readClock } from '@/lib/quality-session/clock';
-import { useQualitySessionAccessState } from '@/lib/quality-session/use-access';
+import { previewHidesShare, useQualitySessionAccessState } from '@/lib/quality-session/use-access';
 import {
   fromMinutes, isNew, packRuns, runnersOf, shareTitle, suggestOrder,
   type QsClock, type QsRunner, type QsSession, type SortKey,
@@ -86,7 +86,7 @@ export default function QualitySessionPage() {
   // loading (Ofer, 2026-10-20 — three blank opens from the 7:30 push).
   const [viewAs, setViewAs] = useState<string | null>(null);
   useEffect(() => { setViewAs(getViewMode()); }, []);
-  const allowed = access === 'yes' && !viewAs;
+  const allowed = access === 'yes' && !previewHidesShare(viewAs);
   const isSuper = useIsSuperUser();
   const [clock, setClock] = useState<QsClock | null>(null);
   const [asked, setAsked] = useState<string | null>(null);
@@ -171,7 +171,7 @@ export default function QualitySessionPage() {
       <div className="qsx" dir="rtl">
         <Link href="/feed" className="back">› פיד</Link>
         <h1 className="ttl">אימון האיכות</h1>
-        {viewAs && access === 'yes' ? (
+        {previewHidesShare(viewAs) && access === 'yes' ? (
           <div className="card empty">
             את/ה כרגע בתצוגה של משתמש אחר, ושם הדף הזה לא פתוח.
             <button className="try" onClick={exitViewAs}>לחזור לתצוגה שלי ולפתוח</button>

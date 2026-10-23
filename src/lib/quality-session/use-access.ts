@@ -5,6 +5,15 @@ import { useIsSuperUser } from '@/lib/impersonation';
 
 export type QsAccess = 'yes' | 'no' | 'unknown';
 
+/**
+ * Whether a view-as mode hides the share screen. Previewing "admin" is not someone
+ * else's app: it is how the admin home is shown (nav-items isAdminHome), so the
+ * admin account and a super user on the admin view are still themselves (Ofer 10-23:
+ * the admin account got "you are in another user's view" from Content). Any other
+ * role preview is what that role would see, and the screen is not theirs.
+ */
+export const previewHidesShare = (mode: string | null | undefined): boolean => !!mode && mode !== 'admin';
+
 /** The answer from what is known so far: a super user at once, else /api/auth/me's flag once it answers. */
 export function qsAccessFrom(isSuper: boolean, me: { qualitySession?: boolean } | undefined, meFailed: boolean): QsAccess {
   if (isSuper || me?.qualitySession === true) return 'yes';

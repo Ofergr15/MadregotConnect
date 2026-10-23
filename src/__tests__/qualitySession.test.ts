@@ -250,7 +250,7 @@ describe('a day marked special', () => {
 
   it('shows the feed row all day, and only the super user marks it', () => {
     const row = read('components/feed/QualitySessionRow.tsx');
-    expect(row).toMatch(/const on = hasAccess && !isPreviewing\(\) && !!clock;/);
+    expect(row).toMatch(/const on = hasAccess && !previewHidesShare\(getViewMode\(\)\) && !!clock;/);
     expect(row).toMatch(/data\.workout\.special \|\| inRowWindow\(clock!\.minutes\)/);
     const route = read('app/api/quality-session/route.ts');
     const put = route.slice(route.indexOf('export async function PUT'));
@@ -286,5 +286,15 @@ describe('a pack card suggests a runner whose card has the blocks (Ofer 10-23)',
     const r = (name: string, dist: number, watchWorkout: boolean) => ({ run: { name, dist, watchWorkout } }) as never;
     const list = [r('long, no workout', 30000, false), r('workout', 24000, true), r('workout longer', 26000, true)];
     expect(list.sort(suggestOrder).map((x: { run: { name: string } }) => x.run.name)).toEqual(['workout longer', 'workout', 'long, no workout']);
+  });
+});
+
+describe('the admin view is not "another user" (Ofer 10-23)', () => {
+  it('only a preview of another role hides the share screen', async () => {
+    const { previewHidesShare } = await import('@/lib/quality-session/use-access');
+    expect(previewHidesShare(null)).toBe(false);
+    expect(previewHidesShare('admin')).toBe(false);
+    expect(previewHidesShare('runner')).toBe(true);
+    expect(previewHidesShare('coach')).toBe(true);
   });
 });

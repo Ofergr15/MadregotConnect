@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, Layers } from 'lucide-react';
 import { useApi } from '@/lib/api';
-import { isPreviewing } from '@/lib/impersonation';
+import { getViewMode } from '@/lib/impersonation';
 import { readClock } from '@/lib/quality-session/clock';
-import { useQualitySessionAccess } from '@/lib/quality-session/use-access';
+import { previewHidesShare, useQualitySessionAccess } from '@/lib/quality-session/use-access';
 import { inRowWindow, packRuns, runnersOf, suggestOrder, type QsClock, type QsSession } from '@/lib/quality-session/model';
 
 // "שיתוף הדבוקות", AT THE TOP OF THE FEED — 07:00 → 11:00 ON A QUALITY OR LONG-RUN
@@ -27,7 +27,7 @@ export function QualitySessionRow() {
   useEffect(() => { setClock(readClock()); }, []);
 
   // Asked all day: a day the super user marked special shows outside the window too.
-  const on = hasAccess && !isPreviewing() && !!clock;
+  const on = hasAccess && !previewHidesShare(getViewMode()) && !!clock;
   const { data } = useApi<QsSession>(on ? `/api/quality-session?date=${clock!.date}` : null, { refreshInterval: 60_000 });
   const packs = useMemo(() => {
     if (!data || !clock) return [];

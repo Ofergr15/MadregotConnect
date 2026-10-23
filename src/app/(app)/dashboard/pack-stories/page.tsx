@@ -58,7 +58,8 @@ type Sheet = null | { kind: 'slot'; i: number } | { kind: 'chart' } | { kind: 'r
 export default function PackStoriesPage() {
   const isSuper = useIsSuperUser();
   const viewMode = getViewMode();
-  const previewing = !!viewMode && viewMode !== MAINTENANCE_MODE;
+  // Previewing "admin" is the admin home, not someone else's app (use-access previewHidesShare).
+  const previewing = !!viewMode && viewMode !== MAINTENANCE_MODE && viewMode !== 'admin';
   const allowed = isSuper && !previewing;
 
   const [dates] = useState(recentDates);
