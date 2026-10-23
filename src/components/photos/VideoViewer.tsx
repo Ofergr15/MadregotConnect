@@ -45,6 +45,49 @@ export interface ViewerVideo {
 let hlsLib: Promise<typeof import('hls.js').default> | null = null;
 const loadHls = () => (hlsLib ??= import('hls.js').then((m) => m.default));
 
+/** One `<link rel="preconnect">` per origin, for the page's lifetime. */
+const preconnected = new Set<string>();
+function preconnect(url: string) {
+  try {
+    const origin = new URL(url).origin;
+    if (preconnected.has(origin) || typeof document === 'undefined') return;
+    preconnected.add(origin);
+    const l = document.createElement('link');
+    l.rel = 'preconnect'; l.href = origin; l.crossOrigin = 'anonymous';
+    document.head.appendChild(l);
+  } catch { /* a bad URL warms nothing */ }
+}
+
+/** A folder with copies in it: open the line to Mux as the folder opens, before any tap. */
+export function preconnectCopies(videos: ReadonlyArray<Pick<ViewerVideo, 'hls'>> | null | undefined) {
+  const h = videos?.find((v) => v.hls)?.hls;
+  if (h) preconnect(h);
+}
+
+const warmed = new Set<string>();
+/**
+ * Get a copy's way ready before the player opens — called on the finger going DOWN on its
+ * tile. A copy comes from three Mux hosts (its list, the quality's list, the video's
+ * chunks), each a new secure connection of ~0.2 s before a byte moves: measured 10-23 at
+ * ~1.6 s for the first open, and that is what Instagram-like apps do ahead of the tap.
+ * Fetches the two short lists (Mux sends the first no-store, so what this buys is the open
+ * connections, not a cached copy) and preconnects to the third; for the original, its host.
+ */
+export function warmVideo(v: Pick<ViewerVideo, 'id' | 'hls' | 'src'>) {
+  if (warmed.has(v.id)) return;
+  warmed.add(v.id);
+  if (!v.hls) { if (v.src) preconnect(new URL(v.src, location.href).toString()); return; }
+  preconnect(v.hls);
+  if (!document.createElement('video').canPlayType('application/vnd.apple.mpegurl')) void loadHls();
+  const first = (text: string, base: string) => { const l = text.split('\n').find((x) => x && !x.startsWith('#')); return l ? new URL(l, base).toString() : null; };
+  void fetch(v.hls).then((r) => r.text()).then((master) => {
+    const rend = first(master, v.hls!);
+    if (!rend) return;
+    preconnect(rend);
+    return fetch(rend).then((r) => r.text()).then((pl) => { const seg = first(pl, rend); if (seg) preconnect(seg); });
+  }).catch(() => { /* a warm-up only */ });
+}
+
 const clock = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
 
 export function VideoViewer({ videos, index, title, onClose, onShare, onCover }: {

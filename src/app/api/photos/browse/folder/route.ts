@@ -52,7 +52,9 @@ export async function GET(request: Request) {
       videos: res.videos.map((v) => ({
         id: v.id, ms: v.ms, w: v.w, h: v.h, at: v.at, t: exifToIso(v.at),
         thumb: m.thumb[v.id] ?? signedImageUrl(v.id, THUMB),
-        poster: muxPoster(copies[v.id]) ?? m.full[v.id] ?? signedImageUrl(v.id, FULL),
+        // Our own copy first: ready on our CDN. Mux makes its still on the first ask (1.5–2.4 s
+        // measured 10-23), so it is only for a video we have not copied yet.
+        poster: m.full[v.id] ?? muxPoster(copies[v.id]) ?? signedImageUrl(v.id, FULL),
         blur: m.lqip[v.id] ?? null,
         src: signedVideoUrl(v.id),
         // The viewing copy, when Mux has made it: plays at once on any phone (its first

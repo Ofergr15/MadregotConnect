@@ -22,7 +22,7 @@ import { apiFetcher, useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { sessionDayLabel } from '@/lib/quality-session/photos';
 import { PhotoViewer } from '@/components/photos/PhotoViewer';
-import { VideoViewer, type ViewerVideo } from '@/components/photos/VideoViewer';
+import { preconnectCopies, VideoViewer, warmVideo, type ViewerVideo } from '@/components/photos/VideoViewer';
 import { FolderMenu, driveLink, savePhotos } from '@/components/photos/FolderMenu';
 import { FOLDER_KINDS, KIND_LABEL, kindFromName, tagColor, type FolderKind } from '@/lib/photos/folder-kind';
 import { useNavIdentity } from '@/lib/nav-items';
@@ -207,6 +207,7 @@ function FolderView({ id }: { id: string }) {
   const { data, error, mutate } = useApi<FolderPhotos>(`/api/photos/browse/folder?id=${encodeURIComponent(id)}`);
   const [open, setOpen] = useState<number | null>(null);
   const [videoOpen, setVideoOpen] = useState<number | null>(null);
+  useEffect(() => { preconnectCopies(data?.videos); }, [data?.videos]);
   // הכל · תמונות · סרטונים; "?media=videos" lands on the videos (the home's video rows).
   const [media, setMedia] = useState<Media>(() => (params.get('media') === 'videos' ? 'videos' : params.get('media') === 'photos' ? 'photos' : 'all'));
   // The tapped tile, so the viewer can grow the photo out of it.
@@ -292,7 +293,7 @@ function FolderView({ id }: { id: string }) {
               <Cover src={data.photos[it.k].thumb || undefined} blur={data.photos[it.k].blur} />
             </button>
           ) : (
-            <button key={data.videos![it.k].id} type="button" onClick={() => setVideoOpen(it.k)} className="relative aspect-square overflow-hidden bg-page" aria-label={`סרטון ${it.k + 1}`}>
+            <button key={data.videos![it.k].id} type="button" onPointerDown={() => warmVideo(data.videos![it.k])} onClick={() => setVideoOpen(it.k)} className="relative aspect-square overflow-hidden bg-page" aria-label={`סרטון ${it.k + 1}`}>
               <Cover src={data.videos![it.k].thumb || undefined} blur={data.videos![it.k].blur} />
               <VideoBadge ms={data.videos![it.k].ms} />
             </button>
@@ -330,7 +331,7 @@ function FolderView({ id }: { id: string }) {
           {media === 'all' && data.photos.length > 0 && <div className="flex items-baseline justify-between px-[18px] pb-2 pt-5"><b className="text-[17px] font-extrabold">סרטונים</b><span className="text-[13px] text-ink-400">{data.videos.length}</span></div>}
           <div className={cn('grid grid-cols-3 gap-[3px]', (media === 'videos' || !data.photos.length) && 'mt-3')}>
             {data.videos.map((v, k) => (
-              <button key={v.id} type="button" onClick={() => setVideoOpen(k)} className="relative aspect-[9/14] overflow-hidden bg-page" aria-label={`סרטון ${k + 1}`}>
+              <button key={v.id} type="button" onPointerDown={() => warmVideo(v)} onClick={() => setVideoOpen(k)} className="relative aspect-[9/14] overflow-hidden bg-page" aria-label={`סרטון ${k + 1}`}>
                 <Cover src={v.thumb || undefined} blur={v.blur} />
                 <VideoBadge ms={v.ms} />
               </button>

@@ -92,5 +92,7 @@ describe('the budget guard (Ofer, 10-23: "worried about the moment it starts to 
     const cron = readFileSync(join(process.cwd(), 'src/app/api/cron/photos-mirror/route.ts'), 'utf8');
     expect(cron).toMatch(/await sendConfirmedAlert\(\{\s*kind: 'video_budget'/);
     expect(cron).toMatch(/verifyPendingAlerts\(\)/);
+    // 50% and 80% by email as well as push; the 'on' notice by push only.
+    expect(cron).toMatch(/email: stage !== 'on'/);
   });
 });

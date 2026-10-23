@@ -32,19 +32,45 @@ async function writePending(list: PendingCheck[]): Promise<void> {
   await createServerClient().from('app_settings').upsert({ key: KEY, value: JSON.stringify(list), updated_at: new Date().toISOString() }, { onConflict: 'key' });
 }
 
-/** Send it to the kind's people (the admins and Ofer by default), and queue the check. */
+/** The recipients' own addresses (the Madregot admin account's included). */
+async function emailsOf(ids: string[]): Promise<string[]> {
+  const { data } = await createServerClient().from('athletes').select('email').in('id', ids);
+  return [...new Set(((data || []) as Array<{ email: string | null }>).map((r) => r.email).filter((e): e is string => !!e))];
+}
+
+/**
+ * Send it to the kind's people (the admins and Ofer by default), and queue the check.
+ * `email`: the same alert by mail too, for the ones that must not be missed (Ofer, 10-23:
+ * the videos' 50% and 80% — "like the push, an email as well").
+ */
 export async function sendConfirmedAlert(opts: {
   kind: string; url: string; tag: string; category: NotificationCategory;
   copy: (locale: NotificationLocale) => PushCopy;
-}): Promise<{ recipients: number; sent: number }> {
+  email?: boolean;
+}): Promise<{ recipients: number; sent: number; emailed: boolean }> {
   const ids = [...new Set((await recipientsForKind(opts.kind)) ?? (await staffRecipientIds()))];
   const sentAt = new Date().toISOString();
-  const res = await notifyStaff(opts);
+  const { email, ...push } = opts;
+  const res = await notifyStaff(push);
+  let emailed = false;
+  if (email && ids.length) {
+    const to = await emailsOf(ids).catch(() => [] as string[]);
+    const { title, body } = opts.copy('he');
+    if (to.length) {
+      const r = await sendEmail({
+        template: opts.kind,
+        to,
+        subject: title,
+        html: `<div dir="rtl" style="font-family:-apple-system,Arial,sans-serif;font-size:15px;line-height:1.5"><p><b>${escapeHtml(title)}</b></p><p>${escapeHtml(body)}</p><p><a href="https://www.madregot.app${opts.url}">לפתוח במדרגות</a></p></div>`,
+      });
+      emailed = r.ok;
+    }
+  }
   if (ids.length) {
     const list = await readPending().catch(() => [] as PendingCheck[]);
     await writePending([...list.filter((p) => p.tag !== opts.tag), { tag: opts.tag, title: opts.copy('he').title, sentAt, ids }]).catch(() => {});
   }
-  return res;
+  return { ...res, emailed };
 }
 
 /** Whether any of `ids`' devices reported showing a push since `since`. */
@@ -67,8 +93,7 @@ export async function verifyPendingAlerts(now = Date.now()): Promise<Array<{ tag
     out.push({ tag: p.tag, confirmed, of: p.ids.length });
     if (confirmed > 0) continue;
     console.error('[alerts] not seen on any phone', p.tag, p.sentAt);
-    const { data } = await createServerClient().from('athletes').select('email').in('id', p.ids);
-    const to = ((data || []) as Array<{ email: string | null }>).map((r) => r.email).filter((e): e is string => !!e);
+    const to = await emailsOf(p.ids);
     if (to.length) {
       await sendEmail({
         template: 'push_not_seen',
@@ -86,4 +111,6 @@ export async function verifyPendingAlerts(now = Date.now()): Promise<Array<{ tag
   return out;
 }
 
-const escapeHtml = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+}

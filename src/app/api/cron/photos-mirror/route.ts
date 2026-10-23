@@ -51,6 +51,8 @@ async function run(request: Request) {
           const stage = budget.stop ? 'stop' : budget.warn ? 'warn' : 'on';
           await sendConfirmedAlert({
             kind: 'video_budget', url: '/dashboard/photos', tag: `video-budget-${stage}`, category: 'management',
+            // 50% and 80% by email too (Ofer, 10-23), to the same people, Madregot's own address included.
+            email: stage !== 'on',
             copy: (locale) => videoBudgetCopy(locale, { stage, used: budget.minutes, free: FREE_DELIVERY_MINUTES }),
           });
         }
