@@ -11,6 +11,7 @@
 export const STAFF_ONLY_PATHS = [
   '/dashboard/people',
   '/dashboard/roles',
+  '/dashboard/access',
   '/dashboard/entry-queue',
   '/dashboard/athletes',
   '/dashboard/groups',
@@ -30,7 +31,7 @@ export function isStaffOnlyPath(pathname: string | null | undefined): boolean {
   return STAFF_ONLY_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-export interface StaffGateMe { role?: string; roles?: string[]; isSuper?: boolean; canApprove?: boolean }
+export interface StaffGateMe { role?: string; roles?: string[]; isSuper?: boolean; canApprove?: boolean; contentLevels?: Record<string, number> | null }
 
 /** Whether this account may see the staff screen at `pathname`. Unknown → yes (the API still answers). */
 export function mayOpenStaffPage(me: StaffGateMe | null | undefined, pathname: string): boolean {
@@ -39,5 +40,8 @@ export function mayOpenStaffPage(me: StaffGateMe | null | undefined, pathname: s
   const held = [me.role, ...(me.roles ?? [])].filter(Boolean) as string[];
   if (held.some((r) => STAFF.has(r))) return true;
   if (me.canApprove && (pathname === '/dashboard/entry-queue' || pathname.startsWith('/dashboard/entry-queue/'))) return true;
+  // A part of Content given to this member (הרשאות, lib/access/grants): Content opens; each part decides itself.
+  if ((pathname === '/dashboard/content' || pathname.startsWith('/dashboard/content/'))
+    && Object.values(me.contentLevels ?? {}).some((v) => v >= 1)) return true;
   return false;
 }

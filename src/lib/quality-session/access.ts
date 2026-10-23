@@ -13,7 +13,10 @@ type Db = ReturnType<typeof createServerClient>;
 export async function isStoryEditor(supabase: Db, athleteId: string | null | undefined): Promise<boolean> {
   if (!athleteId) return false;
   const { data, error } = await supabase.from('athletes').select('is_story_editor').eq('id', athleteId).maybeSingle();
-  return !error && (data as { is_story_editor?: boolean } | null)?.is_story_editor === true;
+  if (!error && (data as { is_story_editor?: boolean } | null)?.is_story_editor === true) return true;
+  // Given "שיתוף האימון" as a publisher in הרשאות (lib/access/grants) — the same door.
+  const { readGrants } = await import('@/lib/access/grants');
+  return ((await readGrants(supabase))[athleteId]?.content?.share ?? 0) >= 3;
 }
 
 /** Everyone with the switch on; null when the column is not there yet (no 129). */

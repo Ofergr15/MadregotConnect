@@ -1,7 +1,7 @@
 'use client';
 
 import { useApi } from '@/lib/api';
-import type { CheerSuggestion, PhotosStatus, PublishedPost } from '@/lib/content/hub';
+import { TYPE_ORDER, type CheerSuggestion, type ContentType, type PhotosStatus, type PublishedPost } from '@/lib/content/hub';
 
 // The hub's reads, shared by its home and the kinds' pages (Content v4). Each is the
 // route that already answers it, with its own gate: a coach who may not see the photo
@@ -39,4 +39,17 @@ export function usePhotosStatus() {
 }
 export function useCheerSuggestions() {
   return useApi<{ suggestions: CheerSuggestion[] }>('/api/admin/cheers/suggestions');
+}
+
+/**
+ * This account's level per part of Content (lib/access/grants.ts, via /api/auth/me):
+ * 0 not seen, 1 sees, 3 publishes. An answer without the field is an older or
+ * athlete-less staff account: staff publish everything, as before.
+ */
+export function useContentLevels(): { levels: Record<ContentType, number> | null; full: boolean } {
+  const { data } = useApi<{ role?: string; roles?: string[]; isSuper?: boolean; contentLevels?: Partial<Record<ContentType, number>> | null }>('/api/auth/me');
+  if (!data) return { levels: null, full: false };
+  const staff = !!data.isSuper || [data.role, ...(data.roles ?? [])].some((r) => r === 'admin' || r === 'coach' || r === 'academy_coach' || r === 'academy_manager');
+  const levels = Object.fromEntries(TYPE_ORDER.map((k) => [k, data.contentLevels ? data.contentLevels[k] ?? 0 : staff ? 3 : 0])) as Record<ContentType, number>;
+  return { levels, full: staff };
 }

@@ -178,6 +178,8 @@ export interface NavResolutionInput {
   isCoreRunner?: boolean;
   /** /api/auth/me `isClubManager`: the admin made them a "מנהל מדרגות". */
   isClubManager?: boolean;
+  /** /api/auth/me `contentLevels`: a part of Content was given to this person (lib/access/grants). */
+  hasContent?: boolean;
   /**
    * When true, a role that resolves to nothing gets [dashboard, profile] rather
    * than an empty list. The two nav CHROMES want that (an empty bar or header
@@ -238,6 +240,7 @@ export function resolveNavItems({
   isAcademyMember = false,
   isCoreRunner = false,
   isClubManager = false,
+  hasContent = false,
   fallback = false,
   isOperator = false,
   traineeV2 = false,
@@ -290,6 +293,11 @@ export function resolveNavItems({
   }
   // A "מנהל מדרגות" with no staff role gets ניהול = the club's numbers. Not while previewing.
   if (isClubManager && !previewRole && !STAFF_ROLES.includes(effectiveRole) && !items.some(i => i.tab === 'club-numbers')) items.push(CLUB_NUMBERS_ITEM);
+  // A part of Content given to a member (הרשאות): the Content tab, as for staff. Not while previewing.
+  if (hasContent && !previewRole && !items.some(i => i.tab === 'content')) {
+    const content = ALL_NAV_ITEMS.find(i => i.tab === 'content');
+    if (content) items.push(content);
+  }
   // Academy members reach the academy regardless of role_tab_permissions.
   // Membership is the `is_academy` flag, not a role — an athlete whose role is
   // plain `runner` can be in the academy — so no permission row can express it.
@@ -357,7 +365,7 @@ export function useNavIdentity() {
   );
   const permissions = permsData?.permissions || [];
 
-  const { data: meData } = useApi<{ role?: string; roles?: string[]; isAcademy?: boolean; academyOnly?: boolean; isSuper?: boolean; isCoreRunner?: boolean; isClubManager?: boolean }>(
+  const { data: meData } = useApi<{ role?: string; roles?: string[]; isAcademy?: boolean; academyOnly?: boolean; isSuper?: boolean; isCoreRunner?: boolean; isClubManager?: boolean; contentLevels?: Record<string, number> | null }>(
     hasEmail ? '/api/auth/me' : null,
   );
   const isSuper = localSuper || !!meData?.isSuper;
@@ -408,6 +416,7 @@ export function useNavIdentity() {
     isAcademyOnly: !!meData?.academyOnly,
     isCoreRunner: !!meData?.isCoreRunner,
     isClubManager: !!meData?.isClubManager,
+    hasContent: Object.values(meData?.contentLevels ?? {}).some((v) => v >= 1),
     isOperator,
     /**
      * The account itself is an admin (or the super-user), whatever view it is in — what

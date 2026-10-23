@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
 import { createFolderNow, socialWeek, updateDayFolder } from '@/lib/quality-session/photos-server';
+import { levelsFor, readGrants } from '@/lib/access/grants';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,17 +17,20 @@ const tagsOf = (v: unknown) => (Array.isArray(v) ? v.filter((t): t is string => 
 //   PATCH { date, name?, autoFeed?, skipped?, kind?, tags?, createAt? } -> { folder }   (מוצע השבוע: edit, on/off)
 // The super user and admins: the screen makes folders in the club's Drive.
 
-async function gate(request: Request) {
+// …and whoever was given the photos part of Content (lib/access/grants.ts): sees → read, publishes → write.
+async function gate(request: Request, min: 1 | 3 = 3) {
   const auth = await requireSession(request);
   if (!auth.ok) return { denied: authError(auth) } as const;
   if (!auth.user.isSuperUser && auth.user.role !== 'admin') {
-    return { denied: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) } as const;
+    // The grant alone (not the role floor): coaches keep exactly what they had here.
+    const grant = auth.user.athleteId ? (await readGrants(createServerClient()))[auth.user.athleteId] : undefined;
+    if (levelsFor({ role: 'runner' }, grant).photos < min) return { denied: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) } as const;
   }
   return { auth } as const;
 }
 
 export async function GET(request: Request) {
-  const g = await gate(request);
+  const g = await gate(request, 1);
   if ('denied' in g) return g.denied;
   try {
     return NextResponse.json(await socialWeek(createServerClient()));

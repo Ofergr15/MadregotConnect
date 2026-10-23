@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { requireStaff } from '@/lib/auth/self-or-staff';
+import { requireContentLevel } from '@/lib/access/require-content';
+import { postType } from '@/lib/content/hub';
 import { israelDateAnchor, israelToday, weekStartOn } from '@/lib/utils';
 import { challengePhase } from '@/lib/admin/content';
 import notesJson from '@/content/release-notes.json';
@@ -40,8 +41,10 @@ interface ChallengeRow {
 
 export async function GET(request: Request) {
   try {
-    const denied = await requireStaff(request);
-    if (denied) return denied;
+    // Staff as before; a member with a part of Content sees the posts of their parts only.
+    const g = await requireContentLevel(request, null, 1, (u) => u.isSuperUser || u.isStaff);
+    if (g.denied) return g.denied;
+    const levels = g.levels;
 
     const supabase = createServerClient();
     const today = israelToday();
@@ -112,7 +115,7 @@ export async function GET(request: Request) {
         ? { title: lastSent.title_he, sentAt: lastSent.last_sent_at, reached: lastSent.sent_count ?? 0 }
         : null,
       latestNote: latestNote ? { title: latestNote.title, date: latestNote.date } : null,
-      recent,
+      recent: recent.filter((p) => (levels[postType(p)] ?? 0) >= 1),
       // The denominator of each post's "reached X/N" (Content v4).
       members: members.length,
     });

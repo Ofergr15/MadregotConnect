@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { CSSProperties, ReactNode } from 'react';
 import { BarChart3, Bell, Camera, Check, ChevronLeft, CircleDot, Flag, Heart, Image as ImageIcon, Megaphone, MessageCircle, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useContentLevels } from '@/components/content/use-hub';
 import { CONTENT_TYPES, resultChips, type ContentType, type PublishedPost, type ResultChip } from '@/lib/content/hub';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -102,6 +103,11 @@ export function Chips({ chips, plain }: { chips: ResultChip[]; plain?: boolean }
 /** A kind's page: back to the hub, the big icon and title, and its one "＋". */
 export function TypePage({ type, action, children }: { type: ContentType; action?: ReactNode; children: ReactNode }) {
   const m = CONTENT_TYPES[type];
+  // A part this account was not given (הרשאות): its page says so, instead of an empty shell.
+  const { levels } = useContentLevels();
+  const level = levels ? levels[type] ?? 0 : 3;
+  if (level < 1) children = <p className="mt-3 rounded-[14px] bg-card px-3.5 py-3.5 text-13 text-ink-500">החלק הזה בתוכן לא פתוח לך. מי שמנהל את ההרשאות יכול לפתוח אותו.</p>;
+  if (level < 3) action = null;
   return (
     <div style={typeVars(type)} className="space-y-0 pb-8" dir="rtl">
       <div className="flex h-11 items-center justify-between">

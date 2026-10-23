@@ -27,6 +27,7 @@ export const MANAGE_GROUPS: ManageGroup[] = [
   {
     key: 'access', title: 'הרשאות ותחזוקה',
     items: [
+      { label: 'הרשאות', sub: 'מי רואה ומפרסם מה, לכל אדם', href: '/dashboard/access', also: 'הרשאות תוכן מפרסם' },
       { label: 'תפקידים', sub: 'מאמנים, מנהלים, גרעין', href: '/dashboard/roles' },
       { label: 'מה כל תפקיד רואה', sub: 'הרשאות לטאבים', href: '/dashboard/settings?tab=tabs', also: 'הרשאות' },
       { label: 'מצב תחזוקה', sub: 'מי נכנס בזמן תחזוקה', href: '/dashboard/athletes', also: 'תחזוקה' },

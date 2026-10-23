@@ -2,6 +2,7 @@ import { after, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
 import { membershipFor } from '@/lib/auth/membership';
+import { roleLevels } from '@/lib/access/grants';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -93,6 +94,9 @@ export async function GET(request: Request) {
     // The club-manager list rides along with the row (it was its own trip after it).
     const managersRead = import('@/lib/club-numbers/access')
       .then(({ clubManagers }) => clubManagers(supabase)).catch(() => [] as string[]);
+    // Per-part Content levels (lib/access/grants.ts): the role, raised by this person's grant.
+    const contentRead = import('@/lib/access/grants')
+      .then(({ callerLevels }) => callerLevels(supabase, auth.user)).catch(() => null);
     const full = await supabase
       .from('athletes')
       .select('is_academy, approved, first_seen_at, is_story_editor, group_id')
@@ -150,14 +154,20 @@ export async function GET(request: Request) {
     });
 
     // The quality session (lib/quality-session/access.ts): no 129 yet only reads as "no".
-    const qualitySession = isSuper || row?.is_story_editor === true;
+    const qualitySessionFlag = isSuper || row?.is_story_editor === true;
     // "מנהל מדרגות" (lib/club-numbers/access): a list, not a role — it adds the ניהול tab with the club's numbers.
     let isClubManager = false;
     try { isClubManager = (await managersRead).includes(athleteId); } catch { isClubManager = false; }
+    const contentLevels = await contentRead;
+    // The "אינסטגרם" switch is the share part's publisher, and a share grant opens the screen.
+    if (contentLevels && row?.is_story_editor === true) contentLevels.share = 3;
+    // Only a grant opens the share screen — staff publish the share part by role, but the
+    // screen stays the super user's and the switch's, as before.
+    const sharesByGrant = roleLevels(auth.user).share === 0 && (contentLevels?.share ?? 0) >= 3;
 
     return NextResponse.json({ role: auth.user.role || 'runner', roles, membership, isAcademy: !!row?.is_academy,
       // In the academy and in no club group: the academy home only, never the club's week.
-      academyOnly: !!row?.is_academy && row?.group_id == null, isSuper, canApprove: canApproveHere, isCoreRunner: isCore, qualitySession, isClubManager });
+      academyOnly: !!row?.is_academy && row?.group_id == null, isSuper, canApprove: canApproveHere, isCoreRunner: isCore, qualitySession: qualitySessionFlag || sharesByGrant, isClubManager, contentLevels });
   } catch (error) {
     console.error('Failed to resolve user role:', error);
     return NextResponse.json({ error: 'Failed to resolve role' }, { status: 500 });

@@ -12,6 +12,7 @@ import {
 } from '@/lib/content/hub';
 import { LastLine, TypeBlock, TypeIcon, WaitRow } from '@/components/content/hub-ui';
 import { ShareBlock, useShareDays } from '@/components/content/share-ui';
+import { useContentLevels } from '@/components/content/use-hub';
 import { StoriesHome } from '@/components/content/StoriesHome';
 import { FolderLinks } from '@/components/content/FolderLinks';
 import { useApi } from '@/lib/api';
@@ -44,6 +45,9 @@ export default function ContentPage() {
   const { data: folders } = useApi<{ made?: Array<{ date: string; name: string; link: string; createdAt?: string }> }>('/api/social/folders', { refreshInterval: 30_000 });
   const { data: sug } = useCheerSuggestions();
   const [adding, setAdding] = useState(false);
+  const { levels, full } = useContentLevels();
+  // "＋ חדש" offers only the parts this account publishes in.
+  const choices = NEW_CHOICES.filter((c) => !levels || (levels[c.type] ?? 0) >= 3);
 
   const today = data?.today ?? live?.today ?? '';
   const members = data?.members ?? 0;
@@ -61,6 +65,8 @@ export default function ContentPage() {
   const onAir = (source: 'feed' | 'club' | 'scheduled') => items.filter((r) => r.source === source && r.active);
 
   const block = (type: ContentType) => {
+    // Only the parts this account was given (הרשאות); staff see all, as before.
+    if (levels && (levels[type] ?? 0) < 1) return null;
     if (type === 'share') return <ShareBlock key={type} />;
     const last = newest(type);
     const lastLine = last && <LastLine label="אחרון" title={last.text} chips={resultChips(last, members).slice(0, 2)} href={`/dashboard/content/post/${last.id}`} />;
@@ -132,7 +138,7 @@ export default function ContentPage() {
     <div className="space-y-2.5 pb-8" dir="rtl">
       <div className="flex items-center justify-between px-0.5 pt-1">
         <h1 className="text-[34px] font-extrabold leading-tight tracking-[-0.4px] text-ink-900">{t('title')}</h1>
-        <button type="button" onClick={() => setAdding(true)} className="inline-flex min-h-[38px] items-center rounded-full bg-ink-900 px-3.5 text-[14px] font-bold text-white">＋ חדש</button>
+        {choices.length > 0 && <button type="button" onClick={() => setAdding(true)} className="inline-flex min-h-[38px] items-center rounded-full bg-ink-900 px-3.5 text-[14px] font-bold text-white">＋ חדש</button>}
       </div>
       <div className="px-0.5">
         <p className="pb-2 text-[14px] text-ink-400">
@@ -140,11 +146,11 @@ export default function ContentPage() {
         </p>
       </div>
 
-      {today && <StoriesHome live={items} today={today} />}
+      {today && full && <StoriesHome live={items} today={today} />}
 
       {TYPE_ORDER.map(block)}
 
-      <InsetSection header="עוד בתוכן" className="pt-3">
+      {full && <InsetSection header="עוד בתוכן" className="pt-3">
         <InsetRow icon={Trophy} iconBg="bg-[#F5B83D]" label={t('challenges')}
           sublabel={data ? (active || scheduled ? `${active} פעילים${scheduled ? ` · ${scheduled} מתוכננים` : ''}` : 'אין פעילים') : undefined}
           href="/dashboard/settings?tab=challenges" />
@@ -162,11 +168,11 @@ export default function ContentPage() {
         <InsetRow icon={Radio} iconBg="bg-[#FF5315]" label={t('clubUpdates')} sublabel={t('clubUpdatesSub')} href="/dashboard/club-updates" />
         <InsetRow icon={Sparkles} iconBg="bg-brand-600" label={t('whatsNew')}
           sublabel={data?.latestNote ? t('whatsNewSub', { title: data.latestNote.title }) : undefined} href="/dashboard/whats-new" />
-      </InsetSection>
+      </InsetSection>}
 
       <Sheet open={adding} onOpenChange={setAdding} title="מה לפרסם?">
         <div className="space-y-2 px-4 pb-6" dir="rtl">
-          {NEW_CHOICES.map((c) => (
+          {choices.map((c) => (
             <Link key={c.type} href={c.href} onClick={() => setAdding(false)} className="flex min-h-[60px] items-center gap-3 rounded-[16px] bg-page px-3.5 py-2.5 active:opacity-70">
               <TypeIcon type={c.type} size={38} />
               <span className="min-w-0 flex-1">

@@ -232,7 +232,7 @@ describe('GET /api/auth/me', () => {
     requireSession.mockResolvedValue(session({ role: 'coach', isStaff: true }));
     selected = { is_academy: true };
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'coach', roles: ['coach'], membership: 'active', isAcademy: true, academyOnly: true, isSuper: false, canApprove: false, isCoreRunner: false, qualitySession: false, isClubManager: false });
+    expect(await res.json()).toEqual({ role: 'coach', roles: ['coach'], membership: 'active', isAcademy: true, academyOnly: true, isSuper: false, canApprove: false, isCoreRunner: false, qualitySession: false, isClubManager: false, contentLevels: expect.any(Object) });
 
     const update = ops.find((o) => o.op === 'update');
     expect(update?.table).toBe('athletes');
@@ -291,7 +291,7 @@ describe('GET /api/auth/me', () => {
     requireSession.mockResolvedValue(session());
     selected = null;
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'runner', roles: ['runner'], membership: 'active', isAcademy: false, academyOnly: false, isSuper: false, canApprove: false, isCoreRunner: false, qualitySession: false, isClubManager: false });
+    expect(await res.json()).toEqual({ role: 'runner', roles: ['runner'], membership: 'active', isAcademy: false, academyOnly: false, isSuper: false, canApprove: false, isCoreRunner: false, qualitySession: false, isClubManager: false, contentLevels: expect.any(Object) });
   });
 
   // The view-as control was deciding "is this the super user" client-side, off
