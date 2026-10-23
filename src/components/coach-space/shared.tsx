@@ -15,6 +15,7 @@ import { initials, packOf, type CoachPerson, type FeedbackItem, type VolumeRow, 
 import { EmptyState } from '@/components/ui';
 import { Sheet } from '@/components/ui';
 import { RunnerCard } from './RunnerCard';
+import { CoachSpaceSwitchRow } from './CoachSpaceSwitchRow';
 
 export const B = ({ children }: { children: React.ReactNode }) => <bdi dir="ltr">{children}</bdi>;
 
@@ -137,6 +138,8 @@ export function CoachSpaceShell({ children }: { children: React.ReactNode }) {
       {!space.on && (
         <p className="mx-4 mt-2 rounded-[14px] bg-[#FFF4E5] px-3 py-2 text-[12.5px] font-semibold text-[#7A3E06]">תצוגה מקדימה — אזור המאמן כבוי לכולם</p>
       )}
+      {/* The switch itself, here where it is being judged (admin/super user only — the row hides itself otherwise). */}
+      <div className="mx-4 mt-2 overflow-hidden rounded-[14px] bg-card empty:hidden"><CoachSpaceSwitchRow /></div>
       <div className="pb-28">{children}</div>
       <Sheet open={!!runnerId} onOpenChange={(o) => { if (!o) setRunnerId(null); }} title="כרטיס רץ">
         {runnerId && <RunnerCard athleteId={runnerId} />}

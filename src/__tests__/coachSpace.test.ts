@@ -48,6 +48,9 @@ describe('who gets the coach bar', () => {
     expect(coachSpaceOpen({ isStaffView: true, on: true, isSuper: false })).toBe(true);
     expect(coachSpaceOpen({ isStaffView: false, on: false, isSuper: true })).toBe(true);
     expect(coachSpaceOpen({ isStaffView: false, on: true, isSuper: false })).toBe(false);
+    // the admin opens the preview from ניהול while it is off; a coach does not
+    expect(coachSpaceOpen({ isStaffView: true, on: false, isSuper: false, effectiveRole: 'admin' })).toBe(true);
+    expect(coachSpaceOpen({ isStaffView: true, on: false, isSuper: false, effectiveRole: 'coach' })).toBe(false);
   });
   it('four tabs, in the mockup order', () => {
     expect(COACH_SPACE_ITEMS.map((i) => i.href)).toEqual(['/dashboard/coach/today', '/dashboard/coach/week', '/dashboard/coach/runners', '/dashboard/coach/insights']);

@@ -26,6 +26,7 @@ const INDEX: Array<{ label: string; href: string; also?: string }> = [
   { label: 'דיווחים', href: '/dashboard/review/all', also: 'באגים תקלות' },
   { label: 'גרסאות', href: '/dashboard/whats-new', also: 'מה חדש שחרור אישור' },
   { label: 'חדר בקרה', href: '/dashboard/control-room' },
+  { label: 'אזור המאמן', href: '/dashboard/coach/today', also: 'מאמן היום השבוע רצים תובנות' },
   { label: 'בדיקות הרשמה', href: '/dashboard/tests', also: 'בדיקה טסט הרשמה זרימה' },
   { label: 'מדרגות במספרים', href: '/dashboard/numbers', also: 'מספרים גרפים' },
   ...MANAGE_GROUPS.flatMap((g) => g.items.map((i) => ({ label: i.label, href: i.href, also: `${g.title} ${i.also ?? ''}` }))),
@@ -42,6 +43,7 @@ const INDEX: Array<{ label: string; href: string; also?: string }> = [
 
 export function AdminManage() {
   const { data: needs } = useApi<NeedsYou>('/api/admin/needs-you');
+  const { data: coachSpace } = useApi<{ on: boolean }>('/api/coach-space/switch');
   const [q, setQ] = useState('');
   const hits = useMemo(() => {
     const s = q.trim();
@@ -71,6 +73,9 @@ export function AdminManage() {
       ) : (
         <>
           <InsetSection>
+            {/* The coach space (lib/coach-space): visible here so the admin can open it while it is
+                still off for the coaches — an address to type is not a place (Ofer 10-23). */}
+            <InsetRow icon={Footprints} iconBg="bg-brand-600" label="אזור המאמן" sublabel={coachSpace ? (coachSpace.on ? 'פעיל למאמנים' : 'כבוי למאמנים · תצוגה מקדימה') : 'היום · השבוע · רצים · תובנות'} href="/dashboard/coach/today" />
             <InsetRow icon={GraduationCap} iconBg="bg-[#af52de]" label="אקדמיה" sublabel="מתאמנים, מועמדים ולוח" href="/dashboard/academy" />
             <InsetRow icon={Bug} iconBg="bg-accent-red" label="דיווחים" sublabel={needs?.reports ? `${needs.reports} חדשים` : 'מה לא עובד לאנשים'} href="/dashboard/review/all"
               trailing={needs?.reports ? <span className="rounded-full bg-[#ff9500] px-2 text-[13px] font-bold leading-[20px] text-white tabular-nums">{needs.reports}</span> : null} />

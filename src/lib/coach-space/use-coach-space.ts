@@ -35,8 +35,9 @@ export function coachSpaceBar(x: { effectiveRole: string | null; on: boolean; is
 }
 
 /** Pure: may this identity open the four screens? */
-export function coachSpaceOpen(x: { isStaffView: boolean; on: boolean; isSuper: boolean }): boolean {
-  return x.isSuper || (x.isStaffView && x.on);
+export function coachSpaceOpen(x: { isStaffView: boolean; on: boolean; isSuper: boolean; effectiveRole?: string | null }): boolean {
+  // The admin opens it from ניהול while it is still off for the coaches (Ofer 10-23).
+  return x.isSuper || x.effectiveRole === 'admin' || (x.isStaffView && x.on);
 }
 
 export function useCoachSpace(identity: { ready: boolean; effectiveRole: string | null; isSuper: boolean; isStaffView: boolean }) {
@@ -50,6 +51,6 @@ export function useCoachSpace(identity: { ready: boolean; effectiveRole: string 
     on,
     preview,
     bar: coachSpaceBar({ effectiveRole: identity.effectiveRole, on, isSuper: identity.isSuper, preview }),
-    open: coachSpaceOpen({ isStaffView: identity.isStaffView, on, isSuper: identity.isSuper }),
+    open: coachSpaceOpen({ isStaffView: identity.isStaffView, on, isSuper: identity.isSuper, effectiveRole: identity.effectiveRole }),
   };
 }

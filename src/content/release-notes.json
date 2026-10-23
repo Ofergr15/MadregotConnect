@@ -1,5 +1,15 @@
 [
   {
+    "id": "coach-space-entry",
+    "date": "2026-10-23",
+    "kind": "fix",
+    "audience": "staff",
+    "icon": "🧭",
+    "title": "אזור המאמן — בניהול",
+    "body": "שורה חדשה בראש ״ניהול״ פותחת את אזור המאמן (היום · השבוע · רצים · תובנות) גם כשהוא עוד כבוי למאמנים, ובראש המסך יש מתג להדליק אותו להם.",
+    "href": "/dashboard/coach/today"
+  },
+  {
     "id": "week-story-edit-calm",
     "date": "2026-10-23",
     "kind": "fix",
