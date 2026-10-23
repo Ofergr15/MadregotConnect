@@ -101,26 +101,39 @@ function RepColumns({ reps, height = 180, showHr = true, labels }: { reps: Seg[]
 /** A long block's own kilometres (14 + 7 + 7: 27 bars), each judged by its block's band. */
 function BlockKms({ reps, labels }: { reps: Seg[]; labels: string[] }) {
   const all = reps.flatMap((r) => r.kms); if (all.length < 4) return null;
-  const W = 330; const H = 122; const PB = 18; const top = 4;
-  const lo = Math.min(...all) - 8; const hi = Math.max(...all) + 4;
-  const gap = 8; const bw = (W - gap * (reps.length - 1)) / all.length - 1.5;
+  // A pace axis on the right (Ofer 10-23: "it's a chart — it needs a pace y-axis"); faster is higher.
+  const W = 330; const H = 150; const PB = 18; const PT = 6; const PR = 34; const iw = W - PR;
+  const tg = reps.flatMap((r) => [r.targetLo ?? r.target, r.targetHi ?? r.target]).filter((v): v is number => v != null);
+  const fast = Math.floor((Math.min(...all, ...tg) - 4) / 10) * 10;
+  const slow = Math.ceil((Math.max(...all, ...tg) + 4) / 10) * 10;
+  const y = (p: number) => PT + ((p - fast) / (slow - fast)) * (H - PB - PT);
+  const step = slow - fast > 50 ? 20 : 10;
+  const ticks: number[] = []; for (let v = fast; v <= slow; v += step) ticks.push(v);
+  const gap = 8; const bw = (iw - gap * (reps.length - 1)) / all.length - 1.5;
   // Left to right in the order run, like the strip and the reps chart (Ofer 10-23).
   let x = 0;
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="mt-1 block w-full" style={{ height: H, direction: 'ltr' }} role="img">
+      {ticks.map((v) => <g key={v}><line x1={0} x2={iw} y1={y(v)} y2={y(v)} stroke="#F0F1F4" /><text x={W - 2} y={y(v) + 3.5} textAnchor="end" className="fill-ink-400 text-[10px]">{formatPace(v)}</text></g>)}
       {reps.map((r, ri) => {
         const tl = (r.targetLo ?? r.target), th = (r.targetHi ?? r.target);
         const start = x;
         const g = r.kms.map((p, k) => {
-          const h = top + ((hi - p) / (hi - lo)) * (H - PB - top);
           const ok = tl == null || th == null || (p >= tl - TOL && p <= th + TOL);
-          const el = <rect key={k} x={x} y={H - PB - h} width={bw} height={h} rx={1.5} fill={ok ? GREEN : '#E5484D'}><title>{formatPace(p)}</title></rect>;
+          const el = <rect key={k} x={x} y={y(p)} width={bw} height={H - PB - y(p)} rx={1.5} fill={ok ? GREEN : '#E5484D'} fillOpacity={0.9}><title>{formatPace(p)}</title></rect>;
           x += bw + 1.5; return el;
         });
-        const mid = (start + x) / 2;
+        const end = x - 1.5; const mid = (start + end) / 2;
         x += gap;
         const tgt = tl != null && th != null ? (tl === th ? formatPace(tl) : `${formatPace(tl)}–${formatPace(th)}`) : '';
-        return <g key={ri}>{g}<text x={mid} y={H - 4} textAnchor="middle" className="fill-ink-400 text-[10px]">{labels[ri]}{tgt ? ` · ${tgt}` : ''}</text></g>;
+        return (
+          <g key={ri}>
+            {tl != null && th != null && <rect x={start - 1} y={y(tl - TOL)} width={end - start + 2} height={y(th + TOL) - y(tl - TOL)} rx={3} fill="#DFF2E6" opacity={0.7} />}
+            {g}
+            {tl != null && th != null && <line x1={start - 2} x2={end + 2} y1={y((tl + th) / 2)} y2={y((tl + th) / 2)} stroke="#2e9e5b" strokeWidth={1.5} strokeDasharray="4 3" />}
+            <text x={mid} y={H - 4} textAnchor="middle" className="fill-ink-400 text-[10px]">{labels[ri]}{tgt ? ` · ${tgt}` : ''}</text>
+          </g>
+        );
       })}
     </svg>
   );
@@ -208,7 +221,8 @@ function PlanTable({ w, score, linked, blocks }: { w: Workout; score: number | n
         )}
         <p className="text-[13px] leading-relaxed text-ink-700"><b className="text-ink-900">{headline}</b>{why ? ` ${t('planWhy')} ${why}.` : '.'}{linked ? ` ${t('planLinked')}` : ''}</p>
       </div>
-      <table className="mt-2 w-full border-collapse text-[12.5px]">
+      <table className="mt-2 w-full table-fixed border-collapse text-[12.5px] [overflow-wrap:anywhere]">
+        <colgroup><col className="w-[26%]" /><col className="w-[26%]" /><col className="w-[30%]" /><col className="w-[18%]" /></colgroup>
         <thead><tr className="text-[11px] text-ink-400"><th className="py-1 text-start font-extrabold">{t('colStep')}</th><th className="text-start font-extrabold">{t('colPlan')}</th><th className="text-start font-extrabold">{t('colActual')}</th><th /></tr></thead>
         <tbody>
           {(['warmup', 'main', 'cooldown'] as const).map((g) => {
@@ -263,9 +277,9 @@ export function WorkoutCard({ a, score = null }: { a: RunAnalysisData; score?: n
         <p className="mt-1 text-[13px] font-extrabold text-ink-700"><span className="text-[#15803d]">✓ <B>{`${w.hit}/${w.reps.length}`}</B> {t('onTargetBlocks', { s: w.tolerance })}</span>{w.avgHr ? <> · {t('hr')} <B>{w.avgHr}</B></> : null}</p>
       )}
       {blocks ? (
-        <div className="mt-2.5 flex border-t border-[#F0F1F4] pt-2.5">
+        <div dir="ltr" className="mt-2.5 flex border-t border-[#F0F1F4] pt-2.5">
           {w.reps.map((r, i) => (
-            <div key={i} className={cn('flex flex-1 flex-col', i > 0 && 'border-s border-[#F0F1F4] ps-2.5')}>
+            <div key={i} dir="rtl" className={cn('flex flex-1 flex-col text-center', i > 0 && 'border-l border-[#F0F1F4]')}>
               <b className={cn('text-[22px] font-black', r.onTarget ? 'text-[#15803d]' : r.onTarget === false ? 'text-[#c62828]' : 'text-ink-900')}><B>{r.pace != null ? formatPace(r.pace) : "—"}</B></b>
               <span className="text-[11px] font-bold leading-tight text-ink-700">{blocks[i]}</span>
               {targetText(r) && <span className="text-[11px] leading-tight text-ink-400">{t('target')} <B>{targetText(r)}</B></span>}

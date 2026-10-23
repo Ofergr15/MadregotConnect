@@ -111,7 +111,7 @@ export function ActivityDetailBody({
   // The 1 Hz trace, when the run has one. Everything below draws from it first and
   // from the splits otherwise.
   const ago = minutesSinceEnd(act.start_time, act.duration);
-  const { data: trace } = useActivityStream(act.id, ago != null && ago >= -5 && ago < STREAM_WAIT_MIN);
+  const { data: trace, loading: tracing } = useActivityStream(act.id, ago != null && ago >= -5 && ago < STREAM_WAIT_MIN);
   // The workout the watch ran, the efforts, the weather — /api/activities/analysis (RunAnalysis.tsx).
   const { data: an, isLoading: analysing, mutate: reAnalyse } = useRunAnalysis(mapOnly ? null : act.id);
   // Read again once a late trace lands: the efforts, recoveries and cadence come from it.
@@ -125,6 +125,13 @@ export function ActivityDetailBody({
   }, [trace?.stream, an?.workout]);
   const watchLaps = trace?.laps && trace.laps.length > 1 && !lapsAreKm(trace.laps) ? trace.laps : null;
   const [cursor, setCursor] = useState<number | null>(null);
+  // Everything under the headline numbers lands TOGETHER (Ofer 10-23: "plan against
+  // execution and elevation load seconds after the rest — it all has to load at once"):
+  // one skeleton until the details, the analysis, the verdict and the trace have answered —
+  // or 8 s have passed, so one slow read never holds the page.
+  const [waitedOut, setWaitedOut] = useState(false);
+  useEffect(() => { const id = setTimeout(() => setWaitedOut(true), 8000); return () => clearTimeout(id); }, [act.id]);
+  const bodyReady = mapOnly || waitedOut || ((!!details || !loading) && (!!an || !analysing) && !loadingVerdict && !tracing);
 
   // The workout's parts along the run, for the strip above the charts: what came before the
   // reps, the reps, what came after (only when the watch ran a workout with reps).
@@ -202,6 +209,12 @@ export function ActivityDetailBody({
         </Section>
       )}
 
+      {!bodyReady && (
+        <div className="space-y-3" aria-busy="true">
+          {[120, 260, 180].map((h) => <div key={h} className="animate-pulse rounded-card bg-card" style={{ height: h }} />)}
+        </div>
+      )}
+      {bodyReady && (<>
       {/* Was this the workout that was asked for — as ONE row. The full breakdown
           (axis, reps, measured table) is a tap away instead of ~900px above the
           charts. Renders nothing for a viewer who may not read this score. */}
@@ -294,6 +307,7 @@ export function ActivityDetailBody({
           <p className="text-xs text-ink-400">{t('noSplits')}</p>
         </div>
       )}
+      </>)}
     </div>
   );
 }
