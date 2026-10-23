@@ -26,11 +26,13 @@ describe('the listing and the screens', () => {
     expect(lib).toMatch(/const folderPhotos = async \(drive: drive_v3\.Drive, folderId: string\) => \(await folderMedia\(drive, folderId, false\)\)\.photos;/);
     expect(lib).toMatch(/photos-library-v4/);
   });
-  it('the player loads one video at a time, with sound unless the phone refuses', () => {
+  it('muted on every open; the next video is ready before it lands; the swipe settles first', () => {
     const v = read('src/components/photos/VideoViewer.tsx');
-    expect(v).toMatch(/k === cur && x\.src \? \(\s*<video/);
-    expect(v).toMatch(/useState\(false\);\n  const \[paused/);
-    expect(v).toMatch(/el\.play\(\)\.catch\(\(\) => \{ el\.muted = true; setMuted\(true\)/);
+    expect(v).toMatch(/const \[muted, setMuted\] = useState\(true\);/);
+    expect(v).toMatch(/mode=\{k === cur \? 'play' : k === cur \+ 1 \? 'ready'/);
+    expect(v).toMatch(/preload=\{mode === 'play' \? 'auto' : 'metadata'\}/);
+    expect(v).toMatch(/addEventListener\('scrollend', end\)/);
+    expect(v).toMatch(/const VideoSlide = memo\(/);
   });
   it('no play mark is the ▶ character (an emoji on iOS)', () => {
     expect(read('src/components/photos/VideoViewer.tsx')).not.toMatch(/>▶</);

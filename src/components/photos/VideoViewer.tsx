@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Download, Image as ImageIcon, Loader2, Play, Share2, Volume2, VolumeX, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -13,8 +13,12 @@ import { useBackDismiss } from '@/lib/use-back-dismiss';
  * - Swipe up / down for the next / previous one (scroll snap, no library).
  * - Only the video on screen has a <video>; every other slide is its poster, so opening a
  *   folder of 180 videos loads one; the next one's poster is already there.
- * - With sound (Ofer, 10-23: "why is there no sound"): it was opened by a tap, which lets
- *   a phone play sound. Only if the phone still refuses does it play muted, saying so.
+ * - Muted on every open (Ofer, 10-23: "keep the volume off, turn it on at the top"); the 🔊
+ *   at the top turns it on, and it stays on while swiping until the player closes.
+ * - The swipe (Ofer: "very, very smooth and fast"): the slide changes when the scroll
+ *   SETTLES (scrollend, or 80 ms of quiet), not on every pixel; the next video's element
+ *   already exists and has read its opening (preload="metadata"), so it starts where it
+ *   lands; slides are memoised, so the progress bar's updates don't redraw the list.
  * - While it buffers, a spinner over the poster; a video this phone can't play (an HEVC
  *   .mov on some Android phones and on a desktop) says so and offers the download.
  * - Tap: pause / play. The sound choice carries to the next video.
@@ -43,14 +47,16 @@ export function VideoViewer({ videos, index, title, onClose, onShare, onCover }:
   onCover?: (videoId: string) => void;
 }) {
   const [cur, setCur] = useState(index);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(true);
   const [paused, setPaused] = useState(false);
   const [waiting, setWaiting] = useState(true);
   const [failed, setFailed] = useState(false);
   const [t, setT] = useState({ at: 0, dur: 0 });
   const listRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   useBackDismiss(true, onClose);
+  const mutedRef = useRef(muted);
+  mutedRef.current = muted;
 
   // Open on the tapped one.
   useEffect(() => {
@@ -58,13 +64,31 @@ export function VideoViewer({ videos, index, title, onClose, onShare, onCover }:
     if (el) el.scrollTo({ top: index * el.clientHeight });
   }, [index]);
 
-  // Which slide is on screen: the nearest to the scroll position, once it settles.
-  const onScroll = useCallback(() => {
+  // Which slide is on screen — once the swipe settles: `scrollend` where the browser has
+  // it, else 80 ms without a scroll event. Changing on every pixel restarted the video
+  // mid-swipe and re-rendered the list as the finger moved.
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pick = useCallback(() => {
     const el = listRef.current;
     if (!el) return;
     const k = Math.round(el.scrollTop / Math.max(1, el.clientHeight));
-    if (k !== cur && k >= 0 && k < videos.length) { setCur(k); setPaused(false); setWaiting(true); setFailed(false); setT({ at: 0, dur: 0 }); }
-  }, [cur, videos.length]);
+    setCur((c) => {
+      if (k === c || k < 0 || k >= videos.length) return c;
+      setPaused(false); setWaiting(true); setFailed(false); setT({ at: 0, dur: 0 });
+      return k;
+    });
+  }, [videos.length]);
+  const onScroll = useCallback(() => {
+    if (settle.current) clearTimeout(settle.current);
+    settle.current = setTimeout(pick, 80);
+  }, [pick]);
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const end = () => { if (settle.current) clearTimeout(settle.current); pick(); };
+    el.addEventListener('scrollend', end);
+    return () => el.removeEventListener('scrollend', end);
+  }, [pick]);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -74,52 +98,36 @@ export function VideoViewer({ videos, index, title, onClose, onShare, onCover }:
     return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', onKey); };
   }, [onClose]);
 
-  // Play with sound; the phone may refuse sound without a tap on the video itself — then
-  // muted, and the 🔊 button lights up to say so.
-  const start = useCallback((el: HTMLVideoElement) => {
-    el.muted = muted;
-    el.play().catch(() => { el.muted = true; setMuted(true); void el.play().catch(() => setPaused(true)); });
-  }, [muted]);
+  // The slide that lands plays; the one before it stops (and keeps its place).
+  const onActive = useCallback((el: HTMLVideoElement) => {
+    videoRef.current = el;
+    el.muted = mutedRef.current;
+    void el.play().catch(() => setPaused(true));
+  }, []);
 
-  const togglePlay = () => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (v.paused) { void v.play().catch(() => {}); setPaused(false); } else { v.pause(); setPaused(true); }
-  };
+  // Stable, so the memoised slides are not redrawn by the progress bar's updates.
+  const togglePlay = useCallback(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    if (el.paused) { void el.play().catch(() => {}); setPaused(false); } else { el.pause(); setPaused(true); }
+  }, []);
+  const onFailed = useCallback(() => { setFailed(true); setWaiting(false); }, []);
+  const goNext = useCallback((k: number) => {
+    const el = listRef.current;
+    if (el && k < videos.length - 1) el.scrollTo({ top: (k + 1) * el.clientHeight, behavior: 'smooth' });
+  }, [videos.length]);
   const v = videos[cur];
   // The portal needs the page's body: never on the server.
   if (typeof document === 'undefined') return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[80] bg-black text-white" dir="rtl" role="dialog" aria-modal="true" aria-label={title}>
-      <div ref={listRef} onScroll={onScroll} className="h-full w-full snap-y snap-mandatory overflow-y-auto overscroll-contain [scrollbar-width:none]">
+      <div ref={listRef} onScroll={onScroll} className="h-full w-full snap-y snap-mandatory overflow-y-auto overscroll-contain [scrollbar-width:none] [-webkit-overflow-scrolling:touch]">
         {videos.map((x, k) => (
-          <div key={x.id} className="relative h-full w-full snap-start snap-always">
-            {k === cur && x.src ? (
-              <video
-                ref={videoRef}
-                key={x.id}
-                src={x.src}
-                poster={x.poster || x.thumb || undefined}
-                muted={muted}
-                playsInline
-                preload="auto"
-                onLoadedMetadata={(e) => start(e.currentTarget)}
-                onWaiting={() => setWaiting(true)}
-                onPlaying={() => { setWaiting(false); setPaused(false); }}
-                onCanPlay={() => setWaiting(false)}
-                onError={() => { setFailed(true); setWaiting(false); }}
-                onClick={togglePlay}
-                onTimeUpdate={(e) => setT({ at: e.currentTarget.currentTime, dur: e.currentTarget.duration || 0 })}
-                onEnded={() => { const el = listRef.current; if (el && cur < videos.length - 1) el.scrollTo({ top: (cur + 1) * el.clientHeight, behavior: 'smooth' }); }}
-                className="absolute inset-0 h-full w-full object-contain"
-              />
-            ) : Math.abs(k - cur) <= 2 ? (
-              // The neighbours: their poster only, so the swipe lands on a picture at once.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={x.poster || x.thumb || ''} alt="" className="absolute inset-0 h-full w-full object-contain" />
-            ) : null}
-          </div>
+          <VideoSlide key={x.id} x={x} k={k} mode={k === cur ? 'play' : k === cur + 1 ? 'ready' : Math.abs(k - cur) <= 2 ? 'poster' : 'none'}
+            muted={muted} onActive={onActive} onTap={togglePlay}
+            onWaiting={setWaiting} onFailed={onFailed}
+            onTime={k === cur ? setT : undefined} onEnded={goNext} />
         ))}
       </div>
 
@@ -178,3 +186,53 @@ export function VideoViewer({ videos, index, title, onClose, onShare, onCover }:
     document.body,
   );
 }
+
+type SlideMode = 'play' | 'ready' | 'poster' | 'none';
+
+/**
+ * One video's page. `play`: on screen, playing. `ready`: the next one — its <video> exists,
+ * paused, having read only its opening, so it is the same element that plays when it
+ * lands. `poster`: a picture. `none`: an empty page (far away; memory). Memoised: the
+ * player's progress updates never redraw the slides that aren't playing.
+ */
+const VideoSlide = memo(function VideoSlide({ x, k, mode, muted, onActive, onTap, onWaiting, onFailed, onTime, onEnded }: {
+  x: ViewerVideo; k: number; mode: SlideMode; muted: boolean;
+  onActive: (el: HTMLVideoElement) => void; onTap: () => void;
+  onWaiting: (w: boolean) => void; onFailed: () => void;
+  onTime?: (t: { at: number; dur: number }) => void; onEnded: (k: number) => void;
+}) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (mode === 'play') onActive(el);
+    else if (!el.paused) el.pause();
+  }, [mode, onActive]);
+  useEffect(() => { if (ref.current) ref.current.muted = muted; }, [muted]);
+  const poster = x.poster || x.thumb || undefined;
+  return (
+    <div className="relative h-full w-full snap-start snap-always [contain:strict]">
+      {(mode === 'play' || mode === 'ready') && x.src ? (
+        <video
+          ref={ref}
+          src={x.src}
+          poster={poster}
+          muted
+          playsInline
+          preload={mode === 'play' ? 'auto' : 'metadata'}
+          onWaiting={mode === 'play' ? () => onWaiting(true) : undefined}
+          onPlaying={mode === 'play' ? () => onWaiting(false) : undefined}
+          onCanPlay={mode === 'play' ? () => onWaiting(false) : undefined}
+          onError={mode === 'play' ? onFailed : undefined}
+          onClick={onTap}
+          onTimeUpdate={onTime ? (e) => onTime({ at: e.currentTarget.currentTime, dur: e.currentTarget.duration || 0 }) : undefined}
+          onEnded={mode === 'play' ? () => onEnded(k) : undefined}
+          className="absolute inset-0 h-full w-full object-contain"
+        />
+      ) : mode !== 'none' && poster ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={poster} alt="" decoding="async" className="absolute inset-0 h-full w-full object-contain" />
+      ) : null}
+    </div>
+  );
+});
