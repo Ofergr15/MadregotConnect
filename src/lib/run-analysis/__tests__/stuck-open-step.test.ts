@@ -15,3 +15,11 @@ describe('readWorkout — the Lap button never pressed on an open walk (10-23)',
   });
   it('names it as one run: 14 + 7 + 7, not "2 × 7K"', () => expect(w.title).toBe('14 + 7 + 7 ק״מ'));
 });
+
+describe('a continuous 14 + 7 + 7 (10-23)', () => {
+  const w = readWorkout(fixture.laps as never, fixture.executed_workout as never, 1)!;
+  it('the 14 is work, not easy running', () => {
+    expect(w.segments.find((s) => s.step === 14)!.kind).toBe('rep');
+    expect(w.reps.map((r) => r.step)).toEqual([14, 15, 16]);
+  });
+});

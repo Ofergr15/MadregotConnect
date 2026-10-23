@@ -181,24 +181,35 @@ export function readWorkout(laps: WLap[] | null | undefined, executed: { steps?:
   // A last rep the watch was stopped inside (2026-10-20: 10 × 1600 ending at 1,143 m) is
   // still a rep of the session — named and scored with the rest, as the share card does.
   const last = cand[cand.length - 1];
-  const reps = last && !full.includes(last) && last === segs[segs.length - 1] && last.meters >= len * 0.6 && last.meters < len ? [...full, last] : full;
+  let reps = last && !full.includes(last) && last === segs[segs.length - 1] && last.meters >= len * 0.6 && last.meters < len ? [...full, last] : full;
+  // Back-to-back blocks with no recovery between them are ONE continuous run, not repeats
+  // (10-23: 14 + 7 + 7 ק״מ read as "2 × 7K", and the 14 then drawn as easy running). All
+  // of them are the session's work — named, coloured and scored together, in order.
+  let title = `${reps.length} × ${len >= 3000 && len % 1000 === 0 ? `${len / 1000}K` : len}`;
+  const i0 = segs.indexOf(reps[0]), i1 = segs.indexOf(reps[reps.length - 1]);
+  const isBlock = (x: Seg) => (x.kind === 'run' || x.kind === 'rep') && x.meters >= 1000;
+  if (segs.slice(i0, i1 + 1).every((x) => x.kind === 'rep' || x.kind === 'run')) {
+    let a = i0, b = i1;
+    while (a > 0 && isBlock(segs[a - 1])) a--;
+    while (b < segs.length - 1 && isBlock(segs[b + 1])) b++;
+    const blocks = segs.slice(a, b + 1).filter(isBlock);
+    // The planned length names a block (its slow lead-in km was cut off as a walk).
+    title = `${blocks.map((x) => Math.round(((x.step != null && steps.get(x.step)?.distanceM) || x.meters) / 100) / 10).join(' + ')} ק״מ`;
+    for (const x of blocks) {
+      if (x.kind !== 'rep') {
+        x.kind = 'rep';
+        const st = x.step != null ? steps.get(x.step) : undefined;
+        const paces = st?.notes ? packPaces(st.notes) : [];
+        x.target = paces[packIndex] ?? paces.find((p) => p != null) ?? null;
+        x.onTarget = x.target != null && x.pace != null ? Math.abs(x.pace - x.target) <= TOLERANCE : null;
+      }
+    }
+    reps = blocks;
+  }
   for (const s of cand) if (!reps.includes(s)) s.kind = 'run';
   const recs = segs.filter((s, i) => s.kind === 'recovery' && segs[i - 1]?.kind === 'rep');
   const recLen = recs.length >= 2 ? Math.round(recs.map((r) => r.meters).sort((a, b) => a - b)[recs.length >> 1] / 50) * 50 : null;
   const targets = reps.map((r) => r.target).filter((v): v is number => v != null);
-  // Back-to-back blocks with no recovery between them are ONE continuous run, not repeats
-  // (10-23: 14 + 7 + 7 ק״מ read as "2 × 7K"). Name it by its blocks, in order.
-  const i0 = segs.indexOf(reps[0]), i1 = segs.indexOf(reps[reps.length - 1]);
-  const between = segs.slice(i0, i1 + 1);
-  let title = `${reps.length} × ${len >= 3000 && len % 1000 === 0 ? `${len / 1000}K` : len}`;
-  if (between.every((x) => x.kind === 'rep' || x.kind === 'run')) {
-    let a = i0, b = i1;
-    while (a > 0 && (segs[a - 1].kind === 'run' || segs[a - 1].kind === 'rep') && segs[a - 1].meters >= 1000) a--;
-    while (b < segs.length - 1 && (segs[b + 1].kind === 'run' || segs[b + 1].kind === 'rep') && segs[b + 1].meters >= 1000) b++;
-    const blocks = segs.slice(a, b + 1).filter((x) => x.meters >= 1000);
-    // The planned length names a block (its slow lead-in km was cut off as a walk).
-    title = `${blocks.map((x) => Math.round(((x.step != null && steps.get(x.step)?.distanceM) || x.meters) / 100) / 10).join(' + ')} ק״מ`;
-  }
   return {
     // The share card's spelling (lib/share/plan-segments workoutHeadline): 7 × 5K, 10 × 1600.
     title,
