@@ -189,7 +189,8 @@ async function ensureLaps(
  * Laps are passed in rather than read off the row: the batch path uses only what
  * is already stored, while the single-run path may have just fetched them.
  */
-function stepLaps(row: ActivityRow, laps: Lap[]): Lap[] {
+/** A run's laps as the steps it ran (readWorkout) — shared with api/academy/segments. */
+export function stepLaps(row: { laps: unknown; executed_workout?: unknown }, laps: Lap[]): Lap[] {
   if (!row.executed_workout || !Array.isArray(row.laps)) return laps;
   try {
     const w = readWorkout(row.laps as never, row.executed_workout as never, 0);

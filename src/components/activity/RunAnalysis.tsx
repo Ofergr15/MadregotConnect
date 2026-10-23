@@ -9,6 +9,7 @@
  *  - we celebrate: no rep is greyed out or painted as a failure; on-target gets a ✓.
  * Charts run left→right like every chart in the app; the text around them stays RTL.
  */
+import { APP_VERSION } from '@/lib/version';
 import { useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
@@ -34,7 +35,7 @@ export interface RunAnalysisData {
 }
 
 export function useRunAnalysis(activityId: string | null) {
-  return useApi<RunAnalysisData>(activityId && /^[0-9a-f-]{36}$/i.test(activityId) ? `/api/activities/analysis?activityId=${activityId}` : null);
+  return useApi<RunAnalysisData>(activityId && /^[0-9a-f-]{36}$/i.test(activityId) ? `/api/activities/analysis?activityId=${activityId}&v=${APP_VERSION}` : null);
 }
 
 const B = ({ children }: { children: React.ReactNode }) => <bdi dir="ltr">{children}</bdi>;
