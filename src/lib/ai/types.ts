@@ -5,6 +5,12 @@ export interface ParsedWeeklyPlan {
 export interface ParsedWorkout {
   dayOfWeek: number; // 0=Sunday, 6=Saturday
   name: string;
+  /**
+   * The name the staff approved for this session when the plan came in ("10 × 1600",
+   * "ארוכה 30 · 14 + 7 + 7") — what a matched run is titled, whatever the laps spelled.
+   * Absent = not reviewed; the suggestion is built from the steps (plan-names.ts).
+   */
+  workoutName?: string;
   description?: string;
   /** Stable across all three group variants; used by activity matching and clipboard paths. */
   workoutKey?: string;

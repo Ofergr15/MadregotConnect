@@ -546,8 +546,32 @@ export async function matchAthleteActivities(
       throw insertError;
     }
     await markDeviceConfirmed(supabase, [...confirmed, ...appleConfirmed]);
+    await applyApprovedNames(supabase, plan.parsed_workouts, rows, weekActivities);
     matched += rows.length;
   }
 
   return { matched, plans: plansByWeek.size };
+}
+
+/**
+ * The session name the staff approved when the plan came in (ParsedWorkout.workoutName,
+ * Ofer 10-23: "confirm the names with us when the plan is entered") replaces the title the
+ * laps spelled — but only on a run that HAS one: workout_title present means "a run with
+ * repeats" to the matcher, so an easy run is never given a title it did not earn.
+ */
+async function applyApprovedNames(
+  supabase: SupabaseServer,
+  parsed: unknown,
+  rows: Array<{ activity_id: string; workout_key: string; group_number: number | null }>,
+  activities: Array<{ id: string; workout_title?: string | null }>,
+): Promise<void> {
+  const byId = new Map(activities.map((a) => [a.id, a]));
+  for (const row of rows) {
+    const act = byId.get(row.activity_id);
+    if (!act?.workout_title) continue;
+    const plan = workoutPlanForGroup(parsed, row.group_number ?? 1);
+    const name = plan?.workouts.find((w: ParsedWorkout) => w.workoutKey === row.workout_key)?.workoutName?.trim();
+    if (!name || name === act.workout_title) continue;
+    await supabase.from('athlete_activities').update({ workout_title: name }).eq('id', row.activity_id);
+  }
 }

@@ -249,7 +249,7 @@ export function applyUnifiedEditsToGroups(existing: GroupedWeeklyPlans, unified:
           // Newly added workout — no prior per-group object to preserve.
           return { ...uw, steps: splitSteps };
         }
-        return { ...base, name: uw.name, description: uw.description, steps: splitSteps };
+        return { ...base, name: uw.name, description: uw.description, workoutName: uw.workoutName, steps: splitSteps };
       }),
     };
   };

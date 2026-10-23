@@ -39,6 +39,7 @@ import {
 import { WeekView } from '@/components/WeekView';
 import { QualityDayChip, QualityDaysCard, useQualityDays } from './QualityDays';
 import { PlanVerifyCard } from './PlanVerifyCard';
+import { PlanNamesCard } from './PlanNamesCard';
 import { useApi } from '@/lib/api';
 import { slotKey, watchSentCopy, workoutLine } from '@/lib/notifications/watch-push-copy';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
@@ -859,6 +860,15 @@ export default function WeeklyPlannerPage() {
         setError(err instanceof Error ? err.message : t('errors.failedToSaveDraft'));
       }
     });
+  };
+
+  const handleWorkoutsChange = (workouts: ParsedWorkout[]) => {
+    if (!parsedPlan || !groupedPlans) return;
+    const updatedUnified = { ...parsedPlan, workouts };
+    const nextGrouped = applyUnifiedEditsToGroups(groupedPlans, updatedUnified);
+    setParsedPlan(updatedUnified);
+    setGroupedPlans(nextGrouped);
+    persistPlan(nextGrouped);
   };
 
   const handleWorkoutChange = (index: number, workout: ParsedWorkout) => {
@@ -1907,6 +1917,8 @@ export default function WeeklyPlannerPage() {
             {superUser && <QualityDaysCard state={qualityDays} />}
 
             <PlanVerifyCard week={weekStartDate} enabled={!!currentPlan} version={`${currentPlan?.id}:${lastSavedAt?.getTime()}`} />
+
+            {savedPlanId && <PlanNamesCard workouts={parsedPlan.workouts} weekStartDate={weekStartDate} onChange={handleWorkoutChange} onChangeAll={handleWorkoutsChange} />}
 
             <WeekView
               workouts={parsedPlan.workouts}
