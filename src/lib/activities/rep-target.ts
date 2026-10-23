@@ -31,6 +31,22 @@ export function packPaces(note: string): Array<number | null> {
   return [one(p1), one(p2), one(p3)];
 }
 
+/** Each pack's target as a RANGE, sec/km: "3:50–3:55" → [230, 235], "4:00" → [240, 240]. */
+export function packRanges(note: string): Array<[number, number] | null> {
+  const one = (s: string | undefined): [number, number] | null => {
+    if (!s) return null;
+    const r = s.match(/(\d{1,2}:\d{2})(?:\s*[-–]\s*(\d{1,2}:\d{2}))?/);
+    if (!r) return null;
+    const a = sec(r[1]); const b = r[2] ? sec(r[2]) : a;
+    return [Math.min(a, b), Math.max(a, b)];
+  };
+  const p3 = note.match(/\(\(\s*([^()]+?)\s*\)\)/)?.[1];
+  const rest = note.replace(/\(\([^()]*\)\)/g, ' ');
+  const p2 = rest.match(/\(\s*([^()]+?)\s*\)/)?.[1];
+  const p1 = rest.replace(/\([^()]*\)/g, ' ').trim();
+  return [one(p1), one(p2), one(p3)];
+}
+
 interface Step { stepIndex?: number; notes?: string | null; distanceM?: number | null; durationType?: string | null; iterations?: number | null; repeatFrom?: number | null }
 
 export function repTarget(executed: unknown, packIndex: number): RepTarget | null {

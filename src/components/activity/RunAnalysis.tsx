@@ -16,6 +16,7 @@ import { ChevronDown } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
 import type { Seg, Workout } from '@/lib/run-analysis/workout';
+import { TOLERANCE as TOL } from '@/lib/run-analysis/workout';
 import type { StreamKmSplit, StreamView } from '@/lib/activities/stream-view';
 import { HR_ZONE_FLOORS } from '@/lib/activities/stream-view';
 import { cn } from '@/lib/utils';
@@ -63,10 +64,15 @@ function Legend({ items }: { items: Array<{ label: string; color?: string; line?
 }
 
 /** Columns per rep on a pace axis (faster = taller), the pack's target as a black tick. */
-function RepColumns({ reps, height = 180, showHr = true }: { reps: Seg[]; height?: number; showHr?: boolean }) {
+function RepColumns({ reps, height = 180, showHr = true, labels }: { reps: Seg[]; height?: number; showHr?: boolean; labels?: string[] }) {
   const W = 330; const PT = 22; const PB = showHr ? 30 : 18; const PR = 34; const ih = height - PT - PB; const iw = W - PR - 4;
-  const paces = reps.flatMap((r) => [r.pace ?? 0, r.target ?? r.pace ?? 0]).filter(Boolean);
-  const lo = Math.floor((Math.min(...paces) - 6) / 10) * 10; const hi = Math.ceil((Math.max(...paces) + 8) / 10) * 10;
+  // The band each bar is judged by (mockup ~/.cache/madregot/run-1023, Ofer 10-23: "the chart
+  // shows it isn't really on target — what's the logic?"): the written range widened by the
+  // tolerance. A bar whose top sits inside its band is on target, as the table and ✓ say.
+  const lo_ = (r: Seg) => (r.targetLo ?? r.target);
+  const hi_ = (r: Seg) => (r.targetHi ?? r.target);
+  const paces = reps.flatMap((r) => [r.pace ?? 0, ...(lo_(r) != null ? [lo_(r)! - TOL, hi_(r)! + TOL] : [])]).filter(Boolean);
+  const lo = Math.floor((Math.min(...paces) - 4) / 10) * 10; const hi = Math.ceil((Math.max(...paces) + 6) / 10) * 10;
   const y = (p: number) => PT + ((Math.min(Math.max(p, lo), hi) - lo) / (hi - lo)) * ih;
   const slot = iw / reps.length; const bw = slot * 0.6;
   const ticks: number[] = []; for (let v = lo; v <= hi; v += (hi - lo) > 40 ? 20 : 10) ticks.push(v);
@@ -74,16 +80,48 @@ function RepColumns({ reps, height = 180, showHr = true }: { reps: Seg[]; height
     <svg viewBox={`0 0 ${W} ${height}`} className="block w-full" style={{ height, direction: 'ltr' }} role="img">
       {ticks.map((v) => <g key={v}><line x1={4} x2={4 + iw} y1={y(v)} y2={y(v)} stroke="#F0F1F4" /><text x={W - 2} y={y(v) + 3.5} textAnchor="end" className="fill-ink-400 text-[10px]">{formatPace(v)}</text></g>)}
       {reps.map((r, i) => {
-        const x = 4 + i * slot + (slot - bw) / 2; const p = r.pace ?? hi;
+        const at = labels ? reps.length - 1 - i : i; // named blocks read right to left, like the page
+        const x = 4 + at * slot + (slot - bw) / 2; const p = r.pace ?? hi;
+        const tl = lo_(r); const th = hi_(r);
         return (
           <g key={i}>
+            {tl != null && th != null && <rect x={x - 5} y={y(tl - TOL)} width={bw + 10} height={y(th + TOL) - y(tl - TOL)} rx={4} fill={GREEN} fillOpacity={0.16} />}
             <rect x={x} y={y(p)} width={bw} height={PT + ih - y(p)} rx={4} fill={GREEN} fillOpacity={0.88} />
-            {r.target != null && <line x1={x - 3} x2={x + bw + 3} y1={y(r.target)} y2={y(r.target)} stroke="#16171F" strokeWidth={2} />}
-            <text x={x + bw / 2} y={y(p) - 5} textAnchor="middle" className="text-[10px] font-black" fill={GREEN}>{formatPace(p)}</text>
-            <text x={x + bw / 2} y={PT + ih + 12} textAnchor="middle" className="fill-ink-400 text-[10px]">{i + 1}{r.onTarget ? ' ✓' : ''}</text>
+            {tl != null && th != null && <rect x={x - 3} y={y(tl) - 1} width={bw + 6} height={Math.max(2, y(th) - y(tl) + 2)} fill="#16171F" />}
+            <text x={x + bw / 2} y={labels ? Math.min(PT + ih - 4, y(p) + 14) : y(p) - 5} textAnchor="middle" className={labels ? 'text-[12px] font-black' : 'text-[10px] font-black'} fill={labels ? '#fff' : GREEN}>{formatPace(p)}</text>
+            <text x={x + bw / 2} y={PT + ih + 12} textAnchor="middle" className={labels ? 'fill-ink-900 text-[10.5px] font-extrabold' : 'fill-ink-400 text-[10px]'}>{labels?.[i] ?? i + 1}{r.onTarget ? ' ✓' : ''}</text>
             {showHr && r.hr != null && <text x={x + bw / 2} y={PT + ih + 25} textAnchor="middle" className="text-[9px] font-bold" fill="#C2410C">{r.hr}</text>}
           </g>
         );
+      })}
+    </svg>
+  );
+}
+
+/** A long block's own kilometres (14 + 7 + 7: 27 bars), each judged by its block's band. */
+function BlockKms({ reps, labels }: { reps: Seg[]; labels: string[] }) {
+  const all = reps.flatMap((r) => r.kms); if (all.length < 4) return null;
+  const W = 330; const H = 122; const PB = 18; const top = 4;
+  const lo = Math.min(...all) - 8; const hi = Math.max(...all) + 4;
+  const gap = 8; const bw = (W - gap * (reps.length - 1)) / all.length - 1.5;
+  // Right to left like the page: the first block's first km is the right-most bar.
+  let x = W;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="mt-1 block w-full" style={{ height: H, direction: 'ltr' }} role="img">
+      {reps.map((r, ri) => {
+        const tl = (r.targetLo ?? r.target), th = (r.targetHi ?? r.target);
+        const end = x;
+        const g = r.kms.map((p, k) => {
+          x -= bw;
+          const h = top + ((hi - p) / (hi - lo)) * (H - PB - top);
+          const ok = tl == null || th == null || (p >= tl - TOL && p <= th + TOL);
+          const el = <rect key={k} x={x} y={H - PB - h} width={bw} height={h} rx={1.5} fill={ok ? GREEN : '#E5484D'}><title>{formatPace(p)}</title></rect>;
+          x -= 1.5; return el;
+        });
+        const mid = (end + x) / 2;
+        x -= gap;
+        const tgt = tl != null && th != null ? (tl === th ? formatPace(tl) : `${formatPace(tl)}–${formatPace(th)}`) : '';
+        return <g key={ri}>{g}<text x={mid} y={H - 4} textAnchor="middle" className="fill-ink-400 text-[10px]">{labels[ri]}{tgt ? ` · ${tgt}` : ''}</text></g>;
       })}
     </svg>
   );
@@ -100,6 +138,17 @@ export function WorkoutCard({ a }: { a: RunAnalysisData }) {
   const same = w.reps.filter((r) => r.target != null && r.target === w.reps[w.reps.length - 1].target);
   const spread = same.length > 1 ? Math.max(...same.map((r) => r.pace ?? 0)) - Math.min(...same.map((r) => r.pace ?? 0)) : null;
   const te = a.trainingEffect;
+  // A continuous run (14 + 7 + 7) names its bars by their blocks, not 1, 2, 3.
+  const blocks = /^[\d.]+( \+ [\d.]+)+ ק״מ$/.test(w.title) ? w.title.replace(/ ק״מ$/, '').split(' + ').map((k) => `${k} ק״מ`) : null;
+  // The running kilometre a stuck walk step kept (readWorkout): said once, under the chart.
+  const first = w.segments.findIndex((x) => x.start === w.reps[0]?.start); // JSON: not the same objects
+  const prev = first > 0 ? w.segments[first - 1] : null;
+  const firstKms = w.reps[0]?.kms ?? [];
+  const tl0 = w.reps[0]?.targetLo ?? w.reps[0]?.target, th0 = w.reps[0]?.targetHi ?? w.reps[0]?.target;
+  const okKms = firstKms.filter((p) => tl0 == null || th0 == null || (p >= tl0 - TOL && p <= th0 + TOL)).length;
+  const leadIn = blocks && prev && prev.kind === 'recovery' && prev.meters >= 900 && prev.pace != null && prev.pace < 420 && firstKms.length
+    ? t('leadIn', { p: formatPace(prev.pace), n: firstKms.length, lo: formatPace(Math.min(...firstKms)), hi: formatPace(Math.max(...firstKms)), ok: okKms === firstKms.length ? t('leadInAll') : t('leadInSome', { k: okKms }) })
+    : null;
   const sim = [...a.similar, { id: 'now', date: 'today', title: w.title, avgPace: w.avgPace }];
   return (
     <section className="rounded-card bg-card p-3.5">
@@ -107,7 +156,7 @@ export function WorkoutCard({ a }: { a: RunAnalysisData }) {
       <h3 className="mt-1.5 text-[28px] font-black tracking-tight text-ink-900"><B>{w.title}</B>{w.recoveryMeters && <span className="ms-1.5 text-[15px] font-bold text-ink-400">· {t('jog', { m: w.recoveryMeters })}</span>}</h3>
       <div className="mt-2.5 flex border-t border-[#F0F1F4] pt-2.5">
         {[
-          [<span key="a" className="text-[#15803d]"><B>{`${w.hit}/${w.reps.length}`}</B></span>, t('onTarget', { s: w.tolerance })],
+          [<span key="a" className="text-[#15803d]"><B>{`${w.hit}/${w.reps.length}`}</B></span>, t(blocks ? 'onTargetBlocks' : 'onTarget', { s: w.tolerance })],
           [<B key="b">{formatPace(w.avgPace)}</B>, w.avgTarget ? t('avgRepTarget', { p: formatPace(w.avgTarget) }) : t('avgRep')],
           [<B key="c">{w.avgHr ?? '—'}</B>, t('repsHr')],
         ].map(([v, l], i) => (
@@ -133,9 +182,16 @@ export function WorkoutCard({ a }: { a: RunAnalysisData }) {
       )}
       {te?.label && <p className="mt-2 text-[13px]">{t('mainBenefit')}: <b>{t.has(`te_${te.label}`) ? t(`te_${te.label}` as 'te_VO2MAX') : te.label}</b>{te.load ? <span className="text-ink-400"> · {t('load')} <B>{Math.round(te.load)}</B></span> : null}{te.recoveryHours ? <span className="text-ink-400"> · {t('recoveryHours', { h: te.recoveryHours })}</span> : null}</p>}
 
-      <div className="mt-4 text-xs font-extrabold text-ink-400">{t('repsVsTarget')}</div>
-      <RepColumns reps={w.reps} />
-      <Legend items={[{ label: t('theRep'), color: GREEN }, { label: t('target'), color: '#16171F', line: true }, { label: `✓ ${t('onTargetShort')}` }, { label: `♥ ${t('hr')}` }]} />
+      <div className="mt-4 text-xs font-extrabold text-ink-400">{t(blocks ? 'blocksVsTarget' : 'repsVsTarget')}</div>
+      <RepColumns reps={w.reps} labels={blocks ?? undefined} />
+      <Legend items={[{ label: t(blocks ? 'theBlock' : 'theRep'), color: GREEN }, { label: t('target'), color: '#16171F', line: true }, { label: t('band', { s: TOL }), color: '#CFE9D7' }, { label: `♥ ${t('hr')}` }]} />
+      {blocks && w.reps.some((r) => r.kms.length > 1) && (
+        <>
+          <div className="mt-4 text-xs font-extrabold text-ink-400">{t('blockKms')}</div>
+          <BlockKms reps={w.reps} labels={blocks} />
+          {leadIn && <Insight>{leadIn}</Insight>}
+        </>
+      )}
       {spread != null && <Insight>{spread <= 2 ? t('steadyNote', { s: spread }) : t('repsNote', { n: w.hit, of: w.reps.length })}</Insight>}
 
       {a.linked && (

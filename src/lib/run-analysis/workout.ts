@@ -8,7 +8,7 @@
  * The target is the step's note in the club's notation, "3:30 (3:40) ((3:50))", read for the
  * runner's pack (lib/activities/rep-target packPaces).
  */
-import { packPaces } from '@/lib/activities/rep-target';
+import { packPaces, packRanges } from '@/lib/activities/rep-target';
 
 export interface WLap {
   distance: number; duration: number;
@@ -32,7 +32,11 @@ export interface Seg {
   gap: number | null;
   /** The pack's target, sec/km, when the step names one. */
   target: number | null;
+  /** The target as the plan wrote it — a range ("3:50–3:55") or one pace (lo = hi). */
+  targetLo: number | null; targetHi: number | null;
   onTarget: boolean | null;
+  /** Each whole kilometre's pace inside the block (sec/km), for a long block's own chart. */
+  kms: number[];
 }
 export interface Workout {
   title: string;
@@ -50,6 +54,10 @@ export interface Workout {
 }
 
 export const TOLERANCE = 10;
+
+/** Inside the written range, widened by the tolerance on both sides ("3:50–3:55" → 3:40–4:05). */
+const onTargetOf = (pace: number, range: [number, number] | null, target: number) =>
+  range ? pace >= range[0] - TOLERANCE && pace <= range[1] + TOLERANCE : Math.abs(pace - target) <= TOLERANCE;
 /** How far short of its planned length or time an iteration may close and still count as one. */
 const ITERATION_SLACK = 0.03;
 
@@ -138,6 +146,8 @@ export function readWorkout(laps: WLap[] | null | undefined, executed: { steps?:
     const note = st?.notes || '';
     const paces = note ? packPaces(note) : [];
     const target = paces[packIndex] ?? paces.find((p) => p != null) ?? null;
+    const ranges = note ? packRanges(note) : [];
+    const range = ranges[packIndex] ?? ranges.find((r) => r != null) ?? null;
     const pace = m > 0 ? t / (m / 1000) : null;
     let kind: SegKind = it === 'WARMUP' ? 'warmup' : it === 'COOLDOWN' ? 'cooldown' : it === 'RECOVERY' || it === 'REST' ? 'recovery' : 'run';
     if (kind === 'run' && (it === 'ACTIVE' || it === 'INTERVAL')) {
@@ -149,7 +159,10 @@ export function readWorkout(laps: WLap[] | null | undefined, executed: { steps?:
       maxHr: open.laps.reduce((x, l) => Math.max(x, l.maxHR ?? 0), 0) || null,
       gap: weighted(open.laps.map((l) => [l.gradeAdjustedPace, l.duration])),
       target: kind === 'rep' || kind === 'stride' ? target : null,
-      onTarget: target != null && pace != null && (kind === 'rep' || kind === 'stride') ? Math.abs(pace - target) <= TOLERANCE : null,
+      targetLo: kind === 'rep' || kind === 'stride' ? range?.[0] ?? null : null,
+      targetHi: kind === 'rep' || kind === 'stride' ? range?.[1] ?? null : null,
+      onTarget: target != null && pace != null && (kind === 'rep' || kind === 'stride') ? onTargetOf(pace, range, target) : null,
+      kms: open.laps.filter((l) => l.distance >= 900).map((l) => Math.round(l.duration / (l.distance / 1000))),
     });
     open = null;
   };
@@ -200,8 +213,11 @@ export function readWorkout(laps: WLap[] | null | undefined, executed: { steps?:
         x.kind = 'rep';
         const st = x.step != null ? steps.get(x.step) : undefined;
         const paces = st?.notes ? packPaces(st.notes) : [];
+        const ranges = st?.notes ? packRanges(st.notes) : [];
+        const range = ranges[packIndex] ?? ranges.find((r) => r != null) ?? null;
         x.target = paces[packIndex] ?? paces.find((p) => p != null) ?? null;
-        x.onTarget = x.target != null && x.pace != null ? Math.abs(x.pace - x.target) <= TOLERANCE : null;
+        x.targetLo = range?.[0] ?? null; x.targetHi = range?.[1] ?? null;
+        x.onTarget = x.target != null && x.pace != null ? onTargetOf(x.pace, range, x.target) : null;
       }
     }
     reps = blocks;

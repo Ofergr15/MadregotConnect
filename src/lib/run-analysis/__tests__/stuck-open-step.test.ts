@@ -23,3 +23,13 @@ describe('a continuous 14 + 7 + 7 (10-23)', () => {
     expect(w.reps.map((r) => r.step)).toEqual([14, 15, 16]);
   });
 });
+
+describe('targets as written ranges (10-23)', () => {
+  const w = readWorkout(fixture.laps as never, fixture.executed_workout as never, 1)!;
+  it('a 7 km at 3:50–3:55 keeps its range, and 3:59 is inside ±10', () => {
+    const r = w.reps.find((x) => x.step === 15)!;
+    expect([r.targetLo, r.targetHi]).toEqual([230, 235]);
+    expect(r.onTarget).toBe(true);
+    expect(r.kms).toHaveLength(7);
+  });
+});
