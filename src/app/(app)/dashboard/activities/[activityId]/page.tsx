@@ -220,7 +220,11 @@ export default function ActivityDetailPage() {
             {map ? (
               // Strava's hero: the route is the first thing the run page says, and
               // the buttons float over it.
-              <div className="relative overflow-hidden rounded-card">
+              // `isolate`: the map (Leaflet panes go to 1000) and the hero's z-[900]/[1000] are
+              // local to this card. Without it they outranked every sheet in the app (310) and
+              // the update sheet (405) — the run page was drawn on top of עוד and the new-version
+              // sheet (Ofer 10-23).
+              <div className="relative isolate overflow-hidden rounded-card">
                 {map}
                 {heroOverlay}
                 <button onClick={() => router.back()} className={cn(floatBtn, 'absolute right-3 top-3 z-[1000]')} aria-label={tc('back')}>

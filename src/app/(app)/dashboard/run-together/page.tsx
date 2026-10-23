@@ -78,7 +78,7 @@ function Board() {
   );
   const fab = (compact: boolean) => (
     <button type="button" onClick={() => setComposing(true)} aria-label="ריצה חדשה"
-      className={cn('fixed z-[600] flex h-[58px] items-center justify-center gap-1.5 rounded-full bg-brand-600 text-white shadow-[0_12px_24px_-8px_rgba(21,37,255,0.65),0_2px_6px_rgba(0,0,0,0.2)] active:scale-95 start-auto end-4 md:end-8',
+      className={cn('fixed z-[45] flex h-[58px] items-center justify-center gap-1.5 rounded-full bg-brand-600 text-white shadow-[0_12px_24px_-8px_rgba(21,37,255,0.65),0_2px_6px_rgba(0,0,0,0.2)] active:scale-95 start-auto end-4 md:end-8',
         compact ? 'w-[58px] bottom-[calc(env(safe-area-inset-bottom)+238px)]' : 'ps-4 pe-5 bottom-[calc(env(safe-area-inset-bottom)+88px)]')}>
       <Plus className="h-6 w-6" strokeWidth={2.6} />{!compact && <b className="text-[15.5px] font-black">ריצה חדשה</b>}
     </button>
@@ -115,7 +115,7 @@ function Board() {
           );
         })
       ) : (
-        <div className="relative -mx-4 mt-1 h-[calc(100dvh-245px)] min-h-[420px] overflow-hidden">
+        <div className="relative isolate -mx-4 mt-1 h-[calc(100dvh-245px)] min-h-[420px] overflow-hidden">
           <MeetupsMap meetups={onMap} selected={sel?.id ?? null} onSelect={setSelected} className="absolute inset-0" />
           {onMap.length < shown.length && (
             <p className="absolute start-1/2 top-3 z-[500] -translate-x-1/2 whitespace-nowrap rounded-full bg-ink-900 px-3 py-1.5 text-xs font-extrabold text-white rtl:translate-x-1/2">
