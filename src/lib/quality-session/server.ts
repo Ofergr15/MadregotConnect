@@ -14,7 +14,7 @@ import { sessionLabel } from '@/lib/pack-stories/model';
 import type { Pack } from '@/lib/pack-stories/model';
 import type { PlanRep, PlanTargets } from './parts';
 import { PLAN_DAYS_KEY, parsePlanDays, type PlanDays } from './plan-days';
-import { QUALITY_TYPES, SHARE_TYPES, detectReps, fromMinutes, repPace, toMinutes, type QsSession, type QualityWorkout } from './model';
+import { QUALITY_TYPES, SHARE_TYPES, pushReady, detectReps, fromMinutes, repPace, toMinutes, type QsSession, type QualityWorkout } from './model';
 
 type Db = ReturnType<typeof createServerClient>;
 
@@ -190,6 +190,30 @@ export async function qualityPush(supabase: Db, date: string): Promise<{ title: 
     title: `📸 ${workout.name || 'אימון האיכות'} של הבוקר`,
     body: n ? `${n} כבר סיימו. לבחור רץ מכל דבוקה ולשתף.` : 'לבחור רץ מכל דבוקה ולשתף.',
   };
+}
+
+/**
+ * Is it time for the morning's push: most of the morning's runners have synced
+ * (model.ts pushReady). "Most" is measured against the same morning last week —
+ * few mark themselves as coming (3 of 31 on 10-23), so the marks alone would fire
+ * at 7:30 again; the larger of the two counts. Synced, not finished: a run reaches
+ * the app minutes to an hour after it ends (10-23: 13 done by 7:30, 4 synced).
+ */
+export async function qualityPushReady(supabase: Db, date: string, minutes: number): Promise<boolean> {
+  const dow = dowOf(date);
+  const ranOn = async (day: string) => {
+    const { data } = await supabase.from('athlete_activities').select('athlete_id')
+      .gte('start_time', `${day}T00:00:00`).lt('start_time', `${day}T12:00:00`).gte('distance', 1000);
+    return new Set(((data || []) as { athlete_id: string }[]).map((r) => r.athlete_id)).size;
+  };
+  const [att, lastWeek, synced] = await Promise.all([
+    supabase.from('workout_attendance').select('athlete_id')
+      .eq('week_start_date', addDays(date, -dow)).eq('day_of_week', dow).eq('attending', true),
+    ranOn(addDays(date, -7)),
+    ranOn(date),
+  ]);
+  const coming = new Set(((att.data || []) as { athlete_id: string }[]).map((r) => r.athlete_id)).size;
+  return pushReady(minutes, Math.max(coming, lastWeek), synced);
 }
 
 /** The day's runs, placed in packs the way the pack stories place them, with their reps. */

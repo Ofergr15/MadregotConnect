@@ -97,7 +97,7 @@ describe('time travel', () => {
     expect(parseAt('off')).toBeNull();
   });
   it('the feed row is 07:00 up to 11:00', () => {
-    expect([419, 420, 659, 660].map(inRowWindow)).toEqual([false, true, true, false]);
+    expect([419, 420, 659, 660, 1439].map(inRowWindow)).toEqual([false, true, true, true, true]);
   });
 });
 
@@ -258,5 +258,24 @@ describe('a day marked special', () => {
     expect(put).not.toMatch(/isStoryEditor/);
     const page = read('app/(app)/dashboard/quality-session/page.tsx');
     expect(page).toMatch(/sess && isSuper && !sess\.workout && \(/);
+  });
+});
+
+describe('the morning push waits for most of the runners (Ofer 10-23)', () => {
+  it('not before 7:30, always by 10:00', async () => {
+    const { pushReady } = await import('@/lib/quality-session/model');
+    expect(pushReady(7 * 60 + 29, 30, 30)).toBe(false);
+    expect(pushReady(10 * 60, 30, 0)).toBe(true);
+  });
+  it('70% of those coming, never fewer than three', async () => {
+    const { pushReady } = await import('@/lib/quality-session/model');
+    expect(pushReady(8 * 60, 30, 20)).toBe(false);
+    expect(pushReady(8 * 60, 30, 21)).toBe(true);
+    expect(pushReady(8 * 60, 3, 2)).toBe(false);
+  });
+  it('with almost nobody marked as coming, 9:00', async () => {
+    const { pushReady } = await import('@/lib/quality-session/model');
+    expect(pushReady(8 * 60 + 59, 2, 2)).toBe(false);
+    expect(pushReady(9 * 60, 0, 0)).toBe(true);
   });
 });

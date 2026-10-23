@@ -20,10 +20,26 @@ export const QUALITY_TYPES: WorkoutType[] = ['intervals', 'tempo', 'fartlek'];
  */
 export const SHARE_TYPES: WorkoutType[] = [...QUALITY_TYPES, 'long_run'];
 
-/** Minutes after local midnight. The push goes at 7:30; the feed row shows 07:00–11:00. */
+/**
+ * Minutes after local midnight. The push goes once most of the morning's runners
+ * are done — from 7:30, and by 10:00 whatever the count (Ofer 10-23: a long run's
+ * 07:30 push said "6 finished" while most were still out, and the feed row was gone
+ * at 11:00 before anyone was free to share). The feed row stays the whole day.
+ */
 export const PUSH_AT = 7 * 60 + 30;
+export const PUSH_LATEST = 10 * 60;
+/** With too few expected to judge "most", the push waits for 9:00. */
+export const PUSH_FALLBACK = 9 * 60;
 export const ROW_FROM = 7 * 60;
-export const ROW_UNTIL = 11 * 60;
+export const ROW_UNTIL = 24 * 60;
+
+/** Most of the expected runners are in: 70% of them, and never fewer than three. */
+export function pushReady(minutes: number, expected: number, synced: number): boolean {
+  if (minutes < PUSH_AT) return false;
+  if (minutes >= PUSH_LATEST) return true;
+  if (expected < 3) return minutes >= PUSH_FALLBACK;
+  return synced >= Math.max(3, Math.ceil(expected * 0.7));
+}
 
 export interface QualityWorkout {
   name: string;

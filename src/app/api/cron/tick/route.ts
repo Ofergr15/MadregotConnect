@@ -41,7 +41,7 @@ import { dispatchDueTestReminders } from '@/lib/academy/testReminders-server';
 import { dispatchMorningReminders } from '@/lib/academy/morning-reminder-server';
 import { afterPackMove } from '@/lib/groups/pack-move';
 import { syncClubFollows } from '@/lib/follows/club-sync';
-import { qualityPush } from '@/lib/quality-session/server';
+import { qualityPush, qualityPushReady } from '@/lib/quality-session/server';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 import { clubWeek } from '@/lib/week-story/server';
 import { CLUB_WEEK_KIND, clubWeekBody, storyPushCopy, type WeekNumbers } from '@/lib/week-story/model';
@@ -753,12 +753,14 @@ async function run(request: Request) {
   // morning's runs are there to pick from and share. Once per day by the ledger,
   // and no follow-ups: the screen keeps itself current. To everyone the screen
   // opens for — super users (the admin account too) and the "אינסטגרם" switch (qualitySessionRecipientIds). Any tick from 7:30 on sends it, so a missed one only
-  // delays it five minutes; the row on the feed stops at 11:00, so does this.
-  if (hour * 60 + minute >= PUSH_AT && hour < 11) {
+  // delays it five minutes. Since 10-23 it waits until most of the morning's runners are done
+  // (by 10:00 at the latest), and the feed row stays all day.
+  if (hour * 60 + minute >= PUSH_AT && hour < 14) {
     const today = israelToday(now);
     const tag = `qualitySession:${today}`;
     try {
-      if (!(await already(tag))) {
+      // Not before most of those coming are done (model.ts pushReady, by 10:00 at the latest).
+      if (!(await already(tag)) && (await qualityPushReady(supabase, today, hour * 60 + minute))) {
         const push = await qualityPush(supabase, today);
         if (push) {
           const ids = await qualitySessionRecipientIds(supabase, SUPER_USER_EMAIL);
