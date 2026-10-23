@@ -219,7 +219,7 @@ export function ActivityDetailBody({
       {!mapOnly && an?.conditions && <Conditions c={an.conditions} />}
 
       {/* The watch ran a workout with reps: that IS the plan against execution (RunAnalysis). */}
-      {!mapOnly && an?.workout ? <WorkoutCard a={an} /> : !mapOnly && (
+      {!mapOnly && an?.workout ? <WorkoutCard a={an} score={verdict?.status === 'graded' ? verdict.score : null} /> : !mapOnly && (
         <ExecutionQuality
           verdict={verdict}
           splits={splits}

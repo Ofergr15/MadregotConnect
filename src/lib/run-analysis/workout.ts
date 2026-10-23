@@ -38,6 +38,28 @@ export interface Seg {
   /** Each whole kilometre's pace inside the block (sec/km), for a long block's own chart. */
   kms: number[];
 }
+/**
+ * One line of "plan against execution": a step of the watch's workout (or a run of
+ * consecutive iterations of it), its planned length, the pack's target as written and
+ * each iteration's actual pace. Rests are not lines. `group` places it before, inside or
+ * after the session's work.
+ */
+export interface PlanRow {
+  group: 'warmup' | 'main' | 'cooldown';
+  /** "3 ק״מ", "45 שנ׳", "1600" — one iteration's length. */
+  length: string;
+  count: number;
+  /** The pack's target range, sec/km; first and last when the iterations differ (4:00 → 3:30). */
+  lo: number | null; hi: number | null;
+  /** Last iteration's range when it differs from the first. */
+  toLo: number | null; toHi: number | null;
+  /** The step's words when it names no pace ("מתגברת"). */
+  note: string | null;
+  paces: number[];
+  meters: number;
+  ok: number; slow: number; fast: number;
+}
+
 export interface Workout {
   title: string;
   /** "400 ג׳וג" — what the recoveries were, when they were a distance. */
@@ -49,6 +71,8 @@ export interface Workout {
   avgPace: number;
   avgTarget: number | null;
   avgHr: number | null;
+  /** The plan against what was run, step by step (mockup ~/.cache/madregot/run-1023/week.html). */
+  rows: PlanRow[];
   /** ±10 s/km counts as on target — the club tolerance the execution score uses (academy settings paceSec), so the card and the ring never disagree. */
   tolerance: number;
 }
@@ -226,6 +250,7 @@ export function readWorkout(laps: WLap[] | null | undefined, executed: { steps?:
   const recs = segs.filter((s, i) => s.kind === 'recovery' && segs[i - 1]?.kind === 'rep');
   const recLen = recs.length >= 2 ? Math.round(recs.map((r) => r.meters).sort((a, b) => a - b)[recs.length >> 1] / 50) * 50 : null;
   const targets = reps.map((r) => r.target).filter((v): v is number => v != null);
+  const rows = planRows(segs, reps, steps, packIndex);
   return {
     // The share card's spelling (lib/share/plan-segments workoutHeadline): 7 × 5K, 10 × 1600.
     title,
@@ -236,7 +261,42 @@ export function readWorkout(laps: WLap[] | null | undefined, executed: { steps?:
     avgTarget: targets.length ? Math.round(targets.reduce((s, v) => s + v, 0) / targets.length) : null,
     avgHr: weighted(reps.map((r) => [r.hr, r.seconds])),
     tolerance: TOLERANCE,
+    rows,
   };
+}
+
+const lengthOf = (st: WStep | undefined, meters: number) => {
+  if (st?.distanceM) return st.distanceM >= 1000 && st.distanceM % 1000 === 0 ? `${st.distanceM / 1000} ק״מ` : st.distanceM % 1000 === 0 ? `${st.distanceM / 1000} ק״מ` : `${st.distanceM}`;
+  if (st?.durationSec) return st.durationSec >= 120 && st.durationSec % 60 === 0 ? `${st.durationSec / 60} דק׳` : `${st.durationSec} שנ׳`;
+  return meters >= 1000 ? `${Math.round(meters / 100) / 10} ק״מ` : `${Math.round(meters)} מ׳`;
+};
+
+function planRows(segs: Seg[], reps: Seg[], steps: Map<number, WStep>, packIndex: number): PlanRow[] {
+  const firstMain = segs.findIndex((s) => reps.includes(s));
+  const lastMain = segs.length - 1 - [...segs].reverse().findIndex((s) => reps.includes(s));
+  const rows: PlanRow[] = [];
+  segs.forEach((sg, i) => {
+    if (sg.kind === 'recovery' || sg.step == null || sg.pace == null || (sg.meters < 50 && sg.seconds < 30)) return;
+    const st = steps.get(sg.step);
+    const group: PlanRow['group'] = firstMain < 0 ? 'main' : i < firstMain ? 'warmup' : i > lastMain ? 'cooldown' : 'main';
+    const ranges = st?.notes ? packRanges(st.notes) : [];
+    const range = ranges[packIndex] ?? ranges.find((r) => r != null) ?? null;
+    const note = !range && st?.notes ? st.notes.trim().slice(0, 24) : null;
+    const length = lengthOf(st, sg.meters);
+    const ok = range ? onTargetOf(sg.pace, range, (range[0] + range[1]) / 2) : null;
+    const prev = rows[rows.length - 1];
+    // Iterations in a row merge into one line: the same step again, or a ladder of steps of
+    // one length (4 × 45 שנ׳ at 4:00 → 3:30) — but the session's work keeps a line per step.
+    const same = prev && prev.group === group && prev.length === length && (prev.note ?? '') === (note ?? '')
+      && (group !== 'main' || (prev.lo === (range?.[0] ?? null) && prev.hi === (range?.[1] ?? null) && prev.toLo == null));
+    const row: PlanRow = same ? prev : { group, length, count: 0, lo: range?.[0] ?? null, hi: range?.[1] ?? null, toLo: null, toHi: null, note, paces: [], meters: 0, ok: 0, slow: 0, fast: 0 };
+    if (same && range && (range[0] !== row.lo || range[1] !== row.hi)) { row.toLo = range[0]; row.toHi = range[1]; }
+    row.count++; row.paces.push(sg.pace); row.meters += sg.meters;
+    if (ok === true) row.ok++;
+    else if (ok === false && range) { if (sg.pace > range[1]) row.slow++; else row.fast++; }
+    if (!same) rows.push(row);
+  });
+  return rows;
 }
 
 // ── from the 1 Hz trace ───────────────────────────────────────────────────────────

@@ -15,7 +15,7 @@ import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
-import type { Seg, Workout } from '@/lib/run-analysis/workout';
+import type { PlanRow, Seg, Workout } from '@/lib/run-analysis/workout';
 import { TOLERANCE as TOL } from '@/lib/run-analysis/workout';
 import type { StreamKmSplit, StreamView } from '@/lib/activities/stream-view';
 import { HR_ZONE_FLOORS } from '@/lib/activities/stream-view';
@@ -127,9 +127,114 @@ function BlockKms({ reps, labels }: { reps: Seg[]; labels: string[] }) {
   );
 }
 
+const targetText = (r: { targetLo: number | null; targetHi: number | null; target: number | null }) => {
+  const lo = r.targetLo ?? r.target; const hi = r.targetHi ?? r.target;
+  if (lo == null || hi == null) return null;
+  return lo === hi ? formatPace(lo) : `${formatPace(lo)}–${formatPace(hi)}`;
+};
+
+/**
+ * Reps / blocks against their targets (mockup ~/.cache/madregot/run-1023/band-ac.html, Ofer
+ * 10-23: "the black bar is ugly" → A + C): a soft card per rep, the ±10 s range a capsule
+ * behind the bar, the target a dashed line with its number above, the bar red when outside.
+ */
+function TargetCards({ reps, labels }: { reps: Seg[]; labels: string[] | null }) {
+  const t = useTranslations('runAnalysis');
+  const many = reps.length > 5;
+  const H = many ? 120 : 160;
+  const lo_ = (r: Seg) => r.targetLo ?? r.target; const hi_ = (r: Seg) => r.targetHi ?? r.target;
+  const vals = reps.flatMap((r) => [r.pace ?? 0, ...(lo_(r) != null ? [lo_(r)! - TOL, hi_(r)! + TOL] : [])]).filter(Boolean);
+  const fast = Math.min(...vals) - 18; const slow = Math.max(...vals) + 26;
+  const y = (p: number) => ((slow - p) / (slow - fast)) * H;
+  return (
+    <div className={cn('mt-2 flex', many ? 'gap-1' : 'gap-2.5')}>
+      {reps.map((r, i) => {
+        const lo = lo_(r); const hi = hi_(r); const p = r.pace ?? slow;
+        const off = r.onTarget === false;
+        return (
+          <div key={i} className={cn('flex-1 text-center', many ? 'rounded-xl px-0.5 py-2' : 'rounded-[18px] px-2 py-3', off ? 'bg-[#fdf3f3]' : 'bg-[#f4faf6]')}>
+            <div className="relative" style={{ height: H }}>
+              {lo != null && hi != null && (
+                <>
+                  <span className={cn('absolute inset-x-[8%] block rounded-[14px] bg-[linear-gradient(#dff2e6,#ecf8f0)] shadow-[inset_0_0_0_1px_#c6e6d1]', many && 'rounded-lg')} style={{ bottom: y(hi + TOL), height: y(lo - TOL) - y(hi + TOL) }} />
+                  <span className="absolute inset-x-[3%] block border-t-2 border-dashed border-[#2e9e5b]" style={{ bottom: y((lo + hi) / 2) }} />
+                  <span className={cn('absolute inset-x-0 z-[4] font-extrabold text-[#1f6b3d]', many ? 'text-[8.5px]' : 'text-[11px]')} style={{ bottom: y(lo - TOL) + 3 }}>
+                    {!many && <span className="font-semibold text-[#6c8f78]">{t('target')} </span>}<B>{targetText(r)}</B>
+                  </span>
+                </>
+              )}
+              <span className={cn('absolute bottom-0 z-[2] block rounded-t-[10px] rounded-b-[3px]', many ? 'inset-x-[24%]' : 'inset-x-[30%]', off ? 'bg-[linear-gradient(#f07a7d,#d9434a)]' : 'bg-[linear-gradient(#36b06a,#1f8a4c)]')} style={{ height: y(p) }} />
+              <span className={cn('absolute left-1/2 z-[3] block -translate-x-1/2 rounded-full border-white bg-white', many ? 'h-[9px] w-[9px] border-2' : 'h-3 w-3 border-[3px]', off ? 'border-[#d9434a]' : 'border-[#1f8a4c]')} style={{ bottom: y(p) - (many ? 4.5 : 6), borderColor: off ? '#d9434a' : '#1f8a4c' }} />
+            </div>
+            <b className={cn('block font-black', many ? 'mt-1 text-[12.5px]' : 'mt-2 text-[24px]', off ? 'text-[#c62828]' : 'text-[#15803d]')}><B>{formatPace(p)}</B></b>
+            <span className={cn('block font-extrabold text-ink-900', many ? 'text-[10.5px]' : 'text-[12.5px]')}>{labels?.[i] ?? i + 1}</span>
+            {!many && r.onTarget != null && (
+              <span className={cn('mt-1.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-extrabold', off ? 'bg-[#fbe1e1] text-[#c62828]' : 'bg-[#e1f3e7] text-[#15803d]')}>{off ? t('offRange') : `✓ ${t('onTargetShort')}`}</span>
+            )}
+            {r.hr != null && <span className={cn('block font-bold text-[#C2410C]', many ? 'text-[9px]' : 'text-[10.5px]')}>♥ {r.hr}</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** "תכנון מול ביצוע" (mockup week.html): the run's score, one sentence, and every step. */
+function PlanTable({ w, score, linked, blocks }: { w: Workout; score: number | null; linked: boolean; blocks: string[] | null }) {
+  const t = useTranslations('runAnalysis');
+  const main = w.rows.filter((r) => r.group === 'main');
+  const mainOk = main.reduce((a, r) => a + r.ok, 0); const mainN = main.reduce((a, r) => a + (r.lo != null ? r.count : 0), 0);
+  const missed = w.rows.filter((r) => r.group !== 'main' && (r.slow || r.fast));
+  const headline = mainN && mainOk === mainN
+    ? t(blocks ? 'planAllBlocks' : 'planAllReps', { title: w.title, n: mainN })
+    : t('planSomeMain', { k: mainOk, n: mainN });
+  const why = missed.map((r) => t(r.slow ? 'planSlowRow' : 'planFastRow', { k: r.slow || r.fast, n: r.count, len: r.length })).join(' · ');
+  const tone = score == null ? '#8e8e93' : score >= 80 ? '#2e9e5b' : score >= 60 ? '#f59e0b' : '#e5484d';
+  const plan = (r: PlanRow) => r.lo == null ? (r.note || '—')
+    : `${r.lo === r.hi ? formatPace(r.lo) : `${formatPace(r.lo)}–${formatPace(r.hi!)}`}${r.toLo != null ? ` → ${r.toLo === r.toHi ? formatPace(r.toLo) : `${formatPace(r.toLo)}–${formatPace(r.toHi!)}`}` : ''}`;
+  const actual = (r: PlanRow) => r.paces.length > 4 ? `${formatPace(Math.min(...r.paces))}–${formatPace(Math.max(...r.paces))}` : r.paces.map(formatPace).join(' · ');
+  const status = (r: PlanRow) => r.lo == null ? <span className="text-ink-400">{t('noTarget')}</span>
+    : r.slow ? <span className="font-extrabold text-[#c62828]">{t('nSlow', { k: r.slow })}</span>
+    : r.fast ? <span className="font-extrabold text-[#c27400]">{t('nFast', { k: r.fast })}</span>
+    : <span className="font-extrabold text-[#15803d]">✓{r.count > 1 ? ` ${r.ok}/${r.count}` : ''}</span>;
+  return (
+    <div className="mt-5 border-t border-[#F0F1F4] pt-3.5">
+      <div className="text-xs font-extrabold text-ink-400">{t('planVsExecution')}</div>
+      <div className="mt-2 flex items-center gap-3.5">
+        {score != null && (
+          <span className="grid h-[78px] w-[78px] shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(${tone} 0 ${score}%, #eee ${score}% 100%)` }}>
+            <b className="grid h-[60px] w-[60px] place-items-center rounded-full bg-white text-[20px] font-black" style={{ color: tone }}><B>{`${score}%`}</B></b>
+          </span>
+        )}
+        <p className="text-[13px] leading-relaxed text-ink-700"><b className="text-ink-900">{headline}</b>{why ? ` ${t('planWhy')} ${why}.` : '.'}{linked ? ` ${t('planLinked')}` : ''}</p>
+      </div>
+      <table className="mt-2 w-full border-collapse text-[12.5px]">
+        <thead><tr className="text-[11px] text-ink-400"><th className="py-1 text-start font-extrabold">{t('colStep')}</th><th className="text-start font-extrabold">{t('colPlan')}</th><th className="text-start font-extrabold">{t('colActual')}</th><th /></tr></thead>
+        <tbody>
+          {(['warmup', 'main', 'cooldown'] as const).map((g) => {
+            const rs = w.rows.filter((r) => r.group === g); if (!rs.length) return null;
+            return [
+              <tr key={g}><td colSpan={4} className="pb-0.5 pt-3 text-[11px] font-extrabold text-ink-400">{t(`group_${g}`)}</td></tr>,
+              ...rs.map((r, i) => (
+                <tr key={`${g}${i}`} className={cn('border-t border-[#F4F4F6] align-top', g === 'main' && 'bg-[#f6fbf7]')}>
+                  <td className="py-2 ps-1 font-extrabold text-ink-900">{r.count > 1 ? `${r.count} × ${r.length}` : r.length}</td>
+                  <td className="py-2 text-ink-500"><B>{plan(r)}</B></td>
+                  <td className="py-2 font-bold text-ink-900"><B>{actual(r)}</B></td>
+                  <td className="py-2 pe-1 text-end">{status(r)}</td>
+                </tr>
+              )),
+            ];
+          })}
+        </tbody>
+      </table>
+      <p className="mt-2 text-[11.5px] text-ink-400">{t('planFoot', { s: w.tolerance })}</p>
+    </div>
+  );
+}
+
 // ── plan against execution ─────────────────────────────────────────────────────────
 
-export function WorkoutCard({ a }: { a: RunAnalysisData }) {
+export function WorkoutCard({ a, score = null }: { a: RunAnalysisData; score?: number | null }) {
   const t = useTranslations('runAnalysis');
   const w = a.workout; if (!w) return null;
   const total = w.segments.reduce((s, x) => s + x.seconds, 0) || 1;
@@ -154,6 +259,20 @@ export function WorkoutCard({ a }: { a: RunAnalysisData }) {
     <section className="rounded-card bg-card p-3.5">
       <div className="flex items-center gap-2"><span className="rounded-full bg-[#EEF0FF] px-2.5 py-[3px] text-[11.5px] font-extrabold text-brand-600">{t('intervals')}</span><span className="text-xs text-ink-400">{t('planVsExecution')}</span></div>
       <h3 className="mt-1.5 text-[28px] font-black tracking-tight text-ink-900"><B>{w.title}</B>{w.recoveryMeters && <span className="ms-1.5 text-[15px] font-bold text-ink-400">· {t('jog', { m: w.recoveryMeters })}</span>}</h3>
+      {blocks && (
+        <p className="mt-1 text-[13px] font-extrabold text-ink-700"><span className="text-[#15803d]">✓ <B>{`${w.hit}/${w.reps.length}`}</B> {t('onTargetBlocks', { s: w.tolerance })}</span>{w.avgHr ? <> · {t('hr')} <B>{w.avgHr}</B></> : null}</p>
+      )}
+      {blocks ? (
+        <div className="mt-2.5 flex border-t border-[#F0F1F4] pt-2.5">
+          {w.reps.map((r, i) => (
+            <div key={i} className={cn('flex flex-1 flex-col', i > 0 && 'border-s border-[#F0F1F4] ps-2.5')}>
+              <b className={cn('text-[22px] font-black', r.onTarget ? 'text-[#15803d]' : r.onTarget === false ? 'text-[#c62828]' : 'text-ink-900')}><B>{r.pace != null ? formatPace(r.pace) : "—"}</B></b>
+              <span className="text-[11px] font-bold leading-tight text-ink-700">{blocks[i]}</span>
+              {targetText(r) && <span className="text-[11px] leading-tight text-ink-400">{t('target')} <B>{targetText(r)}</B></span>}
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="mt-2.5 flex border-t border-[#F0F1F4] pt-2.5">
         {[
           [<span key="a" className="text-[#15803d]"><B>{`${w.hit}/${w.reps.length}`}</B></span>, t(blocks ? 'onTargetBlocks' : 'onTarget', { s: w.tolerance })],
@@ -163,6 +282,7 @@ export function WorkoutCard({ a }: { a: RunAnalysisData }) {
           <div key={i} className={cn('flex flex-1 flex-col', i > 0 && 'border-s border-[#F0F1F4] ps-2.5')}><b className="text-[22px] font-black">{v}</b><span className="text-[11px] leading-tight text-ink-400">{l as string}</span></div>
         ))}
       </div>
+      )}
       <div className="mt-3.5 flex h-4 gap-[1.5px] overflow-hidden rounded-md" dir="ltr">{w.segments.map((s, i) => <i key={i} className="block" style={{ flex: s.seconds / total, background: segColor(s) }} />)}</div>
       <Legend items={[{ label: t('warmup', { km: (warm / 1000).toFixed(1) }), color: '#9AA3C7' }, ...(w.strides.length ? [{ label: t('strides'), color: '#8EA0FF' }] : []), { label: w.title, color: BLUE }, { label: t('recovery'), color: '#E3E6F2' }]} />
 
@@ -183,8 +303,8 @@ export function WorkoutCard({ a }: { a: RunAnalysisData }) {
       {te?.label && <p className="mt-2 text-[13px]">{t('mainBenefit')}: <b>{t.has(`te_${te.label}`) ? t(`te_${te.label}` as 'te_VO2MAX') : te.label}</b>{te.load ? <span className="text-ink-400"> · {t('load')} <B>{Math.round(te.load)}</B></span> : null}{te.recoveryHours ? <span className="text-ink-400"> · {t('recoveryHours', { h: te.recoveryHours })}</span> : null}</p>}
 
       <div className="mt-4 text-xs font-extrabold text-ink-400">{t(blocks ? 'blocksVsTarget' : 'repsVsTarget')}</div>
-      <RepColumns reps={w.reps} labels={blocks ?? undefined} />
-      <Legend items={[{ label: t(blocks ? 'theBlock' : 'theRep'), color: GREEN }, { label: t('target'), color: '#16171F', line: true }, { label: t('band', { s: TOL }), color: '#CFE9D7' }, { label: `♥ ${t('hr')}` }]} />
+      <TargetCards reps={w.reps} labels={blocks} />
+      <Legend items={[{ label: t('band', { s: TOL }), color: '#DFF2E6' }, { label: t('target'), color: '#2e9e5b', line: true }, { label: t('onTargetShort'), color: '#1f8a4c' }, { label: t('offRange'), color: '#d9434a' }]} />
       {blocks && w.reps.some((r) => r.kms.length > 1) && (
         <>
           <div className="mt-4 text-xs font-extrabold text-ink-400">{t('blockKms')}</div>
@@ -193,6 +313,8 @@ export function WorkoutCard({ a }: { a: RunAnalysisData }) {
         </>
       )}
       {spread != null && <Insight>{spread <= 2 ? t('steadyNote', { s: spread }) : t('repsNote', { n: w.hit, of: w.reps.length })}</Insight>}
+
+      {w.rows.length > 0 && <PlanTable w={w} score={score} linked={!!a.linked} blocks={blocks} />}
 
       {a.linked && (
         <div className="mt-3 rounded-[14px] bg-[#E8F6EE] px-3 py-2.5 text-[12.5px] leading-relaxed text-[#0B5A2B]">
