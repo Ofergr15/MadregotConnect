@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { requireStaff } from '@/lib/auth/self-or-staff';
+import { requireContentLevel } from '@/lib/access/require-content';
 import { COACH_ID } from '@/lib/constants';
 import { shapePostResults } from '@/lib/content/hub';
 import { recentPublished } from '@/lib/publish/server';
@@ -15,7 +15,8 @@ export const dynamic = 'force-dynamic';
 const UUID = /^[0-9a-f-]{36}$/i;
 
 export async function GET(request: Request) {
-  const denied = await requireStaff(request);
+  // Any part of Content opens a post's page (its own part is checked by the hub's list).
+  const { denied } = await requireContentLevel(request, null, 1, (u) => u.isSuperUser || u.isStaff);
   if (denied) return denied;
   const id = new URL(request.url).searchParams.get('id') || '';
   if (!UUID.test(id)) return NextResponse.json({ error: 'id required' }, { status: 400 });

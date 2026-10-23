@@ -3,6 +3,7 @@ import { israelToday } from '@/lib/utils';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireApprover } from '@/lib/auth/require-approver';
+import { publishGate } from '@/lib/access/publish-gate';
 import { COACH_ID } from '@/lib/constants';
 import { resolveAudience, sendPushLocalized } from '@/lib/push';
 import { CHEER_REASONS, plainText, type CheerReason } from '@/lib/publish/model';
@@ -16,8 +17,8 @@ export const dynamic = 'force-dynamic';
 // Likes and comments reach them like on their own post (lib/feed/notify.ts, payload.honoreeId).
 // The push to the club is optional.
 export async function POST(request: Request) {
-  const { denied } = await requireApprover(request);
-  if (denied) return denied;
+  const g = await publishGate(request, 'cheers', '/api/admin/cheers', (u) => !!u.canApprove);
+  if (g.denied) return g.denied;
   const b = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const athleteId = typeof b?.athleteId === 'string' && /^[0-9a-f-]{36}$/i.test(b.athleteId) ? b.athleteId : '';
   const reason = (CHEER_REASONS as readonly string[]).includes(b?.reason as string) ? (b!.reason as CheerReason) : 'other';

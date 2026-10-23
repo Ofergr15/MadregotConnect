@@ -107,7 +107,8 @@ export function TypePage({ type, action, children }: { type: ContentType; action
   const { levels } = useContentLevels();
   const level = levels ? levels[type] ?? 0 : 3;
   if (level < 1) children = <p className="mt-3 rounded-[14px] bg-card px-3.5 py-3.5 text-13 text-ink-500">החלק הזה בתוכן לא פתוח לך. מי שמנהל את ההרשאות יכול לפתוח אותו.</p>;
-  if (level < 3) action = null;
+  // The page's "＋": publishers, and those who publish for approval (not photos — no draft there).
+  if (level < (type === 'photos' ? 3 : 2)) action = null;
   return (
     <div style={typeVars(type)} className="space-y-0 pb-8" dir="rtl">
       <div className="flex h-11 items-center justify-between">

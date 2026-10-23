@@ -20,6 +20,7 @@ import { CloseSetting, customInstants, DEFAULT_REMINDERS, ReminderSetting, Surve
 import { closePreset, israelDateTime, israelLocalToIso } from '@/lib/survey-reminders';
 import { MIGRATION_164, MIGRATION_164_TEXT } from '@/lib/survey-messages';
 import { personMatches } from '@/lib/search/match';
+import { useContentLevels } from '@/components/content/use-hub';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // לפרסם (mockup publish, C1–C3): a message, a cheer, a survey — each a post on the feed with
@@ -128,6 +129,7 @@ function AudiencePicker({ value, onChange, groups, people, singleGroup }: {
 export default function PublishPage() {
   const t = useTranslations('publish');
   const router = useRouter();
+  const { levels: contentLevels } = useContentLevels();
   const club = useClub();
   const [kind, setKind] = useState<Kind>('message');
   const [place, setPlace] = useState<'feed' | 'circle' | 'both'>('feed');
@@ -206,13 +208,24 @@ export default function PublishPage() {
         if ((out as { error?: string }).error === MIGRATION_164) { setMsg({ ok: false, text: MIGRATION_164_TEXT }); return; }
         throw new Error();
       }
-      const done = (await res.json().catch(() => ({}))) as { joinedAt?: string | null };
+      const done = (await res.json().catch(() => ({}))) as { joinedAt?: string | null; draft?: boolean };
+      // "מפרסם באישור" (lib/access/drafts): kept for an admin, not posted yet.
+      if (done.draft) {
+        setMsg({ ok: true, text: 'נשלח לאישור. כשמנהל יאשר — זה יוצא, ותקבל/י התראה.' });
+        setTimeout(() => router.push('/dashboard/content'), 1600);
+        return;
+      }
       // One push a day: said, so nobody wonders why their phone stayed quiet.
       setMsg({ ok: true, text: done.joinedAt ? t('publishedJoined', { time: israelDateTime(done.joinedAt).time }) : t('published') });
       setTimeout(() => router.push('/dashboard/content'), 900);
     } catch { setMsg({ ok: false, text: t('failed') }); } finally { setBusy(false); }
   };
 
+  // This account's level in the part being published (הרשאות): 3 publishes, 2 sends for approval.
+  const part = kind === 'message' ? (place === 'circle' ? 'circle' : 'messages') : kind === 'cheer' ? 'cheers' : 'surveys';
+  const partLevel = contentLevels ? contentLevels[part] ?? 0 : 3;
+  const mayPublish = partLevel >= 2;
+  const forApproval = partLevel === 2;
   const preview = splitMessage(text);
   const surveyCloses = close.kind === 'none' ? null : israelLocalToIso(close.date, close.time);
   const closeOk = close.kind === 'none' || (!!surveyCloses && Date.parse(surveyCloses) > Date.now() + 5 * 60_000);
@@ -236,7 +249,7 @@ export default function PublishPage() {
   const cheerShown = plainText(cheer ?? autoCheer);
 
   const submit = () => {
-    if (!canSend || busy) return;
+    if (!canSend || busy || !mayPublish) return;
     if (kind === 'message') {
       const toCircle = { title: preview.title, text: preview.body, days, push: circlePush };
       if (place === 'circle') { void send('/api/admin/club-stories', toCircle); return; }
@@ -450,9 +463,10 @@ export default function PublishPage() {
       {/* Sticky in the page's own scroller, not `fixed`: the tab bar is part of the shell's
           layout, so a fixed bar sat behind it and the button could not be reached (10-19). */}
       <div className="sticky bottom-0 z-20 -mx-1 rounded-t-[20px] border-t border-[#E6E6EC] bg-page/95 px-1 pb-3 pt-3 backdrop-blur">
-        <button type="button" disabled={!canSend || busy} onClick={submit}
+        {!mayPublish && <p className="mb-2 text-center text-13 font-semibold text-ink-500">החלק הזה בתוכן פתוח לך לצפייה בלבד.</p>}
+        <button type="button" disabled={!canSend || busy || !mayPublish} onClick={submit}
           className="mx-auto flex h-14 w-full max-w-lg items-center justify-center gap-2 rounded-[17px] bg-brand-600 text-[17px] font-extrabold text-white disabled:opacity-40">
-          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : t(`cta_${kind}`)}
+          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : forApproval ? 'לשלוח לאישור' : t(`cta_${kind}`)}
         </button>
       </div>
     </div>

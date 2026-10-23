@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireContentStaff } from '@/lib/auth/require-content-staff';
+import { publishGate } from '@/lib/access/publish-gate';
 import { resolveAudience, sendPushLocalized } from '@/lib/push';
 import { addDaysToDateStr, israelToday } from '@/lib/utils';
 import { CLUB_STORIES_KEY, pruneClubStories, readClubStories, untilFor, type ClubStory } from '@/lib/feed/club-stories';
@@ -22,8 +23,9 @@ async function save(db: ReturnType<typeof createServerClient>, list: ClubStory[]
 }
 
 export async function POST(request: Request) {
-  const { denied, email } = await requireContentStaff(request);
-  if (denied) return denied;
+  const g = await publishGate(request, 'circle', '/api/admin/club-stories', (u) => u.isSuperUser || u.isStaff || !!u.canApprove);
+  if (g.denied) return g.denied;
+  const email = g.user.email ?? '';
   const b = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const text = typeof b?.text === 'string' ? b.text.trim().slice(0, 1200) : '';
   const title = typeof b?.title === 'string' ? b.title.trim().slice(0, 80) : '';

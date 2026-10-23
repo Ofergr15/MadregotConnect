@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { requireApprover } from '@/lib/auth/require-approver';
+import { publishGate } from '@/lib/access/publish-gate';
 import { resolveAudience, sendPushLocalized } from '@/lib/push';
 import { publishAnnouncement } from '@/lib/feed/announce';
 import { audienceTargets, readAudience, splitMessage } from '@/lib/publish/model';
@@ -17,8 +17,10 @@ export const dynamic = 'force-dynamic';
 // one feed post publishAnnouncement leaves (it folds the same text into one post). Without
 // the push: the feed post alone, now.
 export async function POST(request: Request) {
-  const { denied, email } = await requireApprover(request);
-  if (denied) return denied;
+  // Approvers as before; a messages publisher too; "באישור" keeps it as a draft (lib/access/publish-gate).
+  const g = await publishGate(request, 'messages', '/api/admin/publish/message', (u) => !!u.canApprove);
+  if (g.denied) return g.denied;
+  const email = g.user.email ?? '';
   const b = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const text = typeof b?.text === 'string' ? b.text.trim().slice(0, 2000) : '';
   if (!text) return NextResponse.json({ error: 'text required' }, { status: 400 });

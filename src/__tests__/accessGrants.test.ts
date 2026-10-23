@@ -13,8 +13,8 @@ describe('content levels', () => {
     expect([l.share, l.photos, l.messages]).toEqual([3, 1, 0]);
     expect(levelsFor({ role: 'admin' }, { content: { photos: 1 } }).photos).toBe(3);
   });
-  it('"for approval" reads as sees until it exists', () => {
-    expect(levelsFor({ role: 'runner' }, { content: { cheers: 2 as never } }).cheers).toBe(1);
+  it('"for approval" is its own level (stage 2)', () => {
+    expect(levelsFor({ role: 'runner' }, { content: { cheers: 2 } }).cheers).toBe(2);
   });
 });
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaff } from '@/lib/auth/self-or-staff';
+import { requireContentLevel } from '@/lib/access/require-content';
 import { requireApprover } from '@/lib/auth/require-approver';
 import { cancelSurveyReminders, notifySurveyNonResponders, surveyAudienceIds } from '@/lib/surveys';
 import { REMINDER_KIND } from '@/lib/survey-reminders';
@@ -26,7 +27,7 @@ async function load(db: Db, id: string) {
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const denied = await requireStaff(request);
+  const { denied } = await requireContentLevel(request, 'surveys', 1, (u) => u.isSuperUser || u.isStaff);
   if (denied) return denied;
   const { id } = await params;
   const db = createServerClient();

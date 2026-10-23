@@ -21,8 +21,10 @@ import type { Grants, LogEntry } from '@/lib/access/grants';
 // ═════════════════════════════════════════════════════════════════════════════
 
 type Tab = 'people' | 'content' | 'log';
-type Lvl = 0 | 1 | 3;
-const LEVEL_TEXT: Record<Lvl, string> = { 0: 'לא רואה', 1: 'רואה', 3: 'מפרסם' };
+type Lvl = 0 | 1 | 2 | 3;
+/** Where "באישור" exists: what an admin can approve by replaying it (lib/access/grants DRAFTABLE). */
+const DRAFTABLE: ContentType[] = ['messages', 'surveys', 'cheers', 'circle'];
+const LEVEL_TEXT: Record<Lvl, string> = { 0: 'לא רואה', 1: 'רואה', 2: 'באישור', 3: 'מפרסם' };
 const ROLE_TEXT: Record<string, string> = { admin: 'מנהל', coach: 'מאמן', academy_coach: 'מאמן אקדמיה', academy_manager: 'מנהל אקדמיה' };
 /** Grants travel with the super users: the roles list does not mark them, yet they see everything. */
 type G = Grants & { __supers?: string[] };
@@ -33,7 +35,7 @@ function levelOf(p: RolePerson, grants: G, k: ContentType): { level: Lvl; from: 
   if (isStaff(p, grants)) return { level: 3, from: 'role' };
   if (k === 'share' && p.storyEditor) return { level: 3, from: 'switch' };
   const g = (grants as Grants)[p.id]?.content?.[k];
-  return g === 3 ? { level: 3, from: 'grant' } : g === 1 ? { level: 1, from: 'grant' } : { level: 0, from: null };
+  return g === 3 || g === 2 || g === 1 ? { level: g, from: 'grant' } : { level: 0, from: null };
 }
 const dm = (iso: string) => { const d = new Date(iso); return `${d.getDate()}.${d.getMonth() + 1} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
@@ -113,6 +115,12 @@ export default function AccessPage() {
                   {pub.map((p) => <Tag key={p.id} p={p} onClick={() => setOpen(p)} />)}
                   <AddTag onClick={() => setAdding({ kind: k, level: 3 })} />
                 </Line>
+                {DRAFTABLE.includes(k) && (
+                  <Line label="באישור" tone="text-[#b45309]">
+                    {people.filter((p) => !isStaff(p, grants) && levelOf(p, grants, k).level === 2).map((p) => <Tag key={p.id} p={p} onClick={() => setOpen(p)} />)}
+                    <AddTag onClick={() => setAdding({ kind: k, level: 2 })} />
+                  </Line>
+                )}
                 <Line label="רק רואים" tone="text-[#1D2A99]">
                   {see.map((p) => <Tag key={p.id} p={p} onClick={() => setOpen(p)} />)}
                   <AddTag onClick={() => setAdding({ kind: k, level: 1 })} />
@@ -140,7 +148,7 @@ export default function AccessPage() {
         {open && <PersonSheet p={people.find((x) => x.id === open.id) ?? open} grants={grants} busy={busy} onSet={(k, l) => set(open.id, k, l)} />}
       </Sheet>
 
-      <Sheet open={!!adding} onOpenChange={(o) => !o && setAdding(null)} title={adding ? `${CONTENT_TYPES[adding.kind].label} · ${adding.level === 3 ? 'מפרסם' : 'רואה'}` : ''}>
+      <Sheet open={!!adding} onOpenChange={(o) => !o && setAdding(null)} title={adding ? `${CONTENT_TYPES[adding.kind].label} · ${LEVEL_TEXT[adding.level]}` : ''}>
         {adding && <PickPerson people={people.filter((p) => !isStaff(p, grants) && levelOf(p, grants, adding.kind).level !== adding.level)} onPick={async (p) => { await set(p.id, adding.kind, adding.level); setAdding(null); }} />}
       </Sheet>
     </div>
@@ -207,9 +215,9 @@ function PersonSheet({ p, grants, busy, onSet }: { p: RolePerson; grants: G; bus
                 <span className="rounded-full bg-[#E6F4EC] px-2 py-1 text-[11px] font-extrabold text-[#0B6B35]">מפרסם · {from === 'role' ? 'מהתפקיד' : 'מ״אינסטגרם״'}</span>
               ) : (
                 <span className="flex gap-0.5 rounded-[9px] bg-white p-0.5">
-                  {([0, 1, 3] as Lvl[]).map((l) => (
+                  {((DRAFTABLE.includes(k) ? [0, 1, 2, 3] : [0, 1, 3]) as Lvl[]).map((l) => (
                     <button key={l} type="button" disabled={busy} aria-pressed={level === l} onClick={() => level !== l && onSet(k, l)}
-                      className={cn('min-h-[30px] rounded-[7px] px-2 text-[11.5px] font-extrabold', level === l ? (l === 3 ? 'bg-[#DCFCE7] text-[#15803d]' : l === 1 ? 'bg-[#EEF0FF] text-[#1D2A99]' : 'bg-page text-ink-700') : 'text-ink-400')}>{LEVEL_TEXT[l]}</button>
+                      className={cn('min-h-[30px] rounded-[7px] px-2 text-[11.5px] font-extrabold', level === l ? (l === 3 ? 'bg-[#DCFCE7] text-[#15803d]' : l === 2 ? 'bg-[#FEF3C7] text-[#b45309]' : l === 1 ? 'bg-[#EEF0FF] text-[#1D2A99]' : 'bg-page text-ink-700') : 'text-ink-400')}>{LEVEL_TEXT[l]}</button>
                   ))}
                 </span>
               )}
@@ -217,7 +225,7 @@ function PersonSheet({ p, grants, busy, onSet }: { p: RolePerson; grants: G; bus
           );
         })}
       </div>
-      <p className="px-1 pt-2 text-[11.5px] leading-relaxed text-ink-400">רואה — רואה מה פורסם ומה מחכה, בלי לפרסם. מפרסם — מפרסם בעצמו. נכנס לתוקף תוך דקה.</p>
+      <p className="px-1 pt-2 text-[11.5px] leading-relaxed text-ink-400">רואה — רואה מה פורסם ומה מחכה, בלי לפרסם. באישור — מה שהוא מפרסם מחכה למנהל ב״מחכה לאישורך״. מפרסם — מפרסם בעצמו. נכנס לתוקף תוך דקה.</p>
     </div>
   );
 }

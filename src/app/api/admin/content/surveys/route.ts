@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { requireStaff } from '@/lib/auth/self-or-staff';
+import { requireContentLevel } from '@/lib/access/require-content';
 import { israelToday } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +13,8 @@ export const dynamic = 'force-dynamic';
 const dayOf = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
 
 export async function GET(request: Request) {
-  const denied = await requireStaff(request);
+  // Staff as before, and whoever sees the surveys part (הרשאות).
+  const { denied } = await requireContentLevel(request, 'surveys', 1, (u) => u.isSuperUser || u.isStaff);
   if (denied) return denied;
   const db = createServerClient();
   try {

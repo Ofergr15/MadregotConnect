@@ -13,6 +13,7 @@ import {
 import { LastLine, TypeBlock, TypeIcon, WaitRow } from '@/components/content/hub-ui';
 import { ShareBlock, useShareDays } from '@/components/content/share-ui';
 import { useContentLevels } from '@/components/content/use-hub';
+import { DraftsWaiting, useDrafts } from '@/components/content/DraftsWaiting';
 import { StoriesHome } from '@/components/content/StoriesHome';
 import { FolderLinks } from '@/components/content/FolderLinks';
 import { useApi } from '@/lib/api';
@@ -47,7 +48,7 @@ export default function ContentPage() {
   const [adding, setAdding] = useState(false);
   const { levels, full } = useContentLevels();
   // "＋ חדש" offers only the parts this account publishes in.
-  const choices = NEW_CHOICES.filter((c) => !levels || (levels[c.type] ?? 0) >= 3);
+  const choices = NEW_CHOICES.filter((c) => !levels || (levels[c.type] ?? 0) >= (c.type === 'photos' ? 3 : 2));
 
   const today = data?.today ?? live?.today ?? '';
   const members = data?.members ?? 0;
@@ -61,7 +62,10 @@ export default function ContentPage() {
     cheers: cheerWaiting(sug?.suggestions ?? []),
   };
   const { data: share } = useShareDays();
-  const count = [share?.today, waiting.photos, waiting.surveys, waiting.cheers].filter(Boolean).length;
+  const { data: drafts } = useDrafts();
+  const count = [share?.today, waiting.photos, waiting.surveys, waiting.cheers].filter(Boolean).length + (drafts?.drafts.length ?? 0);
+  // What this account may do in a part (הרשאות): 3 publishes, 2 sends for approval.
+  const may = (type: ContentType, min: 2 | 3) => !levels || (levels[type] ?? 0) >= min;
   const onAir = (source: 'feed' | 'club' | 'scheduled') => items.filter((r) => r.source === source && r.active);
 
   const block = (type: ContentType) => {
@@ -75,7 +79,7 @@ export default function ContentPage() {
         const w = waiting.photos;
         return (
           <TypeBlock key={type} type={type}>
-            {w && w.type === 'photos' && <WaitRow kicker={w.sub} title={w.title} thumb={w.previews[0]} action="לפרסם" href="/dashboard/content/photos?publish=1" />}
+            {w && w.type === 'photos' && may('photos', 3) && <WaitRow kicker={w.sub} title={w.title} thumb={w.previews[0]} action="לפרסם" href="/dashboard/content/photos?publish=1" />}
             {/* Today's and tomorrow's folder, once open: straight to Drive, or its link. */}
             {(folders?.made ?? []).filter((f) => f.link && f.date >= today).slice(0, 2).map((f) => (
               <div key={f.date} className="mx-2.5 mb-2 flex min-h-[48px] items-center gap-2.5 rounded-[13px] bg-page/70 px-3 py-1.5">
@@ -113,7 +117,7 @@ export default function ContentPage() {
         const now = onAir('feed')[0];
         return (
           <TypeBlock key={type} type={type}>
-            {w && w.type === 'cheers' && <WaitRow kicker={w.sub} title={w.title} action="לאשר" href={`/dashboard/content/publish?type=cheer&athlete=${w.athleteId}`} />}
+            {w && w.type === 'cheers' && may('cheers', 2) && <WaitRow kicker={w.sub} title={w.title} action="לאשר" href={`/dashboard/content/publish?type=cheer&athlete=${w.athleteId}`} />}
             {now ? <LastLine label="באוויר" title={now.title} chips={now.likes ? [{ key: 'likes', text: String(now.likes) }] : undefined} href="/dashboard/content/cheers" /> : lastLine}
           </TypeBlock>
         );
@@ -124,7 +128,9 @@ export default function ContentPage() {
           <TypeBlock key={type} type={type}>
             {now
               ? <LastLine first label="באוויר" title={now.title} href="/dashboard/content/circle" />
-              : <LastLine first label="באוויר" title="אין כרגע · להוסיף" href="/dashboard/content/publish?type=message&place=circle" />}
+              : may('circle', 2)
+                ? <LastLine first label="באוויר" title="אין כרגע · להוסיף" href="/dashboard/content/publish?type=message&place=circle" />
+                : <LastLine first label="באוויר" title="אין כרגע" />}
           </TypeBlock>
         );
       }
@@ -145,6 +151,8 @@ export default function ContentPage() {
           {today ? dayTitle(today) : ''}{data && live ? (count ? ` · ${count === 1 ? 'דבר אחד מחכה לך' : `${count} דברים מחכים לך`}` : ' · אין משהו שמחכה לך') : ''}
         </p>
       </div>
+
+      <DraftsWaiting />
 
       {today && full && <StoriesHome live={items} today={today} />}
 

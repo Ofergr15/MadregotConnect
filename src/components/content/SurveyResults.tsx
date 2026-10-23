@@ -25,9 +25,11 @@ export interface SurveyResultsData {
 const DAYS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 const when = (iso: string) => { const x = israelDateTime(iso); return `${DAYS[x.dow]} ${Number(x.date.slice(8, 10))}.${Number(x.date.slice(5, 7))} · ${x.time}`; };
 
-export function SurveyResultsView({ data, busy, note, confirmClose, onAskClose, onRemind, onClose, onCopy }: {
+export function SurveyResultsView({ data, busy, note, confirmClose, onAskClose, onRemind, onClose, onCopy, readOnly = false }: {
   data: SurveyResultsData; busy: 'remind' | 'close' | null; note: string | null; confirmClose: boolean;
   onAskClose: () => void; onRemind: () => void; onClose: () => void; onCopy: (names: string[]) => void;
+  /** Sees the surveys part but does not publish in it (הרשאות): no close, no reminder. */
+  readOnly?: boolean;
 }) {
   const { survey: s } = data;
   const waitingCount = data.waiting.reduce((n, g) => n + g.people.length, 0);
@@ -42,7 +44,7 @@ export function SurveyResultsView({ data, busy, note, confirmClose, onAskClose, 
     <div style={typeVars('surveys')} className="space-y-0 pb-8" dir="rtl">
       <div className="flex h-11 items-center justify-between">
         <Link href="/dashboard/content/surveys" className="inline-flex min-h-[44px] items-center gap-0.5 text-[17px] text-[#007aff]">‹ סקרים</Link>
-        {s.open && (
+        {s.open && !readOnly && (
           confirmClose
             ? <button type="button" disabled={!!busy} onClick={onClose} className="inline-flex min-h-[38px] items-center rounded-full bg-accent-red px-3.5 text-[14px] font-bold text-white">לסגור עכשיו?</button>
             : <button type="button" onClick={onAskClose} className="inline-flex min-h-[44px] items-center px-1 text-[16px] text-[#007aff]">סגירה</button>
@@ -127,7 +129,7 @@ export function SurveyResultsView({ data, busy, note, confirmClose, onAskClose, 
         </>
       )}
 
-      {s.open && waitingCount > 0 && (
+      {s.open && waitingCount > 0 && !readOnly && (
         <div className="mb-2.5 flex items-center gap-3 rounded-[18px] bg-ink-900 px-4 py-3 text-white">
           <span className="min-w-0 flex-1">
             <b className="block text-[15px] font-extrabold">תזכורת עכשיו ל-{waitingCount} שלא ענו</b>

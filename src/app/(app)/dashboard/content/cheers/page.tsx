@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { postsOf, shortDay } from '@/lib/content/hub';
 import { Chips, Empty, Group, PlusButton, PublishedRow, SectionHead, TypePage } from '@/components/content/hub-ui';
-import { useCheerSuggestions, useHubContent, useLive } from '@/components/content/use-hub';
+import { useCheerSuggestions, useContentLevels, useHubContent, useLive } from '@/components/content/use-hub';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // תוכן › ברכות (mockup content-v4, the same template): the cheers the records and
@@ -15,6 +15,9 @@ export default function ContentCheersPage() {
   const { data: hub } = useHubContent();
   const { data: live } = useLive();
   const { data: sug } = useCheerSuggestions();
+  const { levels } = useContentLevels();
+  const canSend = !levels || (levels.cheers ?? 0) >= 2;
+  const canManage = !levels || (levels.cheers ?? 0) >= 3;
   const suggestions = sug?.suggestions ?? [];
   const onAir = (live?.items ?? []).filter((r) => r.source === 'feed' && r.active);
   const posts = postsOf(hub?.recent ?? [], 'cheers');
@@ -31,7 +34,7 @@ export default function ContentCheersPage() {
                   <b dir="auto" className="block truncate text-[15px] font-semibold text-ink-900">{s.name}</b>
                   <small dir="auto" className="block truncate text-13 text-ink-400">{s.line}</small>
                 </span>
-                <Link href={`/dashboard/content/publish?type=cheer&athlete=${s.athleteId}`} className="inline-flex min-h-[36px] shrink-0 items-center rounded-full px-[13px] text-[13px] font-bold text-white" style={{ background: 'var(--c)' }}>לאשר</Link>
+                {canSend && <Link href={`/dashboard/content/publish?type=cheer&athlete=${s.athleteId}`} className="inline-flex min-h-[36px] shrink-0 items-center rounded-full px-[13px] text-[13px] font-bold text-white" style={{ background: 'var(--c)' }}>לאשר</Link>}
               </div>
             ))}
           </Group>
@@ -39,7 +42,7 @@ export default function ContentCheersPage() {
       )}
       {onAir.length > 0 && (
         <>
-          <SectionHead trailing={<Link href="/dashboard/content/celebrations" className="-my-3 inline-flex min-h-[44px] items-center text-13 font-semibold text-[#007aff]">לנהל ‹</Link>}>באוויר · בעיגולים</SectionHead>
+          <SectionHead trailing={canManage && <Link href="/dashboard/content/celebrations" className="-my-3 inline-flex min-h-[44px] items-center text-13 font-semibold text-[#007aff]">לנהל ‹</Link>}>באוויר · בעיגולים</SectionHead>
           <Group>
             {onAir.map((r) => (
               <div key={r.id} className="flex min-h-[56px] items-center gap-3 px-3.5 py-2.5">

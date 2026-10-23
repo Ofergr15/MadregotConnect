@@ -9,6 +9,7 @@ import { Sheet } from '@/components/ui';
 import { cn, israelToday } from '@/lib/utils';
 import { tagColor } from '@/lib/photos/folder-kind';
 import { photosWaiting, postsOf, weekFolders, type FolderProposal, type MadeFolder, type WeekFolder } from '@/lib/content/hub';
+import { useContentLevels } from '@/components/content/use-hub';
 import { DateTile, Empty, Group, PlusButton, PublishedRow, SectionHead, Toggle, TypePage } from '@/components/content/hub-ui';
 import { useHubContent, usePhotosStatus } from '@/components/content/use-hub';
 import { EditProposalSheet, NewFolderSheet, SOURCE_LABEL, send, whenLabel, type Proposal, type Week } from '@/components/content/PhotoFolders';
@@ -27,6 +28,9 @@ export default function ContentPhotosPage() {
     refreshInterval: 30_000,
   });
   const { data: st, mutate: reloadStatus } = usePhotosStatus();
+  // Publishing here is for photos publishers (הרשאות); someone who only sees, sees.
+  const { levels } = useContentLevels();
+  const canAct = !levels || (levels.photos ?? 0) >= 3;
   const { data: hub } = useHubContent();
   const [newOpen, setNewOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
@@ -60,9 +64,9 @@ export default function ContentPhotosPage() {
                   <b dir="auto" className="block truncate text-[15.5px] font-semibold text-ink-900">{status.name}</b>
                   <small className="block text-13 text-ink-400">{status.found} תמונות{status.published ? ` · ${status.published} כבר בפיד` : ''}{status.checkedAt ? ` · נבדק ${clock(status.checkedAt)}` : ''}</small>
                 </span>
-                <button type="button" onClick={() => setPublishOpen(true)} className="min-h-[36px] shrink-0 rounded-full px-[13px] text-[13px] font-bold text-white" style={{ background: 'var(--c)' }}>
+                {canAct && <button type="button" onClick={() => setPublishOpen(true)} className="min-h-[36px] shrink-0 rounded-full px-[13px] text-[13px] font-bold text-white" style={{ background: 'var(--c)' }}>
                   {status.published ? 'להוסיף' : 'לפרסם'}
-                </button>
+                </button>}
               </div>
               <Strip previews={status.previews} more={status.found - Math.min(status.previews.length, 4)} />
             </div>
@@ -75,7 +79,7 @@ export default function ContentPhotosPage() {
         {weekError ? <Empty>התיקיות של השבוע פתוחות למנהלים בלבד.</Empty>
           : !week ? <Empty>טוען…</Empty>
           : rows.length === 0 ? <Empty>אין אימון איכות, ארוכה או מירוץ השבוע. ״＋ תיקייה״ למעלה — לכל יום.</Empty>
-          : rows.map((r) => <WeekRow key={r.date} row={r} onEdit={setEditing} onChanged={() => void mutate()} />)}
+          : rows.map((r) => <WeekRow key={r.date} row={r} canAct={canAct} onEdit={setEditing} onChanged={() => void mutate()} />)}
       </Group>
 
       {published.length > 0 && (
@@ -85,7 +89,7 @@ export default function ContentPhotosPage() {
         </>
       )}
 
-      {status && (
+      {status && canAct && (
         <>
           <SectionHead gray>הגדרה</SectionHead>
           <Group>
@@ -110,7 +114,7 @@ export default function ContentPhotosPage() {
   );
 }
 
-function WeekRow({ row, onEdit, onChanged }: { row: WeekFolder; onEdit: (p: Proposal) => void; onChanged: () => void }) {
+function WeekRow({ row, canAct, onEdit, onChanged }: { row: WeekFolder; canAct: boolean; onEdit: (p: Proposal) => void; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   if (row.state === 'opened') {
     const f = row.folder;
@@ -144,9 +148,9 @@ function WeekRow({ row, onEdit, onChanged }: { row: WeekFolder; onEdit: (p: Prop
           {p.tags.map((t) => <span key={t} className="me-1 inline-block rounded-full px-[7px] text-[11px] font-extrabold" style={{ color: tagColor(t), background: `${tagColor(t)}1f` }}>#{t}</span>)}
           {p.enabled ? `תיפתח ${whenLabel(p.createsAt)}` : `${SOURCE_LABEL[p.source]} · כבוי`}
         </small>
-        <button type="button" onClick={() => onEdit(p)} className="mt-0.5 inline-flex min-h-[32px] items-center text-12 font-bold text-[#007aff]">✏️ עריכה</button>
+        {canAct && <button type="button" onClick={() => onEdit(p)} className="mt-0.5 inline-flex min-h-[32px] items-center text-12 font-bold text-[#007aff]">✏️ עריכה</button>}
       </span>
-      <span className="pt-1.5"><Toggle on={p.enabled} label="לפתוח תיקייה" disabled={busy} onChange={toggle} /></span>
+      <span className="pt-1.5"><Toggle on={p.enabled} label="לפתוח תיקייה" disabled={busy || !canAct} onChange={toggle} /></span>
     </div>
   );
 }

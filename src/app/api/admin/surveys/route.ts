@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireApprover } from '@/lib/auth/require-approver';
+import { publishGate } from '@/lib/access/publish-gate';
 import { cancelSurveyReminders, createAndSendSurvey, dayBeforePushSoon, hasMigration164, MIGRATION_164, scheduleSurveyReminders } from '@/lib/surveys';
 import { planReminders, readReminders } from '@/lib/survey-reminders';
 import { closesAt } from '@/lib/publish/model';
@@ -59,8 +60,9 @@ export async function GET(request: Request) {
 // Notification Center list as every other notification, then pushes.
 export async function POST(request: Request) {
   try {
-    const { denied, email: actorEmail } = await requireApprover(request);
-    if (denied) return denied;
+    const g = await publishGate(request, 'surveys', '/api/admin/surveys', (u) => !!u.canApprove);
+    if (g.denied) return g.denied;
+    const actorEmail = g.user.email ?? '';
 
     const body = await request.json();
     const { question_he, question_en, options_he, options_en, audience_type, audience_id } = body;

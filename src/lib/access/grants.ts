@@ -6,15 +6,15 @@ type Db = ReturnType<typeof createServerClient>;
 // Per-account access to Content (mockups/access-hub.html, Ofer 10-23: "who can
 // publish what, and who is exposed to what — another layer"). Each part of Content
 // has a level per person: 0 not seen, 1 sees (what was published, what waits),
-// 3 publishes. (2 — "publishes for approval" — is the next stage; it reads as 1
-// until then.) The role sets the floor: staff publish everything, as before this
+// 2 publishes for approval (lib/access/drafts — an admin approves it, then it goes
+// out), 3 publishes. The role sets the floor: staff publish everything, as before this
 // existed; a grant only ever adds. Stored like the club managers list — one JSON
 // value in app_settings, no migration — with every change in a log beside it.
 // ═════════════════════════════════════════════════════════════════════════════
 
 export const CONTENT_KINDS = ['share', 'photos', 'messages', 'surveys', 'cheers', 'circle'] as const;
 export type ContentKind = (typeof CONTENT_KINDS)[number];
-export type Level = 0 | 1 | 3;
+export type Level = 0 | 1 | 2 | 3;
 export type ContentLevels = Record<ContentKind, Level>;
 
 export interface Grant { content?: Partial<Record<ContentKind, Level>> }
@@ -28,7 +28,9 @@ const STAFF = ['admin', 'coach', 'academy_coach', 'academy_manager'];
 export const NONE: ContentLevels = { share: 0, photos: 0, messages: 0, surveys: 0, cheers: 0, circle: 0 };
 const ALL: ContentLevels = { share: 3, photos: 3, messages: 3, surveys: 3, cheers: 3, circle: 3 };
 
-const asLevel = (v: unknown): Level => (v === 3 ? 3 : v === 1 || v === 2 ? 1 : 0);
+const asLevel = (v: unknown): Level => (v === 3 ? 3 : v === 2 ? 2 : v === 1 ? 1 : 0);
+/** The parts a draft can stand for: what an admin can approve by replaying it. */
+export const DRAFTABLE: ContentKind[] = ['messages', 'surveys', 'cheers', 'circle'];
 
 /** What the role alone gives: staff publish every part (unchanged), anyone else nothing. */
 export function roleLevels(c: { isSuperUser?: boolean; isStaff?: boolean; role?: string | null; roles?: string[] }): ContentLevels {
