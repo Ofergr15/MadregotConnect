@@ -24,7 +24,7 @@ describe('the listing and the screens', () => {
     const lib = read('src/lib/photos/drive-browse.ts');
     expect(lib).toMatch(/mimeType contains 'image\/' or mimeType contains 'video\/'/);
     expect(lib).toMatch(/const folderPhotos = async \(drive: drive_v3\.Drive, folderId: string\) => \(await folderMedia\(drive, folderId, false\)\)\.photos;/);
-    expect(lib).toMatch(/photos-library-v4/);
+    expect(lib).toMatch(/const LIBRARY_PATH = 'library.json';/);
   });
   it('muted on every open; the videos either side are ready before it lands; the swipe settles first', () => {
     const v = read('src/components/photos/VideoViewer.tsx');
@@ -55,11 +55,14 @@ describe('the listing and the screens', () => {
   });
 });
 
-describe('the listing is never rebuilt on somebody\'s request (10-23: list 15–17 s after every cron run)', () => {
-  it('the cron marks it stale and it rebuilds behind the reader; an admin edit rebuilds right after the reply', () => {
+describe('the listing is built by the cron and stored, never on somebody\'s request (10-23: 21–35 s after every deploy)', () => {
+  it('the cron rebuilds and stores it every run; a request reads the stored file; an admin edit re-reads only the folders', () => {
     const cron = read('src/app/api/cron/photos-mirror/route.ts');
-    expect(cron).toMatch(/revalidateTag\('photos-library', 'max'\)/);
-    expect(cron).not.toMatch(/revalidateTag\('photos-library', \{ expire: 0 \}\)/);
-    expect(read('src/lib/photos/folder-meta.ts')).toMatch(/after\(\(\) => warmLibrary\(\)/);
+    expect(cron).toMatch(/await rebuildLibrary\(\)/);
+    expect(cron).not.toMatch(/revalidateTag\('photos-library'/);
+    const lib = read('src/lib/photos/drive-browse.ts');
+    expect(lib).not.toMatch(/unstable_cache/);
+    expect(lib).toMatch(/const stored = await readStoredLibrary\(\)/);
+    expect(read('src/lib/photos/folder-meta.ts')).toMatch(/await refreshLibraryFolders\(\)/);
   });
 });

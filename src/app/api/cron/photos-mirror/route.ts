@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { cronPaused } from '@/lib/cron-pause';
 import { mirrorBatch, warmMirrorCache } from '@/lib/photos/mirror';
 import { fillVideoTimes } from '@/lib/photos/video-time';
-import { forgetLibrary, listVideoFolders, signedVideoUrl } from '@/lib/photos/drive-browse';
+import { listVideoFolders, rebuildLibrary, signedVideoUrl } from '@/lib/photos/drive-browse';
 import { checkMuxBudget, FREE_DELIVERY_MINUTES, muxConfigured, orderForCopies, readWantedFolders, syncMuxCopies } from '@/lib/photos/mux';
 import { sendConfirmedAlert, verifyPendingAlerts } from '@/lib/notifications/confirmed-alert';
 import { videoBudgetCopy } from '@/lib/notifications/copy';
@@ -32,11 +32,9 @@ async function run(request: Request) {
     // When each video was shot (lib/photos/video-time), first: the order of a folder waits
     // on it. A minute a run; the listing is rebuilt when something was found.
     const times = await fillVideoTimes(Date.now() + 45_000).catch((err) => { console.warn('[cron/photos-mirror] times failed', err); return null; });
-    // Stale-while-revalidate, never { expire: 0 }: that made the next person to open photos
-    // wait the whole ~17 s rebuild from Drive, after every run that found a time — every 10
-    // minutes (measured 10-23: list 15–17 s, the 'slow:folder:5s' bugs). Now they get the
-    // listing as it was while it rebuilds behind them; the new order shows a moment later.
-    if (times?.found) { revalidateTag('photos-library', 'max'); forgetLibrary(); }
+    // The listing, rebuilt here every run and stored (lib/photos/drive-browse) — the only
+    // place it is built: a request only reads it. With the shot times just found in it.
+    const listing = await rebuildLibrary().catch((err) => { console.warn('[cron/photos-mirror] listing failed', err); return null; });
     // The viewing copies at Mux (lib/photos/mux): newest videos first, a few per run.
     let copies: Awaited<ReturnType<typeof syncMuxCopies>> | null = null;
     if (muxConfigured()) {
@@ -70,7 +68,7 @@ async function run(request: Request) {
       if (checked.length) console.log('[cron/photos-mirror] alert receipts', checked);
     }
     // Leave room under maxDuration for the manifest write and the reply.
-    const result = await mirrorBatch(Date.now() + 105_000);
+    const result = await mirrorBatch(Date.now() + 75_000);
     // Then every folder's links ahead of the first person to open it (lib/photos/mirror.ts).
     let warmed = 0;
     try {
@@ -78,7 +76,7 @@ async function run(request: Request) {
       const ids = await Promise.all(folders.map((f) => listFolderPhotos(f.id).then((r) => (r ? r.photos.map((p) => p.id) : [])).catch(() => [] as string[])));
       warmed = await warmMirrorCache([folders.flatMap((f) => f.covers), ...ids.filter((x) => x.length)], Date.now() + 60_000);
     } catch (err) { console.warn('[cron/photos-mirror] warm failed', err); }
-    console.log('[cron/photos-mirror]', { ...result, warmed, times, copies });
+    console.log('[cron/photos-mirror]', { ...result, warmed, times, copies, listing });
     return NextResponse.json({ ...result, warmed, times, copies });
   } catch (error) {
     console.error('[cron/photos-mirror] failed', error);

@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { google, type drive_v3 } from 'googleapis';
-import { unstable_cache } from 'next/cache';
+import { createServerClient } from '@/lib/supabase/server';
 import { readKind, readTags, type FolderKind } from './folder-kind';
 import { cleanTitle, folderDay, isPinned, isScratchFolder } from './folder-names';
 import { exifToIso, readVideoTimes, timeFromName, trustedNameTime } from './video-time';
@@ -24,8 +24,7 @@ export const THUMB = 480;
 export const FULL = 1600;
 const SIZES = new Set([THUMB, FULL]);
 const IMAGE_URL_TTL = 60 * 60 * 6;
-/** A full listing is ~180 Drive calls (one per folder — Drive returns nothing for an OR across parents here). */
-const LIST_REVALIDATE_S = 10 * 60;
+/** Folders walked at once: a full listing is ~180 Drive calls (one per folder — Drive returns nothing for an OR across parents here). */
 const CONCURRENCY = 12;
 const MAX_DEPTH = 3;
 
@@ -118,20 +117,13 @@ const folderPhotos = async (drive: drive_v3.Drive, folderId: string) => (await f
 
 interface Library { folders: PhotoFolder[]; photos: Record<string, FolderPhoto[]>; videos: Record<string, FolderVideo[]> }
 
-async function loadLibrary(): Promise<Library | null> {
-  const drive = driveReader();
-  const root = photosRoot();
-  if (!drive || !root) return null;
-  const top = await listAll(drive, `'${root}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`, 'id,name,createdTime,appProperties');
-  const photos: Record<string, FolderPhoto[]> = {};
-  const videos: Record<string, FolderVideo[]> = {};
-  // The shot times read from the videos' headers so far (the copy job fills it).
-  const times = await readVideoTimes().catch(() => ({} as Record<string, string>));
-  const folders = await pool(top.filter((f) => !isScratchFolder(f.name || '')), CONCURRENCY, async (f) => {
-    const media = await folderMedia(drive, f.id!, true, 0, times);
+type DriveFolder = drive_v3.Schema$File;
+const topFolders = (drive: drive_v3.Drive, root: string) =>
+  listAll(drive, `'${root}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`, 'id,name,createdTime,appProperties');
+
+/** One folder's card, from its Drive record and its media. */
+function summarize(f: DriveFolder, media: { photos: FolderPhoto[]; videos: FolderVideo[] }): PhotoFolder {
     const list = media.photos;
-    photos[f.id!] = list;
-    videos[f.id!] = media.videos;
     const name = (f.name || '').trim();
     const props = f.appProperties ?? {};
     // A cover a staff member picked (lib/photos/folder-meta) leads, if it is still in the folder.
@@ -153,25 +145,95 @@ async function loadLibrary(): Promise<Library | null> {
       // The newest first: what was shot last is what people come to see.
       videoCovers: media.videos.slice(-4).reverse().map((v) => ({ id: v.id, ms: v.ms })),
     };
-  });
+}
+
+function assemble(top: DriveFolder[], media: (f: DriveFolder) => { photos: FolderPhoto[]; videos: FolderVideo[] } | null): Library {
+  const photos: Record<string, FolderPhoto[]> = {};
+  const videos: Record<string, FolderVideo[]> = {};
+  const folders: PhotoFolder[] = [];
+  for (const f of top) {
+    const m = media(f);
+    if (!m) continue;
+    photos[f.id!] = m.photos; videos[f.id!] = m.videos;
+    folders.push(summarize(f, m));
+  }
   // A folder of only videos is a folder too now.
   const shown = folders.filter((f) => f.count > 0 || f.videos > 0).sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.date.localeCompare(a.date));
   return { folders: shown, photos: Object.fromEntries(shown.map((f) => [f.id, photos[f.id]])), videos: Object.fromEntries(shown.map((f) => [f.id, videos[f.id]])) };
 }
 
-// Shared across server instances (a cold listing takes ~10s), refreshed every 10 minutes;
-// plus a per-instance copy so one request doesn't read it twice.
-const cachedLibrary = unstable_cache(loadLibrary, ['photos-library-v4'], { revalidate: LIST_REVALIDATE_S, tags: ['photos-library'] });
+/** The whole listing, from Drive: every folder walked (~20–35 s for the club's library). */
+async function loadLibrary(): Promise<Library | null> {
+  const drive = driveReader();
+  const root = photosRoot();
+  if (!drive || !root) return null;
+  const top = (await topFolders(drive, root)).filter((f) => !isScratchFolder(f.name || ''));
+  // The shot times read from the videos' headers so far (the copy job fills it).
+  const times = await readVideoTimes().catch(() => ({} as Record<string, string>));
+  const media = new Map<string, { photos: FolderPhoto[]; videos: FolderVideo[] }>();
+  await pool(top, CONCURRENCY, async (f) => { media.set(f.id!, await folderMedia(drive, f.id!, true, 0, times)); });
+  return assemble(top, (f) => media.get(f.id!) ?? null);
+}
+
+/*
+ * THE LISTING IS BUILT BY THE CRON, NEVER ON SOMEBODY'S REQUEST (Ofer, 10-23: "again it
+ * took too long to open the folder, and it reported a bug — this has to stop").
+ *
+ * It used to live in Next's data cache, and a miss rebuilt it on the request: 21–35 s
+ * from Drive (measured 10-23, 13:21) — after every cron run that expired it, and, worse,
+ * after every deployment, which on Vercel starts that cache empty (dozens a day). Now
+ * the photo copy job (api/cron/photos-mirror) rebuilds it every run and stores it as
+ * club-photos/library.json; a request reads that file (a fraction of a second), and an
+ * instance keeps it a minute. Only the very first time — no file yet — does a request
+ * build it. An admin's edit re-reads just the folders' own records (one Drive call) over
+ * the stored lists, so it shows at once.
+ */
+const LIBRARY_BUCKET = 'club-photos';
+const LIBRARY_PATH = 'library.json';
 let local: { at: number; value: Library | null } | null = null;
-/** After a staff edit (lib/photos/folder-meta): this instance reads afresh too. */
+let reading: Promise<Library | null> | null = null;
+/** This instance reads the stored listing afresh on its next use. */
 export function forgetLibrary(): void { local = null; }
-/** Rebuild the listing now, off anyone's request (after an admin's edit expired it). */
-export async function warmLibrary(): Promise<void> { forgetLibrary(); await library(); }
+
+async function readStoredLibrary(): Promise<Library | null> {
+  const { data } = await createServerClient().storage.from(LIBRARY_BUCKET).download(LIBRARY_PATH);
+  if (!data) return null;
+  try { const v = JSON.parse(await data.text()) as Library; return Array.isArray(v?.folders) ? v : null; } catch { return null; }
+}
+async function storeLibrary(value: Library): Promise<void> {
+  await createServerClient().storage.from(LIBRARY_BUCKET).upload(LIBRARY_PATH, JSON.stringify(value), { contentType: 'application/json', upsert: true, cacheControl: '0' });
+  local = { at: Date.now(), value };
+}
+
+/** The cron's: walk Drive and store the listing. Returns how long it took. */
+export async function rebuildLibrary(): Promise<{ ms: number; folders: number } | null> {
+  const t0 = Date.now();
+  const value = await loadLibrary();
+  if (!value) return null;
+  await storeLibrary(value);
+  return { ms: Date.now() - t0, folders: value.folders.length };
+}
+
+/** After an admin's edit: the folders' records again (cover, pin, name, type, tags), over the stored lists. */
+export async function refreshLibraryFolders(): Promise<void> {
+  const drive = driveReader();
+  const root = photosRoot();
+  const stored = await readStoredLibrary().catch(() => null);
+  if (!drive || !root || !stored) { await rebuildLibrary(); return; }
+  const top = (await topFolders(drive, root)).filter((f) => !isScratchFolder(f.name || ''));
+  await storeLibrary(assemble(top, (f) => stored.photos[f.id!] ? { photos: stored.photos[f.id!], videos: stored.videos?.[f.id!] ?? [] } : null));
+}
+
 async function library(): Promise<Library | null> {
   if (local && Date.now() - local.at < 60_000) return local.value;
-  const value = await cachedLibrary();
-  local = { at: Date.now(), value };
-  return value;
+  // One read per instance at a time (a folder page asks for three folders at once).
+  reading ??= (async () => {
+    const stored = await readStoredLibrary().catch(() => null);
+    const value = stored ?? (await loadLibrary().then(async (v) => { if (v) await storeLibrary(v).catch(() => {}); return v; }));
+    local = { at: Date.now(), value };
+    return value;
+  })().finally(() => { reading = null; });
+  return reading;
 }
 
 /**
