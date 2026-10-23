@@ -9,7 +9,7 @@ import { israelDateOf } from '@/lib/reports/last-7-days';
 import { readConfig as readBirthdayConfig } from '@/lib/birthday-year/server';
 
 import { birthdayBodyAsOf } from '@/lib/feed/birthday';
-import { CLUB_STORIES_KEY, activeClubStories, readClubStories } from '@/lib/feed/club-stories';
+import { CLUB_STORIES_KEY, PHOTOS_STORY_LABEL, PHOTOS_STORY_PREFIX, activeClubStories, photosFolderHref, readClubStories, type ClubStory } from '@/lib/feed/club-stories';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,8 +48,8 @@ export async function GET(request: Request) {
       return isCelebrationActive(row.payload, today, israelDateOf(row.occurred_at));
     });
     // The Madregot circle (lib/feed/club-stories.ts): read alongside, first on the row.
-    const club = activeClubStories(readClubStories((storiesRow as { value?: string } | null)?.value), today)
-      .map(({ id, title, text }) => ({ id, title, text }));
+    const club = await withPhotoLinks(supabase, activeClubStories(readClubStories((storiesRow as { value?: string } | null)?.value), today))
+      .then((list) => list.map(({ id, title, text, href, label }) => ({ id, title, text, href: href ?? null, label: label ?? null })));
     if (rows.length === 0) return NextResponse.json({ today, entries: [], club });
 
     const payloads = rows.map((r) => ((r as { payload: Record<string, unknown> | null }).payload || {}) as Record<string, unknown>);
@@ -87,4 +87,20 @@ export async function GET(request: Request) {
     console.error('[feed/celebrations] failed:', err);
     return NextResponse.json({ error: 'Failed to load' }, { status: 500 });
   }
+}
+
+/**
+ * A photos message posted before it carried its link (2026-10-23 morning) gets it here:
+ * the day's folder from the photo-folder ledger. Only read when there is such a message.
+ */
+async function withPhotoLinks(supabase: ReturnType<typeof createServerClient>, list: ClubStory[]): Promise<ClubStory[]> {
+  if (!list.some((s) => s.id.startsWith(PHOTOS_STORY_PREFIX) && !s.href)) return list;
+  // Loaded only now: the photo-folder code stays off the feed's every open.
+  const { readFolderLedger } = await import('@/lib/quality-session/photos-server');
+  const ledger = await readFolderLedger(supabase as never).catch(() => ({} as Record<string, { folderId?: string }>));
+  return list.map((s) => {
+    if (!s.id.startsWith(PHOTOS_STORY_PREFIX) || s.href) return s;
+    const folderId = ledger[s.id.slice(PHOTOS_STORY_PREFIX.length)]?.folderId;
+    return folderId ? { ...s, href: photosFolderHref(folderId), label: s.label ?? PHOTOS_STORY_LABEL } : { ...s, label: s.label ?? PHOTOS_STORY_LABEL };
+  });
 }

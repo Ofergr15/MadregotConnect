@@ -1,14 +1,18 @@
 import { NextResponse } from 'next/server';
-import { requireContentStaff } from '@/lib/auth/require-content-staff';
+import { authError, requireSession } from '@/lib/auth-session';
+import { hasRole } from '@/lib/auth/roles';
 import { setFolderMeta } from '@/lib/photos/folder-meta';
 import type { FolderKind } from '@/lib/photos/folder-kind';
 
 export const dynamic = 'force-dynamic';
 
-// PATCH { id, kind?, tags?, title?, pinned?, cover? } -> { ok }  Staff only. (No DELETE: the app never removes photos.)
+// PATCH { id, kind?, tags?, title?, pinned?, cover? } -> { ok }  Admin only (Ofer, 2026-10-23:
+// the cover, the pin, the name, the type and the tags arrange the club's albums — they are
+// the admin's, not every staff member's). (No DELETE: the app never removes photos.)
 export async function PATCH(request: Request) {
-  const { denied } = await requireContentStaff(request);
-  if (denied) return denied;
+  const auth = await requireSession(request);
+  if (!auth.ok) return authError(auth);
+  if (!auth.user.isSuperUser && !hasRole(auth.user, 'admin')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   const b = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const id = typeof b?.id === 'string' ? b.id : '';
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });

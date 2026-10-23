@@ -21,7 +21,17 @@ export interface ClubStory {
   until: string;
   createdAt: string;
   createdBy?: string | null;
+  /** Where the message's button goes ("לתמונות ›" → the session's photo folder). */
+  href?: string | null;
+  /** What it is, under the circle instead of "הודעה" ("📸 תמונות"). */
+  label?: string | null;
 }
+
+/** The session-photos message of a day (lib/quality-session/photos-server), by its id. */
+export const PHOTOS_STORY_PREFIX = 'photos-';
+export const PHOTOS_STORY_LABEL = '📸 תמונות';
+/** The session's photo folder in the app — the photos themselves, one tap from the circle. */
+export const photosFolderHref = (folderId: string) => `/dashboard/photos?folder=${encodeURIComponent(folderId)}`;
 
 /** How long it stays: today only, or N days counting today. */
 export const STORY_DAYS = [1, 2, 7] as const;

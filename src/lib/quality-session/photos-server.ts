@@ -510,11 +510,18 @@ export async function approveSessionPhotos(
     }
   }
   if (p.circle) {
-    const { CLUB_STORIES_KEY, pruneClubStories, readClubStories } = await import('@/lib/feed/club-stories');
+    const { CLUB_STORIES_KEY, PHOTOS_STORY_LABEL, photosFolderHref, pruneClubStories, readClubStories } = await import('@/lib/feed/club-stories');
     const { data } = await supabase.from('app_settings').select('value').eq('key', CLUB_STORIES_KEY).maybeSingle();
     const list = readClubStories((data as { value?: string } | null)?.value);
     const today = israelToday();
-    list.unshift({ id: `photos-${p.date}`, title: '📸 התמונות מהאימון עלו', text: 'לחיצה על הכרטיס בפיד פותחת את כולן', from: today, until: today, createdAt: new Date().toISOString(), createdBy: p.byEmail ?? null });
+    // With the way to them (Ofer, 2026-10-23: "the circle has no link to the photos"): the
+    // session's folder in the app, or the feed card when the folder is not known.
+    const folderId = ledger[p.date]?.folderId;
+    list.unshift({
+      id: `photos-${p.date}`, title: '📸 התמונות מהאימון עלו', text: 'כל התמונות של האימון — לחיצה על הכפתור.',
+      from: today, until: today, createdAt: new Date().toISOString(), createdBy: p.byEmail ?? null,
+      href: folderId ? photosFolderHref(folderId) : `/feed?item=${out.id}`, label: PHOTOS_STORY_LABEL,
+    });
     await supabase.from('app_settings').upsert({ key: CLUB_STORIES_KEY, value: JSON.stringify(pruneClubStories(list.filter((s, i) => i === 0 || s.id !== `photos-${p.date}`), today)) }, { onConflict: 'key' });
   }
   entry.publishedId = out.id;

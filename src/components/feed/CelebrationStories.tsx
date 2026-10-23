@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Heart, MessageCircle, Play } from 'lucide-react';
 import { apiFetcher, useApi } from '@/lib/api';
@@ -78,10 +79,10 @@ export function Circle({ entry, seen, hint, hand, onOpen }: { entry: Entry; seen
   );
 }
 
-interface ClubMessage { id: string; title: string; text: string }
+interface ClubMessage { id: string; title: string; text: string; href?: string | null; label?: string | null }
 
 /** The Madregot circle, first on the row: the club's message (lib/feed/club-stories.ts). */
-export function ClubCircle({ unseen, hint, hand, onOpen }: { unseen: boolean; hint: boolean; hand: boolean; onOpen: () => void }) {
+export function ClubCircle({ unseen, hint, hand, onOpen, label, photos }: { unseen: boolean; hint: boolean; hand: boolean; onOpen: () => void; label?: string | null; photos?: boolean }) {
   return (
     <button type="button" onClick={onOpen} className="flex w-[72px] shrink-0 flex-col items-center text-center active:opacity-80" aria-label="הודעה ממדרגות">
       <span className={cn('cring brand relative rounded-full p-[3px]', !unseen && 'seen', hint && 'breathe')}>
@@ -90,9 +91,11 @@ export function ClubCircle({ unseen, hint, hand, onOpen }: { unseen: boolean; hi
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/images/logo.png" alt="" className="h-[54px] w-[54px] rounded-full object-contain p-1" />
         </span>
+        {/* New photos from the session: said on the circle itself (Ofer, 2026-10-23). */}
+        {photos && <span aria-hidden className="absolute -bottom-0.5 -start-0.5 grid h-6 w-6 place-items-center rounded-full border-2 border-card bg-brand-600 text-[12px]">📸</span>}
       </span>
       <span className="mt-1.5 w-full truncate text-[12px] font-bold leading-tight text-ink-900">מדרגות</span>
-      <span className="w-full truncate text-[10.5px] leading-tight text-ink-400">הודעה</span>
+      <span className={cn('w-full truncate text-[10.5px] leading-tight', photos ? 'font-bold text-brand-600' : 'text-ink-400')}>{label || 'הודעה'}</span>
     </button>
   );
 }
@@ -337,7 +340,7 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
             onOpen={() => { setWeekOpen(true); markTapped(); markSeen(weekKey); }} />
         )}
         {club.length > 0 && (
-          <ClubCircle unseen={clubUnseen} hint={hinting && clubUnseen} hand={hinting}
+          <ClubCircle unseen={clubUnseen} hint={hinting && clubUnseen} hand={hinting} label={club[0]?.label} photos={club.some((m) => m.id.startsWith('photos-'))}
             onOpen={() => { setClubStart(firstUnseen(clubKeys, seen)); setClubOpen(true); markTapped(); club.forEach((m) => markSeen(`club:${m.id}`)); }} />
         )}
         {order.map(({ e, i }, k) => (
@@ -383,7 +386,16 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
                 </span>
                 <h3 className="mt-3 text-[20px] font-black leading-tight text-ink-900">{m.title}</h3>
                 {m.text && <p className="mt-2 whitespace-pre-line text-[15px] leading-relaxed text-ink-700">{m.text}</p>}
-                <button type="button" onClick={() => setClubOpen(false)} className="mt-5 min-h-[48px] w-full rounded-2xl bg-brand-600 text-base font-extrabold text-white">סגירה</button>
+                {m.href ? (
+                  <>
+                    <Link href={m.href} onClick={() => setClubOpen(false)} className="mt-5 flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-brand-600 text-base font-extrabold text-white">
+                      {m.id.startsWith('photos-') ? 'לתמונות ›' : 'לפתוח ›'}
+                    </Link>
+                    <button type="button" onClick={() => setClubOpen(false)} className="mt-2 min-h-[44px] w-full rounded-2xl text-[15px] font-bold text-ink-500">סגירה</button>
+                  </>
+                ) : (
+                  <button type="button" onClick={() => setClubOpen(false)} className="mt-5 min-h-[48px] w-full rounded-2xl bg-brand-600 text-base font-extrabold text-white">סגירה</button>
+                )}
               </div>
             ))}
           </div>

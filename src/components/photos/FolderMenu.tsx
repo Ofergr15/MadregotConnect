@@ -68,7 +68,7 @@ export function FolderMenu({ folder, staff, onClose, onChanged, onDownloadAll, o
             <Row icon="⬇️" label="להוריד תמונות" onClick={() => { onDownloadAll(); onClose(); }} />
             {staff && (
               <>
-                <p className="px-4 pb-1 pt-3 text-[11.5px] font-extrabold text-ink-400">לצוות</p>
+                <p className="px-4 pb-1 pt-3 text-[11.5px] font-extrabold text-ink-400">למנהל</p>
                 <Row blue icon="📌" label={folder.pinned ? 'לבטל הצמדה' : 'להצמיד למעלה'} onClick={() => { void patch({ pinned: !folder.pinned }); }} />
                 <Row blue icon="✏️" label="לשנות שם" onClick={() => setMode('rename')} />
                 <Row blue icon="🏷️" label={`סוג ותגיות · ${KIND_LABEL[folder.kind]}${folder.tags.length ? ` · ${folder.tags.map((t) => `#${t}`).join(' ')}` : ''}`} onClick={() => setMode('kind')} />
