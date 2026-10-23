@@ -32,9 +32,12 @@ describe('the listing and the screens', () => {
     expect(v).toMatch(/mode=\{k === cur \? 'play' : Math\.abs\(k - cur\) === 1 \? 'ready'/);
     // 'metadata' got an iPhone a neighbour's list and none of its video (measured 10-23).
     expect(v).toMatch(/preload=\{mode === 'play' \|\| useCopy \? 'auto' : 'metadata'\}/);
-    // hls.js: opens at 720p or better, and loads a neighbour itself.
+    // hls.js: opens at 720p (then climbs), and loads a neighbour itself.
     expect(v).toMatch(/autoStartLoad: false/);
     expect(v).toMatch(/l\.height >= 720/);
+    // The picture stays until a frame is painted (it went black for seconds); neighbours never have sound.
+    expect(v).toMatch(/requestVideoFrameCallback/);
+    expect(v).toMatch(/muted=\{k === cur \? muted : true\}/);
     // No frosted glass over a playing video (redrawn every frame on an iPhone); the bar is its own component.
     expect(v).not.toMatch(/backdrop-blur/);
     expect(v).toMatch(/<Progress key=\{cur\}/);

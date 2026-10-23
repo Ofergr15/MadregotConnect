@@ -116,8 +116,8 @@ export function signMux(playbackId: string, aud: 'v' | 't' | 'g', extra: Record<
 
 /**
  * The copy's HLS link, signed; null when the video has no ready copy (the original plays).
- * Never under 720p: a phone with no history of the network otherwise opens on 360p and
- * climbs, so every video began blurred (measured 10-23) — an iPhone plays this list itself.
+ * Never under 720p: an iPhone plays this list itself and opens on its first entry, which
+ * was 360p, so every video began blurred (measured 10-23). 720p starts fast and climbs.
  */
 export function muxHls(entry: MuxEntry | undefined): string | null {
   if (!entry?.p || entry.s !== 'ready') return null;

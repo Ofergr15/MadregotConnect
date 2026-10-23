@@ -140,7 +140,7 @@ export function VideoViewer({ videos, index, title, onClose, onShare, onCover }:
       <div ref={listRef} onScroll={onScroll} className="h-full w-full snap-y snap-mandatory overflow-y-auto overscroll-contain [scrollbar-width:none] [-webkit-overflow-scrolling:touch]">
         {videos.map((x, k) => (
           <VideoSlide key={x.id} x={x} k={k} mode={k === cur ? 'play' : Math.abs(k - cur) === 1 ? 'ready' : Math.abs(k - cur) === 2 ? 'poster' : 'none'}
-            muted={muted} onActive={onActive} onTap={togglePlay}
+            muted={k === cur ? muted : true} onActive={onActive} onTap={togglePlay}
             onWaiting={setWaiting} onFailed={onFailed} onEnded={goNext} />
         ))}
       </div>
@@ -248,12 +248,13 @@ const VideoSlide = memo(function VideoSlide({ x, k, mode, muted, onActive, onTap
     void loadHls().then((Hls) => {
       if (gone || !Hls.isSupported()) { if (!gone && x.src) el.src = x.src; return; }
       // One instance from "beside" to "playing": what it fetched ahead is what plays. It
-      // starts loading itself, and at 720p or better — left alone, hls.js loads a
+      // starts loading itself, at 720p — the quick start — and climbs to 1080p within
+      // seconds (Ofer, 10-23: "720 to start fast, then 1080, fine"); left alone, hls.js loads a
       // neighbour's list but none of its video, and opens on the lowest quality.
-      const h = new Hls({ autoStartLoad: false, maxBufferLength: bufferFor(modeRef.current), capLevelToPlayerSize: true, abrEwmaDefaultEstimate: 5_000_000 });
+      const h = new Hls({ autoStartLoad: false, maxBufferLength: bufferFor(modeRef.current), capLevelToPlayerSize: true, abrEwmaDefaultEstimate: 10_000_000 });
       h.on(Hls.Events.MANIFEST_PARSED, (_e, d) => {
-        const sharp = d.levels.findIndex((l) => l.height >= 720);
-        h.startLevel = sharp >= 0 ? sharp : d.levels.length - 1;
+        const quick = d.levels.findIndex((l) => l.height >= 720);
+        h.startLevel = quick >= 0 ? quick : d.levels.length - 1;
         h.startLoad(0);
       });
       h.loadSource(x.hls!); h.attachMedia(el); hlsRef.current = h;
@@ -267,11 +268,38 @@ const VideoSlide = memo(function VideoSlide({ x, k, mode, muted, onActive, onTap
     if (mode === 'play') onActive(el);
     else if (!el.paused) el.pause();
   }, [mode, onActive]);
+  // Only the one on screen ever has sound: an iPhone allows one video with sound, and
+  // unmuting the neighbours too froze the picture (Ofer, 10-23).
   useEffect(() => { if (ref.current) ref.current.muted = muted; }, [muted]);
+  // The picture stays on top until the video has PAINTED a frame. Swapping it for the
+  // <video> showed black for seconds while an iPhone decoded the first frame (Ofer, 10-23:
+  // "I see the picture, then black, then it loads"). Once shown, it stays shown.
+  const [painted, setPainted] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || mode !== 'play' || painted) return;
+    const done = () => setPainted(true);
+    if (typeof el.requestVideoFrameCallback === 'function') {
+      const id = el.requestVideoFrameCallback(done);
+      return () => el.cancelVideoFrameCallback(id);
+    }
+    const on = () => { if (el.currentTime > 0) done(); };
+    el.addEventListener('timeupdate', on);
+    return () => el.removeEventListener('timeupdate', on);
+  }, [mode, painted]);
   const poster = x.poster || x.thumb || undefined;
   return (
     <div className="relative h-full w-full snap-start snap-always [contain:strict]">
-      {live && (x.src || x.hls) ? (
+      {mode !== 'none' && !painted && (x.thumb || poster) && (
+        // The grid's own thumbnail first (already loaded, so never an empty frame), the sharp poster over it.
+        <div className="pointer-events-none absolute inset-0 z-[1]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {x.thumb && <img src={x.thumb} alt="" className="absolute inset-0 h-full w-full object-contain" />}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {poster && poster !== x.thumb && <img src={poster} alt="" decoding="async" className="absolute inset-0 h-full w-full object-contain" />}
+        </div>
+      )}
+      {live && (x.src || x.hls) && (
         <video
           ref={ref}
           src={useCopy ? undefined : x.src || undefined}
@@ -289,10 +317,7 @@ const VideoSlide = memo(function VideoSlide({ x, k, mode, muted, onActive, onTap
           onEnded={mode === 'play' ? () => onEnded(k) : undefined}
           className="absolute inset-0 h-full w-full object-contain"
         />
-      ) : mode !== 'none' && poster ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={poster} alt="" decoding="async" className="absolute inset-0 h-full w-full object-contain" />
-      ) : null}
+      )}
     </div>
   );
 });
