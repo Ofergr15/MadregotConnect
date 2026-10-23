@@ -158,10 +158,13 @@ export async function publishSessionPhotos(
   return { id: created.id, told };
 }
 
-/** "אימון איכות · שלישי 13.10" — the folder's name in Drive. */
-export function folderName(date: string): string {
-  return `אימון איכות · ${sessionDayLabel(date)}`;
+/** "אימון איכות · שלישי 13.10" / "ריצה ארוכה · שישי 23.10" — the folder's name in Drive. */
+export function folderName(date: string, kind: FolderKind = 'quality'): string {
+  return `${kind === 'long' ? 'ריצה ארוכה' : 'אימון איכות'} · ${sessionDayLabel(date)}`;
 }
+
+/** A long-run morning reads as one: the plan marks it `long` (QualityWorkout), or its type is a long run. */
+const isLong = (w: { type?: string; long?: true } | null | undefined) => !!w && (w.long === true || w.type === 'long_run');
 
 /** When a day's folder is made: its own time, else the evening before at FOLDER_AT_HOUR. */
 export function createTimeOf(date: string, e?: Pick<FolderEntry, 'createAt'> | null): string {
@@ -236,8 +239,10 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
     const wanted = !!ahead && (ahead.manual || ahead.skipped === false);
     const workout = wanted ? null : await loadQualityWorkout(supabase, date);
     if (!wanted && !workout) continue;
-    const name = ahead?.name || folderName(date);
-    const kind: FolderKind = ahead?.kind || (workout?.type === 'long_run' ? 'long' : 'quality');
+    // 10-23: the Friday long run's folder opened as "אימון איכות" — the kind only looked at
+    // `type === 'long_run'`, which plan workouts don't carry; `long` is what marks them.
+    const kind: FolderKind = ahead?.kind || (isLong(workout) ? 'long' : 'quality');
+    const name = ahead?.name || folderName(date, kind);
     const tags = ahead?.tags ?? suggestedTags(workout?.name || name);
     const folder = await ensureDayFolder(drive, date, name);
     await setFolderMeta(folder.id, { kind, tags }).catch((e) => console.warn('folder kind not set', e));
@@ -414,12 +419,12 @@ export async function socialWeek(supabase: Db, now = new Date()) {
     const source: FolderProposal['source'] | null = w ? 'plan' : race ? 'race' : e?.manual ? 'manual' : null;
     if (!source) continue;
     const workout = w?.name || race || null;
-    const name = e?.name || (source === 'race' ? race! : folderName(date));
+    const name = e?.name || (source === 'race' ? race! : folderName(date, isLong(w) ? 'long' : 'quality'));
     const createsAt = createTimeOf(date, e);
     // A time already past with no folder: the next tick makes it (only tomorrow's default waits for 20:00).
     upcoming.push({
       date, name, workout, createsAt,
-      kind: e?.kind || (source === 'race' ? 'race' : w?.type === 'long_run' ? 'long' : source === 'manual' ? 'event' : 'quality'),
+      kind: e?.kind || (source === 'race' ? 'race' : isLong(w) ? 'long' : source === 'manual' ? 'event' : 'quality'),
       tags: e?.tags ?? suggestedTags(workout || name),
       enabled: source === 'race' ? e?.skipped === false : !e?.skipped,
       source,
