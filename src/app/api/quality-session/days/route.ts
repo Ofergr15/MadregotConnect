@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
 import { isStoryEditor } from '@/lib/quality-session/access';
 import { loadQualitySession, loadQualityWorkout } from '@/lib/quality-session/server';
-import { packRuns, runnersOf } from '@/lib/quality-session/model';
+import { packRuns, runnersOf, suggestOrder } from '@/lib/quality-session/model';
 import { israelToday } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
     if (workout) {
       const sess = await loadQualitySession(db, date);
       const packs = ([1, 2, 3] as const).map((pack) => {
-        const rs = runnersOf(packRuns(sess, pack, 24 * 60)).sort((a, b) => b.run.dist - a.run.dist);
+        const rs = runnersOf(packRuns(sess, pack, 24 * 60)).sort(suggestOrder);
         return { pack, done: rs.length, top: rs[0]?.run ?? null };
       });
       const ids = packs.flatMap((x) => (x.top ? [x.top.athleteId] : []));

@@ -7,7 +7,7 @@ import { useApi } from '@/lib/api';
 import { isPreviewing } from '@/lib/impersonation';
 import { readClock } from '@/lib/quality-session/clock';
 import { useQualitySessionAccess } from '@/lib/quality-session/use-access';
-import { inRowWindow, packRuns, runnersOf, type QsClock, type QsSession } from '@/lib/quality-session/model';
+import { inRowWindow, packRuns, runnersOf, suggestOrder, type QsClock, type QsSession } from '@/lib/quality-session/model';
 
 // "שיתוף הדבוקות", AT THE TOP OF THE FEED — 07:00 → 11:00 ON A QUALITY OR LONG-RUN
 // MORNING (read off the plan), ALL DAY ON ONE THE SUPER USER MARKED SPECIAL.
@@ -32,7 +32,7 @@ export function QualitySessionRow() {
   const packs = useMemo(() => {
     if (!data || !clock) return [];
     return ([1, 2, 3] as const).map(p => {
-      const rs = runnersOf(packRuns(data, p, clock.minutes)).sort((a, b) => b.run.dist - a.run.dist);
+      const rs = runnersOf(packRuns(data, p, clock.minutes)).sort(suggestOrder);
       return { p, done: rs.length, top: rs[0]?.run ?? null };
     });
   }, [data, clock]);

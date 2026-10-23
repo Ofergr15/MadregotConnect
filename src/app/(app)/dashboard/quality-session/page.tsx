@@ -13,7 +13,7 @@ import { fmtPace, type Pack } from '@/lib/pack-stories/model';
 import { readClock } from '@/lib/quality-session/clock';
 import { useQualitySessionAccessState } from '@/lib/quality-session/use-access';
 import {
-  fromMinutes, isNew, packRuns, runnersOf, shareTitle,
+  fromMinutes, isNew, packRuns, runnersOf, shareTitle, suggestOrder,
   type QsClock, type QsRunner, type QsSession, type SortKey,
 } from '@/lib/quality-session/model';
 import {
@@ -153,7 +153,7 @@ export default function QualitySessionPage() {
   // Every pack with runners, its runners longest first, and who is on its card: the one
   // picked on this screen, else the longest run of the morning.
   const packChoices = useMemo<PackChoice[]>(() => ([1, 2, 3] as Pack[]).flatMap(p => {
-    const list = (byPack[p] || []).slice().sort((a, b) => b.runner.run.dist - a.runner.run.dist);
+    const list = (byPack[p] || []).slice().sort((a, b) => suggestOrder(a.runner, b.runner));
     if (!list.length) return [];
     const runners = list.map(s => ({ id: s.runner.run.id, name: s.runner.run.name, km: s.runner.run.dist / 1000, paceSec: s.runner.run.pace || null }));
     const chosen = list.some(s => s.runner.run.id === sel[p]) ? sel[p]! : runners[0].id;

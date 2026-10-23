@@ -7,6 +7,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { getPlanWeekStart } from '@/lib/utils';
 import { normalizeStoredLaps } from '@/lib/garmin/laps';
+import { segmentsFromSteps } from '@/lib/share/plan-segments';
 import { classifyWorkout, type WorkoutType } from '@/lib/plans/session-summary';
 import { isOptionalWorkout } from '@/lib/plans/normalize-plan';
 import { buildSession, type ActivityRow, type AthleteRow, type AttendanceRow, type GroupRow } from '@/lib/pack-stories/build';
@@ -258,6 +259,7 @@ export async function loadQualitySession(supabase: Db, date: string): Promise<Qs
         start: r.start, end: fromMinutes(toMinutes(r.start) + r.dur / 60),
         dist: r.dist, dur: r.dur, pace: r.pace,
         repPace: repPace(laps), laps,
+        watchWorkout: (segmentsFromSteps(lapsById.get(r.id) || [], null)?.length ?? 0) >= 2,
       };
     }),
   };

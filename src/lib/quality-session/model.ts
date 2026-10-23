@@ -110,6 +110,8 @@ export interface QsRun {
   pace: number;
   repPace: number | null;
   laps: QsLap[];
+  /** Ran the coach's workout on the watch: the share card can draw its blocks ("3 × 7 ק״מ"). */
+  watchWorkout?: boolean;
 }
 
 export interface QsSession {
@@ -149,6 +151,15 @@ export interface QsRunner { run: QsRun }
  * jog to the start, the shorter half of a split run, or a lap-less copy from a
  * second app is dropped, not listed or counted.
  */
+/**
+ * Who a pack's card suggests first (Ofer 10-23: pack 1's card showed every kilometre
+ * while 2 and 3 showed "3 × 7 ק״מ"): someone who ran the workout on the watch, whose
+ * card draws the session's blocks, then the longest run.
+ */
+export function suggestOrder(a: QsRunner, b: QsRunner): number {
+  return Number(!!b.run.watchWorkout) - Number(!!a.run.watchWorkout) || b.run.dist - a.run.dist;
+}
+
 export function runnersOf(rs: QsRun[]): QsRunner[] {
   const by = new Map<string, QsRun[]>();
   for (const r of rs) by.set(r.athleteId, [...(by.get(r.athleteId) || []), r]);

@@ -279,3 +279,12 @@ describe('the morning push waits for most of the runners (Ofer 10-23)', () => {
     expect(pushReady(9 * 60, 0, 0)).toBe(true);
   });
 });
+
+describe('a pack card suggests a runner whose card has the blocks (Ofer 10-23)', () => {
+  it('watch workout first, then the longest', async () => {
+    const { suggestOrder } = await import('@/lib/quality-session/model');
+    const r = (name: string, dist: number, watchWorkout: boolean) => ({ run: { name, dist, watchWorkout } }) as never;
+    const list = [r('long, no workout', 30000, false), r('workout', 24000, true), r('workout longer', 26000, true)];
+    expect(list.sort(suggestOrder).map((x: { run: { name: string } }) => x.run.name)).toEqual(['workout longer', 'workout', 'long, no workout']);
+  });
+});
