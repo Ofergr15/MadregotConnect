@@ -88,3 +88,96 @@ export function classifyWorkout(input: BookStep[] | null | undefined, hint = '')
   const strides = steps.some(isStrides) ? ', עם האצות קצרות' : '';
   return { kind: 'easy', confidence: tempoSec + fastSec < 60 ? 'sure' : 'likely', reason: `ריצה קלה${total.durationSec ? ` של ${mins(total.durationSec)} דק׳` : ''}${strides}` };
 }
+
+// ── The review list's row (mockup ~/.cache/madregot/book-classify, Ofer 10-23) ─────────────
+// "This is really broken": the reason repeated the title, every row said "no pace on record",
+// and the drawing sat on the text or came out blank. A row now says what the title does not
+// (how much work, what kind of repeats, by pace or only by structure), and its drawing is a
+// small block chart of its own: easy ends squeezed short, a rest an empty gap, a wider gap
+// between sets, and inside the work, width = time — so 2 דק׳ reads twice as wide as 1 דק׳.
+
+type Rep = Extract<BookStep, { kind: 'reps' }>;
+export interface ShapeBar { tone: 'e' | 't' | 'f' | 'gap'; w: number }
+export interface RowFacts { facts: string[]; pace: string | null }
+
+const repSecOf = (r: Rep) => (r.work.measure === 'time' ? r.work.value : (r.work.value / 1000) * THRESHOLD);
+const restSecOf = (r: Rep) => {
+  const l = r.rest?.length as { measure?: string; value?: number } | undefined;
+  if (!l?.value) return Math.max(30, repSecOf(r) * 0.5);
+  return l.measure === 'distance' ? (l.value / 1000) * 400 : l.value;
+};
+const repTone = (r: Rep, kind: LibraryKind): 'e' | 't' | 'f' =>
+  r.effort ? (toneOf(r.effort) as 'e' | 't' | 'f') : r.note === 'טמפו' ? 't' : kind === 'tempo' ? 't' : kind === 'easy' || kind === 'long' ? 'e' : 'f';
+const repsOf = (steps: BookStep[], name: string): Rep[] => {
+  const own = steps.filter((s): s is Rep => s.kind === 'reps');
+  return own.length ? own : repsFromNameAll(name);
+};
+/** Every repeat block the name writes, strides included (they are drawn, not counted). */
+function repsFromNameAll(name: string): Rep[] {
+  const out: Rep[] = [];
+  for (const part of name.split('+')) {
+    const m = /(\d+)\s*[×x]\s*([\d.]+)\s*(ק״מ|ק"מ|מ׳|מ'|דק׳|דקות|שנ׳|שניות)/.exec(part);
+    if (!m) continue;
+    const value = Number(m[2]); const unit = m[3];
+    const work = /ק/.test(unit[0]) ? { measure: 'distance' as const, value: value * 1000 }
+      : /^מ/.test(unit) ? { measure: 'distance' as const, value }
+      : /^ד/.test(unit) ? { measure: 'time' as const, value: value * 60 } : { measure: 'time' as const, value };
+    out.push({ kind: 'reps', count: Number(m[1]), work, effort: null, rest: null, note: /טמפו/.test(part) ? 'טמפו' : undefined } as Rep);
+  }
+  return out;
+}
+
+export function classifyShape(input: BookStep[] | null | undefined, name: string, kind: LibraryKind): ShapeBar[] {
+  const steps = input ?? [];
+  const reps = repsOf(steps, name);
+  const ends: ShapeBar = { tone: 'e', w: 3 };
+  if (!reps.length) {
+    // No repeats: the session's own runs, each block by time (a long run is one long bar).
+    const runs = steps.filter((s) => s.kind === 'run').map((s) => ({ tone: (s.kind === 'run' && s.role === 'main' ? toneOf(s.effort) : 'e') as ShapeBar['tone'], w: Math.max(1, bookTotals([s], THRESHOLD).durationSec / 60) }));
+    return runs.length ? runs : [{ tone: kind === 'tempo' ? 't' : 'e', w: 10 }];
+  }
+  const bars: ShapeBar[] = [ends, { tone: 'gap', w: 1.2 }];
+  // The work blocks share one scale; rests are gaps, scaled down so reps stay readable.
+  const unit = Math.max(...reps.map(repSecOf)) / 4;
+  reps.forEach((r, bi) => {
+    if (bi) bars.push({ tone: 'gap', w: 2 });
+    const tone = repTone(r, kind);
+    for (let i = 0; i < r.count; i++) {
+      if (i) bars.push({ tone: 'gap', w: Math.min(1.2, Math.max(0.6, restSecOf(r) / unit / 3)) });
+      bars.push({ tone, w: Math.max(0.5, repSecOf(r) / unit) });
+    }
+  });
+  bars.push({ tone: 'gap', w: 1.2 }, ends);
+  return bars;
+}
+
+const lenText = (r: Rep) => (r.work.measure === 'time'
+  ? (r.work.value >= 60 && r.work.value % 60 === 0 ? `${r.work.value / 60} דק׳` : `${r.work.value} שנ׳`)
+  : km(r.work.value));
+
+/** What the row says under its title — never the title again. */
+export function classifyFacts(input: BookStep[] | null | undefined, name: string, c: Classified): RowFacts {
+  const steps = input ?? [];
+  const all = repsOf(steps, name);
+  const reps = all.filter((r) => !isStrides(r)).length ? all.filter((r) => !isStrides(r)) : all;
+  const facts: string[] = [];
+  if (reps.length) {
+    const dist = reps.every((r) => r.work.measure === 'distance');
+    const work = reps.reduce((a, r) => a + r.count * (dist ? r.work.value : repSecOf(r)), 0);
+    facts.push(dist ? `${km(work)} עבודה` : `${mins(work)} דק׳ עבודה`);
+    const lens = [...new Set(reps.map(lenText))];
+    const short = reps.every((r) => (r.work.measure === 'time' ? r.work.value <= 60 : r.work.value <= 400));
+    const minsOnly = reps.every((r) => r.work.measure === 'time' && r.work.value % 60 === 0);
+    const span = minsOnly ? (() => { const v = reps.map((r) => r.work.value / 60); return `${Math.min(...v)}–${Math.max(...v)} דק׳`; })() : lens.slice(0, 2).join(' / ');
+    facts.push(short ? 'חזרות קצרות' : lens.length === 1 ? `חזרות של ${lens[0]}` : `חזרות של ${span}`);
+  } else {
+    const t = bookTotals(steps, THRESHOLD);
+    if (t.distanceM >= 1000) facts.push(km(t.distanceM));
+    else if (t.durationSec) facts.push(`${mins(t.durationSec)} דק׳`);
+    if (/ארוכ/.test(name)) facts.push('"ארוכה" בשם');
+  }
+  if (reps.some((r) => r.note === 'טמפו') || (!reps.length && /טמפו/.test(name))) facts.push('"טמפו" בשם');
+  const paced = reps.length ? reps.some((r) => r.effort) : steps.some((s) => s.kind === 'run' && s.effort);
+  const tone = c.kind === 'intervals' ? 'בקצב מהיר' : c.kind === 'tempo' ? 'בקצב סף' : c.kind === 'easy' ? 'בקצב קל' : null;
+  return { facts, pace: paced ? tone : null };
+}

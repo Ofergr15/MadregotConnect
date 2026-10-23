@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { LIBRARY_KINDS, isUnclassified, type LibraryEntry, type LibraryKind } from '@/lib/academy/library';
 import { KIND_REQUIRED_TEXT } from '@/lib/academy/kind-choice';
 import { ESTIMATE_THRESHOLD_SEC, bookTotals, fromLibrarySteps, profileBar } from '@/lib/academy/book-steps';
-import { classifyWorkout, type Classified } from '@/lib/academy/book-classify';
+import { classifyFacts, classifyShape, classifyWorkout, type Classified, type ShapeBar } from '@/lib/academy/book-classify';
 import { BarButton, CARD, FlowOverlay, FlowScreen, N, PrimaryButton, ProfileBar, RICH, clockText, kmText } from './ui';
 
 // ── "למלא את הספר מכל ההיסטוריה" and "סיווג" (Ofer, 2026-10-20) ───────────────────────────
@@ -143,13 +143,15 @@ export function BookClassify({ entries, onClose, onClassified }: {
   const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<LibraryKind | null>(null);
   const byId = useMemo(() => new Map(entries.map(e => [e.id, e])), [entries]);
   const detected = useMemo(() => new Map(queue.map((id) => {
     const e = byId.get(id)!;
     return [id, classifyWorkout(fromLibrarySteps(e.steps), e.name)] as const;
   })), [queue, byId]);
   const left = queue.filter((id) => !doneIds.has(id));
-  const groups = LIBRARY_KINDS.map((k) => [k, left.filter((id) => detected.get(id)?.kind === k)] as const).filter(([, ids]) => ids.length);
+  const allGroups = LIBRARY_KINDS.map((k) => [k, left.filter((id) => detected.get(id)?.kind === k)] as const).filter(([, ids]) => ids.length);
+  const groups = filter ? allGroups.filter(([k]) => k === filter) : allGroups;
 
   const save = async (items: Array<{ id: string; kind: LibraryKind }>) => {
     if (!items.length || busy) return false;
@@ -187,30 +189,51 @@ export function BookClassify({ entries, onClose, onClassified }: {
               {queue.length > 0 && <p className="mt-1 text-sm text-ink-500">{doneIds.size} אימונים קיבלו סוג</p>}
             </div>
           )}
-          {left.length > 0 && <p className="px-1 pb-2 text-13 text-ink-500">לפי המבנה והעצימות של כל אימון. לאשר קבוצה בבת אחת, או לפתוח אחד ולשנות.</p>}
+          {left.length > 0 && <p className="px-1 pb-2 text-13 leading-relaxed text-ink-500">קראתי את מבנה האימון ואת העצימות. לאשר קבוצה שלמה, או ללחוץ על אימון כדי לשנות.</p>}
+          {allGroups.length > 1 && (
+            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-2.5">
+              {[[null, left.length] as const, ...allGroups.map(([k, ids]) => [k, ids.length] as const)].map(([k, n]) => (
+                <button key={k ?? 'all'} type="button" onClick={() => setFilter(k)}
+                  className={cn('min-h-[34px] shrink-0 rounded-full px-3 text-[13px] font-extrabold', filter === k ? 'bg-ink-900 text-white' : 'bg-card text-ink-700')}>
+                  {k ? t(`chip.${k}`) : 'הכל'} <N>{n}</N>
+                </button>
+              ))}
+            </div>
+          )}
           {error && <p className="pb-2 text-center text-sm font-bold text-accent-red-ink">{error}</p>}
           <div className="space-y-2.5">
             {groups.map(([kind, ids]) => (
               <section key={kind} className={cn(CARD, 'overflow-hidden')}>
                 <div className="flex items-center gap-2 px-3.5 py-3">
                   <span className={cn('inline-flex items-center gap-1 rounded-full px-3 py-1 text-[14px] font-black', KIND_STYLE[kind].cls)}>{KIND_STYLE[kind].emoji} {t(`chip.${kind}`)}</span>
-                  <b className="flex-1 text-[15px] text-ink-900">{ids.length}</b>
+                  <span className="flex-1 text-13 text-ink-400"><N>{ids.length}</N> אימונים</span>
                   <button type="button" disabled={busy} onClick={() => void save(ids.map((id) => ({ id, kind })))}
                     className="min-h-[36px] rounded-full bg-[#15803d] px-3.5 text-[13px] font-black text-white disabled:opacity-50">✓ לאשר את כולם</button>
                 </div>
                 {ids.map((id) => {
                   const e = byId.get(id)!;
                   const model = fromLibrarySteps(e.steps);
+                  const guess = detected.get(id)!;
+                  const row = classifyFacts(model, e.name, guess);
                   return (
-                    <button key={id} type="button" onClick={() => setOpenId(id)}
-                      className="flex w-full items-center gap-3 border-t-[0.5px] border-black/[0.08] px-3.5 py-2.5 text-start active:bg-page/60">
-                      <span className="w-16 shrink-0">{model && <ProfileBar segments={profileBar(model, null)} size="sm" />}</span>
-                      <span className="min-w-0 flex-1">
-                        <bdi className="block truncate text-[14.5px] font-semibold text-ink-900">{e.name}</bdi>
-                        <small className="block truncate text-12 text-ink-400">{detected.get(id)?.reason}</small>
-                      </span>
-                      <span className="text-[#c4c4c9]">‹</span>
-                    </button>
+                    <div key={id} className="grid grid-cols-[1fr_124px] items-center gap-3 border-t-[0.5px] border-black/[0.08] px-3.5 py-2.5">
+                      <button type="button" onClick={() => setOpenId(id)} className="min-w-0 text-start">
+                        <bdi className="block text-[15px] font-extrabold leading-snug text-ink-900">{e.name}</bdi>
+                        <span className="mt-1 flex flex-wrap items-center gap-1.5 text-12 text-ink-500">
+                          {row.facts.map((f) => <span key={f} className="rounded-md bg-page px-1.5 py-px text-ink-700">{f}</span>)}
+                          {row.pace ? <span>{row.pace}</span> : <span className="font-bold text-[#c27400]">· לפי המבנה</span>}
+                        </span>
+                      </button>
+                      <button type="button" onClick={() => setOpenId(id)} aria-label={e.name}>
+                        <Shape bars={classifyShape(model, e.name, guess.kind)} />
+                      </button>
+                      {guess.confidence === 'likely' && (
+                        <div className="col-span-2 -mt-1 flex gap-1.5">
+                          <button type="button" disabled={busy} onClick={() => void save([{ id, kind }])} className="min-h-[32px] rounded-full bg-[#E8F7EE] px-3 text-[12.5px] font-extrabold text-[#15803d]">✓ נכון</button>
+                          <button type="button" onClick={() => setOpenId(id)} className="min-h-[32px] rounded-full bg-page px-3 text-[12.5px] font-extrabold text-ink-700">קטגוריה אחרת</button>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </section>
@@ -219,6 +242,20 @@ export function BookClassify({ entries, onClose, onClassified }: {
         </FlowScreen>
       )}
     </FlowOverlay>
+  );
+}
+
+const SHAPE_COLOR = { e: '#9ad1a8', t: '#f5a524', f: '#e5484d', gap: 'transparent' } as const;
+const SHAPE_HEIGHT = { e: 40, t: 75, f: 100, gap: 100 } as const;
+
+/** The row's own small drawing: width by time inside the work, rests as gaps (book-classify). */
+function Shape({ bars }: { bars: ShapeBar[] }) {
+  return (
+    <span className="flex h-[38px] items-end overflow-hidden rounded-[10px] bg-page px-[5px] py-1">
+      {bars.map((b, i) => (
+        <span key={i} className="rounded-[1.5px]" style={{ background: SHAPE_COLOR[b.tone], height: `${SHAPE_HEIGHT[b.tone]}%`, flex: `${b.w} 0 0`, minWidth: b.tone === 'gap' ? 1 : 1.5 }} />
+      ))}
+    </span>
   );
 }
 
