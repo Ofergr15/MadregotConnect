@@ -519,8 +519,9 @@ export default function ProgramPage() {
         );
       })()}
 
-      {/* PDF Viewer or Workout Videos */}
-      {showWeek ? (
+      {/* PDF Viewer or Workout Videos. On השבוע the switch above picks too: "הקובץ המקורי" shows the
+          week's PDF instead of the week summary (it used to show the switch and ignore it — Ofer 10-23). */}
+      {showWeek && !(showViewSwitch && planView === 'pdf') ? (
         <WeekTab
           athleteId={myId}
           teamDays={reminderCfg?.config?.teamDays}

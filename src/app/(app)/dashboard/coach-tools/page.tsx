@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { AdminManage } from '@/components/admin/AdminManage';
 import { isAdminHome, useNavIdentity } from '@/lib/nav-items';
 import { useTranslations } from 'next-intl';
-import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles, UserCog, Zap, CalendarPlus, UserCheck, CalendarCheck } from 'lucide-react';
+import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles, UserCog, Zap, CalendarPlus, UserCheck, CalendarCheck, Footprints } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
 import { flowGroup, type EntryQueueMember } from '@/lib/admin/entry-queue';
 import { getSupabase } from '@/lib/supabase/client';
@@ -101,6 +101,7 @@ function CoachToolsClassic() {
   const isAcademyCoachLens = held.includes('academy_coach') && !(managesAcademy && storedView === 'manager');
   const isAcademyManagerLens = managesAcademy && !(held.includes('academy_coach') && storedView === 'coach');
   const { data: attention } = useApi<{ pain: number; wantsReply: number }>(isClubCoachLens ? '/api/staff/attention' : null);
+  const { data: coachSpace } = useApi<{ on: boolean }>(isAdminLens ? '/api/coach-space/switch' : null);
   const subtitle = isAdminLens ? t('subtitleAdmin')
     : isAcademyManagerLens ? t('subtitleAcademyManager')
       : isAcademyCoachLens && !isClubCoachLens ? t('subtitleAcademyCoach')
@@ -241,6 +242,9 @@ function CoachToolsClassic() {
           A pure admin still lands on it at /dashboard, so for them this is a second
           door to the same screen — see ControlRoomScreen. */}
       {isAdminLens && <InsetSection>
+        {/* The coach space (lib/coach-space), first: the admin opens it here while it is still off
+            for the coaches, and switches it on from its own screen (Ofer 10-23). */}
+        <InsetRow icon={Footprints} iconBg="bg-brand-600" label="אזור המאמן" sublabel={coachSpace ? (coachSpace.on ? 'פעיל למאמנים' : 'כבוי למאמנים · תצוגה מקדימה') : 'היום · השבוע · רצים · תובנות'} href="/dashboard/coach/today" />
         {/* The control room moved here from the admin's home (2026-10-20), which is now
             "מדרגות במספרים" — still reachable from here too. */}
         <InsetRow
