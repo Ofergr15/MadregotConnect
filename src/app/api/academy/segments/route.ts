@@ -16,7 +16,6 @@ import {
   isContinuousPlan,
 } from '@/lib/academy/segments';
 import { buildVerdict } from '@/lib/plan-execution/verdict';
-import { stepLaps } from '@/lib/plan-execution/resolve';
 import { resolveDominantPace } from '@/lib/plan-execution/dominant-pace';
 import { gradePlanBlocks, traceFromLaps, traceFromStream } from '@/lib/academy/execution';
 import { gradeWatchSteps } from '@/lib/academy/watch-steps';
@@ -326,10 +325,7 @@ export async function GET(request: Request) {
     }
     const { tolerances } = await settingsPromise;
     const { paceSec } = tolerances;
-    // Graded by the steps actually run, as /api/plan-execution grades it (resolve.ts
-    // stepLaps): raw 1 km auto-laps under a stuck open step scored a 14 + 7 + 7 at 52%.
-    const ranLaps = stepLaps({ laps, executed_workout: executedWorkout }, laps as never) as StoredLap[];
-    const report = matchLapsToSteps(flat, ranLaps, { paceSec, hrBpm: tolerances.hrBpm, hrAnchorBpm });
+    const report = matchLapsToSteps(flat, laps, { paceSec, hrBpm: tolerances.hrBpm, hrAnchorBpm });
     // Block-aligned pace: each planned block graded over its own stretch of the run
     // rather than against the whole-run average. This is the fix for the verdict an
     // athlete who ran "2 km easy + 20 km at 4:25 + 8 strides" used to get — 4:33
@@ -339,7 +335,7 @@ export async function GET(request: Request) {
     // session off the watch (no per-step laps) can get. Always returned: when the
     // positional alignment succeeded it's a cheap cross-check, and when it failed
     // it's the answer to "did they do the workout" the caller actually wanted.
-    const efforts = findPlannedEfforts(flat, ranLaps, paceSec);
+    const efforts = findPlannedEfforts(flat, laps, paceSec);
     // And, for a run the watch drove, the account that needs no searching at all: every
     // lap already carries the step it was, so the block does not have to be located and
     // a rep does not have to be recognised by its length. Null for the ~85% of runs
