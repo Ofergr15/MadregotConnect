@@ -374,6 +374,7 @@ export function WorkoutBook() {
   const [importing, setImporting] = useState(false);
   const [filling, setFilling] = useState(false);
   const [classifying, setClassifying] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const t = useTranslations('workoutBook');
 
   const reload = useCallback(async (isCancelled: () => boolean = () => false) => {
@@ -525,6 +526,25 @@ export function WorkoutBook() {
               className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-card bg-[#FFF4E5] text-sm font-extrabold text-[#8A4308]"
             >
               {t('classify.open', { n: unclassifiedCount })}
+            </button>
+          )}
+          {/* "Everything I marked — over again from zero" (Ofer 10-23): every entry back to
+              unconfirmed, its type the new detection; the classify screen then opens on it. */}
+          {(entries?.length ?? 0) > 0 && (
+            <button
+              type="button"
+              disabled={resetting}
+              onClick={async () => {
+                if (!window.confirm('לסווג את כל הספר מחדש? כל הסוגים שאישרת יחזרו לאישור, עם הזיהוי החדש.')) return;
+                setResetting(true);
+                try {
+                  const res = await fetch('/api/academy/library/classify', { method: 'POST', headers: await apiHeaders(true), body: JSON.stringify({ action: 'reset' }) });
+                  if (res.ok) { await reload(); setClassifying(true); }
+                } finally { setResetting(false); }
+              }}
+              className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-card bg-card text-sm font-bold text-ink-700 disabled:opacity-50"
+            >
+              {resetting ? '…' : '↺ לסווג את כל הספר מחדש'}
             </button>
           )}
           <button
