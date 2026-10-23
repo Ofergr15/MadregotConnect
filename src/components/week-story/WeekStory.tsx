@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
+import { apiHeaders } from '@/lib/api';
+import { NumberRuns } from '@/components/trainee/ui';
 import type { WeekStory as Story } from '@/lib/week-story/server';
 import { fmtDuration, fmtPace, highlightOf, qualityVerdict, weekLabel } from '@/lib/week-story/model';
 import { EXPORT_H, EXPORT_W, captureSlide, shareImages } from '@/components/birthday/capture';
@@ -73,7 +75,7 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
     if (change.workout) setWorkout(change.workout);
     if (change.theme) setTheme(change.theme);
     try {
-      const r = await fetch('/api/week-story', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...change, weekEnd: story.window.weekEnd }) });
+      const r = await fetch('/api/week-story', { method: 'PATCH', headers: await apiHeaders(true), body: JSON.stringify({ ...change, weekEnd: story.window.weekEnd }) });
       if (!r.ok) throw new Error();
     } catch { setWorkout(before.workout); setTheme(before.theme); flash('לא הצלחנו לשמור'); }
   }, [workout, theme, story.window.weekEnd, flash]);
@@ -84,13 +86,23 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
     if (change.theme) setTheme(change.theme);
     if (change.workout) setWorkout(change.workout);
   };
+  // What edit mode started from, so "ביטול" puts it all back.
+  const before = useRef<{ layout: StoryLayout; theme: Theme; workout: WorkoutPick | null } | null>(null);
+  const startEdit = () => { before.current = { layout, theme, workout }; setSheet(null); setEditing(true); };
+  const cancelEdit = () => {
+    const b = before.current;
+    if (b) { setLayout(b.layout); setTheme(b.theme); setWorkout(b.workout); }
+    setSheet(null); setEditing(false);
+  };
+  const [saving, setSaving] = useState(false);
   const finishEdit = async () => {
+    setSaving(true);
     try {
-      const r = await fetch('/api/admin/stories', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ feature: 'weekly', layout }) });
+      const r = await fetch('/api/admin/stories', { method: 'PUT', headers: await apiHeaders(true), body: JSON.stringify({ feature: 'weekly', layout }) });
       const j = (await r.json().catch(() => ({}))) as { code?: string };
-      if (!r.ok) throw new Error(j.code || 'x');
-      setEditing(false); flash('נשמר לכל המועדון');
-    } catch (e) { flash((e as Error).message === 'no_layout_column' ? 'צריך להריץ את מיגרציה 170 קודם' : 'לא הצלחנו לשמור'); }
+      if (!r.ok) throw new Error(j.code || String(r.status));
+      setSheet(null); setEditing(false); flash('נשמר לכל המועדון');
+    } catch (e) { flash(saveError((e as Error).message)); } finally { setSaving(false); }
   };
   /** A part of a slide: gone when hidden, and in edit mode a dashed box that hides on a tap. */
   const P = (slide: string, part: string, node: React.ReactNode, cls = '') => {
@@ -108,7 +120,7 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
     const next = !hidePack;
     setHidePack(next);
     try {
-      const r = await fetch('/api/week-story', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ hidePack: next }) });
+      const r = await fetch('/api/week-story', { method: 'PATCH', headers: await apiHeaders(true), body: JSON.stringify({ hidePack: next }) });
       if (!r.ok) throw new Error();
       setNotice(next ? 'שקף הדבוקה לא יופיע יותר' : 'שקף הדבוקה חזר');
     } catch { setHidePack(!next); setNotice('לא הצלחנו לשמור'); }
@@ -182,7 +194,7 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
     // The chips, on the slide: the admin picks the club's default, the member their own.
     const chips = editing && story.workouts.length > 1 && (
       <div className="wk-chips" onClick={(e) => e.stopPropagation()}>
-        {q && q.reps.length > 0 && <button type="button" className={workout === 'quality' ? 'on' : ''} onClick={() => pickClub({ workout: 'quality' })}>⚡ איכות · {DAY_LETTER[q.day]} <bdi dir="ltr">{q.label}</bdi></button>}
+        {q && q.reps.length > 0 && <button type="button" className={workout === 'quality' ? 'on' : ''} onClick={() => pickClub({ workout: 'quality' })}>⚡ איכות · {DAY_LETTER[q.day]} <NumberRuns text={q.label} /></button>}
         {lg && <button type="button" className={workout === 'long' ? 'on' : ''} onClick={() => pickClub({ workout: 'long' })}>🏃 ארוכה · {DAY_LETTER[lg.day]} <bdi>{km1(lg.km)}</bdi> ק״מ</button>}
       </div>
     );
@@ -197,7 +209,7 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
         <div className="c">
           {chips}
           {P('workout', 'title', <><p className="eyebrow-s rise">⚡ אימון האיכות · {WEEKDAYS[q.day]}</p>
-          <h2 className="rise d1" dir="ltr" style={{ textAlign: 'right' }}>{q.label}</h2></>)}
+          <h2 className="rise d1"><NumberRuns text={q.label} /></h2></>)}
           {q.target.length > 0 && P('workout', 'pve', <p className="lead rise d1">היעד: <bdi dir="ltr">{pace(Math.min(...q.target))}{Math.max(...q.target) !== Math.min(...q.target) ? `–${pace(Math.max(...q.target))}` : ''}</bdi> לק״מ</p>)}
           {P('workout', 'chart', <div className="wk-reps rise d2">{q.reps.map((p, i) => <div key={i}><i><b style={{ height: `${h(p)}%` }} /></i><span>{pace(p)}</span></div>)}</div>)}
           {P('workout', 'verdict', <span className="wk-pill rise d3">{qualityVerdict(q.vs).ok ? '✓ ' : ''}{qualityVerdict(q.vs).text}</span>)}
@@ -280,6 +292,9 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
       workout === 'long' && lg && `🏃 ארוכה ${km1(lg.km)} ק״מ`,
       p && !hidePack && p.rank <= 3 && `${MEDAL[p.rank - 1]} מקום ${p.rank}`,
     ].filter(Boolean) as string[];
+    // Each fact its own chip, numbers isolated run by run: joined into one string the bidi
+    // algorithm flipped them into each other (Sahar's week, 10-23: "⚡ 10 × 1.6 2 מקום 🥈 · ק״מ ביעד").
+    const chipsLine = <SummaryChips tags={tags} />;
     out.push({ key: 'summary', dur: 20000, node: () => (<>
       <div className="bg plain deep" />
       <div className="c wk-poster-wrap">
@@ -291,7 +306,7 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
             {s.planShare != null ? <div><b><bdi>{Math.round(s.planShare * 100)}%</bdi></b><small>מהתוכנית</small></div> : <div><b><bdi>{fmtDuration(s.seconds)}</bdi></b><small>שעות</small></div>}
             {fmtPace(s.seconds, s.km) && <div><b dir="ltr">{fmtPace(s.seconds, s.km)}</b><small>קצב</small></div>}
           </div>
-          <p className="hl">{tags.length ? tags.join(' · ') : hl.text}</p>
+          <p className="hl">{tags.length ? chipsLine : <NumberRuns text={hl.text} />}</p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <div className="pft"><img src="/images/wordmark-white.png" alt="" /></div>
         </div>
@@ -403,7 +418,7 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
       <div className="top">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/images/wordmark-white.png" alt="מדרגות" />
-        {editable && !editing && <button type="button" className="wk-edit-go" onClick={() => setEditing(true)}>✏️ עריכה</button>}
+        {editable && !editing && <button type="button" className="wk-edit-go" onClick={startEdit}>✏️ עריכה</button>}
         {own && !editing && <button type="button" className="wk-edit-go" aria-label="רקע" onClick={() => setSheet('bg')}>🎨</button>}
         <button type="button" onClick={onClose} aria-label="סגירה" className="ys-x">✕</button>
       </div>
@@ -412,7 +427,7 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
         const key = slides[at]?.key;
         const fixed = FIXED_SLIDES.includes(key);
         const shown = slideShown(layout, key);
-        return <button type="button" className={`wk-eye${shown ? '' : ' off'}`} disabled={fixed} onClick={() => setLayout((l) => toggleSlide(l, key))}>{fixed ? '🔒 תמיד מוצג' : shown ? '👁 השקף מוצג' : '🙈 השקף מוסתר'}</button>;
+        return <><span className="wk-mode">✏️ מצב עריכה</span><button type="button" className={`wk-eye${shown ? '' : ' off'}`} disabled={fixed} onClick={() => setLayout((l) => toggleSlide(l, key))}>{fixed ? '🔒 תמיד מוצג' : shown ? '👁 השקף מוצג' : '🙈 השקף מוסתר'}</button></>;
       })()}
       {slides.map((sl, i) => (
         <section key={sl.key} className={`sl s-${sl.key}${i === at ? ' show' : ''}${editing && !slideShown(layout, sl.key) ? ' hid' : ''}`} aria-hidden={i !== at}>
@@ -424,7 +439,8 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
         <div className="wk-editbar">
           <button type="button" onClick={() => setSheet('slides')}>▦ שקפים <small><bdi>{at + 1}</bdi>/<bdi>{slides.length}</bdi></small></button>
           <button type="button" onClick={() => setSheet('bg')}><i className="dot" style={themeVars(layout.theme)} /> רקע</button>
-          <button type="button" className="done" onClick={() => void finishEdit()}>סיום</button>
+          <button type="button" className="cancel" onClick={cancelEdit}>ביטול</button>
+          <button type="button" className="done" disabled={saving} onClick={() => void finishEdit()}>{saving ? 'שומר…' : 'סיום'}</button>
         </div>
       )}
       {sheet === 'slides' && (
@@ -444,7 +460,7 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
       {sheet === 'workout' && (
         <Sheet title="האימון בסטורי" onClose={() => setSheet(null)}>
           <div className="wk-chips">
-            {story.quality && <button type="button" className={workout === 'quality' ? 'on' : ''} onClick={() => void saveMine({ workout: 'quality' })}>⚡ איכות · {DAY_LETTER[story.quality.day]} <bdi dir="ltr">{story.quality.label}</bdi></button>}
+            {story.quality && <button type="button" className={workout === 'quality' ? 'on' : ''} onClick={() => void saveMine({ workout: 'quality' })}>⚡ איכות · {DAY_LETTER[story.quality.day]} <NumberRuns text={story.quality.label} /></button>}
             {story.long && <button type="button" className={workout === 'long' ? 'on' : ''} onClick={() => void saveMine({ workout: 'long' })}>🏃 ארוכה · {DAY_LETTER[story.long.day]} <bdi>{km1(story.long.km)}</bdi> ק״מ</button>}
           </div>
         </Sheet>
@@ -550,6 +566,21 @@ function ThemeGrid({ value, onPick }: { value: Theme; onPick: (t: Theme) => void
       </button>
     </div>
   );
+}
+
+/** The summary's facts, one chip each with its numbers isolated, an explicit separator between. */
+export function SummaryChips({ tags }: { tags: string[] }) {
+  return <>{tags.map((t, i) => <span key={i} className="hc">{i > 0 && <i className="sep" aria-hidden>·</i>}<NumberRuns text={t} /></span>)}</>;
+}
+
+/** Why a save failed, in words the admin can act on (Ofer 10-23: "it says it can't save"). */
+export function saveError(code: string): string {
+  if (code === 'no_layout_column') return 'לא נשמר: חסרה מיגרציה 170';
+  if (code === '401') return 'לא נשמר: החיבור פג — לסגור ולפתוח את האפליקציה';
+  if (code === '403') return 'לא נשמר: אין הרשאת עריכה לסטוריז';
+  if (code === '400') return 'לא נשמר: הבקשה לא תקינה';
+  if (/^5\d\d$/.test(code)) return 'לא נשמר: תקלה בשרת, לנסות שוב';
+  return 'לא נשמר: אין חיבור, לנסות שוב';
 }
 
 /** Remounted every time its slide comes up, so the entrance animations play again. */

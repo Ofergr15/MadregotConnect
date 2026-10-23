@@ -115,3 +115,8 @@
 .ys.wk .wk-own .ghost{background:rgba(255,255,255,.12);color:#fff}
 .ys.wk .wk-own .pick{background:#fff;color:#0a1080}
 @media (prefers-reduced-motion:reduce){.ys.wk .sw i{animation:none}}
+.ys.wk .wk-mode{position:absolute;z-index:41;top:calc(env(safe-area-inset-top) + 30px);inset-inline:0;margin:auto;width:max-content;font-size:12px;font-weight:900;letter-spacing:.02em;background:#FFB08F;color:#3a1406;border-radius:99px;padding:3px 10px}
+.ys.wk .wk-editbar .cancel{flex:.8;background:rgba(255,255,255,.08)}
+.ys.wk .wk-editbar .done:disabled{opacity:.7}
+.ys.wk .wk-poster .hl .hc{display:inline-block;white-space:nowrap}
+.ys.wk .wk-poster .hl .sep{font-style:normal;opacity:.6;margin:0 6px}
