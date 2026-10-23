@@ -260,11 +260,15 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
   }, [data]);
   const [yearStory, setYearStory] = useState<BirthdayStory | null>(null);
   // The week story: asked for only while its window may be open (the server decides).
-  const { data: wk } = useApi<{ story: WeekStoryData | null }>('/api/week-story');
+  // `?weekStoryAt=YYYY-MM-DD` (the stories admin screen's preview link): the week as of
+  // that Saturday, any day of the week. The server only honours `at` for an admin.
+  const params = useSearchParams();
+  const previewAt = params?.get('weekStoryAt');
+  const atOk = previewAt && /^\d{4}-\d{2}-\d{2}$/.test(previewAt) ? previewAt : null;
+  const { data: wk } = useApi<{ story: WeekStoryData | null }>(atOk ? `/api/week-story?at=${atOk}` : '/api/week-story');
   const week = wk?.story ?? null;
   const weekKey = week ? `week:${week.window.weekEnd}` : null;
   const [weekOpen, setWeekOpen] = useState(false);
-  const params = useSearchParams();
   const fromPush = params?.get('weekStory') === '1';
   useEffect(() => { if (fromPush && week) setWeekOpen(true); }, [fromPush, week]);
   const entries = useMemo(() => data?.entries ?? [], [data]);

@@ -9,6 +9,8 @@ import { SkeletonList } from '@/components/ui';
 import { FeatureSettings, ReceiversList, StateCard, TestersCard, type StoriesHome, type UpRow } from '@/components/stories/StoryAdmin';
 import { FEATURE_META } from '@/lib/stories/area';
 import type { StoryFeature } from '@/lib/stories/gate';
+import { israelToday } from '@/lib/utils';
+import { comingSaturday } from '@/lib/week-story/coming-saturday';
 
 // סיכום שבועי / סיכום שנתי — the same screen as יום הולדת (Content › stories v5, Ofer
 // 10-20): the state with one button, what applies to everyone, the testers, who gets it.
@@ -25,7 +27,9 @@ export default function StoryFeaturePage() {
   const { data: up, mutate: reUp } = useApi<{ rows: UpRow[]; nextAt: string | null }>(f && state !== 'off' ? `/api/admin/stories/upcoming?feature=${f}` : null);
   if (!f) return null;
   const changed = () => { void mutate(); void reUp(); };
-  const preview = f === 'weekly' ? '/feed?weekStory=1' : '/feed?annualStory=1';
+  // The weekly preview is the coming Saturday's story (this week, as of its end), so it can
+  // be checked any day of the week — not only inside its Saturday-to-Sunday window.
+  const preview = f === 'weekly' ? `/feed?weekStory=1&weekStoryAt=${comingSaturday(israelToday())}` : '/feed?annualStory=1';
   return (
     <div style={{ '--c': BG[f] } as CSSProperties} className="pb-8" dir="rtl">
       <div className="flex h-11 items-center justify-between">
@@ -47,3 +51,4 @@ export default function StoryFeaturePage() {
     </div>
   );
 }
+
