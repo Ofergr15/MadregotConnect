@@ -1,5 +1,15 @@
 [
   {
+    "id": "partner-order-sheet",
+    "date": "2026-10-23",
+    "kind": "feature",
+    "audience": "staff",
+    "icon": "🧾",
+    "title": "פרטי הזמנה בשותפויות",
+    "body": "נגיעה בהזמנה ב״מספרים ← שותפויות״ פותחת את התאריך והשעה, הסכום ומספר ההזמנה (נגיעה מעתיקה אותו). קובץ ה-CSV כולל עכשיו גם שעה.",
+    "href": "/dashboard/numbers?tab=partners"
+  },
+  {
     "id": "week-story-watch-in-place",
     "date": "2026-10-23",
     "kind": "fix",

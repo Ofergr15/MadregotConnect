@@ -33,10 +33,11 @@ export function summarize(rows: PartnerOrderRow[], now = new Date()): PartnerSum
 
 export function toCsv(rows: PartnerOrderRow[]): string {
   const esc = (v: unknown) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  const lines = ['date,partner,store,order_number,amount_ils'];
+  const lines = ['date,time,partner,store,order_number,amount_ils'];
   for (const r of [...rows].sort((a, b) => a.ordered_at.localeCompare(b.ordered_at))) {
     const d = new Date(r.ordered_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
-    lines.push([d, r.partner, r.via, r.order_number, Number(r.amount).toFixed(2)].map(esc).join(','));
+    const tm = new Date(r.ordered_at).toLocaleTimeString('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' });
+    lines.push([d, tm, r.partner, r.via, r.order_number, Number(r.amount).toFixed(2)].map(esc).join(','));
   }
   return '﻿' + lines.join('\n') + '\n';
 }

@@ -1,10 +1,11 @@
 'use client';
 
-import { Download } from 'lucide-react';
+import { useState } from 'react';
+import { Check, ChevronLeft, Copy, Download } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { EmptyState, SkeletonList } from '@/components/ui';
-import type { PartnerSummary } from '@/lib/partner-orders/summary';
+import { EmptyState, Sheet, SkeletonList } from '@/components/ui';
+import type { PartnerOrderRow, PartnerSummary } from '@/lib/partner-orders/summary';
 import { monthShort } from './charts';
 
 /**
@@ -15,6 +16,7 @@ import { monthShort } from './charts';
 const n = (v: number) => Math.round(v).toLocaleString('en-US');
 const B = ({ children }: { children: React.ReactNode }) => <bdi dir="ltr">{children}</bdi>;
 const k = (v: number) => (v ? `₪${v >= 1000 ? `${(Math.round(v / 100) / 10).toString()}K` : n(v)}` : '');
+const when = (iso: string) => new Date(iso).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const dmy = (iso: string) => new Date(iso).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: '2-digit' });
 
 /** Other partners in "הטבות" that send the club nothing to count (yet). */
@@ -52,8 +54,38 @@ function MonthChart({ months }: { months: PartnerSummary['months'] }) {
   );
 }
 
+/** One order, from its email: the date, the amount and the order number (copyable) — Ofer 10-23. */
+function OrderSheet({ order, onClose }: { order: PartnerOrderRow | null; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    if (!order?.order_number) return;
+    try { await navigator.clipboard.writeText(order.order_number); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* no clipboard */ }
+  };
+  const line = (label: string, value: React.ReactNode) => (
+    <div key={label} className="flex min-h-[48px] items-center justify-between gap-3 border-b border-page px-4 last:border-0">
+      <span className="text-[14px] text-ink-400">{label}</span><span className="text-[15px] font-semibold text-ink-900">{value}</span>
+    </div>
+  );
+  return (
+    <Sheet open={!!order} onOpenChange={(o) => { if (!o) { setCopied(false); onClose(); } }} title={`הזמנה · ${order?.partner ?? ''}`}>
+      {order && (
+        <div dir="rtl" className="pb-4">
+          <div className="mx-4 overflow-hidden rounded-2xl bg-page/60">
+            {line('תאריך', when(order.ordered_at))}
+            {line('סכום', <B>₪{order.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</B>)}
+            {line('מספר הזמנה', order.order_number
+              ? <button type="button" onClick={copy} className="flex min-h-[44px] items-center gap-1.5 text-brand-600" aria-label="להעתיק את מספר ההזמנה"><B>{order.order_number}</B>{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</button>
+              : '—')}
+          </div>
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
 export function Partners() {
   const { data, error, isLoading } = useApi<PartnerSummary>('/api/admin/partner-orders');
+  const [open, setOpen] = useState<PartnerOrderRow | null>(null);
   if (error) return <EmptyState title="לא הצלחנו לטעון את השותפויות" />;
   if (isLoading || !data) return <div className="p-4"><SkeletonList count={4} /></div>;
   if (!data.count) return <EmptyState title="עוד אין הזמנות" description="ההזמנות נקראות מהמייל של המועדון פעם ביום" />;
@@ -106,13 +138,15 @@ export function Partners() {
         </div>
         <p className="mb-1 text-[11.5px] text-ink-400">מתעדכן מהמייל של המועדון · כל ההזמנות בקובץ</p>
         {data.recent.map((r, i) => (
-          <div key={`${r.order_number}-${i}`} className="flex items-center gap-2.5 border-t border-[#F0F1F4] py-2 first-of-type:border-t-0">
+          <button type="button" key={`${r.order_number}-${i}`} onClick={() => setOpen(r)} className="flex w-full items-center gap-2.5 border-t border-[#F0F1F4] py-2 text-start first-of-type:border-t-0 active:opacity-70">
             <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-ink-900 text-[12px] font-black text-white">{r.partner[0]}</span>
             <div className="min-w-0 flex-1"><b className="block text-[14px]">{r.partner}</b><span className="text-[12px] text-ink-400"><B>{dmy(r.ordered_at)}</B>{r.via ? ` · ${r.via}` : ''}</span></div>
             <b className="text-[15px] font-extrabold"><B>₪{n(r.amount)}</B></b>
-          </div>
+            <ChevronLeft className="h-4 w-4 flex-none text-ink-300" />
+          </button>
         ))}
       </section>
+      <OrderSheet order={open} onClose={() => setOpen(null)} />
     </div>
   );
 }

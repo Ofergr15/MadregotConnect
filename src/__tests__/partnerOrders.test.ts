@@ -20,7 +20,8 @@ describe('partner orders', () => {
     expect(s.total).toBe(400);
     expect(s.avg).toBe(200);
     const csv = toCsv(rows);
-    expect(csv).toContain('2026-09-01,HOKA,WeShoes,1,100.00');
+    expect(csv).toContain('date,time,partner,store,order_number,amount_ils');
+    expect(csv).toContain('2026-09-01,01:30,HOKA,WeShoes,1,100.00');
     expect(csv.toLowerCase()).not.toContain('commission');
   });
 });
