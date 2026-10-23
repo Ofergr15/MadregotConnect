@@ -1,5 +1,6 @@
 'use client';
 
+import { useApi } from '@/lib/api';
 import { useMemo, useState, type ReactNode } from 'react';
 import { X, Repeat, Check, Copy, Link2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -167,7 +168,7 @@ export interface WorkoutDetailSession {
    * opens this sheet from something other than a planned session has no story to
    * offer, and inventing a day for it would put a wrong date on a public post.
    */
-  story?: { dayOfWeek: number; type: string; km: string };
+  story?: { dayOfWeek: number; type: string; km: string; weekStart?: string; key?: string };
 }
 
 /**
@@ -189,10 +190,19 @@ function StoryCopy({ session }: { session: WorkoutDetailSession }) {
   const [copied, setCopied] = useState(false);
 
   const story = session.story!;
-  const text = useMemo(
+  const local = useMemo(
     () => workoutStoryText({ ...story, steps: session.steps || [] }),
     [story, session.steps],
   );
+  // The club's plan has all three packs; the screen holds only the reader's lane, so the
+  // copy asks for the three-pack text (api/plans/story, Ofer 10-23) and falls back to the
+  // screen's own when there is no club plan for the week.
+  const { data: remote } = useApi<{ text?: string }>(
+    open && story.weekStart && story.key
+      ? `/api/plans/story?${new URLSearchParams({ weekStart: story.weekStart, key: story.key, day: String(story.dayOfWeek), type: story.type, km: story.km })}`
+      : null,
+  );
+  const text = remote?.text || local;
 
   const copy = async () => {
     try {

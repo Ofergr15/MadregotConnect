@@ -1085,7 +1085,7 @@ function WeekClimb({
                     steps: s.steps,
                     // Unlocalised day and type for the Instagram story — the post
                     // is English, `day` above is whatever the reader's app is.
-                    story: { dayOfWeek: s.dayOfWeek, type: s.type, km },
+                    story: { dayOfWeek: s.dayOfWeek, type: s.type, km, weekStart: weekPlan.weekStart, key: s.key },
                   })}
                   className="flex w-full items-center gap-[11px] border-t border-page px-3.5 py-2.5 text-start transition-colors active:bg-page/40"
                 >

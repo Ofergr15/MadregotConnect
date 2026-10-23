@@ -301,7 +301,7 @@ export function NextSessionCard() {
       // The story's own copy of the day and the type, unlocalised: the sheet's
       // `day` above is Hebrew and the post is English. `km` is the plain
       // number without a unit, because the story writes its own "(14km)".
-      story: { dayOfWeek: x.dayOfWeek, type: x.type, km: xKm },
+      story: { dayOfWeek: x.dayOfWeek, type: x.type, km: xKm, weekStart: weekly?.currentWeekStart, key: x.key },
     };
   };
 

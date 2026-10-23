@@ -139,7 +139,7 @@ export function TodayCards({ athleteId, rsvp, rsvpForToday }: {
       distance: km ? `${km} ${units.km}` : '',
       duration: formatDurationClock(x.durationSec),
       steps: x.steps,
-      story: { dayOfWeek: x.dayOfWeek, type: x.type, km },
+      story: { dayOfWeek: x.dayOfWeek, type: x.type, km, weekStart: pw.weekStart, key: x.key },
     };
   };
   const openShare = async (id: string) => {
