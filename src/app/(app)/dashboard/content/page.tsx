@@ -12,6 +12,8 @@ import {
 } from '@/lib/content/hub';
 import { LastLine, TypeBlock, TypeIcon, WaitRow } from '@/components/content/hub-ui';
 import { StoriesHome } from '@/components/content/StoriesHome';
+import { FolderLinks } from '@/components/content/FolderLinks';
+import { useApi } from '@/lib/api';
 import { useCheerSuggestions, useHubContent, useLive, usePhotosStatus } from '@/components/content/use-hub';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -37,6 +39,8 @@ export default function ContentPage() {
   const { data } = useHubContent();
   const { data: live } = useLive();
   const { data: photos } = usePhotosStatus();
+  // The folders the tick opened, polled so a new one appears without a refresh (10-23).
+  const { data: folders } = useApi<{ made?: Array<{ date: string; name: string; link: string; createdAt?: string }> }>('/api/social/folders', { refreshInterval: 30_000 });
   const { data: sug } = useCheerSuggestions();
   const [adding, setAdding] = useState(false);
 
@@ -63,6 +67,16 @@ export default function ContentPage() {
         return (
           <TypeBlock key={type} type={type}>
             {w && w.type === 'photos' && <WaitRow kicker={w.sub} title={w.title} thumb={w.previews[0]} action="לפרסם" href="/dashboard/content/photos?publish=1" />}
+            {/* Today's and tomorrow's folder, once open: straight to Drive, or its link. */}
+            {(folders?.made ?? []).filter((f) => f.link && f.date >= today).slice(0, 2).map((f) => (
+              <div key={f.date} className="mx-2.5 mb-2 flex min-h-[48px] items-center gap-2.5 rounded-[13px] bg-page/70 px-3 py-1.5">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[11px] font-extrabold text-[#a3410a]">התיקייה נפתחה</span>
+                  <span dir="auto" className="block truncate text-[14px] font-semibold text-ink-900">{f.name}</span>
+                </span>
+                <FolderLinks link={f.link} name={f.name} />
+              </div>
+            ))}
             {lastLine}
           </TypeBlock>
         );

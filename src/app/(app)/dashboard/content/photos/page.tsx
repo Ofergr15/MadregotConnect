@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Lock } from 'lucide-react';
 import { useApi } from '@/lib/api';
+import { FolderLinks } from '@/components/content/FolderLinks';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Sheet } from '@/components/ui';
 import { cn, israelToday } from '@/lib/utils';
@@ -21,7 +22,10 @@ import { EditProposalSheet, NewFolderSheet, SOURCE_LABEL, send, whenLabel, type 
 // ═════════════════════════════════════════════════════════════════════════════
 
 export default function ContentPhotosPage() {
-  const { data: week, error: weekError, mutate } = useApi<Week & { made: MadeFolder[] }>('/api/social/folders');
+  const { data: week, error: weekError, mutate } = useApi<Week & { made: MadeFolder[] }>('/api/social/folders', {
+    // A folder the tick opens shows up by itself, no refresh needed (Ofer 10-23).
+    refreshInterval: 30_000,
+  });
   const { data: st, mutate: reloadStatus } = usePhotosStatus();
   const { data: hub } = useHubContent();
   const [newOpen, setNewOpen] = useState(false);
@@ -118,9 +122,7 @@ function WeekRow({ row, onEdit, onChanged }: { row: WeekFolder; onEdit: (p: Prop
           <b dir="auto" className="block truncate text-[15.5px] font-semibold text-ink-700">{f.name}</b>
           <small className="block truncate text-13 text-ink-400">{f.createdAt ? `נפתחה ${openedLabel(f.createdAt)} · ` : ''}{count}</small>
         </span>
-        <a href={f.link} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[32px] shrink-0 items-center gap-1 rounded-full bg-page px-2.5 text-12 font-bold text-ink-400">
-          <Lock className="h-3 w-3" strokeWidth={2.6} />נפתחה
-        </a>
+        <FolderLinks link={f.link} name={f.name} />
       </div>
     );
   }
