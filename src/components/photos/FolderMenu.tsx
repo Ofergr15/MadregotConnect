@@ -44,8 +44,9 @@ export function FolderMenu({ folder, staff, onClose, onChanged, onDownloadAll, o
     } catch { /* the person closed the share sheet */ }
   };
 
-  const Row = ({ icon, label, onClick, blue }: { icon: string; label: string; onClick: () => void; blue?: boolean }) => (
-    <button type="button" onClick={onClick} disabled={busy}
+  // A render helper, not a component (a component declared here remounts every render).
+  const row = ({ icon, label, onClick, blue }: { icon: string; label: string; onClick: () => void; blue?: boolean }) => (
+    <button key={icon} type="button" onClick={onClick} disabled={busy}
       className={cn('flex min-h-[50px] w-full items-center gap-3 border-b border-page px-4 text-start text-[15px] last:border-0', blue ? 'text-brand-600' : 'text-ink-900')}>
       <span aria-hidden className="w-6 text-center">{icon}</span>{label}
     </button>
@@ -62,17 +63,17 @@ export function FolderMenu({ folder, staff, onClose, onChanged, onDownloadAll, o
 
         {mode === 'menu' && (
           <>
-            <Row icon="📂" label="לפתוח בגוגל דרייב" onClick={() => { window.open(driveLink(folder.id), '_blank', 'noopener'); onClose(); }} />
-            <Row icon="🔗" label="להעתיק קישור לתיקייה" onClick={() => { void copy(); }} />
-            <Row icon="📤" label="לשתף" onClick={() => { void share(); }} />
-            <Row icon="⬇️" label="להוריד תמונות" onClick={() => { onDownloadAll(); onClose(); }} />
+            {row({ icon: '📂', label: 'לפתוח בגוגל דרייב', onClick: () => { window.open(driveLink(folder.id), '_blank', 'noopener'); onClose(); } })}
+            {row({ icon: '🔗', label: 'להעתיק קישור לתיקייה', onClick: () => { void copy(); } })}
+            {row({ icon: '📤', label: 'לשתף', onClick: () => { void share(); } })}
+            {row({ icon: '⬇️', label: 'להוריד תמונות', onClick: () => { onDownloadAll(); onClose(); } })}
             {staff && (
               <>
                 <p className="px-4 pb-1 pt-3 text-[11.5px] font-extrabold text-ink-400">למנהל</p>
-                <Row blue icon="📌" label={folder.pinned ? 'לבטל הצמדה' : 'להצמיד למעלה'} onClick={() => { void patch({ pinned: !folder.pinned }); }} />
-                <Row blue icon="✏️" label="לשנות שם" onClick={() => setMode('rename')} />
-                <Row blue icon="🏷️" label={`סוג ותגיות · ${KIND_LABEL[folder.kind]}${folder.tags.length ? ` · ${folder.tags.map((t) => `#${t}`).join(' ')}` : ''}`} onClick={() => setMode('kind')} />
-                <Row blue icon="🖼️" label="לבחור תמונת שער" onClick={() => { onPickCover(); onClose(); }} />
+                {row({ blue: true, icon: '📌', label: folder.pinned ? 'לבטל הצמדה' : 'להצמיד למעלה', onClick: () => { void patch({ pinned: !folder.pinned }); } })}
+                {row({ blue: true, icon: '✏️', label: 'לשנות שם', onClick: () => setMode('rename') })}
+                {row({ blue: true, icon: '🏷️', label: `סוג ותגיות · ${KIND_LABEL[folder.kind]}${folder.tags.length ? ` · ${folder.tags.map((t) => `#${t}`).join(' ')}` : ''}`, onClick: () => setMode('kind') })}
+                {row({ blue: true, icon: '🖼️', label: 'לבחור תמונת שער', onClick: () => { onPickCover(); onClose(); } })}
               </>
             )}
           </>

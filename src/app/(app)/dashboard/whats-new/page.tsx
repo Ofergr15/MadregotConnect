@@ -68,8 +68,9 @@ export default function WhatsNewPage() {
 
   if (isLoading || !data) return <div className="flex justify-center py-16"><Spinner /></div>;
 
-  const NoteRow = ({ n, pickable }: { n: ShownNote; pickable: boolean }) => (
-    <div className="flex items-start gap-3 px-4 py-3">
+  // A render helper, not a component (a component declared here remounts every render).
+  const noteRow = (n: ShownNote, pickable: boolean) => (
+    <div key={n.id} className="flex items-start gap-3 px-4 py-3">
       <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600/10 text-base">{n.icon}</span>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-bold text-ink-900">
@@ -148,14 +149,14 @@ export default function WhatsNewPage() {
             </div>
             {approved.length > 0 && (
               <div className="mb-2 overflow-hidden rounded-card bg-card divide-y divide-page">
-                {approved.map(n => <NoteRow key={n.id} n={n} pickable />)}
+                {approved.map(n => noteRow(n, true))}
               </div>
             )}
             {waiting.length > 0 && (
               <>
                 {approval && <p className="mb-1.5 mt-3 px-4 text-2xs font-bold text-ink-400">{t('afterApproval')}</p>}
                 <div className="overflow-hidden rounded-card bg-card divide-y divide-page">
-                  {waiting.map(n => <NoteRow key={n.id} n={n} pickable />)}
+                  {waiting.map(n => noteRow(n, true))}
                 </div>
               </>
             )}
@@ -199,9 +200,9 @@ export default function WhatsNewPage() {
               <span className="font-mono" dir="ltr">{r.app_version}</span>
             </p>
             <div className="overflow-hidden rounded-card bg-card divide-y divide-page">
-              {featured.map(n => <NoteRow key={n.id} n={n} pickable={data.staff} />)}
+              {featured.map(n => noteRow(n, data.staff))}
               {rest.length > 0 && (data.staff
-                ? rest.map(n => <NoteRow key={n.id} n={n} pickable />)
+                ? rest.map(n => noteRow(n, true))
                 : (
                   <div className="px-4 py-3 text-13 text-ink-500">
                     {featured.length > 0 && <span className="font-semibold">{t('andFixes', { count: rest.length })}: </span>}

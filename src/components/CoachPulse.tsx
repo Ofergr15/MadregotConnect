@@ -21,6 +21,15 @@ interface Celeb {
 // from existing feedback + activity data. Staff-only; hidden when nothing to show.
 interface PulseData { attention?: Attn[]; celebrate?: Celeb[]; }
 
+const initials = (n: string) => (n.split(' ').map((x) => x[0]).join('').toUpperCase().slice(0, 2)) || '?';
+// At module level on purpose: declared inside CoachPulse it was a new component type on
+// every render, so React remounted each <img> and every face reloaded — the "flicker" on
+// each background refresh (Ofer 10-23). Same rule in src/__tests__/noInnerComponents.test.ts.
+function Avatar({ url, name }: { url: string | null; name: string }) {
+  return url ? <img src={url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+    : <span className="w-8 h-8 rounded-full bg-page flex items-center justify-center text-2xs font-bold text-ink-700 shrink-0">{initials(name)}</span>;
+}
+
 export function CoachPulse() {
   const { data } = useApi<PulseData>('/api/coach/pulse?days=14');
 
@@ -31,10 +40,6 @@ export function CoachPulse() {
 
   if (attention.length === 0 && celebrate.length === 0) return null; // loaded but nothing to show → hide
 
-  const initials = (n: string) => (n.split(' ').map((x) => x[0]).join('').toUpperCase().slice(0, 2)) || '?';
-  const Avatar = ({ url, name }: { url: string | null; name: string }) =>
-    url ? <img src={url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
-      : <span className="w-8 h-8 rounded-full bg-page flex items-center justify-center text-2xs font-bold text-ink-700 shrink-0">{initials(name)}</span>;
 
   const reasonLabel = (a: Attn) => {
     if (a.painTimes >= 2) return `כאב ×${a.painTimes}${a.painDetail ? ` · ${a.painDetail}` : ''}`;

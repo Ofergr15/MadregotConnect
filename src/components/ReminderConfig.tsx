@@ -76,10 +76,13 @@ export function ReminderConfig() {
       : pickerFor === 'dayBefore' || pickerFor === 'eveningBefore' ? cfg[pickerFor].hour
         : -1;
 
-  const StageRow = ({ label, stage }: { label: string; stage: 'dayBefore' | 'eveningBefore' }) => {
+  // A render helper, not a component: as `<StageRow>` it was a new type each render and
+  // React remounted the switch on every save.
+  const stageRow = (label: string, stage: 'dayBefore' | 'eveningBefore') => {
     const enabled = cfg[stage].enabled;
     return (
       <InsetRow
+        key={stage}
         label={label}
         trailing={
           <div className="flex items-center gap-1">
@@ -127,8 +130,8 @@ export function ReminderConfig() {
           valueMuted
           onClick={() => setLocDraft(cfg.location || '')}
         />
-        <StageRow label={t('reminderDayBefore')} stage="dayBefore" />
-        <StageRow label={t('reminderEveningBefore')} stage="eveningBefore" />
+        {stageRow(t('reminderDayBefore'), 'dayBefore')}
+        {stageRow(t('reminderEveningBefore'), 'eveningBefore')}
       </InsetSection>
 
       <div className="rounded-card border border-page/50 bg-card/50 p-4">
