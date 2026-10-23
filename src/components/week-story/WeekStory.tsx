@@ -8,7 +8,7 @@ import { fmtDuration, fmtPace, highlightOf, qualityVerdict, weekLabel } from '@/
 import { EXPORT_H, EXPORT_W, captureSlide, shareImages } from '@/components/birthday/capture';
 import { SLIDE_MS, canRecordVideo, recordStory, shareVideo, videoLength } from '@/components/birthday/video';
 import { academyBoardUrl } from '@/lib/academy/deep-links';
-import { QUICK_COLOURS, THEMES, THEME_KEYS, isCustom, partShown, slideShown, themeAccent, themeStops, toggleSlide, togglePart, FIXED_SLIDES, type StoryLayout, type Theme, type WorkoutPick } from '@/lib/week-story/layout';
+import { THEMES, THEME_KEYS, hexToHsl, hslToHex, isCustom, partShown, slideShown, themeAccent, themeStops, toggleSlide, togglePart, FIXED_SLIDES, type StoryLayout, type Theme, type WorkoutPick } from '@/lib/week-story/layout';
 import '@/components/birthday/year-story.css';
 import './week-story.css';
 
@@ -64,7 +64,7 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
   const [editing, setEditing] = useState(false);
   const [theme, setTheme] = useState<Theme>(story.theme);
   const [workout, setWorkout] = useState<WorkoutPick | null>(story.workout);
-  const [sheet, setSheet] = useState(false);
+  const [sheet, setSheet] = useState<null | 'workout' | 'bg' | 'slides'>(null);
   const flash = useCallback((t: string) => { setNotice(t); setTimeout(() => setNotice(null), 2600); }, []);
 
   // The member's own pick, saved at once; a failed save puts the old one back.
@@ -99,7 +99,7 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
     return (
       <div key={`${slide}-${part}`} className={`wk-part ${cls}${shown ? '' : ' off'}`} role="button" tabIndex={0} aria-pressed={!shown}
         onClick={(e) => { e.stopPropagation(); setLayout((l) => togglePart(l, slide, part)); }}>
-        {node}{!shown && <span className="wk-part-x">🙈</span>}
+        {node}<span className="wk-part-x" aria-hidden>{shown ? '👁' : '🙈'}</span>
       </div>
     );
   };
@@ -187,7 +187,7 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
       </div>
     );
     const swap = !editing && own && story.workouts.length > 1 && (
-      <button type="button" className="wk-swap" onClick={(e) => { e.stopPropagation(); setSheet(true); }}>🔁 להחליף לאימון אחר</button>
+      <button type="button" className="wk-swap" onClick={(e) => { e.stopPropagation(); setSheet('workout'); }}>🔁 להחליף לאימון אחר</button>
     );
     if (workout === 'quality' && q && q.reps.length) {
       const fast = Math.min(...q.reps, ...q.target), slow = Math.max(...q.reps, ...q.target);
@@ -404,58 +404,56 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/images/wordmark-white.png" alt="מדרגות" />
         {editable && !editing && <button type="button" className="wk-edit-go" onClick={() => setEditing(true)}>✏️ עריכה</button>}
-        {own && !editing && <button type="button" className="wk-edit-go" aria-label="רקע" onClick={() => setSheet(true)}>🎨</button>}
+        {own && !editing && <button type="button" className="wk-edit-go" aria-label="רקע" onClick={() => setSheet('bg')}>🎨</button>}
         <button type="button" onClick={onClose} aria-label="סגירה" className="ys-x">✕</button>
       </div>
       {editing && (() => {
+        // The slide's own switch, up top beside the logo: the one thing about a slide that must stay obvious.
         const key = slides[at]?.key;
         const fixed = FIXED_SLIDES.includes(key);
         const shown = slideShown(layout, key);
-        return (
-          <div className="wk-editbar">
-            <b>עריכה · שקף <bdi>{at + 1}</bdi> מתוך <bdi>{slides.length}</bdi></b>
-            <button type="button" className={shown ? 'eye' : 'eye off'} disabled={fixed} onClick={() => setLayout((l) => toggleSlide(l, key))}>{fixed ? '🔒 תמיד מוצג' : shown ? '👁 מוצג' : '🙈 מוסתר'}</button>
-            <button type="button" className="done" onClick={() => void finishEdit()}>סיום</button>
-          </div>
-        );
+        return <button type="button" className={`wk-eye${shown ? '' : ' off'}`} disabled={fixed} onClick={() => setLayout((l) => toggleSlide(l, key))}>{fixed ? '🔒 תמיד מוצג' : shown ? '👁 השקף מוצג' : '🙈 השקף מוסתר'}</button>;
       })()}
       {slides.map((sl, i) => (
         <section key={sl.key} className={`sl s-${sl.key}${i === at ? ' show' : ''}${editing && !slideShown(layout, sl.key) ? ' hid' : ''}`} aria-hidden={i !== at}>
           {Math.abs(i - at) <= 1 && <SlideBody key={i === at ? `live-${at}` : 'idle'}>{sl.node()}</SlideBody>}
-          {editing && !slideShown(layout, sl.key) && <span className="wk-hid">🙈 השקף מוסתר</span>}
+          {editing && !slideShown(layout, sl.key) && <div className="wk-hid" aria-hidden><b>🙈</b>מוסתר</div>}
         </section>
       ))}
       {editing && (
-        <div className="wk-edit-foot">
-          <div className="wk-thumbs">{slides.map((sl, i) => (
-            <button key={sl.key} type="button" className={`${i === at ? 'now' : ''}${slideShown(layout, sl.key) ? '' : ' off'}`} onClick={() => setAt(i)}>
-              <bdi>{i + 1}</bdi><small>{SLIDE_NAME[sl.key] ?? sl.key}</small>
+        <div className="wk-editbar">
+          <button type="button" onClick={() => setSheet('slides')}>▦ שקפים <small><bdi>{at + 1}</bdi>/<bdi>{slides.length}</bdi></small></button>
+          <button type="button" onClick={() => setSheet('bg')}><i className="dot" style={themeVars(layout.theme)} /> רקע</button>
+          <button type="button" className="done" onClick={() => void finishEdit()}>סיום</button>
+        </div>
+      )}
+      {sheet === 'slides' && (
+        <Sheet title="השקפים" onClose={() => setSheet(null)}>
+          <div className="wk-slides">{slides.map((sl, i) => (
+            <button key={sl.key} type="button" className={`${i === at ? 'now' : ''}${slideShown(layout, sl.key) ? '' : ' off'}`} onClick={() => { setAt(i); setSheet(null); }}>
+              <b><bdi>{i + 1}</bdi></b><span>{SLIDE_NAME[sl.key] ?? sl.key}</span><em>{slideShown(layout, sl.key) ? '👁' : '🙈'}</em>
             </button>
           ))}</div>
-          <div className="wk-bgrow"><span>רקע</span><ThemeRow value={layout.theme} onPick={(t) => pickClub({ theme: t })} /></div>
-        </div>
+        </Sheet>
       )}
-      {sheet && (
-        <div className="wk-sheet" role="dialog" aria-label="הסטורי שלי" onClick={() => setSheet(false)}>
-          <div onClick={(e) => e.stopPropagation()}>
-            {story.workouts.length > 1 && <>
-              <b>האימון בסטורי</b>
-              <div className="wk-chips">
-                {story.quality && <button type="button" className={workout === 'quality' ? 'on' : ''} onClick={() => void saveMine({ workout: 'quality' })}>⚡ איכות · {DAY_LETTER[story.quality.day]} <bdi dir="ltr">{story.quality.label}</bdi></button>}
-                {story.long && <button type="button" className={workout === 'long' ? 'on' : ''} onClick={() => void saveMine({ workout: 'long' })}>🏃 ארוכה · {DAY_LETTER[story.long.day]} <bdi>{km1(story.long.km)}</bdi> ק״מ</button>}
-              </div>
-            </>}
-            <b>רקע</b>
-            <ThemeRow value={theme} onPick={(t) => void saveMine({ theme: t })} />
-            <button type="button" className="ok" onClick={() => setSheet(false)}>סגירה</button>
+      {sheet === 'bg' && (
+        <Sheet title="רקע" onClose={() => setSheet(null)}>
+          <ThemeGrid value={editing ? layout.theme : theme} onPick={(t) => (editing ? pickClub({ theme: t }) : void saveMine({ theme: t }))} />
+        </Sheet>
+      )}
+      {sheet === 'workout' && (
+        <Sheet title="האימון בסטורי" onClose={() => setSheet(null)}>
+          <div className="wk-chips">
+            {story.quality && <button type="button" className={workout === 'quality' ? 'on' : ''} onClick={() => void saveMine({ workout: 'quality' })}>⚡ איכות · {DAY_LETTER[story.quality.day]} <bdi dir="ltr">{story.quality.label}</bdi></button>}
+            {story.long && <button type="button" className={workout === 'long' ? 'on' : ''} onClick={() => void saveMine({ workout: 'long' })}>🏃 ארוכה · {DAY_LETTER[story.long.day]} <bdi>{km1(story.long.km)}</bdi> ק״מ</button>}
           </div>
-        </div>
+        </Sheet>
       )}
-      {!editing && at < slides.length - 1 && <>
+      {at < slides.length - 1 && <>
         <button type="button" className="tap l" aria-label="הבא" onClick={() => go(1)} />
         <button type="button" className="tap r" aria-label="הקודם" onClick={() => go(-1)} />
       </>}
-      {!editing && at === slides.length - 1 && <button type="button" className="tap r back" aria-label="הקודם" onClick={() => go(-1)} />}
+      {at === slides.length - 1 && <button type="button" className="tap r back" aria-label="הקודם" onClick={() => go(-1)} />}
       {!editing && at < slides.length - 1 && (
         <button type="button" className="ys-share" onClick={() => void shareOneRef.current()} disabled={busy}>
           {busy ? 'מכין…' : <><svg viewBox="0 0 24 24" aria-hidden><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" /></svg>שיתוף לסטורי</>}
@@ -504,24 +502,52 @@ function themeVars(t: Theme): React.CSSProperties {
   return { ['--g1' as string]: a, ['--g2' as string]: b, ['--g3' as string]: c, ['--c1' as string]: a, ['--c2' as string]: a, ['--c3' as string]: acc, ['--c4' as string]: b, ['--blue' as string]: acc } as React.CSSProperties;
 }
 
-/** Round swatches, each its theme's moving gradient; the last is "צבע משלך" (a colour input and quick hues). */
-function ThemeRow({ value, onPick }: { value: Theme; onPick: (t: Theme) => void }) {
-  const [own, setOwn] = useState(false);
-  const custom = isCustom(value);
+function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="wk-themes" onClick={(e) => e.stopPropagation()}>
-      <div className="row">
-        {THEME_KEYS.map((k) => (
-          <button key={k} type="button" aria-label={THEMES[k].label} aria-pressed={value === k} className={`sw${value === k ? ' on' : ''}`} style={themeVars(k)} onClick={() => { setOwn(false); onPick(k); }}><i /></button>
-        ))}
-        <button type="button" aria-label="צבע משלך" aria-pressed={custom} className={`sw own${custom ? ' on' : ''}`} style={custom ? themeVars(value) : undefined} onClick={() => setOwn((o) => !o)}><i />{!custom && <b>+</b>}</button>
+    <div className="wk-sheet" role="dialog" aria-label={title} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()}>
+        <i className="grab" />
+        <b className="ttl">{title}</b>
+        {children}
+        <button type="button" className="ok" onClick={onClose}>סגירה</button>
       </div>
-      {own && (
-        <div className="own-pick">
-          <label>צבע משלך <input type="color" value={custom ? value.toLowerCase() : '#e11d48'} onChange={(e) => onPick(e.target.value as Theme)} /></label>
-          {QUICK_COLOURS.map((c) => <button key={c} type="button" aria-label={c} className="dot" style={{ background: c }} onClick={() => onPick(c as Theme)} />)}
+    </div>
+  );
+}
+
+/**
+ * The backgrounds as a 3×3 grid of large moving circles, the ninth "צבע משלך": it turns the
+ * sheet into two smooth sliders (hue, lightness) and a live circle; the colour is made
+ * readable for white text on its way to the gradient (deriveStops).
+ */
+function ThemeGrid({ value, onPick }: { value: Theme; onPick: (t: Theme) => void }) {
+  const custom = isCustom(value);
+  const [own, setOwn] = useState(false);
+  const [hsl, setHsl] = useState<[number, number]>(() => { const [h, , l] = custom ? hexToHsl(value) : [330, 0, 0.55]; return [Math.round(h), Math.round(l * 100)]; });
+  const hex = hslToHex(hsl[0], 0.75, hsl[1] / 100) as Theme;
+  if (own) {
+    return (
+      <div className="wk-own">
+        <div className="sw big" style={themeVars(hex)}><i /></div>
+        <label>גוון<input type="range" className="hue" min={0} max={359} value={hsl[0]} onChange={(e) => setHsl([Number(e.target.value), hsl[1]])} /></label>
+        <label>בהירות<input type="range" className="lit" min={15} max={90} value={hsl[1]} style={{ ['--h' as string]: hsl[0] }} onChange={(e) => setHsl([hsl[0], Number(e.target.value)])} /></label>
+        <div className="row2">
+          <button type="button" className="ghost" onClick={() => setOwn(false)}>חזרה</button>
+          <button type="button" className="pick" onClick={() => { onPick(hex); setOwn(false); }}>בחירה</button>
         </div>
-      )}
+      </div>
+    );
+  }
+  return (
+    <div className="wk-grid">
+      {THEME_KEYS.map((k) => (
+        <button key={k} type="button" aria-pressed={value === k} className={value === k ? 'on' : ''} onClick={() => onPick(k)}>
+          <span className="sw" style={themeVars(k)}><i /></span><small>{THEMES[k].label}</small>
+        </button>
+      ))}
+      <button type="button" aria-pressed={custom} className={custom ? 'on' : ''} onClick={() => setOwn(true)}>
+        <span className={`sw${custom ? '' : ' own'}`} style={custom ? themeVars(value) : undefined}><i />{!custom && <b>+</b>}</span><small>צבע משלך</small>
+      </button>
     </div>
   );
 }

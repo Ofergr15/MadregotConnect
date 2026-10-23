@@ -27,10 +27,7 @@
 .ys.wk .rk .av{width:30px;height:30px;border-radius:50%;flex-shrink:0;object-fit:cover;background:linear-gradient(135deg,#8E7CFF,#5B3FD1)}
 .ys.wk .rk .km{margin-inline-start:auto;font-weight:900}
 /* Above the tap zones (z 30), outside the content layer, so a tap here is not "next". */
-.ys.wk .wk-hide,.ys.wk .wk-go{position:absolute;z-index:34;bottom:calc(env(safe-area-inset-bottom) + 66px);right:26px;border:0;min-height:44px;font-size:14px}
-.ys.wk .wk-hide{background:none;color:#fff;opacity:.75;text-decoration:underline;padding:0}
 .ys.wk .wk-go{background:#fff;color:var(--blue);border-radius:99px;padding:0 22px;font-weight:900;font-size:15px}
-.ys.wk .sl:not(.show) .wk-hide,.ys.wk .sl:not(.show) .wk-go,.ys.wk .sl:not(.show) .wk-swap{display:none}
 .ys.wk .wk-club{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:22px}
 .ys.wk .wk-club>div{padding:16px;border-radius:18px;background:rgba(255,255,255,.1)}
 .ys.wk .wk-club b{display:block;font-size:34px;font-weight:900;line-height:1}
@@ -47,7 +44,6 @@
 .ys.wk .wk-poster .pg b{display:block;font-size:22px;font-weight:900}
 .ys.wk .wk-poster .pg small{font-size:12px;opacity:.75}
 .ys.wk .wk-poster .hl{margin:12px 18px 0;font-size:14px;line-height:1.6;opacity:.92}
-.ys.ys-export .wk-hide,.ys.ys-export .wk-go,.ys.ys-export .wk-swap{display:none}
 
 /* v3 — backgrounds that drift, the long run's squares, edit mode ON the story, the member's sheet. */
 .ys.wk{--g1:#1525FF;--g2:#0A1080;--g3:#3B4BFF}
@@ -65,44 +61,57 @@
 .ys.wk .wk-swap{position:absolute;z-index:34;bottom:calc(120px + env(safe-area-inset-bottom));inset-inline:0;margin:auto;width:max-content;background:rgba(255,255,255,.16);color:#fff;border-radius:99px;padding:9px 16px;font-size:14px;font-weight:800;backdrop-filter:blur(8px)}
 .ys.wk .top .wk-edit-go{background:rgba(255,255,255,.16);color:#fff;border-radius:99px;padding:6px 12px;font-size:13px;font-weight:800;margin-inline-start:auto;margin-inline-end:8px}
 .ys.wk .top .wk-edit-go + .wk-edit-go{margin-inline-start:0}
-.ys.wk .wk-editbar{position:absolute;z-index:8;top:calc(58px + env(safe-area-inset-top));inset-inline:12px;display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.45);backdrop-filter:blur(10px);border-radius:14px;padding:8px 10px;font-size:13px}
-.ys.wk .wk-editbar b{flex:1}
-.ys.wk .wk-editbar button{border-radius:99px;padding:6px 12px;font-weight:800;font-size:13px;background:rgba(255,255,255,.18);color:#fff}
-.ys.wk .wk-editbar .eye.off{background:#FF5315}
-.ys.wk .wk-editbar .eye:disabled{opacity:.6}
-.ys.wk .wk-editbar .done{background:#fff;color:#0a1080}
-.ys.wk.editing .sl .c{padding-top:calc(env(safe-area-inset-top) + 120px);padding-bottom:calc(env(safe-area-inset-bottom) + 140px)}
-.ys.wk .wk-part{position:relative;outline:1.5px dashed rgba(255,255,255,.55);outline-offset:3px;border-radius:8px;cursor:pointer;pointer-events:auto}
-.ys.wk .wk-part.off{opacity:.38}
-.ys.wk .wk-part-x{position:absolute;top:-10px;inset-inline-end:-6px;font-size:16px;background:#FF5315;border-radius:99px;padding:1px 5px}
-.ys.wk .sl.hid .c{opacity:.35}
-.ys.wk .wk-hid{position:absolute;z-index:5;top:46%;inset-inline:0;margin:auto;width:max-content;background:#FF5315;color:#fff;font-weight:900;border-radius:99px;padding:8px 16px}
-.ys.wk .wk-edit-foot{position:absolute;z-index:8;bottom:0;inset-inline:0;padding:10px 12px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(0deg,rgba(0,0,0,.6),rgba(0,0,0,0))}
-.ys.wk .wk-thumbs{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px}
-.ys.wk .wk-thumbs button{flex:0 0 auto;min-width:52px;height:56px;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;display:grid;place-items:center;font-weight:900;font-size:15px;padding:4px}
-.ys.wk .wk-thumbs button small{font-size:10px;font-weight:700;opacity:.85}
-.ys.wk .wk-thumbs button.now{outline:2px solid #fff}
-.ys.wk .wk-thumbs button.off{opacity:.4;text-decoration:line-through}
-.ys.wk .wk-bgrow{display:flex;align-items:center;gap:10px}
-.ys.wk .wk-bgrow>span{font-weight:800;font-size:13px;flex:0 0 auto}
-.ys.wk .wk-themes{min-width:0;flex:1}
-.ys.wk .wk-themes .row{display:flex;gap:8px;overflow-x:auto;padding:4px 2px}
-.ys.wk .wk-themes .sw{position:relative;flex:0 0 auto;width:38px;height:38px;border-radius:50%;overflow:hidden;padding:0;border:2px solid rgba(255,255,255,.25);background:var(--g2,#333)}
-.ys.wk .wk-themes .sw i{position:absolute;inset:-30%;background:linear-gradient(135deg,var(--g1),var(--g2),var(--g3),var(--g1));background-size:300% 300%;animation:wk-drift 7s ease-in-out infinite alternate}
-.ys.wk .wk-themes .sw.on{border:3px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.35)}
-.ys.wk .wk-themes .sw.own:not(.on) i{background:conic-gradient(#ff3b30,#ff9500,#ffcc00,#34c759,#00c7be,#007aff,#af52de,#ff2d55,#ff3b30);animation:none;inset:0}
-.ys.wk .wk-themes .sw.own b{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:22px;font-weight:900;text-shadow:0 1px 3px rgba(0,0,0,.6)}
-.ys.wk .wk-themes .own-pick{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px;font-size:13px;font-weight:800}
-.ys.wk .wk-themes .own-pick input{width:40px;height:30px;border:0;background:none;vertical-align:middle;padding:0}
-.ys.wk .wk-themes .own-pick .dot{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.5);padding:0}
-.ys.wk .wk-sheet .wk-themes .sw{width:46px;height:46px}
-@media (prefers-reduced-motion:reduce){.ys.wk .wk-themes .sw i{animation:none}}
 .ys.wk .wk-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;pointer-events:auto}
 .ys.wk .wk-chips button{border-radius:99px;padding:8px 14px;font-size:13px;font-weight:800;background:rgba(255,255,255,.16);color:#fff;border:1.5px solid rgba(255,255,255,.35)}
 .ys.wk .wk-chips button.on{background:#fff;color:#0a1080;border-color:#fff}
+
+/* v4 edit chrome (Ofer 10-23: "picking out of a million squares"): the slide stays clean and
+   full size, a small eye on each part, one slim bar, everything else in sheets. */
+.ys.wk.editing .sl.show .c{z-index:32;pointer-events:none}
+.ys.wk .wk-part{position:relative;pointer-events:auto;cursor:pointer;border-radius:10px;transition:opacity .2s}
+.ys.wk .wk-part:hover,.ys.wk .wk-part:active{outline:1.5px dashed rgba(255,255,255,.6);outline-offset:4px}
+.ys.wk .wk-part-x{position:absolute;top:-8px;inset-inline-start:-8px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;background:rgba(0,0,0,.45);box-shadow:0 0 0 1px rgba(255,255,255,.35)}
+.ys.wk .wk-part.off{opacity:.3}
+.ys.wk .wk-part.off .wk-part-x{background:#FF5315;opacity:1}
+.ys.wk .wk-eye{position:absolute;z-index:41;top:calc(env(safe-area-inset-top) + 66px);inset-inline:0;margin:auto;width:max-content;border-radius:99px;padding:7px 14px;font-size:13px;font-weight:800;background:rgba(0,0,0,.4);color:#fff;backdrop-filter:blur(8px)}
+.ys.wk .wk-eye.off{background:#FF5315}
+.ys.wk .wk-eye:disabled{opacity:.7}
+.ys.wk .sl .wk-hid{position:absolute;z-index:33;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:rgba(0,0,0,.45);font-size:28px;font-weight:900;pointer-events:none}
+.ys.wk .sl .wk-hid b{font-size:72px;line-height:1}
+.ys.wk .wk-editbar{position:absolute;z-index:41;bottom:calc(14px + env(safe-area-inset-bottom));inset-inline:16px;display:flex;gap:8px;padding:6px;border-radius:99px;background:rgba(0,0,0,.45);backdrop-filter:blur(12px)}
+.ys.wk .wk-editbar button{flex:1;height:44px;border-radius:99px;background:rgba(255,255,255,.14);color:#fff;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px}
+.ys.wk .wk-editbar small{opacity:.75;font-size:12px}
+.ys.wk .wk-editbar .dot{width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,var(--g1),var(--g2),var(--g3));box-shadow:0 0 0 1.5px #fff}
+.ys.wk .wk-editbar .done{background:#fff;color:#0a1080;font-weight:900}
 .ys.wk .wk-sheet{position:absolute;z-index:45;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end}
-.ys.wk .wk-sheet > div{width:100%;background:#12153a;border-radius:22px 22px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));display:grid;gap:12px}
-.ys.wk .wk-sheet b{font-size:15px}
-.ys.wk .wk-sheet .wk-themes button{width:62px;height:62px}
-.ys.wk .wk-sheet .ok{background:#fff;color:#0a1080;border-radius:99px;padding:12px;font-weight:900}
-.ys.wk .wk-sheet .wk-themes .row{flex-wrap:wrap;overflow:visible}
+.ys.wk .wk-sheet > div{width:100%;background:#12153a;border-radius:24px 24px 0 0;padding:10px 20px calc(18px + env(safe-area-inset-bottom));display:grid;gap:14px}
+.ys.wk .wk-sheet .grab{justify-self:center;width:40px;height:5px;border-radius:9px;background:rgba(255,255,255,.3)}
+.ys.wk .wk-sheet .ttl{font-size:17px;text-align:center}
+.ys.wk .wk-sheet .ok{background:rgba(255,255,255,.12);color:#fff;border-radius:99px;padding:12px;font-weight:800}
+.ys.wk .wk-slides{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.ys.wk .wk-slides button{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;padding:12px;border-radius:14px;background:rgba(255,255,255,.08);color:#fff;font-size:13px;font-weight:700;text-align:start}
+.ys.wk .wk-slides button b{font-size:16px}
+.ys.wk .wk-slides button.now{box-shadow:inset 0 0 0 2px #fff}
+.ys.wk .wk-slides button.off{background:rgba(255,83,21,.18)}
+.ys.wk .wk-slides button.off span{opacity:.6;text-decoration:line-through}
+.ys.wk .sw{position:relative;display:block;border-radius:50%;overflow:hidden;background:var(--g2,#333)}
+.ys.wk .sw i{position:absolute;inset:-30%;background:linear-gradient(135deg,var(--g1),var(--g2),var(--g3),var(--g1));background-size:300% 300%;animation:wk-drift 7s ease-in-out infinite alternate}
+.ys.wk .sw.own i{inset:0;animation:none;background:conic-gradient(#ff3b30,#ff9500,#ffcc00,#34c759,#00c7be,#007aff,#af52de,#ff2d55,#ff3b30)}
+.ys.wk .sw b{position:absolute;inset:0;display:grid;place-items:center;font-size:30px;font-weight:900;text-shadow:0 1px 4px rgba(0,0,0,.5)}
+.ys.wk .wk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 8px}
+.ys.wk .wk-grid button{display:grid;justify-items:center;gap:6px;background:none;color:#fff;padding:0}
+.ys.wk .wk-grid .sw{width:76px;height:76px;box-shadow:0 0 0 2px rgba(255,255,255,.15)}
+.ys.wk .wk-grid button.on .sw{box-shadow:0 0 0 3px #12153a,0 0 0 6px #fff}
+.ys.wk .wk-grid small{font-size:12px;font-weight:700}
+.ys.wk .wk-own{display:grid;gap:16px;justify-items:center}
+.ys.wk .wk-own .sw.big{width:120px;height:120px}
+.ys.wk .wk-own label{width:100%;display:grid;gap:8px;font-size:13px;font-weight:800}
+.ys.wk .wk-own input[type=range]{direction:ltr;-webkit-appearance:none;appearance:none;width:100%;height:28px;border-radius:99px;margin:0}
+.ys.wk .wk-own input.hue{background:linear-gradient(90deg,hsl(0 75% 50%),hsl(60 75% 50%),hsl(120 75% 50%),hsl(180 75% 50%),hsl(240 75% 50%),hsl(300 75% 50%),hsl(359 75% 50%))}
+.ys.wk .wk-own input.lit{background:linear-gradient(90deg,hsl(var(--h) 75% 15%),hsl(var(--h) 75% 50%),hsl(var(--h) 75% 90%))}
+.ys.wk .wk-own input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:30px;height:30px;border-radius:50%;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.5)}
+.ys.wk .wk-own .row2{width:100%;display:grid;grid-template-columns:1fr 2fr;gap:8px}
+.ys.wk .wk-own .row2 button{border-radius:99px;padding:12px;font-weight:900}
+.ys.wk .wk-own .ghost{background:rgba(255,255,255,.12);color:#fff}
+.ys.wk .wk-own .pick{background:#fff;color:#0a1080}
+@media (prefers-reduced-motion:reduce){.ys.wk .sw i{animation:none}}

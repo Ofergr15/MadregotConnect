@@ -5,13 +5,13 @@
 // background. Pure, so the server, the player and the tests read one set of rules.
 
 export type WorkoutPick = 'quality' | 'long';
-export type ThemeKey = 'blue' | 'night' | 'ocean' | 'graphite' | 'royal' | 'berry' | 'ember' | 'aurora';
+export type ThemeKey = 'blue' | 'night' | 'ocean' | 'graphite' | 'ember';
 /** A preset, or a colour of one's own as `#rrggbb` (the gradient is derived from it). */
 export type Theme = ThemeKey | `#${string}`;
 
 /**
  * The backgrounds, each three stops drifting at 135deg (mockup week-story-v2/themes.html;
- * Ofer 2026-10-23 took all eight, in this order). Swap the hex here, nothing else holds them.
+ * Ofer 2026-10-23 kept five of the eight, in this order). Swap the hex here, nothing else holds them.
  * The white text is checked against every stop (tests).
  */
 export const THEMES: Record<ThemeKey, { label: string; stops: [string, string, string] }> = {
@@ -19,20 +19,18 @@ export const THEMES: Record<ThemeKey, { label: string; stops: [string, string, s
   night: { label: 'לילה', stops: ['#312E81', '#0F172A', '#5B21B6'] },
   ocean: { label: 'אוקיינוס', stops: ['#075985', '#0C2A4A', '#0E6E8C'] },
   graphite: { label: 'גרפיט', stops: ['#1F2937', '#030712', '#1E3A8A'] },
-  royal: { label: 'מלכותי', stops: ['#4338CA', '#1E1B4B', '#6D28D9'] },
-  berry: { label: 'פטל', stops: ['#6D28D9', '#3B0764', '#9D174D'] },
   ember: { label: 'גחלים', stops: ['#9A3412', '#3F1206', '#B4410C'] },
-  aurora: { label: 'זוהר', stops: ['#1D4ED8', '#2E1065', '#0F766E'] },
 };
 export const THEME_KEYS = Object.keys(THEMES) as ThemeKey[];
-/** Quick hues beside the colour input of "צבע משלך". */
-export const QUICK_COLOURS = ['#E11D48', '#F59E0B', '#FDE68A', '#10B981', '#06B6D4', '#EC4899', '#8B5CF6', '#6B7280'];
+/** Shipped in 2.41.403 and dropped (Ofer 10-23): a stored pick of one reads as blue. */
+const RETIRED = ['royal', 'berry', 'aurora'];
+const retired = (v: unknown) => typeof v === 'string' && RETIRED.includes(v);
 
 const HEX = /^#[0-9a-f]{6}$/i;
 export const isCustom = (t: string): t is `#${string}` => HEX.test(t);
 
 // ── colour maths (HSL ↔ hex, WCAG contrast) ───────────────────────────────────────────────
-function toHsl(hex: string): [number, number, number] {
+export function hexToHsl(hex: string): [number, number, number] {
   const n = parseInt(hex.slice(1), 16);
   const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
   const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
@@ -41,20 +39,20 @@ function toHsl(hex: string): [number, number, number] {
   const h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
   return [(h * 60 + 360) % 360, s, l];
 }
-function toHex(h: number, s: number, l: number): string {
+export function hslToHex(h: number, s: number, l: number): string {
   const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
   const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
   return '#' + [r, g, b].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, '0')).join('').toUpperCase();
 }
 /** The colour, made only as dark as it must be for white text at 4.7:1 (a margin over 4.5). */
 function readable(h: number, s: number, l: number): string {
-  let hex = toHex(h, s, l);
-  while (contrastRatio('#ffffff', hex) < 4.7 && l > 0) { l = Math.max(0, l - 0.01); hex = toHex(h, s, l); }
+  let hex = hslToHex(h, s, l);
+  while (contrastRatio('#ffffff', hex) < 4.7 && l > 0) { l = Math.max(0, l - 0.01); hex = hslToHex(h, s, l); }
   return hex;
 }
 /** One chosen colour → the presets' shape: the colour, a deep dark of it, and a neighbour hue. */
 export function deriveStops(hex: string): [string, string, string] {
-  const [h, s0, l] = toHsl(hex);
+  const [h, s0, l] = hexToHsl(hex);
   const s = Math.min(1, Math.max(s0, s0 > 0.08 ? 0.55 : s0));
   return [readable(h, s, l), readable(h, s, Math.min(l, 0.5) * 0.4), readable((h + 28) % 360, s, l)];
 }
@@ -143,7 +141,7 @@ export const pickTheme = (club: Theme, member: Theme | null): Theme => member ??
 export function memberChoices(weekStory: unknown, weekEnd: string): { workout: WorkoutPick | null; theme: Theme | null } {
   const w = (weekStory && typeof weekStory === 'object' ? weekStory : {}) as { workout?: unknown; theme?: unknown };
   const byWeek = w.workout && typeof w.workout === 'object' ? (w.workout as Record<string, unknown>)[weekEnd] : null;
-  return { workout: isPick(byWeek) ? byWeek : null, theme: isTheme(w.theme) ? normTheme(w.theme) : null };
+  return { workout: isPick(byWeek) ? byWeek : null, theme: isTheme(w.theme) ? normTheme(w.theme) : retired(w.theme) ? 'blue' : null };
 }
 /** The prefs after the member picks; keeps the last 8 weeks' picks and every other key. */
 export function withMemberChoice(weekStory: unknown, change: { weekEnd?: string; workout?: WorkoutPick; theme?: Theme }): Record<string, unknown> {

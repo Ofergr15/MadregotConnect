@@ -68,9 +68,19 @@ describe('which workout and background', () => {
   });
 });
 
+describe('retired themes', () => {
+  it('a stored berry, royal or aurora is blue, for the club and for the runner', () => {
+    for (const t of ['berry', 'royal', 'aurora']) {
+      expect(cleanLayout({ theme: t }).theme).toBe('blue');
+      expect(memberChoices({ theme: t }, 'x').theme).toBe('blue');
+      expect(pickTheme(cleanLayout({ theme: 'ember' }).theme, memberChoices({ theme: t }, 'x').theme)).toBe('blue');
+    }
+  });
+});
+
 describe('themes are readable', () => {
   it('white text ≥ 4.5:1 on every stop; the peach accent ≥ 3:1 (large text), at every stop', () => {
-    expect(THEME_KEYS).toEqual(['blue', 'night', 'ocean', 'graphite', 'royal', 'berry', 'ember', 'aurora']);
+    expect(THEME_KEYS).toEqual(['blue', 'night', 'ocean', 'graphite', 'ember']);
     for (const k of THEME_KEYS) {
       for (const c of THEMES[k].stops) {
         expect(contrastRatio('#ffffff', c), `${k} ${c}`).toBeGreaterThanOrEqual(4.5);
