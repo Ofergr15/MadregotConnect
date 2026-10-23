@@ -2370,10 +2370,18 @@ function segmentBands(c: LayoutCtx): { laps: SegmentBand[]; title: { value: stri
       const counts = new Map<number, number>();
       for (const m of rounded) counts.set(m, (counts.get(m) ?? 0) + 1);
       const [m, n] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
-      if (n * 2 > core.length) {
+      // Equal blocks only — all of them, or all but one cut SHORT on a longer set. A
+      // majority was not enough: 14 + 7 + 7 came out "3 × 7" (Ofer 10-23).
+      const odd = rounded.filter((x) => x !== m);
+      const equal = n === core.length || (core.length >= 4 && odd.length === 1 && odd[0] < m);
+      if (equal) {
         title = m >= 1000
           ? { value: `${core.length} × ${+(m / 1000).toFixed(1)}`, unit: c.i18n.km }
           : { value: `${core.length} × ${m}`, unit: c.i18n.metres };
+      } else if (core.length <= 5 && (rounded.every((x) => x >= 1000) || rounded.every((x) => x < 1000))) {
+        // Blocks of different lengths are named by the session itself: "14 + 7 + 7 ק״מ".
+        const km = rounded[0] >= 1000;
+        title = { value: rounded.map((x) => (km ? +(x / 1000).toFixed(1) : x)).join(' + '), unit: km ? c.i18n.km : c.i18n.metres };
       }
     }
     return { laps, title, trimmed: laps.length !== steps.length };
@@ -2484,7 +2492,11 @@ function layoutSegments(c: LayoutCtx, laps: SegmentBand[], heading: { value: str
   const lengths = new Map<number, number>();
   for (const l of work) lengths.set(Math.round(l.m / 100), (lengths.get(Math.round(l.m / 100)) ?? 0) + 1);
   const usual = [...lengths.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
-  const odd = (l: SegmentBand) => usual != null && work.length > 1 && Math.abs(l.m - usual * 100) > usual * 100 * 0.05;
+  // Under an "N × M" heading only the block that differs carries its length; under
+  // any other heading ("14 + 7 + 7") every block does — the 14 had its number and the
+  // two 7s none (Ofer 10-23).
+  const uniform = !!heading && heading.value.includes('×');
+  const odd = (l: SegmentBand) => work.length > 1 && (!uniform || (usual != null && Math.abs(l.m - usual * 100) > usual * 100 * 0.05));
   // The heart-rate range and the average sit under everything.
   const footY = bottom + rowsUnder + p(13);
   // The pace scale takes a gutter on the reading-start side; bars with their own
@@ -2622,11 +2634,11 @@ function layoutSegments(c: LayoutCtx, laps: SegmentBand[], heading: { value: str
         }
         ctx.textAlign = 'center';
       }
-      // A block that came out short says by how much, over its bar.
+      // A block's length over its bar: the one that differs, or every one (see odd).
       if (l.kind === 'active' && odd(l)) {
         ctx.font = `700 ${p(8.5)}px ${font}`;
         ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        ctx.fillText((l.m / 1000).toFixed(l.m >= 10000 ? 0 : 1), x, top - p(5));
+        ctx.fillText(String(+(l.m / 1000).toFixed(l.m >= 10000 ? 0 : 1)), x, top - p(5));
       }
     }
     if (withTargets && i18n.targetLegend) {
