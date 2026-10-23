@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, Search, X } from 'lucide-react';
+import { ChevronLeft, Play, Search, X } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { Sheet, Switch } from '@/components/ui';
@@ -148,7 +148,7 @@ export function FeatureSettings({ feature, home, onChanged }: { feature: StoryFe
 interface Athlete { id: string; name: string | null; status?: string | null }
 
 /** The testers — one list for all the stories. */
-export function TestersCard({ home, onChanged }: { home: StoriesHome; onChanged: () => void }) {
+export function TestersCard({ home, onChanged, onWatch }: { home: StoriesHome; onChanged: () => void; onWatch?: (athleteId: string) => void }) {
   const { data: roster } = useApi<{ athletes: Athlete[] }>('/api/athletes');
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
@@ -181,6 +181,7 @@ export function TestersCard({ home, onChanged }: { home: StoriesHome; onChanged:
               {t.name || t.athleteId.slice(0, 8)}
               <small className="block text-12 text-ink-400">{t.status !== 'active' ? 'לא פעיל' : t.viewed ? 'צפה/תה' : 'עוד לא צפה/תה'}</small>
             </span>
+            {onWatch && t.status === 'active' && <PlayButton name={t.name} onClick={() => onWatch(t.athleteId)} />}
             <button type="button" disabled={busy} onClick={() => void call(`/api/admin/stories/testers?athleteId=${t.athleteId}`, 'DELETE')} aria-label={`להסיר את ${t.name || ''}`}
               className="flex min-h-[44px] items-center gap-1 text-13 font-bold text-accent-red-ink"><X className="h-3.5 w-3.5" /> להסיר</button>
           </div>
@@ -198,23 +199,36 @@ const STATUS_WORD: Record<string, string> = {
 export interface UpRow { athleteId: string; name: string | null; avatarUrl?: string | null; period: string; bucket: string; status: string; summary: string; publishAt: string }
 
 /** Who gets it next, each opening their own screen. */
-export function ReceiversList({ rows, href, empty }: { rows: UpRow[]; href: (r: UpRow) => string; empty?: ReactNode }) {
+export function ReceiversList({ rows, href, empty, onWatch }: { rows: UpRow[]; href: (r: UpRow) => string; empty?: ReactNode; onWatch?: (r: UpRow) => void }) {
   if (rows.length === 0) return empty ? <>{empty}</> : null;
   return (
     <>
       <SectionHead gray trailing={<span>{rows.length}</span>}>מי מקבל</SectionHead>
       <Group>
         {rows.map((r) => (
-          <Link key={`${r.athleteId}:${r.period}`} href={href(r)} className="flex min-h-[56px] items-center gap-3 px-3.5 py-2 active:bg-page">
-            <FeedAvatar name={r.name || ''} url={r.avatarUrl ?? null} className="h-9 w-9 text-[13px]" />
-            <span className="min-w-0 flex-1">
-              <b dir="auto" className="block truncate text-[15px] font-semibold text-ink-900">{r.name}</b>
-              <small className="block truncate text-12 text-ink-400">{r.status === 'ready' ? (r.summary === 'ברירת מחדל' ? 'כמו כולם' : r.summary) : STATUS_WORD[r.status] || r.status}</small>
-            </span>
-            <ChevronLeft className="h-4 w-4 text-[#c4c4c9]" />
-          </Link>
+          <div key={`${r.athleteId}:${r.period}`} className="flex min-h-[60px] items-center gap-2 pe-1.5 ps-3.5">
+            <Link href={href(r)} className="flex min-w-0 flex-1 items-center gap-3 py-2 active:opacity-70">
+              <FeedAvatar name={r.name || ''} url={r.avatarUrl ?? null} className="h-9 w-9 text-[13px]" />
+              <span className="min-w-0 flex-1">
+                <b dir="auto" className="block truncate text-[15px] font-semibold text-ink-900">{r.name}</b>
+                <small className="block truncate text-12 text-ink-400">{r.status === 'ready' ? (r.summary === 'ברירת מחדל' ? 'כמו כולם' : r.summary) : STATUS_WORD[r.status] || r.status}</small>
+              </span>
+              <ChevronLeft className="h-4 w-4 shrink-0 text-[#c4c4c9]" />
+            </Link>
+            {onWatch && r.status === 'ready' && <PlayButton name={r.name} onClick={() => onWatch(r)} />}
+          </div>
         ))}
       </Group>
     </>
+  );
+}
+
+/** ▶ on a person's row: their story, opened right here (WatchWeekStory). */
+function PlayButton({ name, onClick }: { name: string | null; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={`לצפות בסטורי של ${name || ''}`}
+      className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-white active:scale-95" style={{ background: 'var(--c, #1f6feb)' }}>
+      <Play className="ms-0.5 h-4 w-4" fill="currentColor" strokeWidth={0} />
+    </button>
   );
 }

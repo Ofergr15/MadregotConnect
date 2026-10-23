@@ -14,6 +14,7 @@ import type { BirthdayConfig } from '@/lib/birthday-year/server';
 import type { StoryFeature, StoryState } from '@/lib/stories/gate';
 import { cn } from '@/lib/utils';
 import { comingSaturday } from '@/lib/week-story/coming-saturday';
+import { WatchWeekStory } from '@/components/stories/WatchWeekStory';
 
 // One person's story — Content › stories v5 (mockup stories-area, Ofer 10-20): the same
 // screen as publishing a cheer. Birthday has the public part (post / circle) and the prep;
@@ -50,6 +51,7 @@ const TITLE: Record<StoryFeature, string> = { birthday: 'יום הולדת', wee
 export function StoryPerson({ feature, athleteId, period, backHref }: { feature: StoryFeature; athleteId: string; period: string; backHref: string }) {
   const router = useRouter();
   const isBirthday = feature === 'birthday';
+  const [watching, setWatching] = useState(false);
   const key = `athleteId=${encodeURIComponent(athleteId)}&feature=${feature}&period=${period}`;
   const { data: p, error, mutate } = useApi<Person>(`/api/admin/stories/person?${key}`);
   const { data: prep } = useApi<{ rows: Prep[] }>(isBirthday ? '/api/admin/birthdays' : null);
@@ -121,12 +123,13 @@ export function StoryPerson({ feature, athleteId, period, backHref }: { feature:
       </div>
 
       {feature === 'weekly' && (
-        // The story itself, as this person will get it — the coming Saturday's, any day.
-        <Link href={`/feed?weekStory=1&weekStoryAt=${comingSaturday(p?.today ?? period)}&weekStoryOf=${encodeURIComponent(athleteId)}`}
-          className="mb-2.5 flex min-h-[52px] items-center justify-center gap-2 rounded-[16px] text-[16px] font-extrabold text-white" style={{ background: 'var(--c)' }}>
+        // The story itself, as this person will get it — opened right here (see WatchWeekStory).
+        <button type="button" onClick={() => setWatching(true)}
+          className="mb-2.5 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[16px] text-[16px] font-extrabold text-white" style={{ background: 'var(--c)' }}>
           ▶ לצפות בסטורי של {first || 'השבוע'}
-        </Link>
+        </button>
       )}
+      {watching && <WatchWeekStory athleteId={athleteId} at={comingSaturday(p?.today ?? period)} onClose={() => setWatching(false)} />}
 
       {p && (
         <PreviewStage places={places}>

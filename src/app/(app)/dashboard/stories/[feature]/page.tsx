@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Eye } from 'lucide-react';
@@ -11,6 +11,7 @@ import { FEATURE_META } from '@/lib/stories/area';
 import type { StoryFeature } from '@/lib/stories/gate';
 import { israelToday } from '@/lib/utils';
 import { comingSaturday } from '@/lib/week-story/coming-saturday';
+import { WatchWeekStory } from '@/components/stories/WatchWeekStory';
 
 // סיכום שבועי / סיכום שנתי — the same screen as יום הולדת (Content › stories v5, Ofer
 // 10-20): the state with one button, what applies to everyone, the testers, who gets it.
@@ -23,18 +24,24 @@ export default function StoryFeaturePage() {
   const f = (feature === 'weekly' || feature === 'annual' ? feature : null) as StoryFeature | null;
   useEffect(() => { if (feature === 'birthday') router.replace('/dashboard/birthdays'); }, [feature, router]);
   const { data: home, mutate } = useApi<StoriesHome>('/api/admin/stories');
+  const [watch, setWatch] = useState<string | null>(null);
   const state = home?.settings.find((s) => s.feature === f)?.state ?? 'off';
   const { data: up, mutate: reUp } = useApi<{ rows: UpRow[]; nextAt: string | null }>(f && state !== 'off' ? `/api/admin/stories/upcoming?feature=${f}` : null);
   if (!f) return null;
   const changed = () => { void mutate(); void reUp(); };
-  // The weekly preview is the coming Saturday's story (this week, as of its end), so it can
-  // be checked any day of the week — not only inside its Saturday-to-Sunday window.
-  const preview = f === 'weekly' ? `/feed?weekStory=1&weekStoryAt=${comingSaturday(israelToday())}` : '/feed?annualStory=1';
+  // The weekly preview is the coming Saturday's story (this week, as of its end), any day of
+  // the week, opened right here. Whose: the first who gets it, else the first tester — the
+  // operator account itself has no runs, so its own week is always empty.
+  const at = comingSaturday(israelToday());
+  const previewWho = up?.rows.find((r) => r.status === 'ready')?.athleteId ?? home?.testers.find((t) => t.status === 'active')?.athleteId ?? null;
+  const preview = '/feed?annualStory=1';
   return (
     <div style={{ '--c': BG[f] } as CSSProperties} className="pb-8" dir="rtl">
       <div className="flex h-11 items-center justify-between">
         <Link href="/dashboard/content" className="inline-flex min-h-[44px] items-center text-[17px] text-[#007aff]">‹ תוכן</Link>
-        {state !== 'off' && <Link href={preview} className="inline-flex min-h-[44px] items-center gap-1 text-[15px] font-bold text-ink-900"><Eye className="h-4 w-4" />תצוגה</Link>}
+        {state !== 'off' && (f === 'weekly'
+          ? previewWho && <button type="button" onClick={() => setWatch(previewWho)} className="inline-flex min-h-[44px] items-center gap-1 text-[15px] font-bold text-ink-900"><Eye className="h-4 w-4" />תצוגה</button>
+          : <Link href={preview} className="inline-flex min-h-[44px] items-center gap-1 text-[15px] font-bold text-ink-900"><Eye className="h-4 w-4" />תצוגה</Link>)}
       </div>
       <div className="flex items-center gap-3 pb-3">
         <span aria-hidden className="grid h-[46px] w-[46px] place-items-center rounded-[12px] text-[24px]" style={{ background: BG[f] }}>{FEATURE_META[f].emoji}</span>
@@ -44,8 +51,9 @@ export default function StoryFeaturePage() {
         <>
           <StateCard feature={f} home={home} onChanged={changed} />
           <FeatureSettings feature={f} home={home} onChanged={changed} />
-          <TestersCard home={home} onChanged={changed} />
-          {up && <ReceiversList rows={up.rows} href={(r) => `/dashboard/stories/${f}/${r.athleteId}?period=${r.period}`} />}
+          <TestersCard home={home} onChanged={changed} onWatch={f === 'weekly' ? setWatch : undefined} />
+          {up && <ReceiversList rows={up.rows} href={(r) => `/dashboard/stories/${f}/${r.athleteId}?period=${r.period}`} onWatch={f === 'weekly' ? (r) => setWatch(r.athleteId) : undefined} />}
+          {watch && <WatchWeekStory athleteId={watch} at={at} onClose={() => setWatch(null)} />}
         </>
       )}
     </div>

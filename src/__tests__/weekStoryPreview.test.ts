@@ -16,9 +16,9 @@ describe('the weekly story preview, any day of the week', () => {
 });
 
 describe('watching one person\'s weekly story from the stories screen', () => {
-  it('the person screen links to that person\'s story for the coming Saturday', () => {
+  it('the person screen opens that person\'s story for the coming Saturday', () => {
     const src = readFileSync('src/components/stories/StoryPerson.tsx', 'utf8');
-    expect(src).toMatch(/weekStoryOf=\$\{encodeURIComponent\(athleteId\)\}/);
+    expect(src).toMatch(/WatchWeekStory athleteId=\{athleteId\} at=\{comingSaturday/);
     expect(src).toMatch(/לצפות בסטורי/);
   });
   it('the feed reads that person\'s week (the server honours it for an admin only)', () => {

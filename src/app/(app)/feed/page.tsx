@@ -188,9 +188,12 @@ export default function FeedPage() {
   // The operator account has no member feed (#71) — but every sign-in path
   // lands on /feed, so this is the one place that sends it home instead.
   const { isOperator } = useNavIdentity();
+  // A story deep link (the Saturday push, the stories admin preview) stays: it opens a
+  // story over the page, and sent home it was dropped and opened nothing (2026-10-23).
+  const storyLink = searchParams.get('weekStory') === '1' || searchParams.get('annualStory') === '1';
   useEffect(() => {
-    if (isOperator) router.replace('/dashboard');
-  }, [isOperator, router]);
+    if (isOperator && !storyLink) router.replace('/dashboard');
+  }, [isOperator, storyLink, router]);
   // The two cards above the feed open on data the previous release saved
   // (lib/swr-persist CROSS_RELEASE_KEYS), so they're there with the saved page
   // instead of pushing it down a second later. If that data no longer fits a card,
