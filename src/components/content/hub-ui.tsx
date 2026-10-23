@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { CSSProperties, ReactNode } from 'react';
-import { BarChart3, Bell, Camera, Check, ChevronLeft, CircleDot, Flag, Heart, Image as ImageIcon, Megaphone, MessageCircle } from 'lucide-react';
+import { BarChart3, Bell, Camera, Check, ChevronLeft, CircleDot, Flag, Heart, Image as ImageIcon, Megaphone, MessageCircle, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CONTENT_TYPES, resultChips, type ContentType, type PublishedPost, type ResultChip } from '@/lib/content/hub';
 
@@ -14,7 +14,7 @@ import { CONTENT_TYPES, resultChips, type ContentType, type PublishedPost, type 
 // every screen.
 // ═════════════════════════════════════════════════════════════════════════════
 
-const ICON: Record<ContentType, typeof Camera> = { photos: Camera, messages: Megaphone, surveys: BarChart3, cheers: Flag, circle: CircleDot };
+const ICON: Record<ContentType, typeof Camera> = { share: Share2, photos: Camera, messages: Megaphone, surveys: BarChart3, cheers: Flag, circle: CircleDot };
 
 /** The kind's colours as CSS variables, so children can say var(--c) etc. */
 export function typeVars(type: ContentType): CSSProperties {

@@ -7,7 +7,7 @@
 // can be tested without a screen.
 // ═════════════════════════════════════════════════════════════════════════════
 
-export type ContentType = 'photos' | 'messages' | 'surveys' | 'cheers' | 'circle';
+export type ContentType = 'share' | 'photos' | 'messages' | 'surveys' | 'cheers' | 'circle';
 
 export interface TypeMeta {
   key: ContentType;
@@ -20,6 +20,8 @@ export interface TypeMeta {
 }
 
 export const CONTENT_TYPES: Record<ContentType, TypeMeta> = {
+  // The morning's pack cards (Ofer 10-23: "why isn't it in Content?") — mockups/content-share.html.
+  share: { key: 'share', label: 'שיתוף האימון', href: '/dashboard/content/share', color: '#6d3fd6', wash: '#f0eafd', ink: '#4a2a9e' },
   photos: { key: 'photos', label: 'תמונות', href: '/dashboard/content/photos', color: '#f2690d', wash: '#fff1e6', ink: '#a3410a' },
   messages: { key: 'messages', label: 'הודעות', href: '/dashboard/content/messages', color: '#1f6feb', wash: '#e8f0fe', ink: '#174ea6' },
   surveys: { key: 'surveys', label: 'סקרים', href: '/dashboard/content/surveys', color: '#0f9d6b', wash: '#e3f6ee', ink: '#0b6b49' },
@@ -27,7 +29,7 @@ export const CONTENT_TYPES: Record<ContentType, TypeMeta> = {
   circle: { key: 'circle', label: 'עיגול מדרגות', href: '/dashboard/content/circle', color: '#1c1c1e', wash: '#ececf0', ink: '#1c1c1e' },
 };
 
-export const TYPE_ORDER: ContentType[] = ['photos', 'messages', 'surveys', 'cheers', 'circle'];
+export const TYPE_ORDER: ContentType[] = ['share', 'photos', 'messages', 'surveys', 'cheers', 'circle'];
 
 /** A club post as `recentPublished` returns it (lib/publish/server.ts). */
 export interface PublishedPost {

@@ -11,6 +11,7 @@ import {
   type ContentType,
 } from '@/lib/content/hub';
 import { LastLine, TypeBlock, TypeIcon, WaitRow } from '@/components/content/hub-ui';
+import { ShareBlock, useShareDays } from '@/components/content/share-ui';
 import { StoriesHome } from '@/components/content/StoriesHome';
 import { FolderLinks } from '@/components/content/FolderLinks';
 import { useApi } from '@/lib/api';
@@ -55,10 +56,12 @@ export default function ContentPage() {
     surveys: surveyWaiting(items.filter((r) => r.source === 'survey').map((r) => ({ id: r.id, title: r.title, until: r.until, answers: r.answers ?? 0 })), members, today),
     cheers: cheerWaiting(sug?.suggestions ?? []),
   };
-  const count = [waiting.photos, waiting.surveys, waiting.cheers].filter(Boolean).length;
+  const { data: share } = useShareDays();
+  const count = [share?.today, waiting.photos, waiting.surveys, waiting.cheers].filter(Boolean).length;
   const onAir = (source: 'feed' | 'club' | 'scheduled') => items.filter((r) => r.source === source && r.active);
 
   const block = (type: ContentType) => {
+    if (type === 'share') return <ShareBlock key={type} />;
     const last = newest(type);
     const lastLine = last && <LastLine label="אחרון" title={last.text} chips={resultChips(last, members).slice(0, 2)} href={`/dashboard/content/post/${last.id}`} />;
     switch (type) {
