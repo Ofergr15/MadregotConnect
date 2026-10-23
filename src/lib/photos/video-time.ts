@@ -13,12 +13,28 @@ import { israelWallToUtc } from '@/lib/notifications/scheduling';
  *    'mvhd' box holds its creation time, in UTC. Only that box is read, by range — a few
  *    KB of a 279 MB file — by the photo copy job (lib/photos/mirror), once per video, and
  *    the answer kept in TIMES_PATH. The listing then sorts by it.
+ *  - an Insta360 export ("VID_20261023_091420_00_125.mp4") is NOT dated by its name: that
+ *    is when the app exported it. Its mvhd is 0; the shot's time is a text date in the
+ *    header ("2026-10-23 05:03:27 +0000"), the camera's wall clock despite the +0000.
+ *    23.10's 21 of them were shot in the dark at 05:03–05:30 and sorted to the end by
+ *    their 09:06–09:24 names (Ofer, 10-23: "dark photos at the end of the session").
  */
 
 export const TIMES_PATH = 'video-times.json';
 const BUCKET = 'club-photos';
 /** Seconds between 1904-01-01 (QuickTime's epoch) and 1970-01-01. */
 const QT_EPOCH = 2_082_844_800;
+
+/** An Insta360 app export: its name is the export's time, not the shot's (see above). */
+const INSTA360_EXPORT = /^VID_\d{8}_\d{6}_00_\d+\.mp4$/i;
+
+/**
+ * The name's time when it can be trusted ahead of the header: not an Insta360 export's
+ * (that one is read from the header first, and its name is only the fallback).
+ */
+export function trustedNameTime(name: string | null | undefined): string | null {
+  return INSTA360_EXPORT.test(name || '') ? null : timeFromName(name);
+}
 
 /** The capture time a camera wrote into the file name, as an ISO instant; null if none. */
 export function timeFromName(name: string | null | undefined): string | null {
@@ -43,6 +59,19 @@ type Reader = (start: number, length: number) => Promise<Uint8Array | null>;
 const u32 = (b: Uint8Array, o: number) => ((b[o] << 24) >>> 0) + (b[o + 1] << 16) + (b[o + 2] << 8) + b[o + 3];
 const u64 = (b: Uint8Array, o: number) => u32(b, o) * 2 ** 32 + u32(b, o + 4);
 const typeAt = (b: Uint8Array, o: number) => String.fromCharCode(b[o], b[o + 1], b[o + 2], b[o + 3]);
+
+/**
+ * A camera's text date inside the header ("2026-10-23 05:03:27 +0000"), as the wall clock
+ * in Israel — the cameras that write one (Insta360) write their own clock and label it
+ * +0000. Only when the mvhd has no time.
+ */
+export function textDateTime(moov: Uint8Array): string | null {
+  const m = /(20\d{2})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(Buffer.from(moov).toString('latin1'));
+  if (!m) return null;
+  const [y, mo, d, h, mi, sec] = m.slice(1).map(Number);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 || sec > 59) return null;
+  return new Date(israelWallToUtc(y, mo, d, h, mi, sec)).toISOString();
+}
 
 /** The 'mvhd' creation time inside a 'moov' box's bytes, as an ISO instant. */
 export function mvhdTime(moov: Uint8Array): string | null {
@@ -77,7 +106,7 @@ export async function headerTime(read: Reader): Promise<string | null> {
     if (type === 'moov') {
       if (size < 16 || size > 8_000_000) return null;
       const moov = await read(pos, size);
-      return moov ? mvhdTime(moov) : null;
+      return moov ? mvhdTime(moov) ?? textDateTime(moov) : null;
     }
     if (size < 8) return null; // 0 = "to the end of the file": no moov after it
     pos += size;

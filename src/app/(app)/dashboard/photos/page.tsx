@@ -218,8 +218,8 @@ function FolderView({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   // Picking the cover is the admin's (folder-meta route); a ?cover=1 link opens the plain folder for anyone else.
-  const { effectiveRole: viewRole } = useNavIdentity();
-  const coverMode = params.get('cover') === '1' && viewRole === 'admin';
+  const { isAdminAccount: isAdmin } = useNavIdentity();
+  const coverMode = params.get('cover') === '1' && isAdmin;
   // The long press's "להוריד": here already choosing, every photo picked.
   const all = data?.photos.map((p) => p.id).join(',') ?? '';
   useEffect(() => { if (params.get('select') === '1' && all) { setSelecting(true); setPicked(all.split(',')); } }, [params, all]);
@@ -359,7 +359,7 @@ function FolderView({ id }: { id: string }) {
       {videoOpen != null && data.videos && (
         <VideoViewer videos={data.videos} index={videoOpen} title={title} onClose={() => setVideoOpen(null)}
           onShare={() => { void share(); }}
-          onCover={viewRole === 'admin' ? (vid) => { setVideoOpen(null); void setCover(vid); } : undefined} />
+          onCover={isAdmin ? (vid) => { setVideoOpen(null); void setCover(vid); } : undefined} />
       )}
     </div>
   );
@@ -394,9 +394,8 @@ function PhotosHome() {
   const { data: freshBrowse, error, mutate: reloadBrowse } = useApi<Browse>('/api/photos/browse');
   const data = useKept('/api/photos/browse', freshBrowse);
   const [q, setQ] = useState('');
-  // The folder's settings are the admin's (folder-meta route): the view the account is in.
-  const { effectiveRole } = useNavIdentity();
-  const staff = effectiveRole === 'admin';
+  // The folder's settings are the admin's (folder-meta route) — the account's, in any of its views.
+  const { isAdminAccount: staff } = useNavIdentity();
   const [menuFor, setMenuFor] = useState<Folder | null>(null);
   // The filter by kind or tag (lib/photos/folder-kind): 'all', a kind, or '#tag'.
   const [filter, setFilter] = useState<string>('all');

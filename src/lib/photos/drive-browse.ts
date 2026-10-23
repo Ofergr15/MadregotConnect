@@ -3,7 +3,7 @@ import { google, type drive_v3 } from 'googleapis';
 import { unstable_cache } from 'next/cache';
 import { readKind, readTags, type FolderKind } from './folder-kind';
 import { cleanTitle, folderDay, isPinned, isScratchFolder } from './folder-names';
-import { exifToIso, readVideoTimes, timeFromName } from './video-time';
+import { exifToIso, readVideoTimes, timeFromName, trustedNameTime } from './video-time';
 
 /**
  * The photos module (/dashboard/photos, mockup ~/.cache/madregot/photos-module.html,
@@ -98,7 +98,7 @@ async function folderMedia(drive: drive_v3.Drive, folderId: string, withVideos: 
     w: f.videoMediaMetadata?.width ?? null,
     h: f.videoMediaMetadata?.height ?? null,
     // The upload, until the shot time is known: the name now, the header via `times`.
-    at: timeFromName(f.name) || times?.[f.id!] || f.createdTime || null,
+    at: trustedNameTime(f.name) || times?.[f.id!] || timeFromName(f.name) || f.createdTime || null,
     ms: f.videoMediaMetadata?.durationMillis ? Number(f.videoMediaMetadata.durationMillis) : null,
     mime: f.mimeType!,
     name: f.name || '',
@@ -314,7 +314,7 @@ export async function videosWithoutTime(known: Record<string, string>): Promise<
   const lib = await library();
   if (!lib) return [];
   return lib.folders.flatMap((f) => (lib.videos?.[f.id] ?? []))
-    .filter((v) => !timeFromName(v.name) && !(v.id in known)).map((v) => v.id);
+    .filter((v) => !trustedNameTime(v.name) && !(v.id in known)).map((v) => v.id);
 }
 
 /** `length` bytes from `start` of a Drive file — the header reads of lib/photos/video-time. */

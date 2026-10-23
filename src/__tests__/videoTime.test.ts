@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => ({}) }));
-const { exifToIso, headerTime, mvhdTime, timeFromName } = await import('@/lib/photos/video-time');
+const { exifToIso, headerTime, mvhdTime, textDateTime, timeFromName, trustedNameTime } = await import('@/lib/photos/video-time');
 
 // When a video was shot (Ofer, 2026-10-23): Drive's dates are the upload; the name or the
 // file's own header has the moment, and photos and videos then share one clock.
@@ -45,5 +45,18 @@ describe('the shot time of a video', () => {
     expect(exifToIso('2026:10:23 06:55:41')).toBe('2026-10-23T03:55:41.000Z');
     expect(exifToIso('2026-10-23T02:23:26.000Z')).toBe('2026-10-23T02:23:26.000Z');
     expect(exifToIso(null)).toBeNull();
+  });
+});
+
+describe('an Insta360 export (23.10: shot in the dark at 05:03, named 09:14 when exported)', () => {
+  it('its name is not trusted ahead of the header, only as the fallback', () => {
+    expect(trustedNameTime('VID_20261023_091420_00_125.mp4')).toBeNull();
+    expect(timeFromName('VID_20261023_091420_00_125.mp4')).toBe('2026-10-23T06:14:20.000Z');
+    expect(trustedNameTime('PXL_20261016_083517123.mp4')).toBe('2026-10-16T05:35:17.000Z');
+  });
+  it('the header text date is the camera wall clock in Israel, despite its +0000', () => {
+    const moov = new Uint8Array(Buffer.from('....moov....Insta360\u00002026-10-23 05:03:27 +0000\u0000', 'latin1'));
+    expect(textDateTime(moov)).toBe('2026-10-23T02:03:27.000Z');
+    expect(textDateTime(new Uint8Array(Buffer.from('no date here', 'latin1')))).toBeNull();
   });
 });

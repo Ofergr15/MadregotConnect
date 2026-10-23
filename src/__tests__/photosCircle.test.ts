@@ -28,7 +28,10 @@ describe('the folders\' settings', () => {
   it('are the admin\'s, on the server and on the screen', () => {
     expect(read('src/app/api/photos/folder-meta/route.ts')).toMatch(/!auth\.user\.isSuperUser && !hasRole\(auth\.user, 'admin'\)/);
     const page = read('src/app/(app)/dashboard/photos/page.tsx');
-    expect(page).toMatch(/const staff = effectiveRole === 'admin';/);
-    expect(page).toMatch(/const coverMode = params\.get\('cover'\) === '1' && viewRole === 'admin';/);
+    // The ACCOUNT's, in any of its views: in his runner view Ofer lost the cover (10-23).
+    expect(page).toMatch(/const \{ isAdminAccount: staff \} = useNavIdentity\(\);/);
+    expect(page).toMatch(/const coverMode = params\.get\('cover'\) === '1' && isAdmin;/);
+    expect(page).not.toMatch(/effectiveRole === 'admin'|viewRole === 'admin'/);
+    expect(read('src/lib/nav-items.ts')).toMatch(/isAdminAccount: !previewRole && \(isSuper \|\| meData\?\.role === 'admin' \|\| !!meData\?\.roles\?\.includes\('admin'\)\)/);
   });
 });

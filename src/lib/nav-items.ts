@@ -398,6 +398,13 @@ export function useNavIdentity() {
     isCoreRunner: !!meData?.isCoreRunner,
     isClubManager: !!meData?.isClubManager,
     isOperator,
+    /**
+     * The account itself is an admin (or the super-user), whatever view it is in — what
+     * the admin-only settings follow (the photos' cover, pin, name, type, tags). Not
+     * `effectiveRole === 'admin'`: switched to his runner view, Ofer lost the cover
+     * (10-23). A "view as" preview still hides them: that is seeing what others see.
+     */
+    isAdminAccount: !previewRole && (isSuper || meData?.role === 'admin' || !!meData?.roles?.includes('admin')),
     // An academy-only trainee has no club home to fall back to: v2 is theirs regardless of the flag.
     traineeV2: traineeV2 || !!meData?.academyOnly,
     /** /api/auth/me has answered, so `isOperator` is final rather than "not yet". */
