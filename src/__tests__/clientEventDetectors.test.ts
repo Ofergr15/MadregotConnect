@@ -76,7 +76,7 @@ describe('what the browser is allowed to send', () => {
 
   it('truncates a message rather than rejecting it', () => {
     const [e] = sanitiseEvents({ events: [{ kind: 'error', message: 'e'.repeat(5000) }] });
-    expect(e.message!.length).toBe(300);
+    expect(e.message!.length).toBe(500);
   });
 
   it('takes the version from the client, but only if it looks like a version', () => {
@@ -227,7 +227,7 @@ describe('a screen, not a URL', () => {
 describe('the browser probe', () => {
   const src = read('components/ClientEventReporter.tsx');
   it('sends its build with every event, so app_version is filled', () => {
-    expect(src).toMatch(/queue\.push\(\{ kind, route: route\(\), message: message\?\.slice\(0, 300\), appVersion: APP_VERSION \}\)/);
+    expect(src).toMatch(/queue\.push\(\{ kind, route: route\(\), message: message\?\.slice\(0, 500\), appVersion: APP_VERSION \}\)/);
   });
   it('does not call a page on its spinner empty', () => {
     expect(src).toMatch(/\[role="status"\], \[aria-busy="true"\]/);

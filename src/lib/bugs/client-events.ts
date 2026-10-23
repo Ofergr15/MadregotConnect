@@ -72,7 +72,7 @@ export interface ClientEventRow {
 
 /** Enough for a whole page's worth of trouble; not enough to be a write API. */
 export const MAX_BATCH = 20;
-const MAX_MESSAGE = 300;
+const MAX_MESSAGE = 500; // room for the crash's first stack frames (CrashScreen)
 const MAX_ROUTE = 120;
 
 /** `2.40.99`, and nothing else. A version is three numbers. */
