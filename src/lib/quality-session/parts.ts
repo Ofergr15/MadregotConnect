@@ -72,7 +72,10 @@ export function parseParts(raw: QsLap[]): Parsed {
     const byRest = role[i - 1] === 'R' || role[i + 1] === 'R';
     const shortT = l.s <= 125;
     const roundM = l.m >= 150 && l.m <= 1200 && near(l.m, Math.round(l.m / 100) * 100, 0.04, 0) && l.m % 1000 > 50;
-    if ((shortT || roundM) && byRest) role[i] = 'S';
+    // The watch's own "this is a rep" (a structured workout's interval step) next to a rest:
+    // a rep at any length — a 1600 m rep is neither short nor under 1200 m.
+    const watchRep = raw[l.i][2] === 'rep' && l.m >= 150;
+    if ((shortT || roundM || watchRep) && byRest) role[i] = 'S';
   });
   // Reps run back to back (4 × 45″ with no walk between): as long as a rep beside them.
   for (let pass = 0; pass < 3; pass++) {

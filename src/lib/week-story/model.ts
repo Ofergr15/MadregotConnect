@@ -68,7 +68,8 @@ const fmtKm = (km: number) => (Math.round(km * 10) / 10).toLocaleString('en-US')
 /** The one thing that stood out this week, for the push and the opening slide. */
 export function highlightOf(n: WeekNumbers, biggestInWeeks = 0): Highlight {
   if (n.records.length) return { kind: 'record', text: `שיא חדש ב־${n.records[0].label}!` };
-  if (n.planShare != null && n.planShare >= 0.99) return { kind: 'fullPlan', text: '100% מהתוכנית!' };
+  // The same rounding as the "N% מהתוכנית" beside it: 0.9907 is 99% there, so it is not "100%" here.
+  if (n.planShare != null && Math.round(n.planShare * 100) >= 100) return { kind: 'fullPlan', text: '100% מהתוכנית!' };
   if (biggestInWeeks >= 8) return { kind: 'bigWeek', text: `השבוע הכי גדול שלך ב־${biggestInWeeks} שבועות!` };
   if (n.lastWeekKm != null && n.km - n.lastWeekKm >= 3) return { kind: 'up', text: `${fmtKm(n.km - n.lastWeekKm)} ק״מ יותר משבוע שעבר.` };
   return { kind: 'easy', text: 'כל ק״מ נספר.' };

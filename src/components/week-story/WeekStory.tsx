@@ -74,7 +74,7 @@ export function WeekStory({ story, onClose }: { story: Story; onClose: () => voi
         <p className="hint rise d3">לחיצה שמאלה להמשך ‹</p>
       </div></>) });
 
-    const top = Math.max(...s.dayKm, ...(story.plannedKm ?? [0]), 1);
+    const top = Math.max(...s.dayKm, 1);
     const diff = s.lastWeekKm != null ? s.km - s.lastWeekKm : null;
     out.push({ key: 'km', dur: 5500, node: () => (<>
       <div className="bg plain" />
@@ -83,13 +83,12 @@ export function WeekStory({ story, onClose }: { story: Story; onClose: () => voi
         <div className="hero rise d1"><b>{km1(s.km)}</b><u>ק״מ</u></div>
         {diff != null && Math.abs(diff) >= 0.5 && <span className="wk-pill rise d1">{diff > 0 ? '▲' : '▼'} <bdi>{km1(Math.abs(diff))}</bdi> ק״מ {diff > 0 ? 'יותר' : 'פחות'} משבוע שעבר</span>}
         <div className="wk-days rise d2">{s.dayKm.map((k, i) => {
-          const planned = story.plannedKm?.[i] ?? 0;
           return (
             <div key={i}>
               <span>{k > 0 ? km1(k) : ''}</span>
-              {k > 0 ? <i style={{ height: `${(k / top) * 100}%` }} />
-                : planned > 0 ? <i className={story.missed[i] ? 'ms' : 'pl'} style={{ height: `${(planned / top) * 100}%` }} />
-                  : <i className="z" />}
+              {/* A day without a run is empty — never red, whatever the plan said (Ofer, 10-23:
+                  "there's red on the day I didn't run; it should show nothing"). */}
+              {k > 0 ? <i style={{ height: `${(k / top) * 100}%` }} /> : <i className="z" />}
               {DAY_LETTER[i]}
             </div>
           );

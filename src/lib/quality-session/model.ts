@@ -74,7 +74,18 @@ export function detectReps(laps: StoredLap[]): QsLap[] {
   const ls = laps.filter(l => l.distance > 0 && l.duration > 0);
   const structured = ls.some(l => l.wktStepIndex != null && l.intensityType && WATCH_KIND[l.intensityType] === 'rep');
   if (structured) {
-    return ls.map(l => [Math.round(l.distance), Math.round(l.duration),
+    // One step of the watch's workout is one lap here: a 1600 m rep the watch split at its
+    // 1 km auto-lap arrives as 1000 + 600, and read as two laps it was no rep at all — the
+    // morning's 10 × 1.6 ק״מ came out as "ריצה 16 ק״מ" and the strides became the set
+    // (Ofer, 2026-10-23: "5 × 45 seconds? That's not the workout we had on Tuesday").
+    const merged: StoredLap[] = [];
+    for (const l of ls) {
+      const last = merged[merged.length - 1];
+      if (last && l.wktStepIndex != null && last.wktStepIndex === l.wktStepIndex && last.intensityType === l.intensityType) {
+        merged[merged.length - 1] = { ...last, distance: last.distance + l.distance, duration: last.duration + l.duration };
+      } else merged.push(l);
+    }
+    return merged.map(l => [Math.round(l.distance), Math.round(l.duration),
       (l.wktStepIndex != null && WATCH_KIND[l.intensityType || '']) || 'easy']);
   }
   const paces = ls.map(paceOf).sort((a, b) => a - b);
