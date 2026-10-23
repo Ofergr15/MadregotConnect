@@ -1,4 +1,5 @@
 import { STORY_STATES, type StoryState } from './gate';
+import { cleanLayout } from '@/lib/week-story/layout';
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -28,6 +29,11 @@ export function settingsPatch(body: Record<string, unknown>): { ok: true; patch:
       if (typeof body[k] !== 'boolean') return { ok: false, error: `bad ${k}` };
       patch[k] = body[k];
     }
+  }
+  // The weekly story's layout, edited on the story itself (lib/week-story/layout.ts).
+  if ('layout' in body) {
+    if (!body.layout || typeof body.layout !== 'object' || Array.isArray(body.layout)) return { ok: false, error: 'bad layout' };
+    patch.layout = cleanLayout(body.layout);
   }
   if (Object.keys(patch).length === 0) return { ok: false, error: 'nothing to change' };
   return { ok: true, patch };

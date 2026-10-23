@@ -4,6 +4,7 @@ import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { hasRole } from '@/lib/auth/roles';
 import { israelNow, israelToday } from '@/lib/utils';
 import { loadWeekStory } from '@/lib/week-story/server';
+import { isTheme, withMemberChoice, type Theme, type WorkoutPick } from '@/lib/week-story/layout';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,23 +36,40 @@ export async function GET(request: Request) {
 }
 
 /**
- * PATCH /api/week-story  { hidePack: boolean }
+ * PATCH /api/week-story  { hidePack: boolean } | { workout: 'quality'|'long', weekEnd } | { theme: preset | '#rrggbb' }
  *
- * The pack slide is the member's choice (Ofer, 2026-10-19: "שלא חייב להשתמש בזה"): kept in
- * notification_prefs.weekStory, merged so the notification switches beside it stay as they are.
+ * The member's own story choices, kept in notification_prefs.weekStory and merged so the
+ * notification switches beside them stay as they are: the pack slide (Ofer, 2026-10-19:
+ * "שלא חייב להשתמש בזה"), which of the week's workouts the slide shows, and the background.
  */
 export async function PATCH(request: Request) {
   const { denied, caller } = await resolveVerifiedCaller(request);
   if (denied) return denied;
   if (!caller.athleteId) return NextResponse.json({ error: 'no athlete' }, { status: 400 });
-  const body = (await request.json().catch(() => ({}))) as { hidePack?: unknown };
-  if (typeof body.hidePack !== 'boolean') return NextResponse.json({ error: 'hidePack must be true or false' }, { status: 400 });
+  const body = (await request.json().catch(() => ({}))) as { hidePack?: unknown; workout?: unknown; weekEnd?: unknown; theme?: unknown };
+  const change: { hidePack?: boolean; workout?: WorkoutPick; weekEnd?: string; theme?: Theme } = {};
+  if ('hidePack' in body) {
+    if (typeof body.hidePack !== 'boolean') return NextResponse.json({ error: 'hidePack must be true or false' }, { status: 400 });
+    change.hidePack = body.hidePack;
+  }
+  if ('workout' in body) {
+    if ((body.workout !== 'quality' && body.workout !== 'long') || typeof body.weekEnd !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.weekEnd)) {
+      return NextResponse.json({ error: 'workout must be quality|long with weekEnd' }, { status: 400 });
+    }
+    change.workout = body.workout; change.weekEnd = body.weekEnd;
+  }
+  if ('theme' in body) {
+    if (!isTheme(body.theme)) return NextResponse.json({ error: 'theme must be a preset or #rrggbb' }, { status: 400 });
+    change.theme = body.theme;
+  }
+  if (!Object.keys(change).length) return NextResponse.json({ error: 'nothing to change' }, { status: 400 });
   const db = createServerClient();
   const { data, error } = await db.from('athletes').select('notification_prefs').eq('id', caller.athleteId).maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const prefs = ((data?.notification_prefs as Record<string, unknown> | null) || {});
-  const weekStory = { ...((prefs.weekStory as Record<string, unknown>) || {}), hidePack: body.hidePack };
+  const weekStory = withMemberChoice(prefs.weekStory, change);
+  if (change.hidePack !== undefined) weekStory.hidePack = change.hidePack;
   const { error: upErr } = await db.from('athletes').update({ notification_prefs: { ...prefs, weekStory } }).eq('id', caller.athleteId);
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
-  return NextResponse.json({ ok: true, hidePack: body.hidePack });
+  return NextResponse.json({ ok: true, ...change });
 }

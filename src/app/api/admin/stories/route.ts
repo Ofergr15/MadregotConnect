@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
  *   shared tester list, and the head counts each state would reach (for the summary line
  *   and the "send to N people?" confirm). `ready:false` = 156 not pasted; `ready157:false`
  *   = per-person overrides not available yet.
- * PUT  {paused} | {feature, state?, generate_at?, display_days?, min_runs?, feed_post?, send_push?}
+ * PUT  {paused} | {feature, state?, generate_at?, display_days?, min_runs?, feed_post?, send_push?, layout?}
  * Admin / super-user only, server-side.
  */
 export async function GET(request: Request) {
@@ -76,9 +76,14 @@ export async function PUT(request: Request) {
   void _f;
   const r = settingsPatch(rest);
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
+  if ('layout' in r.patch && feature !== 'weekly') return NextResponse.json({ error: 'layout is for the weekly story' }, { status: 400 });
   const { error } = await db.from('story_feature_settings')
     .update({ ...r.patch, updated_by: caller.athleteId, updated_at: new Date().toISOString() })
     .eq('feature', feature);
+  // Before migration 170 the column isn't there: say so, rather than a bare "save failed".
+  if (error && 'layout' in r.patch && /layout/.test(error.message || '')) {
+    return NextResponse.json({ error: 'layout column missing — apply migration 170', code: 'no_layout_column' }, { status: 409 });
+  }
   if (error) return NextResponse.json({ error: 'save failed' }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

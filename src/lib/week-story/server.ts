@@ -14,6 +14,9 @@ import { parseRecordUrl, BUCKET_LABEL } from '@/lib/publish/model';
 import { loadQualitySession, loadQualityWorkout } from '@/lib/quality-session/server';
 import { mainSet, parseParts, partLabel, targetFor } from '@/lib/quality-session/parts';
 import { runnersOf } from '@/lib/quality-session/model';
+import { displaySplits } from '@/lib/activities/km-splits';
+import { markKm, pairKm, planKmPaces, type KmMark } from './long';
+import { cleanLayout, memberChoices, pickTheme, pickWorkout, type StoryLayout, type Theme, type WorkoutPick } from './layout';
 import { addDays, storyWindow, weekdayOf, type StoryWindow, type WeekNumbers } from './model';
 
 /**
@@ -30,6 +33,8 @@ const DAY_MS = 86_400_000;
 export interface StoryRecord { label: string; seconds: number | null }
 /** `vs`: the set's pace minus the plan's (seconds per km), as the quality screen reads it. */
 export interface StoryQuality { label: string; day: number; reps: number[]; target: number[]; vs: number }
+/** The long run: per km of the plan's main block, the pace run and the plan's band. */
+export interface StoryLong { day: number; km: number; name: string; kms: Array<{ p: number; lo: number; hi: number; mark: KmMark }>; onPlan: number }
 export interface StoryPackRow { name: string; km: number; me: boolean; avatarUrl: string | null }
 export interface StoryPack { name: string; rank: number; of: number; lastRank: number | null; top: StoryPackRow[] }
 export interface StoryClub { km: number; runners: number; records: number; marathons: number }
@@ -50,6 +55,14 @@ export interface WeekStory {
   academy: StoryAcademy | null;
   /** The member chose not to see their pack's table (notification_prefs.weekStory.hidePack). */
   hidePack: boolean;
+  long: StoryLong | null;
+  /** The workouts this week has (only these can be picked) and the one the slide shows. */
+  workouts: WorkoutPick[];
+  workout: WorkoutPick | null;
+  /** The club's layout (missing column = the default), the background shown, the member's own picks. */
+  layout: StoryLayout;
+  theme: Theme;
+  mine: { workout: WorkoutPick | null; theme: Theme | null };
 }
 
 const runCols = 'id, activity_name, activity_type, start_time, distance, duration';
@@ -132,6 +145,34 @@ async function qualityFor(db: Db, athleteId: string, ranDays: string[]): Promise
     };
   }
   return null;
+}
+
+/** The week's long run as the plan set it, against the km they ran that day. */
+async function longFor(db: Db, plan: Awaited<ReturnType<typeof planBreakdownFor>>, w: StoryWindow, runs: RunActivityRow[]): Promise<StoryLong | null> {
+  const sessions = (plan?.sessions || []).filter((x) => !x.optional);
+  const ses = sessions.find((x) => x.type === 'long_run') ?? null;
+  if (!ses) return null;
+  const band = planKmPaces(ses.steps || []);
+  if (!band.length) return null;
+  const date = addDays(w.weekStart, ses.dayOfWeek);
+  const run = runs.filter((r) => r.start_time.slice(0, 10) === date).sort((a, b) => b.distance - a.distance)[0];
+  if (!run?.id) return null;
+  const { data } = await db.from('athlete_activities').select('splits, laps').eq('id', run.id).maybeSingle();
+  const row = data as { splits?: unknown; laps?: unknown } | null;
+  const full = displaySplits(row?.splits, row?.laps).filter((k) => k.distance >= 900 && k.averagePace > 0).map((k) => Math.round(k.averagePace));
+  const pairs = pairKm(full, band);
+  if (pairs.length < 5) return null;
+  const kms = pairs.map((k) => ({ ...k, mark: markKm(k.p, [k.lo, k.hi]) }));
+  return { day: ses.dayOfWeek, km: Math.round(run.distance / 100) / 10, name: ses.name, kms, onPlan: kms.filter((k) => k.mark === 'on').length };
+}
+
+/** The club's layout for the weekly story; before migration 170 there is no column, and that is the default. */
+async function layoutFor(db: Db): Promise<StoryLayout> {
+  try {
+    const { data, error } = await db.from('story_feature_settings').select('*').eq('feature', 'weekly').maybeSingle();
+    if (error) return cleanLayout(null);
+    return cleanLayout((data as { layout?: unknown } | null)?.layout);
+  } catch { return cleanLayout(null); }
 }
 
 /** Their place in their pack by km, this week and last, as the home's pack card counts it. */
@@ -262,18 +303,24 @@ export async function loadWeekStory(db: Db, athleteId: string, today: string, ho
   const full = pw.weeks.slice(0, -1).map((x) => x.km);
   const biggest = full.length && pw.km > Math.max(...full) ? full.length + 1 : 0;
 
-  const [name, plan, records, quality, pack, club, academy] = await Promise.all([
+  const planP = planBreakdownFor(db, athleteId, w.weekStart).catch(() => null);
+  const weekRuns = filterQualifyingRuns(acts).filter((r) => r.start_time.slice(0, 10) >= w.weekStart);
+  const [name, plan, records, quality, pack, club, academy, long, layout] = await Promise.all([
     greetName(db, athleteId, athlete.name),
-    planBreakdownFor(db, athleteId, w.weekStart).catch(() => null),
+    planP,
     recordsIn(db, athleteId, w),
     qualityFor(db, athleteId, pw.days.map((k, i) => (k > 0 ? addDays(w.weekStart, i) : null)).filter((d): d is string => !!d)).catch(() => null),
     athlete.is_academy ? Promise.resolve(null) : packFor(db, athleteId, w).catch(() => null),
     clubWeek(db, w).catch(() => null),
     athlete.is_academy ? academyFor(db, athleteId, w, pw.dayRuns.flat().map((r) => r.id).filter((id): id is string => !!id)).catch(() => null) : Promise.resolve(null),
+    planP.then((p) => longFor(db, p, w, weekRuns)).catch(() => null),
+    layoutFor(db),
   ]);
 
   const sum = lastWeekSummary(plan?.dailyDistances, pw.days, pw.dayRuns);
   const prefs = (athlete.notification_prefs?.weekStory || {}) as { hidePack?: boolean };
+  const mine = memberChoices(prefs, w.weekEnd);
+  const workouts = [quality?.reps.length ? 'quality' : null, long ? 'long' : null].filter(Boolean) as WorkoutPick[];
   return {
     athleteId,
     name,
@@ -298,6 +345,12 @@ export async function loadWeekStory(db: Db, athleteId: string, today: string, ho
     club,
     academy,
     hidePack: prefs.hidePack === true,
+    long,
+    workouts,
+    workout: pickWorkout({ available: workouts, club: layout.workout, member: mine.workout }),
+    layout,
+    theme: pickTheme(layout.theme, mine.theme),
+    mine,
   };
 }
 

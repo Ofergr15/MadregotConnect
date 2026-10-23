@@ -14,7 +14,7 @@ const WeekStory = dynamic(() => import('@/components/week-story/WeekStory').then
 
 export function WatchWeekStory({ athleteId, at, onClose }: { athleteId: string; at: string; onClose: () => void }) {
   const { data, error } = useApi<{ story: Story | null }>(`/api/week-story?at=${at}&athleteId=${encodeURIComponent(athleteId)}`);
-  if (data?.story) return <WeekStory story={data.story} onClose={onClose} />;
+  if (data?.story) return <WeekStory story={data.story} onClose={onClose} editable own={false} />;
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-[400] grid place-items-center bg-[#060a52]/95 px-8 text-center text-white" dir="rtl" onClick={onClose}>
       {!data && !error ? <Spinner /> : (
