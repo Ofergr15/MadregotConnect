@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom';
 import { Download, Image as ImageIcon, Loader2, Play, Share2, Volume2, VolumeX, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBackDismiss } from '@/lib/use-back-dismiss';
+import { authedFetch } from '@/lib/auth/authed-fetch';
+import { APP_VERSION } from '@/lib/version';
 
 /**
  * A folder's videos, full screen and vertical, like a story (mockup
@@ -65,6 +67,13 @@ export function preconnectCopies(videos: ReadonlyArray<Pick<ViewerVideo, 'hls'>>
 }
 
 const warmed = new Set<string>();
+/** When the finger went down on each tile: where an "open" is timed from. */
+const tapAt = new Map<string, number>();
+
+/** One measurement line (api/photos/video-timing → the server log). Best-effort. */
+function report(line: Record<string, unknown>) {
+  void authedFetch('/api/photos/video-timing', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...line, v: APP_VERSION }), keepalive: true }).catch(() => {});
+}
 /**
  * Get a copy's way ready before the player opens — called on the finger going DOWN on its
  * tile. A copy comes from three Mux hosts (its list, the quality's list, the video's
@@ -74,6 +83,7 @@ const warmed = new Set<string>();
  * connections, not a cached copy) and preconnects to the third; for the original, its host.
  */
 export function warmVideo(v: Pick<ViewerVideo, 'id' | 'hls' | 'src'>) {
+  tapAt.set(v.id, performance.now());
   if (warmed.has(v.id)) return;
   warmed.add(v.id);
   if (!v.hls) { if (v.src) preconnect(new URL(v.src, location.href).toString()); return; }
@@ -112,6 +122,36 @@ export function VideoViewer({ videos, index, title, onClose, onShare, onCover }:
   const mutedRef = useRef(muted);
   mutedRef.current = muted;
 
+  // ── The measurement (Ofer, 10-23: "measure the times") ─────────────────────────────
+  // From the finger — the tile's touch for the first, the swipe's first move for the next —
+  // to a frame on screen; then, on leaving, how much of it stalled. Posted per video.
+  const curRef = useRef(index);
+  const gestureAt = useRef<number | null>(null);
+  const [start] = useState(() => ({ id: videos[index]?.id, at: tapAt.get(videos[index]?.id ?? '') ?? performance.now(), how: 'open' as 'open' | 'swipe', sent: false }));
+  const startRef = useRef(start);
+  const stats = useRef({ firstAt: 0, stalls: 0, stallMs: 0, stallStart: null as number | null });
+  const leave = useCallback(() => {
+    const s = startRef.current, st = stats.current, el = videoRef.current;
+    if (!s.sent || !s.id) return;
+    if (st.stallStart != null) st.stallMs += performance.now() - st.stallStart;
+    report({ event: 'leave', id: s.id, how: s.how, watchedS: el?.currentTime ?? 0, stalls: st.stalls, stallMs: st.stallMs });
+  }, []);
+  const onFirstFrame = useCallback((id: string, el: HTMLVideoElement, preloaded: boolean, copy: boolean) => {
+    const s = startRef.current;
+    if (s.id !== id || s.sent) return;
+    s.sent = true;
+    stats.current = { firstAt: performance.now(), stalls: 0, stallMs: 0, stallStart: null };
+    report({ event: 'start', id, how: s.how, path: copy ? 'copy' : 'original', firstFrameMs: performance.now() - s.at, preloaded, height: el.videoHeight });
+  }, []);
+  const onWait = useCallback((w: boolean) => {
+    setWaiting(w);
+    const st = stats.current, now = performance.now();
+    if (!st.firstAt) return;
+    if (w && st.stallStart == null) { st.stallStart = now; st.stalls++; }
+    else if (!w && st.stallStart != null) { st.stallMs += now - st.stallStart; st.stallStart = null; }
+  }, []);
+  useEffect(() => () => leave(), [leave]);
+
   // Open on the tapped one.
   useEffect(() => {
     const el = listRef.current;
@@ -126,13 +166,18 @@ export function VideoViewer({ videos, index, title, onClose, onShare, onCover }:
     const el = listRef.current;
     if (!el) return;
     const k = Math.round(el.scrollTop / Math.max(1, el.clientHeight));
-    setCur((c) => {
-      if (k === c || k < 0 || k >= videos.length) return c;
-      setPaused(false); setWaiting(true); setFailed(false);
-      return k;
-    });
-  }, [videos.length]);
+    const at = gestureAt.current;
+    gestureAt.current = null;
+    if (k === curRef.current || k < 0 || k >= videos.length) return;
+    leave();
+    startRef.current = { id: videos[k].id, at: at ?? performance.now(), how: 'swipe', sent: false };
+    stats.current = { firstAt: 0, stalls: 0, stallMs: 0, stallStart: null };
+    curRef.current = k;
+    setPaused(false); setWaiting(true); setFailed(false);
+    setCur(k);
+  }, [videos, leave]);
   const onScroll = useCallback(() => {
+    gestureAt.current ??= performance.now();
     if (settle.current) clearTimeout(settle.current);
     settle.current = setTimeout(pick, 80);
   }, [pick]);
@@ -184,7 +229,7 @@ export function VideoViewer({ videos, index, title, onClose, onShare, onCover }:
         {videos.map((x, k) => (
           <VideoSlide key={x.id} x={x} k={k} mode={k === cur ? 'play' : Math.abs(k - cur) === 1 ? 'ready' : Math.abs(k - cur) === 2 ? 'poster' : 'none'}
             muted={k === cur ? muted : true} onActive={onActive} onTap={togglePlay}
-            onWaiting={setWaiting} onFailed={onFailed} onEnded={goNext} />
+            onWaiting={onWait} onFailed={onFailed} onEnded={goNext} onFirstFrame={onFirstFrame} />
         ))}
       </div>
 
@@ -271,11 +316,14 @@ type SlideMode = 'play' | 'ready' | 'poster' | 'none';
 /** Seconds held ahead: plenty for the one playing, just the opening for its neighbours (they share the line). */
 const bufferFor = (mode: SlideMode) => (mode === 'play' ? 20 : 4);
 
-const VideoSlide = memo(function VideoSlide({ x, k, mode, muted, onActive, onTap, onWaiting, onFailed, onEnded }: {
+const VideoSlide = memo(function VideoSlide({ x, k, mode, muted, onActive, onTap, onWaiting, onFailed, onEnded, onFirstFrame }: {
   x: ViewerVideo; k: number; mode: SlideMode; muted: boolean;
   onActive: (el: HTMLVideoElement) => void; onTap: () => void;
   onWaiting: (w: boolean) => void; onFailed: () => void; onEnded: (k: number) => void;
+  onFirstFrame: (id: string, el: HTMLVideoElement, preloaded: boolean, copy: boolean) => void;
 }) {
+  /** Whether it was already holding its opening when it landed — what preloading is for. */
+  const landedReady = useRef(false);
   const ref = useRef<HTMLVideoElement>(null);
   const live = mode === 'play' || mode === 'ready';
   const modeRef = useRef(mode);
@@ -308,7 +356,7 @@ const VideoSlide = memo(function VideoSlide({ x, k, mode, muted, onActive, onTap
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (mode === 'play') onActive(el);
+    if (mode === 'play') { landedReady.current = el.readyState >= 3; onActive(el); }
     else if (!el.paused) el.pause();
   }, [mode, onActive]);
   // Only the one on screen ever has sound: an iPhone allows one video with sound, and
@@ -321,7 +369,7 @@ const VideoSlide = memo(function VideoSlide({ x, k, mode, muted, onActive, onTap
   useEffect(() => {
     const el = ref.current;
     if (!el || mode !== 'play' || painted) return;
-    const done = () => setPainted(true);
+    const done = () => { setPainted(true); onFirstFrame(x.id, el, landedReady.current, !!x.hls); };
     if (typeof el.requestVideoFrameCallback === 'function') {
       const id = el.requestVideoFrameCallback(done);
       return () => el.cancelVideoFrameCallback(id);
@@ -329,7 +377,7 @@ const VideoSlide = memo(function VideoSlide({ x, k, mode, muted, onActive, onTap
     const on = () => { if (el.currentTime > 0) done(); };
     el.addEventListener('timeupdate', on);
     return () => el.removeEventListener('timeupdate', on);
-  }, [mode, painted]);
+  }, [mode, painted, onFirstFrame, x.id, x.hls]);
   const poster = x.poster || x.thumb || undefined;
   return (
     <div className="relative h-full w-full snap-start snap-always [contain:strict]">

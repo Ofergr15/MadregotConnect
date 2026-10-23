@@ -32,7 +32,11 @@ async function run(request: Request) {
     // When each video was shot (lib/photos/video-time), first: the order of a folder waits
     // on it. A minute a run; the listing is rebuilt when something was found.
     const times = await fillVideoTimes(Date.now() + 60_000).catch((err) => { console.warn('[cron/photos-mirror] times failed', err); return null; });
-    if (times?.found) { revalidateTag('photos-library', { expire: 0 }); forgetLibrary(); }
+    // Stale-while-revalidate, never { expire: 0 }: that made the next person to open photos
+    // wait the whole ~17 s rebuild from Drive, after every run that found a time — every 10
+    // minutes (measured 10-23: list 15–17 s, the 'slow:folder:5s' bugs). Now they get the
+    // listing as it was while it rebuilds behind them; the new order shows a moment later.
+    if (times?.found) { revalidateTag('photos-library', 'max'); forgetLibrary(); }
     // The viewing copies at Mux (lib/photos/mux): newest videos first, a few per run.
     let copies: Awaited<ReturnType<typeof syncMuxCopies>> | null = null;
     if (muxConfigured()) {

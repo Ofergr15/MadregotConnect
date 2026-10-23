@@ -1,6 +1,7 @@
 import { revalidateTag } from 'next/cache';
+import { after } from 'next/server';
 import { driveWriter } from '@/lib/google-drive/writer';
-import { forgetLibrary } from './drive-browse';
+import { forgetLibrary, warmLibrary } from './drive-browse';
 import { FOLDER_KINDS, writeTags, type FolderKind } from './folder-kind';
 
 // Staff edits to a photo folder (the long press's "לצוות" items, and the folder's kind and
@@ -32,5 +33,8 @@ export async function setFolderMeta(folderId: string, patch: FolderMetaPatch): P
   // A null value removes the key on Drive's side; the typings only admit strings.
   await drive.files.update({ fileId: folderId, requestBody: { appProperties: appProperties as Record<string, string> }, supportsAllDrives: true, fields: 'id' });
   forgetLibrary();
+  // At once (the admin is looking at the change), and rebuilt right after the reply, so the
+  // next person doesn't wait the ~17 s rebuild themselves.
   revalidateTag('photos-library', { expire: 0 });
+  after(() => warmLibrary().catch(() => {}));
 }

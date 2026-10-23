@@ -165,6 +165,8 @@ const cachedLibrary = unstable_cache(loadLibrary, ['photos-library-v4'], { reval
 let local: { at: number; value: Library | null } | null = null;
 /** After a staff edit (lib/photos/folder-meta): this instance reads afresh too. */
 export function forgetLibrary(): void { local = null; }
+/** Rebuild the listing now, off anyone's request (after an admin's edit expired it). */
+export async function warmLibrary(): Promise<void> { forgetLibrary(); await library(); }
 async function library(): Promise<Library | null> {
   if (local && Date.now() - local.at < 60_000) return local.value;
   const value = await cachedLibrary();

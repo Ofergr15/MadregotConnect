@@ -54,3 +54,12 @@ describe('the listing and the screens', () => {
     expect(page).toMatch(/media === 'videos' \? \(\s*<VideoRows/);
   });
 });
+
+describe('the listing is never rebuilt on somebody\'s request (10-23: list 15–17 s after every cron run)', () => {
+  it('the cron marks it stale and it rebuilds behind the reader; an admin edit rebuilds right after the reply', () => {
+    const cron = read('src/app/api/cron/photos-mirror/route.ts');
+    expect(cron).toMatch(/revalidateTag\('photos-library', 'max'\)/);
+    expect(cron).not.toMatch(/revalidateTag\('photos-library', \{ expire: 0 \}\)/);
+    expect(read('src/lib/photos/folder-meta.ts')).toMatch(/after\(\(\) => warmLibrary\(\)/);
+  });
+});
