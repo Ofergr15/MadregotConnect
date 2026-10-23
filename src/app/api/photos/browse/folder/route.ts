@@ -3,13 +3,13 @@
  * signed thumbnail and full-size URLs. Only the photos root's own subfolders are
  * ever listed (lib/photos/drive-browse.ts). Any verified member.
  */
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { requireMember } from '@/lib/auth/self-or-staff';
 import { FULL, THUMB, listFolderPhotos, signedImageUrl, signedVideoUrl } from '@/lib/photos/drive-browse';
 import { mirroredUrls } from '@/lib/photos/mirror';
 import { exifToIso } from '@/lib/photos/video-time';
 import { unstable_cache } from 'next/cache';
-import { budgetStopped, muxHls, muxPoster, readMuxBudget, readMuxMap, type MuxMap } from '@/lib/photos/mux';
+import { budgetStopped, markFolderWanted, muxConfigured, muxHls, muxPoster, readMuxBudget, readMuxMap, type MuxMap } from '@/lib/photos/mux';
 
 // Which videos have a viewing copy (lib/photos/mux), cached a couple of minutes.
 // No copies while the budget guard has them off for the month (lib/photos/mux): the originals play.
@@ -35,6 +35,8 @@ export async function GET(request: Request) {
       mirroredUrls([...res.photos.map((p) => p.id), ...res.videos.map((v) => v.id)]),
       res.videos.length ? cachedMuxMap() : Promise.resolve({} as MuxMap),
     ]);
+    // A video here with no copy yet: this folder goes to the front of the copy queue.
+    if (muxConfigured() && res.videos.some((v) => !copies[v.id])) after(() => markFolderWanted(id).catch(() => {}));
     console.log(`[photos/folder] list ${tList}ms · links ${Date.now() - t0 - tList}ms · ${res.photos.length} photos · ${res.videos.length} videos`);
     return NextResponse.json({
       folder: res.folder,

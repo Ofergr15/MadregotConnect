@@ -96,3 +96,12 @@ describe('the budget guard (Ofer, 10-23: "worried about the moment it starts to 
     expect(cron).toMatch(/email: stage !== 'on'/);
   });
 });
+
+describe('the copy queue', () => {
+  it('takes the folders people opened first, the newest opened first, then the rest in order', async () => {
+    const { orderForCopies } = await import('@/lib/photos/mux');
+    const f = (id: string) => ({ folder: { id } });
+    expect(orderForCopies([f('a'), f('b'), f('c'), f('d')], ['c', 'b']).map((x) => x.folder.id)).toEqual(['c', 'b', 'a', 'd']);
+    expect(orderForCopies([f('a'), f('b')], []).map((x) => x.folder.id)).toEqual(['a', 'b']);
+  });
+});

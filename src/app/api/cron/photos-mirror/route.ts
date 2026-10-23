@@ -4,7 +4,7 @@ import { cronPaused } from '@/lib/cron-pause';
 import { mirrorBatch, warmMirrorCache } from '@/lib/photos/mirror';
 import { fillVideoTimes } from '@/lib/photos/video-time';
 import { forgetLibrary, listVideoFolders, signedVideoUrl } from '@/lib/photos/drive-browse';
-import { checkMuxBudget, FREE_DELIVERY_MINUTES, muxConfigured, syncMuxCopies } from '@/lib/photos/mux';
+import { checkMuxBudget, FREE_DELIVERY_MINUTES, muxConfigured, orderForCopies, readWantedFolders, syncMuxCopies } from '@/lib/photos/mux';
 import { sendConfirmedAlert, verifyPendingAlerts } from '@/lib/notifications/confirmed-alert';
 import { videoBudgetCopy } from '@/lib/notifications/copy';
 import { revalidateTag } from 'next/cache';
@@ -42,7 +42,8 @@ async function run(request: Request) {
     if (muxConfigured()) {
       try {
         const origin = process.env.NEXT_PUBLIC_APP_URL || 'https://www.madregot.app';
-        const list = ((await listVideoFolders()) ?? []).flatMap((f) => [...f.videos].reverse());
+        // The folders people opened first, then the newest; in each, the newest video first.
+        const list = orderForCopies((await listVideoFolders()) ?? [], await readWantedFolders().catch(() => [])).flatMap((f) => [...f.videos].reverse());
         copies = await syncMuxCopies(list.map((v) => ({ id: v.id, ms: v.ms, src: () => { const u = signedVideoUrl(v.id); return u ? `${origin}${u}` : null; } })), Date.now() + 40_000);
         if (copies.ready) revalidateTag('mux-assets', { expire: 0 });
       } catch (err) { console.warn('[cron/photos-mirror] mux failed', err); }

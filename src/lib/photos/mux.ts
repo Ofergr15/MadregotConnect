@@ -179,6 +179,33 @@ export async function checkMuxBudget(now = Date.now()): Promise<{ minutes: numbe
   return { minutes, warn, stop, first: !prev };
 }
 
+/**
+ * The folders people opened whose videos aren't all copied yet: the copy job takes them
+ * first (Ofer, 10-23: the three he tried were in the 78 of 189 not copied yet). The newest
+ * opened first; a few at most. In app_settings, the queue being a handful of ids.
+ */
+const WANTED_KEY = 'mux_wanted_folders';
+const WANTED_MAX = 8;
+export async function markFolderWanted(folderId: string): Promise<void> {
+  const db = createServerClient();
+  const { data } = await db.from('app_settings').select('value').eq('key', WANTED_KEY).maybeSingle();
+  let list: string[] = [];
+  try { list = data?.value ? (JSON.parse(data.value as string) as string[]) : []; } catch { /* a bad value starts over */ }
+  if (list[0] === folderId) return;
+  list = [folderId, ...list.filter((x) => x !== folderId)].slice(0, WANTED_MAX);
+  await db.from('app_settings').upsert({ key: WANTED_KEY, value: JSON.stringify(list), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+}
+export async function readWantedFolders(): Promise<string[]> {
+  const { data } = await createServerClient().from('app_settings').select('value').eq('key', WANTED_KEY).maybeSingle();
+  try { return data?.value ? (JSON.parse(data.value as string) as string[]) : []; } catch { return []; }
+}
+
+/** The copy job's order: the folders people opened (newest opened first), then the rest as listed. */
+export function orderForCopies<T extends { folder: { id: string } }>(folders: T[], wanted: string[]): T[] {
+  const rank = (id: string) => { const i = wanted.indexOf(id); return i < 0 ? wanted.length : i; };
+  return folders.map((f, i) => ({ f, i })).sort((a, b) => rank(a.f.folder.id) - rank(b.f.folder.id) || a.i - b.i).map((x) => x.f);
+}
+
 const b64u = (b: Buffer | string) => Buffer.from(b).toString('base64url');
 
 /**
