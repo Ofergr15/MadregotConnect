@@ -16,7 +16,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { NAMES_KEY, PhotosLoading } from '@/components/photos/PhotosLoading';
-import { ArrowRight, ImageOff, Search, X, MoreHorizontal } from 'lucide-react';
+import { ArrowRight, ImageOff, Search, X, MoreHorizontal, Play } from 'lucide-react';
 import { preload } from 'swr';
 import { apiFetcher, useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -86,6 +86,22 @@ const prefetchFolder = (id: string) => { preload(`/api/photos/browse/folder?id=$
 
 /** Holding a finger down this long opens the folder's menu (FolderMenu) instead of the folder. */
 const LONG_PRESS_MS = 480;
+/**
+ * A video tile's mark: its length beside a small drawn play glyph, bottom corner, on a
+ * soft shade — the iPhone Photos way. The "▶" character it replaced drew as an emoji on iOS.
+ */
+function VideoBadge({ ms, small }: { ms?: number | null; small?: boolean }) {
+  return (
+    <>
+      <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/55 to-transparent" />
+      <span className={cn('absolute bottom-1.5 left-1.5 flex items-center gap-1 font-bold text-white drop-shadow', small ? 'text-[10.5px]' : 'text-[11.5px]')}>
+        <Play className={small ? 'h-2.5 w-2.5' : 'h-3 w-3'} fill="currentColor" strokeWidth={0} />
+        {ms ? <bdi dir="ltr">{dur(ms)}</bdi> : null}
+      </span>
+    </>
+  );
+}
+
 /** הכל · תמונות · סרטונים, with how many of each. */
 function MediaSeg({ value, onChange, photos, videos }: { value: Media; onChange: (m: Media) => void; photos: number; videos: number }) {
   const k = (n: number) => (n >= 1000 ? `${Math.round(n / 100) / 10}K` : String(n));
@@ -127,8 +143,7 @@ function VideoRows({ folders, onOpen, filters, filter, setFilter }: {
             {(f.videoCovers ?? []).map((v) => (
               <button key={v.id} type="button" onClick={() => onOpen(f.id)} className="relative h-[124px] w-[84px] shrink-0 overflow-hidden rounded-[14px] bg-page" aria-label="סרטון">
                 <Cover src={v.thumb || undefined} />
-                <span className="absolute inset-0 grid place-items-center"><span className="grid h-7 w-7 place-items-center rounded-full bg-black/45 text-[11px] text-white">▶</span></span>
-                {v.ms ? <span className="absolute bottom-1 left-1 rounded-md bg-black/60 px-1 text-[10px] font-extrabold text-white"><bdi dir="ltr">{dur(v.ms)}</bdi></span> : null}
+                <VideoBadge ms={v.ms} small />
               </button>
             ))}
           </div>
@@ -286,7 +301,7 @@ function FolderView({ id }: { id: string }) {
           );
         })}
       </div>}
-      {/* The videos: tall tiles (they are shot upright), ▶ and the length; nothing loads
+      {/* The videos: tall tiles (they are shot upright), the length and a play mark; nothing loads
           but the poster until one is opened (mockup photos-videos, 2). */}
       {media !== 'photos' && !selecting && !coverMode && !!data.videos?.length && (
         <>
@@ -295,8 +310,7 @@ function FolderView({ id }: { id: string }) {
             {data.videos.map((v, k) => (
               <button key={v.id} type="button" onClick={() => setVideoOpen(k)} className="relative aspect-[9/14] overflow-hidden bg-page" aria-label={`סרטון ${k + 1}`}>
                 <Cover src={v.thumb || undefined} blur={v.blur} />
-                <span className="absolute inset-0 grid place-items-center"><span className="grid h-8 w-8 place-items-center rounded-full bg-black/45 text-[12px] text-white backdrop-blur">▶</span></span>
-                {v.ms ? <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/60 px-1.5 text-[10.5px] font-extrabold text-white"><bdi dir="ltr">{dur(v.ms)}</bdi></span> : null}
+                <VideoBadge ms={v.ms} />
               </button>
             ))}
           </div>

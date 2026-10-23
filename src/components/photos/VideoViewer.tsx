@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Download, Image as ImageIcon, Share2, Volume2, VolumeX, X } from 'lucide-react';
+import { Download, Image as ImageIcon, Loader2, Play, Share2, Volume2, VolumeX, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBackDismiss } from '@/lib/use-back-dismiss';
 
@@ -12,9 +12,12 @@ import { useBackDismiss } from '@/lib/use-back-dismiss';
  *
  * - Swipe up / down for the next / previous one (scroll snap, no library).
  * - Only the video on screen has a <video>; every other slide is its poster, so opening a
- *   folder of 180 videos loads one. It starts muted (a phone autoplays only muted) and
- *   loads `metadata` before it plays; the next one's poster is already there.
- * - Tap: pause / play. 🔊: sound on for every video after it, as people expect.
+ *   folder of 180 videos loads one; the next one's poster is already there.
+ * - With sound (Ofer, 10-23: "why is there no sound"): it was opened by a tap, which lets
+ *   a phone play sound. Only if the phone still refuses does it play muted, saying so.
+ * - While it buffers, a spinner over the poster; a video this phone can't play (an HEVC
+ *   .mov on some Android phones and on a desktop) says so and offers the download.
+ * - Tap: pause / play. The sound choice carries to the next video.
  * - Save downloads the original (full quality); share sends the folder; the admin may set
  *   the video's frame as the folder's cover.
  */
@@ -40,8 +43,10 @@ export function VideoViewer({ videos, index, title, onClose, onShare, onCover }:
   onCover?: (videoId: string) => void;
 }) {
   const [cur, setCur] = useState(index);
-  const [muted, setMuted] = useState(true);
+  const [muted, setMuted] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [waiting, setWaiting] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [t, setT] = useState({ at: 0, dur: 0 });
   const listRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -58,7 +63,7 @@ export function VideoViewer({ videos, index, title, onClose, onShare, onCover }:
     const el = listRef.current;
     if (!el) return;
     const k = Math.round(el.scrollTop / Math.max(1, el.clientHeight));
-    if (k !== cur && k >= 0 && k < videos.length) { setCur(k); setPaused(false); setT({ at: 0, dur: 0 }); }
+    if (k !== cur && k >= 0 && k < videos.length) { setCur(k); setPaused(false); setWaiting(true); setFailed(false); setT({ at: 0, dur: 0 }); }
   }, [cur, videos.length]);
 
   useEffect(() => {
@@ -68,6 +73,13 @@ export function VideoViewer({ videos, index, title, onClose, onShare, onCover }:
     window.addEventListener('keydown', onKey);
     return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', onKey); };
   }, [onClose]);
+
+  // Play with sound; the phone may refuse sound without a tap on the video itself — then
+  // muted, and the 🔊 button lights up to say so.
+  const start = useCallback((el: HTMLVideoElement) => {
+    el.muted = muted;
+    el.play().catch(() => { el.muted = true; setMuted(true); void el.play().catch(() => setPaused(true)); });
+  }, [muted]);
 
   const togglePlay = () => {
     const v = videoRef.current;
@@ -89,10 +101,14 @@ export function VideoViewer({ videos, index, title, onClose, onShare, onCover }:
                 key={x.id}
                 src={x.src}
                 poster={x.poster || x.thumb || undefined}
-                autoPlay
                 muted={muted}
                 playsInline
-                preload="metadata"
+                preload="auto"
+                onLoadedMetadata={(e) => start(e.currentTarget)}
+                onWaiting={() => setWaiting(true)}
+                onPlaying={() => { setWaiting(false); setPaused(false); }}
+                onCanPlay={() => setWaiting(false)}
+                onError={() => { setFailed(true); setWaiting(false); }}
                 onClick={togglePlay}
                 onTimeUpdate={(e) => setT({ at: e.currentTarget.currentTime, dur: e.currentTarget.duration || 0 })}
                 onEnded={() => { const el = listRef.current; if (el && cur < videos.length - 1) el.scrollTo({ top: (cur + 1) * el.clientHeight, behavior: 'smooth' }); }}
@@ -110,12 +126,27 @@ export function VideoViewer({ videos, index, title, onClose, onShare, onCover }:
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between px-3.5 pt-[calc(env(safe-area-inset-top)+10px)]">
         <button type="button" onClick={onClose} aria-label="סגירה" className="pointer-events-auto grid h-11 w-11 place-items-center rounded-full bg-white/15 backdrop-blur"><X className="h-5 w-5" /></button>
         <b className="text-[14px] font-extrabold"><bdi dir="ltr">{cur + 1} / {videos.length}</bdi></b>
-        <button type="button" onClick={() => setMuted((m) => !m)} aria-label={muted ? 'להפעיל קול' : 'להשתיק'} className="pointer-events-auto grid h-11 w-11 place-items-center rounded-full bg-white/15 backdrop-blur">
+        <button type="button" onClick={() => { const next = !muted; setMuted(next); const el = videoRef.current; if (el) { el.muted = next; if (el.paused) void el.play().catch(() => {}); } }} aria-label={muted ? 'להפעיל קול' : 'להשתיק'}
+          className={cn('pointer-events-auto grid h-11 w-11 place-items-center rounded-full backdrop-blur', muted ? 'bg-white text-ink-900' : 'bg-white/15')}>
           {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
         </button>
       </div>
 
-      {paused && <div className="pointer-events-none absolute inset-0 grid place-items-center"><span className="grid h-16 w-16 place-items-center rounded-full bg-black/40 text-2xl">▶</span></div>}
+      {/* Buffering, paused, or a format this phone can't play — drawn icons, never the ▶ character (an emoji on iOS). */}
+      {waiting && !failed && !paused && (
+        <div className="pointer-events-none absolute inset-0 grid place-items-center"><Loader2 className="h-10 w-10 animate-spin text-white/90 drop-shadow" /></div>
+      )}
+      {paused && !failed && (
+        <div className="pointer-events-none absolute inset-0 grid place-items-center">
+          <span className="grid h-[72px] w-[72px] place-items-center rounded-full bg-black/35 backdrop-blur-md"><Play className="ms-1 h-8 w-8 text-white" fill="currentColor" strokeWidth={0} /></span>
+        </div>
+      )}
+      {failed && v?.src && (
+        <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 rounded-3xl bg-black/60 p-5 text-center backdrop-blur-md">
+          <p className="text-[15px] font-bold leading-snug">אי אפשר לנגן את הסרטון הזה בטלפון הזה</p>
+          <a href={`${v.src}&dl=1`} download className="mt-3 inline-flex min-h-[44px] items-center gap-2 rounded-full bg-white px-5 text-[14px] font-extrabold text-ink-900"><Download className="h-4 w-4" />להוריד</a>
+        </div>
+      )}
 
       <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+150px)] start-3 flex flex-col items-center gap-4 text-[11px] font-bold">
         {v?.src && (

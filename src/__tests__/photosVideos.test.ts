@@ -26,11 +26,15 @@ describe('the listing and the screens', () => {
     expect(lib).toMatch(/const folderPhotos = async \(drive: drive_v3\.Drive, folderId: string\) => \(await folderMedia\(drive, folderId, false\)\)\.photos;/);
     expect(lib).toMatch(/photos-library-v4/);
   });
-  it('the player loads one video at a time, muted, after the tap', () => {
+  it('the player loads one video at a time, with sound unless the phone refuses', () => {
     const v = read('src/components/photos/VideoViewer.tsx');
     expect(v).toMatch(/k === cur && x\.src \? \(\s*<video/);
-    expect(v).toMatch(/preload="metadata"/);
-    expect(v).toMatch(/muted=\{muted\}/);
+    expect(v).toMatch(/useState\(false\);\n  const \[paused/);
+    expect(v).toMatch(/el\.play\(\)\.catch\(\(\) => \{ el\.muted = true; setMuted\(true\)/);
+  });
+  it('no play mark is the ▶ character (an emoji on iOS)', () => {
+    expect(read('src/components/photos/VideoViewer.tsx')).not.toMatch(/>▶</);
+    expect(read('src/app/(app)/dashboard/photos/page.tsx')).not.toMatch(/>▶</);
   });
   it('the filter is on the home and in the folder', () => {
     const page = read('src/app/(app)/dashboard/photos/page.tsx');
