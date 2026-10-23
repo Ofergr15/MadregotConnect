@@ -6,7 +6,7 @@ import { apiHeaders, useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { EmptyState, Sheet, SkeletonList } from '@/components/ui';
 import type { PartnerOrderRow, PartnerSummary } from '@/lib/partner-orders/summary';
-import { monthShort } from './charts';
+import { monthShort, niceStep } from './charts';
 
 /**
  * "שותפויות" — what the club's codes bring the partners (mockup ~/.cache/madregot/coupons/mockup.html,
@@ -15,7 +15,6 @@ import { monthShort } from './charts';
 
 const n = (v: number) => Math.round(v).toLocaleString('en-US');
 const B = ({ children }: { children: React.ReactNode }) => <bdi dir="ltr">{children}</bdi>;
-const k = (v: number) => (v ? `₪${v >= 1000 ? `${(Math.round(v / 100) / 10).toString()}K` : n(v)}` : '');
 const when = (iso: string) => new Date(iso).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const dmy = (iso: string) => new Date(iso).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: '2-digit' });
 
@@ -30,26 +29,40 @@ async function downloadCsv() {
   a.click(); URL.revokeObjectURL(url);
 }
 
-/** Money as the column, the number of orders in a badge on it — both per month in one chart. */
+/** Money as the column against a ₪ axis, the number of orders in a badge on it — both per month in one chart. */
+const PH = 120, PAD = 22;
 function MonthChart({ months }: { months: PartnerSummary['months'] }) {
-  const max = Math.max(1, ...months.map((m) => m.amount)) * 1.05;
+  const step = niceStep(Math.max(1, ...months.map((m) => m.amount)), 4);
+  const top = Math.max(step, Math.ceil(Math.max(1, ...months.map((m) => m.amount)) / step) * step);
+  const ticks = Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step);
+  const y = (v: number) => (v / top) * PH;
   const last = months.length - 1;
-  const best = months.reduce((b, m, i) => (m.amount > months[b].amount ? i : b), 0);
+  const axis = (v: number) => (v === 0 ? '0' : v >= 1000 ? `₪${(v / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 })}K` : `₪${v}`);
   return (
-    <div className="flex h-[170px] items-end gap-[3px] px-1" dir="ltr">
-      {months.map((m, i) => {
-        const [y, mo] = m.month.split('-').map(Number);
-        const showYear = i === 0 || mo === 1;
-        return (
-          <div key={m.month} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end">
-            <span className="mb-[22px] whitespace-nowrap text-[8.5px] font-extrabold text-brand-600">{i === best || i === last ? k(m.amount) : ''}</span>
-            <i className={cn('relative flex w-full justify-center rounded-t-[5px] rounded-b-[2px]', i === last ? 'bg-brand-600' : 'bg-[#C9CFFD]')} style={{ height: `${Math.max(2, (m.amount / max) * 110)}px` }}>
-              {m.count > 0 && <em className={cn('absolute -top-[19px] h-4 min-w-4 rounded-full px-[3px] text-center text-[10px] font-extrabold not-italic leading-4 text-white', i === last ? 'bg-brand-600' : 'bg-ink-900')}>{m.count}</em>}
-            </i>
-            <span className="mt-1 text-center text-[10px] leading-tight text-ink-400">{monthShort(mo)}{showYear && <><br />{String(y).slice(2)}</>}</span>
+    <div className="flex gap-1.5" dir="ltr">
+      <div className="relative w-[34px] flex-none" style={{ height: PH + PAD }}>
+        {ticks.map((v) => <span key={v} className="absolute right-0 translate-y-1/2 text-[9.5px] font-semibold tabular-nums text-ink-400" style={{ bottom: y(v) }}>{axis(v)}</span>)}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="relative" style={{ height: PH + PAD }}>
+          {ticks.map((v) => <i key={v} className={cn('absolute inset-x-0 block h-px', v === 0 ? 'bg-ink-300' : 'bg-[#EEF0F4]')} style={{ bottom: y(v) }} />)}
+          <div className="absolute inset-0 flex items-end gap-[3px]">
+            {months.map((m, i) => (
+              <div key={m.month} className="flex h-full min-w-0 flex-1 items-end justify-center">
+                <i className={cn('relative flex w-full justify-center rounded-t-[5px]', i === last ? 'bg-brand-600' : 'bg-[#C9CFFD]')} style={{ height: Math.max(m.amount ? 2 : 0, y(m.amount)) }}>
+                  {m.count > 0 && <em className={cn('absolute -top-[19px] h-4 min-w-4 rounded-full px-[3px] text-center text-[10px] font-extrabold not-italic leading-4 text-white', i === last ? 'bg-brand-600' : 'bg-ink-900')}>{m.count}</em>}
+                </i>
+              </div>
+            ))}
           </div>
-        );
-      })}
+        </div>
+        <div className="mt-1 flex gap-[3px]">
+          {months.map((m, i) => {
+            const [yr, mo] = m.month.split('-').map(Number);
+            return <span key={m.month} className="min-w-0 flex-1 text-center text-[10px] leading-tight text-ink-400">{monthShort(mo)}{(i === 0 || mo === 1) && <><br />{String(yr).slice(2)}</>}</span>;
+          })}
+        </div>
+      </div>
     </div>
   );
 }

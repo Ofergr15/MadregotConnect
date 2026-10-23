@@ -1,5 +1,15 @@
 [
   {
+    "id": "partner-chart-axis",
+    "date": "2026-10-23",
+    "kind": "fix",
+    "audience": "staff",
+    "icon": "📊",
+    "title": "ציר כסף בגרף השותפויות",
+    "body": "לגרף ״הזמנות וכסף לפי חודש״ נוסף ציר ₪ עם קווי רשת, כדי לקרוא את הסכום של כל חודש.",
+    "href": "/dashboard/numbers?tab=partners"
+  },
+  {
     "id": "partner-order-sheet",
     "date": "2026-10-23",
     "kind": "feature",
