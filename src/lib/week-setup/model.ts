@@ -53,6 +53,8 @@ export interface NotifOverride {
   body?: string;
   /** 0–23, Israel time. */
   hour?: number;
+  /** One pace group's id instead of everyone (the approval screen's "למי"). */
+  audience?: string;
 }
 /** `{ [weekStart]: { [slotKey]: NotifOverride } }`, in app_settings.week_notif_overrides. */
 export type OverrideStore = Record<string, Record<string, NotifOverride>>;
@@ -90,6 +92,7 @@ function clean(o: NotifOverride): NotifOverride {
   if (o.title?.trim()) out.title = o.title.trim().slice(0, 120);
   if (o.body?.trim()) out.body = o.body.trim().slice(0, 400);
   if (Number.isInteger(o.hour) && o.hour! >= 0 && o.hour! <= 23) out.hour = o.hour;
+  if (o.audience && /^[0-9a-f-]{36}$/i.test(o.audience)) out.audience = o.audience;
   return out;
 }
 

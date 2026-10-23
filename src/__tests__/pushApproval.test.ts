@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gateState, parseApprovals, shouldAsk, stageDue, withDecision } from '@/lib/notifications/approval';
+import { isAskDay, gateState, parseApprovals, shouldAsk, stageDue, withDecision } from '@/lib/notifications/approval';
 
 describe('push approval gate', () => {
   const store = parseApprovals(JSON.stringify({ mode: 'quality', days: { '2026-10-13': { status: 'approved', by: 'Ofer', at: 'x' } } }));
@@ -22,11 +22,15 @@ describe('push approval gate', () => {
     expect(stageDue('not_needed', 9, 8, 18)).toBe(false);
   });
 
-  it('never fires while pending or skipped', () => {
-    for (const h of [7, 8, 12, 18]) {
-      expect(stageDue('pending', h, 8, 18)).toBe(false);
-      expect(stageDue('skipped', h, 8, 18)).toBe(false);
-    }
+  it('pending sends at its own hour (the default goes out); skipped never fires', () => {
+    expect(stageDue('pending', 8, 8, 18)).toBe(true);
+    expect(stageDue('pending', 9, 8, 18)).toBe(false);
+    for (const h of [7, 8, 12, 18]) expect(stageDue('skipped', h, 8, 18)).toBe(false);
+  });
+  it('asks two evenings before: Sunday for a Tuesday, Wednesday for a Friday', () => {
+    expect(isAskDay(0, 2)).toBe(true);
+    expect(isAskDay(3, 5)).toBe(true);
+    expect(isAskDay(1, 2)).toBe(false);
   });
 
   it('a late approval still sends what is left of the window', () => {

@@ -1362,16 +1362,16 @@ export function approvalRequestCopy(
   const d = dayName(locale, p.day);
   const hh = `${String(p.hour).padStart(2, '0')}:00`;
   const name = (p.workoutName || '').trim();
+  // Mockup ~/.cache/madregot/quality-schedule (10-23): asked the evening before the
+  // reminder day; untouched, the regular push still goes out at its hour.
   if (locale === 'he') {
-    return {
-      title: p.reminder ? '🟡 עוד לא אושר: ההתראות לאימון מחר' : '🟡 לאישור: ההתראות לאימון מחר',
-      body: `${name ? `${name} · ` : ''}יום ${d}. התזכורת יוצאת ב-${hh} רק אחרי אישור. לחיצה לאישור`,
-    };
+    return p.reminder
+      ? { title: `⏰ עוד לא אישרת את ההתראות ליום ${d}`, body: `בלי שינוי, מחר ב־${hh} תצא ההתראה הרגילה. לחיצה לשנות` }
+      : { title: `🏃 ${d}: אימון איכות${name ? ` · ${name}` : ''}`, body: `מחר ב־${hh} יוצאת לרצים ההתראה הרגילה. לחיצה לשנות ולאשר` };
   }
-  return {
-    title: p.reminder ? '🟡 Still waiting: tomorrow\'s session pushes' : '🟡 To approve: tomorrow\'s session pushes',
-    body: `${name ? `${name} · ` : ''}${d}. The reminder goes out at ${hh} only once approved. Tap to approve`,
-  };
+  return p.reminder
+    ? { title: `⏰ ${d}'s pushes aren't approved yet`, body: `Unchanged, the regular push goes out tomorrow at ${hh}. Tap to change` }
+    : { title: `🏃 ${d}: quality session${name ? ` · ${name}` : ''}`, body: `Tomorrow at ${hh} the regular push goes out to the runners. Tap to change and approve` };
 }
 
 export function surveyNudgeCopy(locale: NotificationLocale, p: { day: number }): PushCopy {

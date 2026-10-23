@@ -27,7 +27,7 @@ export async function PUT(request: Request) {
   }
   const v = body?.value;
   const value: NotifOverride | null = v && typeof v === 'object'
-    ? { off: !!v.off, title: typeof v.title === 'string' ? v.title : undefined, body: typeof v.body === 'string' ? v.body : undefined, hour: Number.isInteger(v.hour) ? v.hour : undefined }
+    ? { off: !!v.off, title: typeof v.title === 'string' ? v.title : undefined, body: typeof v.body === 'string' ? v.body : undefined, hour: Number.isInteger(v.hour) ? v.hour : undefined, audience: typeof v.audience === 'string' ? v.audience : undefined }
     : null;
   try {
     const store = await loadOverrides(supabase);

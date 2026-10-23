@@ -4,8 +4,8 @@
 // Ofer, 2026-10-10: "before we send a notification ahead of a quality workout,
 // pop it to the admin; they approve and then it happens". One decision covers a
 // whole team day: the day-before reminder, the pace-group survey, and the two
-// evening nudges (cron/tick stages 1–4). Nothing approved by the time a push is
-// due means it is not sent. An approval that comes late still sends what is
+// evening nudges (cron/tick stages 1–4). Since 10-23 nothing decided means the
+// regular push goes out at its regular hour; only "don't send" holds it. An approval that comes late still sends what is
 // left of that day's window (`stageDue`). Stored in app_settings, so no migration.
 
 export const APPROVAL_KEY = 'notif_approvals';
@@ -75,13 +75,23 @@ export function gateState(store: ApprovalStore, teamDate: string, isQualityDay: 
  * 23:00 sends nothing that night.
  */
 export function stageDue(gate: GateState, hour: number, stageHour: number, windowEnd: number): boolean {
-  if (gate === 'pending' || gate === 'skipped') return false;
+  // Pending sends as usual (Ofer 10-23: "if the admin didn't touch it, the regular one goes
+  // out") — only an explicit "don't send" holds a push.
+  if (gate === 'skipped') return false;
   if (gate === 'approved') return hour >= stageHour && hour < Math.max(windowEnd, stageHour + 1);
   return hour === stageHour;
 }
 
+/** When the admin is asked: the evening two days before the team day (Sunday for Tuesday). */
+export const ASK_HOUR = 20;
+/** And reminded once, if still undecided. */
+export const REMIND_HOUR = 22;
+
+/** Is today the asking evening for this team day — two days before it. */
+export const isAskDay = (weekday: number, teamDay: number) => weekday === (teamDay + 5) % 7;
+
 /**
- * When to ask: from the hour before the first push of the day until the last
+ * When to ask (the old rule, before 10-23): from the hour before the first push of the day until the last
  * push's hour. A deploy or a missed tick inside that window still asks.
  */
 export function shouldAsk(gate: GateState, hour: number, firstHour: number, lastHour: number): boolean {

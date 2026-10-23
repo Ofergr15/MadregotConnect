@@ -50,7 +50,7 @@ import { BUCKET_LABEL, parseRecordUrl } from '@/lib/publish/model';
 import { PUSH_AT } from '@/lib/quality-session/model';
 import { qualitySessionRecipientIds } from '@/lib/quality-session/access';
 import { cronPaused } from '@/lib/cron-pause';
-import { gateState, shouldAsk, stageDue, addDays, type ApprovalStore, type GateState } from '@/lib/notifications/approval';
+import { ASK_HOUR, REMIND_HOUR, gateState, isAskDay, stageDue, addDays, type ApprovalStore, type GateState } from '@/lib/notifications/approval';
 import { loadApprovals, qualityOf } from '@/lib/notifications/approval-server';
 import { overrideFor, withOverrideCopy, type OverrideStore } from '@/lib/week-setup/model';
 import { loadOverrides } from '@/lib/week-setup/server';
@@ -190,7 +190,6 @@ async function run(request: Request) {
   let approvals: ApprovalStore | null = null;
   try { approvals = await loadApprovals(supabase); } catch { approvals = null; }
   const firstHour = Math.min(...[dayBefore.enabled ? dayBefore.hour : 99, eveningBefore.enabled ? eveningBefore.hour : 99]);
-  const lastHour = Math.max(dayBefore.enabled ? dayBefore.hour : -1, eveningBefore.enabled ? eveningBefore.hour : -1);
 
   // This week's changes to the automatic pushes (lib/week-setup), read once. A failed read
   // changes nothing: every stage then sends its defaults, as it always did.
@@ -201,31 +200,38 @@ async function run(request: Request) {
   for (const teamDay of teamDays) {
     const dayBeforeWeekday = (teamDay + 6) % 7; // day before the team day
 
-    // Does tomorrow's team day need an admin's OK first, and is there one.
-    // Only worked out on the day before, so the other six days cost nothing.
+    // The admin's say over the pushes before a quality session (lib/notifications/approval,
+    // mockup ~/.cache/madregot/quality-schedule): asked at 20:00 TWO days before (Sunday for a
+    // Tuesday), reminded once at 22:00, and — untouched — the regular pushes still go out.
+    if (approvals && approvals.mode !== 'off' && firstHour < 99 && isAskDay(weekday, teamDay) && (hour === ASK_HOUR || hour === REMIND_HOUR)) {
+      const askDate = addDays(israelToday(now), 2);
+      try {
+        const quality = approvals.mode === 'quality' ? await qualityOf(supabase, askDate) : null;
+        if (gateState(approvals, askDate, approvals.mode === 'team' || !!quality) === 'pending') {
+          const reminder = hour === REMIND_HOUR;
+          const tag = `${reminder ? 'approvalReminder' : 'approvalRequest'}:${askDate}`;
+          if (!(await already(tag))) {
+            const { sent } = await notifyStaff({
+              kind: 'push_approval',
+              url: `/dashboard/notifications/approve?date=${askDate}`,
+              tag: `push-approval-${askDate}`,
+              category: 'management',
+              copy: (locale) => approvalRequestCopy(locale, { day: teamDay, hour: firstHour, workoutName: quality?.name, reminder }),
+            });
+            await markFired(tag, sent);
+            fired.push(`${tag} → ${sent}`);
+          }
+        }
+      } catch { /* asking is a courtesy; the pushes go out either way */ }
+    }
+    // On the day before: has someone said "don't send" (or approved late, which releases
+    // what is left of the window). Only worked out that day, so the other six cost nothing.
     let gate: GateState = 'not_needed';
     if (approvals && approvals.mode !== 'off' && weekday === dayBeforeWeekday && firstHour < 99) {
       const teamDate = addDays(israelToday(now), 1);
       try {
         const quality = approvals.mode === 'quality' ? await qualityOf(supabase, teamDate) : null;
         gate = gateState(approvals, teamDate, approvals.mode === 'team' || !!quality);
-        if (shouldAsk(gate, hour, firstHour, lastHour)) {
-          const reqTag = `approvalRequest:${teamDate}`;
-          const remTag = `approvalReminder:${teamDate}`;
-          const ask = async (tag: string, reminder: boolean) => {
-            const { sent } = await notifyStaff({
-              kind: 'push_approval',
-              url: `/dashboard/notifications/approve?date=${teamDate}`,
-              tag: `push-approval-${teamDate}`,
-              category: 'management',
-              copy: (locale) => approvalRequestCopy(locale, { day: teamDay, hour: firstHour, workoutName: quality?.name, reminder }),
-            });
-            await markFired(tag, sent);
-            fired.push(`${tag} → ${sent}`);
-          };
-          if (!(await already(reqTag))) await ask(reqTag, false);
-          else if (hour === firstHour - 1 && minute >= 45 && !(await already(remTag))) await ask(remTag, true);
-        }
       } catch {
         gate = 'not_needed';
       }
@@ -258,7 +264,7 @@ async function run(request: Request) {
         fired.push(`${tag} → off this week`);
       } else if (!(await already(tag))) {
         const url = `/dashboard?rsvp=${teamDayWeekStart}:${teamDay}`;
-        const subs = await resolveAudience('all', null);
+        const subs = await resolveAudience(ovMorning?.audience ? 'group' : 'all', ovMorning?.audience ?? null);
         // A club poll published in the hours before this push rides inside it, so the
         // club gets one push today, not two (lib/surveys dayBeforePushSoon, mockup
         // polls-proposal). Claimed first, so its own fallback push never goes as well.
@@ -314,7 +320,13 @@ async function run(request: Request) {
         const answeredIds = new Set(answeredRows.map((r: { athlete_id: string }) => r.athlete_id));
         const goingCount = answeredRows.filter((r: { attending: boolean }) => r.attending).length;
         const all = await allAthleteIds();
-        const nonResponders = all.filter(id => !answeredIds.has(id));
+        let nonResponders = all.filter(id => !answeredIds.has(id));
+        // One pace group only, when the approval screen narrowed it (NotifOverride.audience).
+        if (ovEvening?.audience) {
+          const { data: inGroup } = await supabase.from('athletes').select('id').eq('group_id', ovEvening.audience);
+          const ids = new Set((inGroup || []).map((r: { id: string }) => r.id));
+          nonResponders = nonResponders.filter((id) => ids.has(id));
+        }
         const subs = await subscriptionsForAthletes(nonResponders);
         const url = `/dashboard?rsvp=${teamDayWeekStart}:${teamDay}`;
         const build = (locale: NotificationLocale) => withOverrideCopy(trainingEveningBeforeCopy(locale, { day: teamDay, goingCount }), ovEvening);
