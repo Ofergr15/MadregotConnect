@@ -11,7 +11,7 @@ import { TOUR_REPLAY_EVENT } from '@/lib/tour/store';
 import { useTourPrefs } from '@/lib/tour/use-prefs';
 import { openViewAsChooser } from '@/lib/view-as-person';
 import { cn } from '@/lib/utils';
-import { athletePrimaryOrder, resolveNavItems, useNavIdentity, type NavItem, STORE_OPEN, ADMIN_HOME_ORDER, isAdminHome } from '@/lib/nav-items';
+import { athletePrimaryOrder, resolveNavItems, useNavIdentity, type NavItem, STORE_OPEN, ADMIN_HOME_ORDER, NUMBERS_TAB_ITEM, isAdminHome } from '@/lib/nav-items';
 import { startViewAs, stopViewAs, MAINTENANCE_MODE, VIEW_AS_SCENARIOS } from '@/lib/impersonation';
 import { Sheet } from '@/components/ui';
 import { useApi } from '@/lib/api';
@@ -101,8 +101,10 @@ export function BottomTabBar() {
     : isStaffView ? STAFF_PRIMARY_ORDER
       // A "מנהל מדרגות" gets ניהול as a FIFTH flat tab, after profile — nothing moves into "More".
       : [...athletePrimaryOrder(ATHLETE_PRIMARY_ORDER, identity.isAcademyMember, identity.traineeV2), ...(identity.isClubManager ? ['club-numbers'] : [])];
-  const maxPrimary = adminHome ? 5 : !isStaffView && identity.isClubManager ? 5 : 4;
-  const byTab = new Map(navItems.map(i => [i.tab, i]));
+  const maxPrimary = adminHome ? 6 : !isStaffView && identity.isClubManager ? 5 : 4;
+  // The admin home's bar carries the numbers as a flat tab of its own; nothing else grants it.
+  const barItems = adminHome && !navItems.some(i => i.tab === 'numbers') ? [...navItems, NUMBERS_TAB_ITEM] : navItems;
+  const byTab = new Map(barItems.map(i => [i.tab, i]));
   const primary: NavItem[] = [];
   for (const tab of primaryOrder) {
     if (primary.length >= maxPrimary) break;
@@ -112,7 +114,7 @@ export function BottomTabBar() {
   // Fill remaining primary slots from whatever's left, in nav order — but never
   // with the staff FAB's own target (a role missing some of its preferred tabs
   // must not fall back onto the one destination the FAB already covers).
-  for (const item of navItems) {
+  for (const item of barItems) {
     if (primary.length >= maxPrimary) break;
     if (isStaffView && STAFF_NEVER_PRIMARY.has(item.tab)) continue;
     // Review has two permanent homes of its own now — the button beside the logo
@@ -125,7 +127,7 @@ export function BottomTabBar() {
   // Same reason review is skipped above: it's a static card in the sheet for
   // every role, so leaving it in the permission-gated overflow would print it
   // twice for anyone whose `review` tab is enabled.
-  const overflow = navItems.filter(i => byTab.has(i.tab) && i.tab !== 'review');
+  const overflow = barItems.filter(i => byTab.has(i.tab) && i.tab !== 'review');
   const isActive = (href: string) => pathname === href;
   const overflowActive = overflow.some(i => isActive(i.href));
   // The static quick-action pages are reachable from the "More" sheet only, so

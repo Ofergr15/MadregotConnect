@@ -53,7 +53,8 @@ export const NUMBERS_HOME_ITEM: NavItem = { href: '/dashboard', tab: 'dashboard'
  * home: an admin with no athlete row, or the operator account (the dashboard's
  * controlRoomView), or a preview of `admin`.
  */
-export const ADMIN_HOME_ORDER = ['dashboard', 'people', 'training', 'content', 'coach-tools'];
+// 'numbers' second (Ofer 10-23: "the numbers are a very important tab — every number and summary is there").
+export const ADMIN_HOME_ORDER = ['dashboard', 'numbers', 'people', 'training', 'content', 'coach-tools'];
 export function isAdminHome(id: { effectiveRole: string | null; isOperator?: boolean; isAthlete?: boolean; previewRole?: string | null }): boolean {
   if (id.effectiveRole !== 'admin') return false;
   return id.previewRole === 'admin' || !!id.isOperator || !id.isAthlete;
@@ -118,6 +119,8 @@ export const PROFILE_ITEM: NavItem = { href: '/dashboard/profile', tab: 'profile
 export const ADMIN_ACCOUNT_ITEM: NavItem = { href: '/dashboard/profile', tab: 'profile', labelKey: 'account', icon: ShieldCheck };
 export const COACH_TOOLS_ITEM: NavItem = { href: '/dashboard/coach-tools', tab: 'coach-tools', labelKey: 'coachTools', icon: Wrench };
 /** "ניהול" for a "מנהל מדרגות" who holds no staff role: the club's numbers (lib/club-numbers/access). */
+/** "מספרים" — the admin home bar's own tab for /dashboard/numbers ("מדרגות במספרים"). */
+export const NUMBERS_TAB_ITEM: NavItem = { href: '/dashboard/numbers', tab: 'numbers', labelKey: 'numbersTab', icon: Gauge };
 export const CLUB_NUMBERS_ITEM: NavItem = { href: '/dashboard/numbers', tab: 'club-numbers', labelKey: 'coachTools', icon: Gauge };
 // Store and Benefits are static "More" sheet rows, not gated by
 // role_tab_permissions (roadmap #9, #5) — every role can reach them.

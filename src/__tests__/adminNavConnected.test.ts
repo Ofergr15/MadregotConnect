@@ -36,9 +36,10 @@ describe('the admin navigation stays connected', () => {
     for (const h of ['/dashboard/athletes', '/dashboard/entry-queue', '/dashboard/calendar', '/dashboard/activities', '/dashboard/numbers', '/dashboard/control-room', '/dashboard/settings'])
       expect(pageExists(h), h).toBe(true);
   });
-  it('the admin bar is five tabs, each a nav item', () => {
-    expect(ADMIN_HOME_ORDER).toHaveLength(5);
-    for (const t of ADMIN_HOME_ORDER.filter((x) => x !== 'dashboard')) expect(ALL_NAV_ITEMS.some((i) => i.tab === t) || t === 'coach-tools', t).toBe(true);
+  it('the admin bar is six tabs, the numbers second, each a nav item', () => {
+    expect(ADMIN_HOME_ORDER).toHaveLength(6);
+    expect(ADMIN_HOME_ORDER[1]).toBe('numbers');
+    for (const t of ADMIN_HOME_ORDER.filter((x) => x !== 'dashboard')) expect(ALL_NAV_ITEMS.some((i) => i.tab === t) || t === 'coach-tools' || t === 'numbers', t).toBe(true);
   });
   it('the admin bar is for the admin home only', () => {
     expect(isAdminHome({ effectiveRole: 'admin', isAthlete: false })).toBe(true);
