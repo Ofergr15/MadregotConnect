@@ -10,7 +10,7 @@ import { fmtDuration, fmtPace, highlightOf, qualityVerdict, weekLabel } from '@/
 import { EXPORT_H, EXPORT_W, captureSlide, shareImages } from '@/components/birthday/capture';
 import { SLIDE_MS, canRecordVideo, recordStory, shareVideo, videoLength } from '@/components/birthday/video';
 import { academyBoardUrl } from '@/lib/academy/deep-links';
-import { THEMES, THEME_KEYS, hexToHsl, hslToHex, isCustom, partShown, slideShown, themeAccent, themeStops, toggleSlide, togglePart, FIXED_SLIDES, type StoryLayout, type Theme, type WorkoutPick } from '@/lib/week-story/layout';
+import { THEMES, THEME_KEYS, hexToHsl, hslToHex, isCustom, partShown, slideShown, themeAccent, themeStops, toggleSlide, togglePart, FIXED_SLIDES, DEFAULT_LAYOUT, type StoryLayout, type Theme, type WorkoutPick } from '@/lib/week-story/layout';
 import '@/components/birthday/year-story.css';
 import './week-story.css';
 
@@ -62,7 +62,8 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
   const shareOneRef = useRef<() => Promise<void>>(async () => {});
   const [canVideo, setCanVideo] = useState(false);
   useEffect(() => { setCanVideo(canRecordVideo()); }, []);
-  const [layout, setLayout] = useState<StoryLayout>(story.layout);
+  // A story cached from before 2.41.403 (or a read without migration 170) has no layout: the defaults (#crash 10-23 "e.hiddenSlides").
+  const [layout, setLayout] = useState<StoryLayout>(story.layout ?? DEFAULT_LAYOUT);
   const [editing, setEditing] = useState(false);
   const [theme, setTheme] = useState<Theme>(story.theme);
   const [workout, setWorkout] = useState<WorkoutPick | null>(story.workout);

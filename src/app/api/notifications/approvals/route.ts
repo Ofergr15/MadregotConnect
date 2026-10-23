@@ -107,9 +107,11 @@ async function view(supabase: ReturnType<typeof createServerClient>) {
   const today = israelToday();
   const dates = Array.from({ length: 8 }, (_, i) => addDays(today, i)).filter((d) => cfg.teamDays.includes(dowOf(d)));
   const days: ApprovalDay[] = [];
-  for (const date of dates) {
+  // Every day's plan read at once — one after another took the screen past 5 s (#144).
+  const qualities = await Promise.all(dates.map((d) => qualityOf(supabase, d).catch(() => null)));
+  for (const [di, date] of dates.entries()) {
     const day = dowOf(date);
-    const quality = await qualityOf(supabase, date);
+    const quality = qualities[di];
     const decision = store.days[date];
     const pushes: ApprovalPush[] = [];
     const week = planWeekStartOf(date); // the team day's own plan-week, as the tick reads it

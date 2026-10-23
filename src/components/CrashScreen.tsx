@@ -43,7 +43,7 @@ export function CrashScreen({
     // And to the server (ClientEventReporter, 'mc:crash'): a caught render error never
     // reaches window 'error', so without this a crash left no trace at all (10-18).
     try {
-      window.dispatchEvent(new CustomEvent('mc:crash', { detail: `[crash:${scope}] ${error?.message ?? ''} ${error?.digest ?? ''}`.slice(0, 300) }));
+      window.dispatchEvent(new CustomEvent('mc:crash', { detail: `[crash:${scope}] ${error?.message ?? ''} ${error?.digest ?? ''} @ ${(error?.stack || '').split('\n').map((l) => l.trim()).filter((l) => /\d+:\d+/.test(l)).slice(0, 2).map((l) => l.replace(/^.*\/_next\//, '')).join(' | ')}`.slice(0, 500) }));
     } catch { /* reporting must never throw here */ }
   }, [error, scope]);
 

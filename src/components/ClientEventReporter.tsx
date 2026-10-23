@@ -183,7 +183,7 @@ export function ClientEventReporter() {
         // appVersion on every event: the route reads it into app_version, and without
         // it every stored row had none — stuck_version could never fire, and no
         // report could say which build it came from.
-        queue.push({ kind, route: route(), message: message?.slice(0, 300), appVersion: APP_VERSION });
+        queue.push({ kind, route: route(), message: message?.slice(0, 500), appVersion: APP_VERSION });
         if (timer) clearTimeout(timer);
         // `boot` is not urgent and an error might be followed by three more, so
         // everything waits a few seconds and travels together.
