@@ -136,14 +136,17 @@ export async function GET(request: Request) {
 
     // Workouts like this one in the last nine weeks: reps within 25% of today's length.
     let similar: Array<{ id: string; date: string; title: string; avgPace: number }> = [];
-    if (workout) {
-      const len = workout.reps[0].meters;
+    // A workout read without reps (an old run's steps) has no length to compare: it used to
+    // throw here and fail the whole analysis with a 500 (10-23).
+    const len = workout?.reps[0]?.meters ?? 0;
+    if (workout && len > 0) {
       const { data: past } = await supabase.from('athlete_activities').select('id, start_time, laps, executed_workout')
         .eq('athlete_id', row.athlete_id).neq('id', row.id).not('laps', 'is', null)
         .gte('start_time', new Date(startMs - 63 * 86_400_000).toISOString().slice(0, 10)).lt('start_time', String(row.start_time)).limit(120);
       similar = (past || []).map((a) => {
         const w = readWorkout(normalizeStoredLaps(a.laps) as never, a.executed_workout as { steps?: WStep[] } | null, packIndex);
-        return w && Math.abs(w.reps[0].meters - len) / len <= 0.25 ? { id: a.id, date: String(a.start_time).slice(0, 10), title: w.title, avgPace: w.avgPace } : null;
+        const m = w?.reps[0]?.meters;
+        return w && m && Math.abs(m - len) / len <= 0.25 ? { id: a.id, date: String(a.start_time).slice(0, 10), title: w.title, avgPace: w.avgPace } : null;
       }).filter((x): x is NonNullable<typeof x> => !!x).sort((a, b) => a.date.localeCompare(b.date)).slice(-4);
     }
 
