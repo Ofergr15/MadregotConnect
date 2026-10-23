@@ -11,7 +11,8 @@ import { NextResponse } from 'next/server';
 import { fetchDriveVideo, verifyVideoUrl } from '@/lib/photos/drive-browse';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+// Mux pulls a whole original through here once (lib/photos/mux): up to ~600 MB.
+export const maxDuration = 300;
 
 const PASS = ['content-type', 'content-length', 'content-range', 'accept-ranges', 'last-modified', 'etag'];
 

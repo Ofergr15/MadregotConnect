@@ -3,7 +3,8 @@ import { createServerClient } from '@/lib/supabase/server';
 import { cronPaused } from '@/lib/cron-pause';
 import { mirrorBatch, warmMirrorCache } from '@/lib/photos/mirror';
 import { fillVideoTimes } from '@/lib/photos/video-time';
-import { forgetLibrary } from '@/lib/photos/drive-browse';
+import { forgetLibrary, listVideoFolders, signedVideoUrl } from '@/lib/photos/drive-browse';
+import { muxConfigured, syncMuxCopies } from '@/lib/photos/mux';
 import { revalidateTag } from 'next/cache';
 import { listFolderPhotos, listPhotoFolders } from '@/lib/photos/drive-browse';
 
@@ -30,8 +31,18 @@ async function run(request: Request) {
     // on it. A minute a run; the listing is rebuilt when something was found.
     const times = await fillVideoTimes(Date.now() + 60_000).catch((err) => { console.warn('[cron/photos-mirror] times failed', err); return null; });
     if (times?.found) { revalidateTag('photos-library', { expire: 0 }); forgetLibrary(); }
+    // The viewing copies at Mux (lib/photos/mux): newest videos first, a few per run.
+    let copies: Awaited<ReturnType<typeof syncMuxCopies>> | null = null;
+    if (muxConfigured()) {
+      try {
+        const origin = process.env.NEXT_PUBLIC_APP_URL || 'https://www.madregot.app';
+        const list = ((await listVideoFolders()) ?? []).flatMap((f) => [...f.videos].reverse());
+        copies = await syncMuxCopies(list.map((v) => ({ id: v.id, ms: v.ms, src: () => { const u = signedVideoUrl(v.id); return u ? `${origin}${u}` : null; } })), Date.now() + 40_000);
+        if (copies.ready) revalidateTag('mux-assets', { expire: 0 });
+      } catch (err) { console.warn('[cron/photos-mirror] mux failed', err); }
+    }
     // Leave room under maxDuration for the manifest write and the reply.
-    const result = await mirrorBatch(Date.now() + 160_000);
+    const result = await mirrorBatch(Date.now() + 120_000);
     // Then every folder's links ahead of the first person to open it (lib/photos/mirror.ts).
     let warmed = 0;
     try {
@@ -39,8 +50,8 @@ async function run(request: Request) {
       const ids = await Promise.all(folders.map((f) => listFolderPhotos(f.id).then((r) => (r ? r.photos.map((p) => p.id) : [])).catch(() => [] as string[])));
       warmed = await warmMirrorCache([folders.flatMap((f) => f.covers), ...ids.filter((x) => x.length)], Date.now() + 60_000);
     } catch (err) { console.warn('[cron/photos-mirror] warm failed', err); }
-    console.log('[cron/photos-mirror]', { ...result, warmed, times });
-    return NextResponse.json({ ...result, warmed, times });
+    console.log('[cron/photos-mirror]', { ...result, warmed, times, copies });
+    return NextResponse.json({ ...result, warmed, times, copies });
   } catch (error) {
     console.error('[cron/photos-mirror] failed', error);
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });

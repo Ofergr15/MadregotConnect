@@ -31,9 +31,17 @@ export interface ViewerVideo {
   thumb: string | null;
   poster: string | null;
   src: string | null;
+  /** The viewing copy at Mux (lib/photos/mux), signed — preferred over the original. */
+  hls?: string | null;
+  /** A few moving seconds of it, shown while it starts. */
+  preview?: string | null;
   ms?: number | null;
   blur?: string | null;
 }
+
+/** hls.js, loaded only when a copy has to play where the browser can't play HLS itself. */
+let hlsLib: Promise<typeof import('hls.js').default> | null = null;
+const loadHls = () => (hlsLib ??= import('hls.js').then((m) => m.default));
 
 const clock = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
 
@@ -102,7 +110,10 @@ export function VideoViewer({ videos, index, title, onClose, onShare, onCover }:
   const onActive = useCallback((el: HTMLVideoElement) => {
     videoRef.current = el;
     el.muted = mutedRef.current;
-    void el.play().catch(() => setPaused(true));
+    // A copy is attached a moment later (hls.js loads lazily): play once it can, not "paused".
+    void el.play().catch(() => {
+      el.addEventListener('canplay', () => { void el.play().catch(() => setPaused(true)); }, { once: true });
+    });
   }, []);
 
   // Stable, so the memoised slides are not redrawn by the progress bar's updates.
@@ -202,6 +213,25 @@ const VideoSlide = memo(function VideoSlide({ x, k, mode, muted, onActive, onTap
   onTime?: (t: { at: number; dur: number }) => void; onEnded: (k: number) => void;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
+  const live = mode === 'play' || mode === 'ready';
+  const [playing, setPlaying] = useState(false);
+  // The copy: natively on an iPhone (HLS), through hls.js elsewhere; the next slide fetches
+  // just its first seconds so it starts the moment it lands. The original when there is no copy.
+  const useCopy = !!x.hls;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !live || !x.hls) return;
+    if (el.canPlayType('application/vnd.apple.mpegurl')) { if (el.src !== x.hls) el.src = x.hls; return; }
+    let hls: { destroy: () => void } | null = null;
+    let gone = false;
+    void loadHls().then((Hls) => {
+      if (gone || !Hls.isSupported()) { if (!gone && x.src) el.src = x.src; return; }
+      // One instance from "next" to "playing": what it fetched ahead is what plays.
+      const h = new Hls({ maxBufferLength: 12, startLevel: -1, capLevelToPlayerSize: true });
+      h.loadSource(x.hls!); h.attachMedia(el); hls = h;
+    });
+    return () => { gone = true; hls?.destroy(); };
+  }, [live, x.hls, x.src]);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -212,16 +242,22 @@ const VideoSlide = memo(function VideoSlide({ x, k, mode, muted, onActive, onTap
   const poster = x.poster || x.thumb || undefined;
   return (
     <div className="relative h-full w-full snap-start snap-always [contain:strict]">
-      {(mode === 'play' || mode === 'ready') && x.src ? (
+      {/* While it starts: a few moving seconds of the copy over the still, so people see at
+          once whether they are in it (Ofer, 10-23). Gone the moment it plays. */}
+      {mode === 'play' && x.preview && !playing && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={x.preview} alt="" className="pointer-events-none absolute inset-0 z-[1] h-full w-full object-contain" />
+      )}
+      {live && (x.src || x.hls) ? (
         <video
           ref={ref}
-          src={x.src}
+          src={useCopy ? undefined : x.src || undefined}
           poster={poster}
           muted
           playsInline
           preload={mode === 'play' ? 'auto' : 'metadata'}
           onWaiting={mode === 'play' ? () => onWaiting(true) : undefined}
-          onPlaying={mode === 'play' ? () => onWaiting(false) : undefined}
+          onPlaying={mode === 'play' ? () => { onWaiting(false); setPlaying(true); } : undefined}
           onCanPlay={mode === 'play' ? () => onWaiting(false) : undefined}
           onError={mode === 'play' ? onFailed : undefined}
           onClick={onTap}
