@@ -285,7 +285,10 @@ export function ConnectedRunChat({
       });
     return () => {
       cancelled = true;
-      nextChannel.stopWatching().catch(() => {});
+      // The client may already be disconnected (leaving the run page closes it first), and
+      // stream-chat THROWS then rather than rejecting — "You can't use a channel after
+      // client.disconnect() was called" reached the crash log (10-23).
+      try { nextChannel.stopWatching().catch(() => {}); } catch { /* already closed */ }
     };
   }, [client, chat.activity_id]);
 
