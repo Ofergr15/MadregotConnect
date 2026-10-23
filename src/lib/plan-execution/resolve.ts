@@ -1,3 +1,4 @@
+import { readWorkout } from '@/lib/run-analysis/workout';
 /**
  * Plan vs. Execution — turning rows into verdicts.
  *
@@ -68,7 +69,7 @@ type SupabaseServer = ReturnType<typeof createServerClient>;
 /** Columns a verdict needs off the activity row. */
 const ACTIVITY_SELECT = `
   id, athlete_id, garmin_activity_id, start_time, distance, duration, moving_duration,
-  average_pace, activity_type, laps
+  average_pace, activity_type, laps, executed_workout
 `;
 
 interface ActivityRow {
@@ -82,6 +83,7 @@ interface ActivityRow {
   average_pace: number | null;
   activity_type: string | null;
   laps: unknown;
+  executed_workout?: unknown;
 }
 
 function toActual(row: ActivityRow): ActualActivity {
@@ -187,12 +189,23 @@ async function ensureLaps(
  * Laps are passed in rather than read off the row: the batch path uses only what
  * is already stored, while the single-run path may have just fetched them.
  */
+/** A run's laps as the steps it ran (readWorkout) — shared with api/academy/segments. */
+export function stepLaps(row: { laps: unknown; executed_workout?: unknown }, laps: Lap[]): Lap[] {
+  if (!row.executed_workout || !Array.isArray(row.laps)) return laps;
+  try {
+    const w = readWorkout(row.laps as never, row.executed_workout as never, 0);
+    if (!w) return laps;
+    return w.segments.filter((x) => x.seconds > 0).map((x) => ({ distance: x.meters, duration: x.seconds, averagePace: x.pace, averageHR: x.hr }));
+  } catch { return laps; }
+}
+
 function verdictFor(
   row: ActivityRow,
   workout: ParsedWorkout | null,
   tolerances: AdherenceTolerances,
-  laps: Lap[],
+  stored: Lap[],
 ): ExecutionVerdict {
+  let laps = stored;
   if (!workout) {
     return buildVerdict({
       activityId: row.id,
@@ -206,6 +219,11 @@ function verdictFor(
   const actual = toActual(row);
   const planned = buildPlannedWorkout(workout, actual.date);
   const adherence = assessWorkout(planned, actual, tolerances);
+  // The watch's laps read by the steps actually run (run-analysis/workout readWorkout):
+  // one lap per step, and the main part a stuck open step swallowed handed back to the
+  // steps it skipped. Raw 1 km auto-laps scored a 14 + 7 + 7 at 52% (Ofer 10-23) — no
+  // lap the size of any block, so most of the session counted as not found.
+  laps = stepLaps(row, laps);
   const segments = segmentReportFor(workout, laps, tolerances.paceSec);
 
   return buildVerdict({
