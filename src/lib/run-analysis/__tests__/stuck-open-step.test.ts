@@ -13,5 +13,5 @@ describe('readWorkout — the Lap button never pressed on an open walk (10-23)',
     expect(b14.pace).toBeLessThanOrEqual(250);
     expect(w.segments.every((s) => !(s.kind === 'recovery' && s.meters > 2000))).toBe(true);
   });
-  it('never titles it "N × 0"', () => expect(w.title).not.toMatch(/× 0/));
+  it('names it as one run: 14 + 7 + 7, not "2 × 7K"', () => expect(w.title).toBe('14 + 7 + 7 ק״מ'));
 });
