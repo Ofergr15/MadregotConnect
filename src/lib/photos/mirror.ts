@@ -1,6 +1,6 @@
 import { revalidateTag, unstable_cache } from 'next/cache';
 import { createServerClient } from '@/lib/supabase/server';
-import { FULL, THUMB, fetchDriveThumbnail, listAllPhotoIds } from './drive-browse';
+import { FULL, THUMB, fetchDriveThumbnail, listAllPhotoIds, listAllVideoIds } from './drive-browse';
 
 /**
  * The club's Drive photos, copied into our own storage so a member's phone never
@@ -170,8 +170,11 @@ export async function mirrorBatch(deadline: number): Promise<{ copied: number; f
   if (bucketError && !/exist/i.test(bucketError.message)) throw bucketError;
 
   const m = await readManifest();
-  const ids = await listAllPhotoIds();
-  const newest = new Set(ids.slice(0, FULL_FOR_NEWEST));
+  const photoIds = await listAllPhotoIds();
+  const newest = new Set(photoIds.slice(0, FULL_FOR_NEWEST));
+  // The videos' posters too (2026-10-23), after the photos: the grid of a video folder then
+  // loads from our copy like a photo folder does, not from Drive one tile at a time.
+  const ids = [...photoIds, ...(await listAllVideoIds().catch(() => []))];
   const needsGrid = (id: string) => { const e = m.files[id]; return !e?.t || !e?.q; };
   const needsFull = (id: string) => newest.has(id) && !m.files[id]?.f;
   const todo = [...ids.filter(needsGrid), ...ids.filter((id) => !needsGrid(id) && needsFull(id))];

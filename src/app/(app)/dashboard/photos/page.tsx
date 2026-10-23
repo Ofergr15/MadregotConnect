@@ -22,15 +22,25 @@ import { apiFetcher, useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { sessionDayLabel } from '@/lib/quality-session/photos';
 import { PhotoViewer } from '@/components/photos/PhotoViewer';
+import { VideoViewer, type ViewerVideo } from '@/components/photos/VideoViewer';
 import { FolderMenu, driveLink, savePhotos } from '@/components/photos/FolderMenu';
 import { FOLDER_KINDS, KIND_LABEL, kindFromName, tagColor, type FolderKind } from '@/lib/photos/folder-kind';
 import { useNavIdentity } from '@/lib/nav-items';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { textMatches } from '@/lib/search/match';
 
-interface Folder { id: string; name: string; title: string | null; date: string; count: number; covers: string[]; coverBlur?: string | null; pinned?: boolean; hero?: string | null; kind?: FolderKind; tags?: string[] }
+interface Folder {
+  id: string; name: string; title: string | null; date: string; count: number; covers: string[]; coverBlur?: string | null; pinned?: boolean; hero?: string | null; kind?: FolderKind; tags?: string[];
+  /** The folder's videos (mockup photos-videos, 2026-10-23). */
+  videos?: number; videoMs?: number; videoCovers?: Array<{ id: string; ms: number | null; thumb: string | null }>;
+}
+/** הכל · תמונות · סרטונים — on the home and in a folder. */
+type Media = 'all' | 'photos' | 'videos';
+const dur = (ms?: number | null) => (ms ? `${Math.floor(ms / 60000)}:${String(Math.round((ms % 60000) / 1000)).padStart(2, '0')}` : '');
+/** "42 תמונות · 180 סרטונים" — what is in it, photos and videos apart. */
+const mediaCount = (f: Pick<Folder, 'count' | 'videos'>) => [f.count ? `${f.count} תמונות` : '', f.videos ? `${f.videos} סרטונים` : ''].filter(Boolean).join(' · ') || '0 תמונות';
 interface Browse { configured: boolean; folders: Folder[] }
-interface FolderPhotos { folder: Folder; photos: Array<{ id: string; thumb: string | null; full: string | null; blur?: string | null }> }
+interface FolderPhotos { folder: Folder; photos: Array<{ id: string; thumb: string | null; full: string | null; blur?: string | null }>; videos?: Array<ViewerVideo & { ms: number | null }> }
 
 const MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
 const monthKey = (date: string) => date.slice(0, 7);
@@ -76,6 +86,59 @@ const prefetchFolder = (id: string) => { preload(`/api/photos/browse/folder?id=$
 
 /** Holding a finger down this long opens the folder's menu (FolderMenu) instead of the folder. */
 const LONG_PRESS_MS = 480;
+/** הכל · תמונות · סרטונים, with how many of each. */
+function MediaSeg({ value, onChange, photos, videos }: { value: Media; onChange: (m: Media) => void; photos: number; videos: number }) {
+  const k = (n: number) => (n >= 1000 ? `${Math.round(n / 100) / 10}K` : String(n));
+  const opts: Array<[Media, string, number | null]> = [['all', 'הכל', null], ['photos', 'תמונות', photos], ['videos', 'סרטונים', videos]];
+  return (
+    <div className="mx-4 mt-3 flex rounded-[12px] bg-[#E3E3E9] p-[2px]" role="tablist">
+      {opts.map(([v, label, n]) => (
+        <button key={v} type="button" role="tab" aria-selected={value === v} onClick={() => onChange(v)}
+          className={cn('min-h-[38px] flex-1 rounded-[10px] text-[13.5px] font-bold', value === v ? 'bg-white text-ink-900 shadow-[0_2px_6px_rgba(0,0,0,0.08)]' : 'text-ink-500')}>
+          {label}{n != null && <small className="ms-1 text-[11px] text-ink-400"><bdi dir="ltr">{k(n)}</bdi></small>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** "סרטונים": a row per session, newest first, its newest videos across (mockup photos-videos, 4). */
+function VideoRows({ folders, onOpen, filters, filter, setFilter }: {
+  folders: Folder[]; onOpen: (id: string) => void;
+  filters: ReadonlyArray<readonly [string, string]>; filter: string; setFilter: (v: string) => void;
+}) {
+  return (
+    <>
+      {filters.length > 2 && (
+        <div className="flex gap-1.5 overflow-x-auto px-4 pt-3 [scrollbar-width:none]" role="tablist">
+          {filters.map(([v, label]) => (
+            <button key={v} type="button" role="tab" aria-selected={filter === v} onClick={() => setFilter(v)}
+              className={cn('min-h-[36px] shrink-0 rounded-full px-3.5 text-[13px] font-bold', filter === v ? 'bg-ink-900 text-white' : 'bg-card text-ink-500')}>{label}</button>
+          ))}
+        </div>
+      )}
+      {folders.slice(0, 40).map((f) => (
+        <section key={f.id}>
+          <button type="button" onClick={() => onOpen(f.id)} className="flex w-full items-baseline justify-between px-[18px] pb-2 pt-5 text-start">
+            <b className="truncate text-[16.5px] font-extrabold text-ink-900" dir="auto">{folderTitle(f)}</b>
+            <span className="shrink-0 text-[12.5px] text-ink-400"><bdi dir="ltr">{f.videos}</bdi> ›</span>
+          </button>
+          <div className="flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none]">
+            {(f.videoCovers ?? []).map((v) => (
+              <button key={v.id} type="button" onClick={() => onOpen(f.id)} className="relative h-[124px] w-[84px] shrink-0 overflow-hidden rounded-[14px] bg-page" aria-label="סרטון">
+                <Cover src={v.thumb || undefined} />
+                <span className="absolute inset-0 grid place-items-center"><span className="grid h-7 w-7 place-items-center rounded-full bg-black/45 text-[11px] text-white">▶</span></span>
+                {v.ms ? <span className="absolute bottom-1 left-1 rounded-md bg-black/60 px-1 text-[10px] font-extrabold text-white"><bdi dir="ltr">{dur(v.ms)}</bdi></span> : null}
+              </button>
+            ))}
+          </div>
+        </section>
+      ))}
+      {folders.length === 0 && <p className="py-8 text-center text-sm text-ink-400">אין סרטונים כאלה עדיין</p>}
+    </>
+  );
+}
+
 function useLongPress(onLong: () => void) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fired = useRef(false);
@@ -103,12 +166,15 @@ function FolderCard({ f, onOpen, onMenu }: { f: Folder; onOpen: () => void; onMe
     >
       <div className="relative h-[118px] w-full">
         <Cover src={f.covers[0]} blur={f.coverBlur} />
-        <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-extrabold text-white"><bdi dir="ltr">{f.count}</bdi></span>
+        <span className="absolute left-2 top-2 flex gap-1">
+          {f.count > 0 && <span className="rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-extrabold text-white">📷 <bdi dir="ltr">{f.count}</bdi></span>}
+          {!!f.videos && <span className="rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-extrabold text-white">🎬 <bdi dir="ltr">{f.videos}</bdi></span>}
+        </span>
         {f.pinned && <span className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-extrabold text-ink-900">📌</span>}
       </div>
       <div className="px-2.5 pb-2.5 pe-9 pt-2">
         <b className="line-clamp-2 block text-[13.5px] font-extrabold leading-tight text-ink-900" dir="auto">{folderTitle(f)}</b>
-        <span className="text-[11.5px] text-ink-400">{subline(f, t('count', { n: f.count }))}</span>
+        <span className="text-[11.5px] text-ink-400">{subline(f, mediaCount(f))}</span>
       </div>
     </button>
     <button type="button" aria-label="אפשרויות לתיקייה" onClick={onMenu}
@@ -125,6 +191,9 @@ function FolderView({ id }: { id: string }) {
   const params = useSearchParams();
   const { data, error, mutate } = useApi<FolderPhotos>(`/api/photos/browse/folder?id=${encodeURIComponent(id)}`);
   const [open, setOpen] = useState<number | null>(null);
+  const [videoOpen, setVideoOpen] = useState<number | null>(null);
+  // הכל · תמונות · סרטונים; "?media=videos" lands on the videos (the home's video rows).
+  const [media, setMedia] = useState<Media>(() => (params.get('media') === 'videos' ? 'videos' : params.get('media') === 'photos' ? 'photos' : 'all'));
   // The tapped tile, so the viewer can grow the photo out of it.
   const [from, setFrom] = useState<DOMRect | null>(null);
   // Choosing several (mockup photos-redesign + Ofer 10-20): tap to pick, then save or share.
@@ -179,8 +248,11 @@ function FolderView({ id }: { id: string }) {
       </div>
       <div className="px-[18px] pt-1">
         <h1 className="truncate text-[28px] font-extrabold tracking-tight text-ink-900" dir="auto">{title}</h1>
-        <p className="mt-0.5 text-[13.5px] text-ink-500">{subline(data.folder, t('count', { n: data.folder.count }))}</p>
+        <p className="mt-0.5 text-[13.5px] text-ink-500">{subline(data.folder, mediaCount(data.folder))}</p>
       </div>
+      {!!data.videos?.length && data.photos.length > 0 && !selecting && !coverMode && (
+        <MediaSeg value={media} onChange={setMedia} photos={data.photos.length} videos={data.videos.length} />
+      )}
       {coverMode ? (
         <p className="mx-4 mt-3 rounded-2xl bg-brand-600/10 px-3.5 py-2.5 text-13 font-bold text-brand-600">נגיעה בתמונה קובעת אותה כשער של התיקייה</p>
       ) : !selecting && (
@@ -190,7 +262,7 @@ function FolderView({ id }: { id: string }) {
           <button type="button" onClick={() => { setSelecting(true); setPicked(data.photos.map((p) => p.id)); }} className="flex min-h-[42px] flex-1 items-center justify-center rounded-xl bg-card text-[13px] font-extrabold text-brand-600">⬇️ להוריד</button>
         </div>
       )}
-      <div className="mt-3 grid grid-cols-3 gap-[3px]">
+      {(media !== 'videos' || selecting || coverMode) && <div className="mt-3 grid grid-cols-3 gap-[3px]">
         {data.photos.map((p, k) => {
           const on = picked.includes(p.id);
           return (
@@ -213,7 +285,23 @@ function FolderView({ id }: { id: string }) {
             </button>
           );
         })}
-      </div>
+      </div>}
+      {/* The videos: tall tiles (they are shot upright), ▶ and the length; nothing loads
+          but the poster until one is opened (mockup photos-videos, 2). */}
+      {media !== 'photos' && !selecting && !coverMode && !!data.videos?.length && (
+        <>
+          {media === 'all' && data.photos.length > 0 && <div className="flex items-baseline justify-between px-[18px] pb-2 pt-5"><b className="text-[17px] font-extrabold">סרטונים</b><span className="text-[13px] text-ink-400">{data.videos.length}</span></div>}
+          <div className={cn('grid grid-cols-3 gap-[3px]', (media === 'videos' || !data.photos.length) && 'mt-3')}>
+            {data.videos.map((v, k) => (
+              <button key={v.id} type="button" onClick={() => setVideoOpen(k)} className="relative aspect-[9/14] overflow-hidden bg-page" aria-label={`סרטון ${k + 1}`}>
+                <Cover src={v.thumb || undefined} blur={v.blur} />
+                <span className="absolute inset-0 grid place-items-center"><span className="grid h-8 w-8 place-items-center rounded-full bg-black/45 text-[12px] text-white backdrop-blur">▶</span></span>
+                {v.ms ? <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/60 px-1.5 text-[10.5px] font-extrabold text-white"><bdi dir="ltr">{dur(v.ms)}</bdi></span> : null}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       {selecting && (
         <div className="fixed inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-30 border-t border-page bg-page/95 px-4 pb-3 pt-3 backdrop-blur">
           <div className="mx-auto flex max-w-md items-center gap-2">
@@ -231,6 +319,11 @@ function FolderView({ id }: { id: string }) {
       {note && <p role="status" className="mt-3 text-center text-13 font-bold text-ink-700">{note}</p>}
       {open != null && (
         <PhotoViewer photos={data.photos} index={open} from={from} title={title} onClose={() => setOpen(null)} />
+      )}
+      {videoOpen != null && data.videos && (
+        <VideoViewer videos={data.videos} index={videoOpen} title={title} onClose={() => setVideoOpen(null)}
+          onShare={() => { void share(); }}
+          onCover={viewRole === 'admin' ? (vid) => { setVideoOpen(null); void setCover(vid); } : undefined} />
       )}
     </div>
   );
@@ -271,13 +364,18 @@ function PhotosHome() {
   const [menuFor, setMenuFor] = useState<Folder | null>(null);
   // The filter by kind or tag (lib/photos/folder-kind): 'all', a kind, or '#tag'.
   const [filter, setFilter] = useState<string>('all');
+  // הכל · תמונות · סרטונים (mockup photos-videos, 1 and 4).
+  const [media, setMedia] = useState<Media>('all');
   const allFolders = useMemo(() => (data?.folders ?? []).map((f) => ({ ...f, kind: f.kind ?? kindFromName(f.name), tags: f.tags ?? [] })), [data]);
   const filters = useMemo(() => {
     const kinds = FOLDER_KINDS.filter((k) => allFolders.some((f) => f.kind === k));
     const tags = [...new Set(allFolders.flatMap((f) => f.tags))];
     return [['all', 'הכל'] as const, ...kinds.map((k) => [k, KIND_LABEL[k]] as const), ...tags.map((tg) => [`#${tg}`, `#${tg}`] as const)];
   }, [allFolders]);
-  const folders = useMemo(() => allFolders.filter((f) => filter === 'all' || (filter.startsWith('#') ? f.tags.includes(filter.slice(1)) : f.kind === filter)), [allFolders, filter]);
+  const folders = useMemo(() => allFolders
+    .filter((f) => media === 'all' || (media === 'videos' ? !!f.videos : f.count > 0))
+    .filter((f) => filter === 'all' || (filter.startsWith('#') ? f.tags.includes(filter.slice(1)) : f.kind === filter)), [allFolders, filter, media]);
+  const totals = useMemo(() => ({ photos: allFolders.reduce((a, f) => a + f.count, 0), videos: allFolders.reduce((a, f) => a + (f.videos ?? 0), 0) }), [allFolders]);
   // The big photo is the newest folder whatever the filter; the filter acts on the list under it.
   const latest = allFolders[0];
   // The loader's caption next time (components/photos/PhotosLoading): the newest folder,
@@ -329,6 +427,7 @@ function PhotosHome() {
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('searchPlaceholder')} className="min-w-0 flex-1 bg-transparent text-[15px] text-ink-900 outline-none placeholder:text-ink-400" />
         {query && <button onClick={() => setQ('')} aria-label={t('clear')} className="grid h-6 w-6 place-items-center rounded-full bg-ink-300 text-white"><X className="h-3.5 w-3.5" strokeWidth={3} /></button>}
       </label>
+      {totals.videos > 0 && <MediaSeg value={media} onChange={setMedia} photos={totals.photos} videos={totals.videos} />}
 
       {error && <p className="px-4 py-10 text-center text-sm text-ink-400">{t('loadFailed')}</p>}
       {data && !data.configured && <p className="px-4 py-10 text-center text-sm text-ink-400">{t('notConfigured')}</p>}
@@ -348,6 +447,9 @@ function PhotosHome() {
             {results.length === 0 && <p className="py-6 text-center text-sm text-ink-400">{t('noResults')}</p>}
           </div>
         </>
+      ) : media === 'videos' ? (
+        <VideoRows folders={folders} onOpen={(id) => router.push(`/dashboard/photos?folder=${encodeURIComponent(id)}&media=videos`)}
+          filters={filters} filter={filter} setFilter={setFilter} />
       ) : latest ? (
         <>
           <button onClick={() => openFolder(latest.id)} className="relative mx-4 mt-3.5 block h-[250px] w-[calc(100%-2rem)] overflow-hidden rounded-[24px] text-start">
@@ -356,7 +458,7 @@ function PhotosHome() {
             <div className="absolute inset-x-4 bottom-3.5 text-white">
               <span className="rounded-full bg-white/20 px-2.5 py-0.5 text-[11.5px] font-extrabold backdrop-blur">{latest.pinned ? t('pinned') : t('latest')}</span>
               <h2 className="mt-1.5 truncate text-[22px] font-extrabold" dir="auto">{folderTitle(latest)}</h2>
-              <p className="text-[13px] opacity-90">{subline(latest, t('count', { n: latest.count }))}</p>
+              <p className="text-[13px] opacity-90">{subline(latest, mediaCount(latest))}</p>
             </div>
           </button>
           <div className="flex gap-1.5 overflow-x-auto px-4 pt-2 [scrollbar-width:none]">

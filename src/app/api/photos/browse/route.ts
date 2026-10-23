@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     const tList = Date.now() - t0;
     if (!folders) return NextResponse.json({ configured: false, folders: [] });
     // Our own copy where there is one (lib/photos/mirror.ts), Drive's link where not.
-    const m = await mirroredUrls(folders.flatMap((f) => f.covers));
+    const m = await mirroredUrls([...folders.flatMap((f) => f.covers), ...folders.flatMap((f) => (f.videoCovers ?? []).map((v) => v.id))]);
     // Where the time goes, per request (10-19: the page is slow to open).
     console.log(`[photos/browse] list ${tList}ms · links ${Date.now() - t0 - tList}ms · ${folders.length} folders`);
     return NextResponse.json({
@@ -31,6 +31,8 @@ export async function GET(request: Request) {
         ...f,
         covers: f.covers.map((id) => m.thumb[id] ?? signedImageUrl(id, THUMB)).filter(Boolean),
         coverBlur: f.covers[0] ? m.lqip[f.covers[0]] ?? null : null,
+        // The newest few videos' posters, for the "סרטונים" rows (mockup photos-videos, 4).
+        videoCovers: (f.videoCovers ?? []).map((v) => ({ id: v.id, ms: v.ms, thumb: m.thumb[v.id] ?? signedImageUrl(v.id, THUMB) })),
         // The first folder (pinned, else the newest) is the home's big photo — sent at full size.
         ...(i === 0 && f.covers[0] ? { hero: m.full[f.covers[0]] ?? signedImageUrl(f.covers[0], FULL) } : {}),
       })),

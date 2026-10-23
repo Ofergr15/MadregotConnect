@@ -28,8 +28,16 @@ const LIST_REVALIDATE_S = 10 * 60;
 const CONCURRENCY = 12;
 const MAX_DEPTH = 3;
 
-export interface PhotoFolder { id: string; name: string; title: string | null; date: string; count: number; covers: string[]; pinned: boolean; kind: FolderKind; tags: string[] }
+export interface PhotoFolder {
+  id: string; name: string; title: string | null; date: string;
+  /** Photos only. Videos are counted apart (`videos`), and never stand in as a cover. */
+  count: number; covers: string[]; pinned: boolean; kind: FolderKind; tags: string[];
+  /** The folder's videos (mockup photos-videos, 2026-10-23): how many, how long, the first few. */
+  videos: number; videoMs: number; videoCovers: Array<{ id: string; ms: number | null }>;
+}
 export interface FolderPhoto { id: string; w: number | null; h: number | null; at: string | null }
+/** A video in a folder: Drive's own thumbnail is its poster; `ms` its length. */
+export interface FolderVideo { id: string; w: number | null; h: number | null; at: string | null; ms: number | null; mime: string }
 
 export function photosRoot(): string | null {
   return process.env.SESSION_PHOTOS_DRIVE_FOLDER_ID || null;
@@ -65,27 +73,43 @@ async function pool<T, R>(items: T[], n: number, fn: (t: T) => Promise<R>): Prom
 }
 
 /**
- * Every photo in a folder, its subfolders included — the videographer's
- * "צילומים שני" subfolder is often where a session's only photos are. In capture order.
+ * Every photo — and, for the photos module, every video — in a folder, its subfolders
+ * included: the videographer's "צילומים שני" subfolder is often where a session's only
+ * photos are. In capture order. ONE Drive query per folder either way: the videos ride on
+ * the listing the photos already pay for (5,045 of them, 2026-10-23).
  */
-async function folderPhotos(drive: drive_v3.Drive, folderId: string, depth = 0): Promise<FolderPhoto[]> {
-  const files = await listAll(drive, `'${folderId}' in parents and trashed = false and (mimeType contains 'image/' or mimeType = '${FOLDER_MIME}')`,
-    'id,mimeType,createdTime,imageMediaMetadata(width,height,time)').catch(() => []);
+async function folderMedia(drive: drive_v3.Drive, folderId: string, withVideos: boolean, depth = 0): Promise<{ photos: FolderPhoto[]; videos: FolderVideo[] }> {
+  const mimes = withVideos ? `mimeType contains 'image/' or mimeType contains 'video/'` : `mimeType contains 'image/'`;
+  const files = await listAll(drive, `'${folderId}' in parents and trashed = false and (${mimes} or mimeType = '${FOLDER_MIME}')`,
+    `id,mimeType,createdTime,imageMediaMetadata(width,height,time)${withVideos ? ',videoMediaMetadata(width,height,durationMillis)' : ''}`).catch(() => []);
   const photos: FolderPhoto[] = files.filter((f) => f.mimeType?.startsWith('image/')).map((f) => ({
     id: f.id!,
     w: f.imageMediaMetadata?.width ?? null,
     h: f.imageMediaMetadata?.height ?? null,
     at: f.imageMediaMetadata?.time || f.createdTime || null,
   }));
+  const videos: FolderVideo[] = withVideos ? files.filter((f) => f.mimeType?.startsWith('video/')).map((f) => ({
+    id: f.id!,
+    w: f.videoMediaMetadata?.width ?? null,
+    h: f.videoMediaMetadata?.height ?? null,
+    at: f.createdTime || null,
+    ms: f.videoMediaMetadata?.durationMillis ? Number(f.videoMediaMetadata.durationMillis) : null,
+    mime: f.mimeType!,
+  })) : [];
   if (depth < MAX_DEPTH) {
-    for (const sub of files.filter((f) => f.mimeType === FOLDER_MIME)) photos.push(...await folderPhotos(drive, sub.id!, depth + 1));
+    for (const sub of files.filter((f) => f.mimeType === FOLDER_MIME)) {
+      const inner = await folderMedia(drive, sub.id!, withVideos, depth + 1);
+      photos.push(...inner.photos); videos.push(...inner.videos);
+    }
   }
   // EXIF time is "2026:10:16 07:12:03", createdTime ISO — both sort as text once the colons in the date agree.
-  const key = (p: FolderPhoto) => (p.at || '').replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
-  return photos.sort((a, b) => key(a).localeCompare(key(b)));
+  const key = (p: { at: string | null }) => (p.at || '').replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
+  return { photos: photos.sort((a, b) => key(a).localeCompare(key(b))), videos: videos.sort((a, b) => key(a).localeCompare(key(b))) };
 }
 
-interface Library { folders: PhotoFolder[]; photos: Record<string, FolderPhoto[]> }
+const folderPhotos = async (drive: drive_v3.Drive, folderId: string) => (await folderMedia(drive, folderId, false)).photos;
+
+interface Library { folders: PhotoFolder[]; photos: Record<string, FolderPhoto[]>; videos: Record<string, FolderVideo[]> }
 
 async function loadLibrary(): Promise<Library | null> {
   const drive = driveReader();
@@ -93,14 +117,18 @@ async function loadLibrary(): Promise<Library | null> {
   if (!drive || !root) return null;
   const top = await listAll(drive, `'${root}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`, 'id,name,createdTime,appProperties');
   const photos: Record<string, FolderPhoto[]> = {};
+  const videos: Record<string, FolderVideo[]> = {};
   const folders = await pool(top.filter((f) => !isScratchFolder(f.name || '')), CONCURRENCY, async (f) => {
-    const list = await folderPhotos(drive, f.id!);
+    const media = await folderMedia(drive, f.id!, true);
+    const list = media.photos;
     photos[f.id!] = list;
+    videos[f.id!] = media.videos;
     const name = (f.name || '').trim();
     const props = f.appProperties ?? {};
     // A cover a staff member picked (lib/photos/folder-meta) leads, if it is still in the folder.
-    const cover = props.madregotCover && list.some((p) => p.id === props.madregotCover) ? props.madregotCover : null;
-    const ordered = cover ? [list.find((p) => p.id === cover)!, ...list.filter((p) => p.id !== cover)] : list;
+    // A video's frame may be the cover too (the player's "שער", the admin's).
+    const cover = props.madregotCover && (list.some((p) => p.id === props.madregotCover) || media.videos.some((v) => v.id === props.madregotCover)) ? props.madregotCover : null;
+    const ordered = cover ? [{ id: cover }, ...list.filter((p) => p.id !== cover)] : list;
     return {
       id: f.id!,
       name,
@@ -111,15 +139,20 @@ async function loadLibrary(): Promise<Library | null> {
       pinned: props.madregotPinned ? props.madregotPinned === '1' : isPinned(name),
       kind: readKind(props.madregotType, name),
       tags: readTags(props.madregotTags),
+      videos: media.videos.length,
+      videoMs: media.videos.reduce((a, v) => a + (v.ms ?? 0), 0),
+      // The newest first: what was shot last is what people come to see.
+      videoCovers: media.videos.slice(-4).reverse().map((v) => ({ id: v.id, ms: v.ms })),
     };
   });
-  const shown = folders.filter((f) => f.count > 0).sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.date.localeCompare(a.date));
-  return { folders: shown, photos: Object.fromEntries(shown.map((f) => [f.id, photos[f.id]])) };
+  // A folder of only videos is a folder too now.
+  const shown = folders.filter((f) => f.count > 0 || f.videos > 0).sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.date.localeCompare(a.date));
+  return { folders: shown, photos: Object.fromEntries(shown.map((f) => [f.id, photos[f.id]])), videos: Object.fromEntries(shown.map((f) => [f.id, videos[f.id]])) };
 }
 
 // Shared across server instances (a cold listing takes ~10s), refreshed every 10 minutes;
 // plus a per-instance copy so one request doesn't read it twice.
-const cachedLibrary = unstable_cache(loadLibrary, ['photos-library-v3'], { revalidate: LIST_REVALIDATE_S, tags: ['photos-library'] });
+const cachedLibrary = unstable_cache(loadLibrary, ['photos-library-v4'], { revalidate: LIST_REVALIDATE_S, tags: ['photos-library'] });
 let local: { at: number; value: Library | null } | null = null;
 /** After a staff edit (lib/photos/folder-meta): this instance reads afresh too. */
 export function forgetLibrary(): void { local = null; }
@@ -153,11 +186,23 @@ export async function listPhotoFolders(): Promise<PhotoFolder[] | null> {
   return (await library())?.folders ?? null;
 }
 
-export async function listFolderPhotos(folderId: string): Promise<{ folder: PhotoFolder; photos: FolderPhoto[] } | null> {
+export async function listFolderPhotos(folderId: string): Promise<{ folder: PhotoFolder; photos: FolderPhoto[]; videos: FolderVideo[] } | null> {
   if (!/^[A-Za-z0-9_-]{10,}$/.test(folderId)) return null;
   const lib = await library();
   const folder = lib?.folders.find((f) => f.id === folderId);
-  return folder && lib ? { folder, photos: lib.photos[folder.id] ?? [] } : null;
+  return folder && lib ? { folder, photos: lib.photos[folder.id] ?? [], videos: lib.videos?.[folder.id] ?? [] } : null;
+}
+
+/** Every video's id, for the thumbnail copies (lib/photos/mirror): their posters load like photos. */
+export async function listAllVideoIds(): Promise<string[]> {
+  const lib = await library();
+  return lib ? lib.folders.flatMap((f) => (lib.videos?.[f.id] ?? []).map((v) => v.id)) : [];
+}
+
+/** Every video of the club, newest folder first — the "סרטונים" view across folders. */
+export async function listVideoFolders(): Promise<Array<{ folder: PhotoFolder; videos: FolderVideo[] }> | null> {
+  const lib = await library();
+  return lib ? lib.folders.filter((f) => f.videos > 0).map((folder) => ({ folder, videos: lib.videos?.[folder.id] ?? [] })) : null;
 }
 
 /**
@@ -180,7 +225,8 @@ export async function fetchDriveThumbnail(fileId: string, size: number): Promise
   const drive = driveReader();
   if (!drive || !Number.isInteger(size) || size < 16 || size > 2048 || !/^[A-Za-z0-9_-]{10,}$/.test(fileId)) return null;
   const meta = await drive.files.get({ fileId, fields: 'thumbnailLink,mimeType', supportsAllDrives: true }).then((r) => r.data).catch(() => null);
-  if (!meta?.thumbnailLink || !meta.mimeType?.startsWith('image/')) return null;
+  // A video's thumbnail is its poster: Drive makes one for (nearly) every video.
+  if (!meta?.thumbnailLink || !(meta.mimeType?.startsWith('image/') || meta.mimeType?.startsWith('video/'))) return null;
   const token = (await auth!.getAccessToken()).token;
   const url = meta.thumbnailLink.replace(/=s\d+(-[a-z]+)?$/, `=s${size}`);
   const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
@@ -215,4 +261,41 @@ export function verifyImageUrl(fileId: string, size: number, exp: number, sig: s
   const want = sign(`${fileId}.${size}.${exp}`);
   if (!want || want.length !== sig.length) return false;
   return timingSafeEqual(Buffer.from(want), Buffer.from(sig));
+}
+
+// ── Video playback ─────────────────────────────────────────────────────────────
+
+const VIDEO_LABEL = 'video-url-v1';
+const VIDEO_URL_TTL = 60 * 60 * 6;
+
+/**
+ * `/api/photos/browse/video?…` — the ORIGINAL, streamed from Drive in ranges, signed and
+ * expiring like the images. The fallback until a video has its small viewing copy
+ * (mockup photos-videos, option ב); also what "לשמור" downloads at full quality.
+ */
+export function signedVideoUrl(fileId: string, now = Date.now()): string | null {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key) return null;
+  const e = Math.ceil((Math.floor(now / 1000) + VIDEO_URL_TTL) / VIDEO_URL_TTL) * VIDEO_URL_TTL;
+  const sig = createHmac('sha256', `${VIDEO_LABEL}:${key}`).update(`${fileId}.${e}`).digest('base64url').slice(0, 32);
+  return `/api/photos/browse/video?id=${encodeURIComponent(fileId)}&e=${e}&sig=${sig}`;
+}
+
+export function verifyVideoUrl(fileId: string, exp: number, sig: string, now = Date.now()): boolean {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key || !Number.isFinite(exp) || exp < Math.floor(now / 1000)) return false;
+  const want = createHmac('sha256', `${VIDEO_LABEL}:${key}`).update(`${fileId}.${exp}`).digest('base64url').slice(0, 32);
+  return want.length === sig.length && timingSafeEqual(Buffer.from(want), Buffer.from(sig));
+}
+
+/** The original's bytes, a range of them when the player asks for one. Server only. */
+export async function fetchDriveVideo(fileId: string, range: string | null): Promise<Response | null> {
+  const drive = driveReader();
+  if (!drive || !/^[A-Za-z0-9_-]{10,}$/.test(fileId)) return null;
+  const token = (await auth!.getAccessToken()).token;
+  if (!token) return null;
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`, {
+    headers: { Authorization: `Bearer ${token}`, ...(range ? { Range: range } : {}) },
+  });
+  return res.ok || res.status === 206 ? res : null;
 }

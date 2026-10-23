@@ -5,7 +5,7 @@
  */
 import { NextResponse } from 'next/server';
 import { requireMember } from '@/lib/auth/self-or-staff';
-import { FULL, THUMB, listFolderPhotos, signedImageUrl } from '@/lib/photos/drive-browse';
+import { FULL, THUMB, listFolderPhotos, signedImageUrl, signedVideoUrl } from '@/lib/photos/drive-browse';
 import { mirroredUrls } from '@/lib/photos/mirror';
 
 export const dynamic = 'force-dynamic';
@@ -21,8 +21,8 @@ export async function GET(request: Request) {
     const tList = Date.now() - t0;
     if (!res) return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
     // Our own copy where there is one (lib/photos/mirror.ts), Drive's link where not.
-    const m = await mirroredUrls(res.photos.map((p) => p.id));
-    console.log(`[photos/folder] list ${tList}ms · links ${Date.now() - t0 - tList}ms · ${res.photos.length} photos`);
+    const m = await mirroredUrls([...res.photos.map((p) => p.id), ...res.videos.map((v) => v.id)]);
+    console.log(`[photos/folder] list ${tList}ms · links ${Date.now() - t0 - tList}ms · ${res.photos.length} photos · ${res.videos.length} videos`);
     return NextResponse.json({
       folder: res.folder,
       photos: res.photos.map((p) => ({
@@ -30,6 +30,15 @@ export async function GET(request: Request) {
         thumb: m.thumb[p.id] ?? signedImageUrl(p.id, THUMB),
         full: m.full[p.id] ?? signedImageUrl(p.id, FULL),
         blur: m.lqip[p.id] ?? null,
+      })),
+      // Each video: its poster (Drive's thumbnail, our copy when there is one) and where it
+      // plays from — nothing is fetched until it is opened (mockup photos-videos).
+      videos: res.videos.map((v) => ({
+        id: v.id, ms: v.ms, w: v.w, h: v.h, at: v.at,
+        thumb: m.thumb[v.id] ?? signedImageUrl(v.id, THUMB),
+        poster: m.full[v.id] ?? signedImageUrl(v.id, FULL),
+        blur: m.lqip[v.id] ?? null,
+        src: signedVideoUrl(v.id),
       })),
     });
   } catch (error) {
