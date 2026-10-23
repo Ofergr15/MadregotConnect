@@ -265,7 +265,9 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
   const params = useSearchParams();
   const previewAt = params?.get('weekStoryAt');
   const atOk = previewAt && /^\d{4}-\d{2}-\d{2}$/.test(previewAt) ? previewAt : null;
-  const { data: wk } = useApi<{ story: WeekStoryData | null }>(atOk ? `/api/week-story?at=${atOk}` : '/api/week-story');
+  const of = params?.get('weekStoryOf');
+  const ofOk = of && /^[0-9a-f-]{36}$/i.test(of) ? of : null;
+  const { data: wk } = useApi<{ story: WeekStoryData | null }>(atOk ? `/api/week-story?at=${atOk}${ofOk ? `&athleteId=${ofOk}` : ''}` : '/api/week-story');
   const week = wk?.story ?? null;
   const weekKey = week ? `week:${week.window.weekEnd}` : null;
   const [weekOpen, setWeekOpen] = useState(false);

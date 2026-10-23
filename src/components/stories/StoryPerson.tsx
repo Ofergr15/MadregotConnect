@@ -13,6 +13,7 @@ import { israelWallToUtc, PLACEMENTS, type Placement } from '@/lib/stories/insta
 import type { BirthdayConfig } from '@/lib/birthday-year/server';
 import type { StoryFeature, StoryState } from '@/lib/stories/gate';
 import { cn } from '@/lib/utils';
+import { comingSaturday } from '@/lib/week-story/coming-saturday';
 
 // One person's story — Content › stories v5 (mockup stories-area, Ofer 10-20): the same
 // screen as publishing a cheer. Birthday has the public part (post / circle) and the prep;
@@ -118,6 +119,14 @@ export function StoryPerson({ feature, athleteId, period, backHref }: { feature:
         <Link href={backHref} className="inline-flex min-h-[44px] items-center text-[17px] text-[#007aff]">‹ {TITLE[feature]}</Link>
         <span className="text-13 text-ink-400">{first}{period ? ` · ${p ? dayWord(period, p.today) : ''} ${shortDate(period)}` : ''}</span>
       </div>
+
+      {feature === 'weekly' && (
+        // The story itself, as this person will get it — the coming Saturday's, any day.
+        <Link href={`/feed?weekStory=1&weekStoryAt=${comingSaturday(p?.today ?? period)}&weekStoryOf=${encodeURIComponent(athleteId)}`}
+          className="mb-2.5 flex min-h-[52px] items-center justify-center gap-2 rounded-[16px] text-[16px] font-extrabold text-white" style={{ background: 'var(--c)' }}>
+          ▶ לצפות בסטורי של {first || 'השבוע'}
+        </Link>
+      )}
 
       {p && (
         <PreviewStage places={places}>
