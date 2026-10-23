@@ -27,6 +27,8 @@ const MANIFEST = 'manifest.json';
 const LQIP_PX = 24;
 const SIGN_TTL = 7 * 24 * 3600;
 const SIGN_CACHE_S = 12 * 3600;
+/** Full-size posters for this many of the newest videos (folders newest first). */
+const FULL_FOR_NEWEST_VIDEOS = 600;
 
 export interface MirrorEntry { t?: 1; f?: 1; q?: string }
 export interface Manifest { v: 1; files: Record<string, MirrorEntry> }
@@ -171,10 +173,13 @@ export async function mirrorBatch(deadline: number): Promise<{ copied: number; f
 
   const m = await readManifest();
   const photoIds = await listAllPhotoIds();
-  const newest = new Set(photoIds.slice(0, FULL_FOR_NEWEST));
   // The videos' posters too (2026-10-23), after the photos: the grid of a video folder then
-  // loads from our copy like a photo folder does, not from Drive one tile at a time.
-  const ids = [...photoIds, ...(await listAllVideoIds().catch(() => []))];
+  // loads from our copy like a photo folder does, not from Drive one tile at a time — and
+  // the newest videos' FULL poster, the still the player shows the instant a video lands
+  // ("people see at once whether they are in it", Ofer).
+  const videoIds = await listAllVideoIds().catch(() => [] as string[]);
+  const newest = new Set([...photoIds.slice(0, FULL_FOR_NEWEST), ...videoIds.slice(0, FULL_FOR_NEWEST_VIDEOS)]);
+  const ids = [...photoIds, ...videoIds];
   const needsGrid = (id: string) => { const e = m.files[id]; return !e?.t || !e?.q; };
   const needsFull = (id: string) => newest.has(id) && !m.files[id]?.f;
   const todo = [...ids.filter(needsGrid), ...ids.filter((id) => !needsGrid(id) && needsFull(id))];

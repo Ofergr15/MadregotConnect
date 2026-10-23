@@ -40,7 +40,7 @@ const dur = (ms?: number | null) => (ms ? `${Math.floor(ms / 60000)}:${String(Ma
 /** "42 תמונות · 180 סרטונים" — what is in it, photos and videos apart. */
 const mediaCount = (f: Pick<Folder, 'count' | 'videos'>) => [f.count ? `${f.count} תמונות` : '', f.videos ? `${f.videos} סרטונים` : ''].filter(Boolean).join(' · ') || '0 תמונות';
 interface Browse { configured: boolean; folders: Folder[] }
-interface FolderPhotos { folder: Folder; photos: Array<{ id: string; thumb: string | null; full: string | null; blur?: string | null }>; videos?: Array<ViewerVideo & { ms: number | null }> }
+interface FolderPhotos { folder: Folder; photos: Array<{ id: string; thumb: string | null; full: string | null; blur?: string | null; t?: string | null }>; videos?: Array<ViewerVideo & { ms: number | null; t?: string | null }> }
 
 const MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
 const monthKey = (date: string) => date.slice(0, 7);
@@ -233,6 +233,13 @@ function FolderView({ id }: { id: string }) {
   );
   if (!data) return <PhotosLoading what="folder" folderId={id} onRetry={() => { void mutate(); }} />;
   const title = folderTitle(data.folder);
+  // "הכל" with both: one line in the order it was shot (Ofer, 10-23: "the session in its
+  // order"), photos and videos mixed; each opens in its own viewer at its own index.
+  const mixed = media === 'all' && !!data.videos?.length && data.photos.length > 0 && !selecting && !coverMode;
+  const timeline = mixed
+    ? [...data.photos.map((p, k) => ({ kind: 'photo' as const, k, t: p.t || '' })), ...data.videos!.map((v, k) => ({ kind: 'video' as const, k, t: v.t || '' }))]
+      .sort((a, b) => a.t.localeCompare(b.t))
+    : null;
   const toggle = (pid: string) => setPicked((x) => (x.includes(pid) ? x.filter((y) => y !== pid) : [...x, pid]));
   const save = async (ids: string[]) => {
     setBusy(true); setNote(null);
@@ -277,7 +284,22 @@ function FolderView({ id }: { id: string }) {
           <button type="button" onClick={() => { setSelecting(true); setPicked(data.photos.map((p) => p.id)); }} className="flex min-h-[42px] flex-1 items-center justify-center rounded-xl bg-card text-[13px] font-extrabold text-brand-600">⬇️ להוריד</button>
         </div>
       )}
-      {(media !== 'videos' || selecting || coverMode) && <div className="mt-3 grid grid-cols-3 gap-[3px]">
+      {timeline && (
+        <div className="mt-3 grid grid-cols-3 gap-[3px]">
+          {timeline.map((it) => it.kind === 'photo' ? (
+            <button key={data.photos[it.k].id} type="button" onClick={(e) => { setFrom(e.currentTarget.getBoundingClientRect()); setOpen(it.k); }}
+              className="relative aspect-square overflow-hidden bg-page" aria-label={t('photoN', { n: it.k + 1 })}>
+              <Cover src={data.photos[it.k].thumb || undefined} blur={data.photos[it.k].blur} />
+            </button>
+          ) : (
+            <button key={data.videos![it.k].id} type="button" onClick={() => setVideoOpen(it.k)} className="relative aspect-square overflow-hidden bg-page" aria-label={`סרטון ${it.k + 1}`}>
+              <Cover src={data.videos![it.k].thumb || undefined} blur={data.videos![it.k].blur} />
+              <VideoBadge ms={data.videos![it.k].ms} />
+            </button>
+          ))}
+        </div>
+      )}
+      {!timeline && (media !== 'videos' || selecting || coverMode) && <div className="mt-3 grid grid-cols-3 gap-[3px]">
         {data.photos.map((p, k) => {
           const on = picked.includes(p.id);
           return (
@@ -303,7 +325,7 @@ function FolderView({ id }: { id: string }) {
       </div>}
       {/* The videos: tall tiles (they are shot upright), the length and a play mark; nothing loads
           but the poster until one is opened (mockup photos-videos, 2). */}
-      {media !== 'photos' && !selecting && !coverMode && !!data.videos?.length && (
+      {!timeline && media !== 'photos' && !selecting && !coverMode && !!data.videos?.length && (
         <>
           {media === 'all' && data.photos.length > 0 && <div className="flex items-baseline justify-between px-[18px] pb-2 pt-5"><b className="text-[17px] font-extrabold">סרטונים</b><span className="text-[13px] text-ink-400">{data.videos.length}</span></div>}
           <div className={cn('grid grid-cols-3 gap-[3px]', (media === 'videos' || !data.photos.length) && 'mt-3')}>

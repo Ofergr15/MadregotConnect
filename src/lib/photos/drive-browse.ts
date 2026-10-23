@@ -3,6 +3,7 @@ import { google, type drive_v3 } from 'googleapis';
 import { unstable_cache } from 'next/cache';
 import { readKind, readTags, type FolderKind } from './folder-kind';
 import { cleanTitle, folderDay, isPinned, isScratchFolder } from './folder-names';
+import { exifToIso, readVideoTimes, timeFromName } from './video-time';
 
 /**
  * The photos module (/dashboard/photos, mockup ~/.cache/madregot/photos-module.html,
@@ -37,7 +38,11 @@ export interface PhotoFolder {
 }
 export interface FolderPhoto { id: string; w: number | null; h: number | null; at: string | null }
 /** A video in a folder: Drive's own thumbnail is its poster; `ms` its length. */
-export interface FolderVideo { id: string; w: number | null; h: number | null; at: string | null; ms: number | null; mime: string }
+export interface FolderVideo {
+  id: string; w: number | null; h: number | null;
+  /** When it was SHOT (lib/photos/video-time): the name, the file's header, else the upload. */
+  at: string | null; ms: number | null; mime: string; name: string;
+}
 
 export function photosRoot(): string | null {
   return process.env.SESSION_PHOTOS_DRIVE_FOLDER_ID || null;
@@ -78,10 +83,10 @@ async function pool<T, R>(items: T[], n: number, fn: (t: T) => Promise<R>): Prom
  * photos are. In capture order. ONE Drive query per folder either way: the videos ride on
  * the listing the photos already pay for (5,045 of them, 2026-10-23).
  */
-async function folderMedia(drive: drive_v3.Drive, folderId: string, withVideos: boolean, depth = 0): Promise<{ photos: FolderPhoto[]; videos: FolderVideo[] }> {
+async function folderMedia(drive: drive_v3.Drive, folderId: string, withVideos: boolean, depth = 0, times?: Record<string, string>): Promise<{ photos: FolderPhoto[]; videos: FolderVideo[] }> {
   const mimes = withVideos ? `mimeType contains 'image/' or mimeType contains 'video/'` : `mimeType contains 'image/'`;
   const files = await listAll(drive, `'${folderId}' in parents and trashed = false and (${mimes} or mimeType = '${FOLDER_MIME}')`,
-    `id,mimeType,createdTime,imageMediaMetadata(width,height,time)${withVideos ? ',videoMediaMetadata(width,height,durationMillis)' : ''}`).catch(() => []);
+    `id,mimeType,createdTime,imageMediaMetadata(width,height,time)${withVideos ? ',name,videoMediaMetadata(width,height,durationMillis)' : ''}`).catch(() => []);
   const photos: FolderPhoto[] = files.filter((f) => f.mimeType?.startsWith('image/')).map((f) => ({
     id: f.id!,
     w: f.imageMediaMetadata?.width ?? null,
@@ -92,18 +97,20 @@ async function folderMedia(drive: drive_v3.Drive, folderId: string, withVideos: 
     id: f.id!,
     w: f.videoMediaMetadata?.width ?? null,
     h: f.videoMediaMetadata?.height ?? null,
-    at: f.createdTime || null,
+    // The upload, until the shot time is known: the name now, the header via `times`.
+    at: timeFromName(f.name) || times?.[f.id!] || f.createdTime || null,
     ms: f.videoMediaMetadata?.durationMillis ? Number(f.videoMediaMetadata.durationMillis) : null,
     mime: f.mimeType!,
+    name: f.name || '',
   })) : [];
   if (depth < MAX_DEPTH) {
     for (const sub of files.filter((f) => f.mimeType === FOLDER_MIME)) {
-      const inner = await folderMedia(drive, sub.id!, withVideos, depth + 1);
+      const inner = await folderMedia(drive, sub.id!, withVideos, depth + 1, times);
       photos.push(...inner.photos); videos.push(...inner.videos);
     }
   }
-  // EXIF time is "2026:10:16 07:12:03", createdTime ISO — both sort as text once the colons in the date agree.
-  const key = (p: { at: string | null }) => (p.at || '').replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
+  // By when it was shot: EXIF (the camera's wall clock in Israel) and ISO instants, both as instants.
+  const key = (p: { at: string | null }) => exifToIso(p.at) || '';
   return { photos: photos.sort((a, b) => key(a).localeCompare(key(b))), videos: videos.sort((a, b) => key(a).localeCompare(key(b))) };
 }
 
@@ -118,8 +125,10 @@ async function loadLibrary(): Promise<Library | null> {
   const top = await listAll(drive, `'${root}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`, 'id,name,createdTime,appProperties');
   const photos: Record<string, FolderPhoto[]> = {};
   const videos: Record<string, FolderVideo[]> = {};
+  // The shot times read from the videos' headers so far (the copy job fills it).
+  const times = await readVideoTimes().catch(() => ({} as Record<string, string>));
   const folders = await pool(top.filter((f) => !isScratchFolder(f.name || '')), CONCURRENCY, async (f) => {
-    const media = await folderMedia(drive, f.id!, true);
+    const media = await folderMedia(drive, f.id!, true, 0, times);
     const list = media.photos;
     photos[f.id!] = list;
     videos[f.id!] = media.videos;
@@ -298,4 +307,18 @@ export async function fetchDriveVideo(fileId: string, range: string | null): Pro
     headers: { Authorization: `Bearer ${token}`, ...(range ? { Range: range } : {}) },
   });
   return res.ok || res.status === 206 ? res : null;
+}
+
+/** The videos whose shot time is still unknown — not in the name, not read yet — for the copy job. */
+export async function videosWithoutTime(known: Record<string, string>): Promise<string[]> {
+  const lib = await library();
+  if (!lib) return [];
+  return lib.folders.flatMap((f) => (lib.videos?.[f.id] ?? []))
+    .filter((v) => !timeFromName(v.name) && !(v.id in known)).map((v) => v.id);
+}
+
+/** `length` bytes from `start` of a Drive file — the header reads of lib/photos/video-time. */
+export async function readDriveRange(fileId: string, start: number, length: number): Promise<Uint8Array | null> {
+  const res = await fetchDriveVideo(fileId, `bytes=${start}-${start + length - 1}`).catch(() => null);
+  return res ? new Uint8Array(await res.arrayBuffer()) : null;
 }

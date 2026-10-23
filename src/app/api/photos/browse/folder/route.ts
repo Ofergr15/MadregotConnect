@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { requireMember } from '@/lib/auth/self-or-staff';
 import { FULL, THUMB, listFolderPhotos, signedImageUrl, signedVideoUrl } from '@/lib/photos/drive-browse';
 import { mirroredUrls } from '@/lib/photos/mirror';
+import { exifToIso } from '@/lib/photos/video-time';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -30,11 +31,14 @@ export async function GET(request: Request) {
         thumb: m.thumb[p.id] ?? signedImageUrl(p.id, THUMB),
         full: m.full[p.id] ?? signedImageUrl(p.id, FULL),
         blur: m.lqip[p.id] ?? null,
+        // When it was shot, as an instant — the one clock photos and videos share, so
+        // "הכל" can lay the session out in the order it happened.
+        t: exifToIso(p.at),
       })),
       // Each video: its poster (Drive's thumbnail, our copy when there is one) and where it
       // plays from — nothing is fetched until it is opened (mockup photos-videos).
       videos: res.videos.map((v) => ({
-        id: v.id, ms: v.ms, w: v.w, h: v.h, at: v.at,
+        id: v.id, ms: v.ms, w: v.w, h: v.h, at: v.at, t: exifToIso(v.at),
         thumb: m.thumb[v.id] ?? signedImageUrl(v.id, THUMB),
         poster: m.full[v.id] ?? signedImageUrl(v.id, FULL),
         blur: m.lqip[v.id] ?? null,
