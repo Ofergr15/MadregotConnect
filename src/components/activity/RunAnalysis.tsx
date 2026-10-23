@@ -104,22 +104,21 @@ function BlockKms({ reps, labels }: { reps: Seg[]; labels: string[] }) {
   const W = 330; const H = 122; const PB = 18; const top = 4;
   const lo = Math.min(...all) - 8; const hi = Math.max(...all) + 4;
   const gap = 8; const bw = (W - gap * (reps.length - 1)) / all.length - 1.5;
-  // Right to left like the page: the first block's first km is the right-most bar.
-  let x = W;
+  // Left to right in the order run, like the strip and the reps chart (Ofer 10-23).
+  let x = 0;
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="mt-1 block w-full" style={{ height: H, direction: 'ltr' }} role="img">
       {reps.map((r, ri) => {
         const tl = (r.targetLo ?? r.target), th = (r.targetHi ?? r.target);
-        const end = x;
+        const start = x;
         const g = r.kms.map((p, k) => {
-          x -= bw;
           const h = top + ((hi - p) / (hi - lo)) * (H - PB - top);
           const ok = tl == null || th == null || (p >= tl - TOL && p <= th + TOL);
           const el = <rect key={k} x={x} y={H - PB - h} width={bw} height={h} rx={1.5} fill={ok ? GREEN : '#E5484D'}><title>{formatPace(p)}</title></rect>;
-          x -= 1.5; return el;
+          x += bw + 1.5; return el;
         });
-        const mid = (end + x) / 2;
-        x -= gap;
+        const mid = (start + x) / 2;
+        x += gap;
         const tgt = tl != null && th != null ? (tl === th ? formatPace(tl) : `${formatPace(tl)}–${formatPace(th)}`) : '';
         return <g key={ri}>{g}<text x={mid} y={H - 4} textAnchor="middle" className="fill-ink-400 text-[10px]">{labels[ri]}{tgt ? ` · ${tgt}` : ''}</text></g>;
       })}
@@ -147,12 +146,13 @@ function TargetCards({ reps, labels }: { reps: Seg[]; labels: string[] | null })
   const fast = Math.min(...vals) - 18; const slow = Math.max(...vals) + 26;
   const y = (p: number) => ((slow - p) / (slow - fast)) * H;
   return (
-    <div className={cn('mt-2 flex', many ? 'gap-1' : 'gap-2.5')}>
+    // Left to right, in the order they were run — like the strip above and the plan (Ofer 10-23).
+    <div dir="ltr" className={cn('mt-2 flex', many ? 'gap-1' : 'gap-2.5')}>
       {reps.map((r, i) => {
         const lo = lo_(r); const hi = hi_(r); const p = r.pace ?? slow;
         const off = r.onTarget === false;
         return (
-          <div key={i} className={cn('flex-1 text-center', many ? 'rounded-xl px-0.5 py-2' : 'rounded-[18px] px-2 py-3', off ? 'bg-[#fdf3f3]' : 'bg-[#f4faf6]')}>
+          <div key={i} dir="rtl" className={cn('flex-1 text-center', many ? 'rounded-xl px-0.5 py-2' : 'rounded-[18px] px-2 py-3', off ? 'bg-[#fdf3f3]' : 'bg-[#f4faf6]')}>
             <div className="relative" style={{ height: H }}>
               {lo != null && hi != null && (
                 <>
