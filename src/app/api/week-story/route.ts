@@ -4,6 +4,9 @@ import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { hasRole } from '@/lib/auth/roles';
 import { israelNow, israelToday } from '@/lib/utils';
 import { loadWeekStory } from '@/lib/week-story/server';
+import { storyWindow } from '@/lib/week-story/model';
+import { storyGate } from '@/lib/stories/gate';
+import { addDays } from '@/lib/notifications/approval';
 import { isTheme, withMemberChoice, type Theme, type WorkoutPick } from '@/lib/week-story/layout';
 
 export const dynamic = 'force-dynamic';
@@ -22,7 +25,16 @@ export async function GET(request: Request) {
   const q = new URL(request.url).searchParams;
   const athleteId = (admin && q.get('athleteId')) || caller.athleteId;
   if (!athleteId) return NextResponse.json({ story: null });
-  const at = admin ? q.get('at') : null;
+  let at = admin ? q.get('at') : null;
+  // Testers see it any time (Ofer 10-24: "we said we'd open it to him so he can look"): outside
+  // the Saturday 12:00 – Sunday 20:00 window, the week up to the latest Saturday, as it will read.
+  if (!at && athleteId === caller.athleteId && !storyWindow(israelToday(), israelNow().hour)) {
+    const gate = await storyGate('weekly', caller.athleteId, { isAdmin: admin }).catch(() => null);
+    if (gate?.tester) {
+      const t = israelToday(); const wd = new Date(`${t}T12:00:00Z`).getUTCDay();
+      at = addDays(t, -((wd + 1) % 7));
+    }
+  }
   const today = at && /^\d{4}-\d{2}-\d{2}$/.test(at) ? at : israelToday();
   // A preview reads the week as of that Saturday's end.
   const hour = at ? 23 : israelNow().hour;
