@@ -11,16 +11,18 @@ import { FeedAvatar } from '@/components/FeedAvatar';
 import { CONTENT_TYPES, TYPE_ORDER, type ContentType } from '@/lib/content/hub';
 import type { RolePerson } from '@/lib/auth/roles';
 import type { Grants, LogEntry } from '@/lib/access/grants';
+import { AlertsTab, PagesTab } from '@/components/access/RoleTabs';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // ניהול ← הרשאות — one place for who sees and publishes what (mockups/access-hub.html,
 // Ofer 10-23: "one unified management area"; "much better" for the sentences). Stage 1:
 // the people, each one's Content level per part, the Content tab written as sentences,
-// and the log. Roles and switches are still edited on the roles screen (linked); the
-// pages tab and the staff alerts move here next.
+// and the log. Stage 3: what each role sees (עמודים) and the staff alerts (התראות), the
+// same sentences (components/access/RoleTabs). Roles and switches are still edited on
+// the roles screen (linked).
 // ═════════════════════════════════════════════════════════════════════════════
 
-type Tab = 'people' | 'content' | 'log';
+type Tab = 'people' | 'content' | 'pages' | 'alerts' | 'log';
 type Lvl = 0 | 1 | 2 | 3;
 /** Where "באישור" exists: what an admin can approve by replaying it (lib/access/grants DRAFTABLE). */
 const DRAFTABLE: ContentType[] = ['messages', 'surveys', 'cheers', 'circle'];
@@ -73,7 +75,7 @@ export default function AccessPage() {
         <h1 className="text-[30px] font-extrabold tracking-[-0.4px] text-ink-900">הרשאות</h1>
       </div>
       <div className="mb-3 flex gap-[3px] rounded-[10px] bg-[#e4e4ea] p-[3px]" role="tablist">
-        {([['people', 'אנשים'], ['content', 'תוכן'], ['log', 'יומן']] as const).map(([k, l]) => (
+        {([['people', 'אנשים'], ['content', 'תוכן'], ['pages', 'עמודים'], ['alerts', 'התראות'], ['log', 'יומן']] as const).map(([k, l]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
             className={cn('min-h-[34px] flex-1 rounded-[8px] text-[13.5px] font-bold', tab === k ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500')}>{l}</button>
         ))}
@@ -131,6 +133,9 @@ export default function AccessPage() {
           })}
         </>
       )}
+
+      {tab === 'pages' && <PagesTab />}
+      {tab === 'alerts' && <AlertsTab />}
 
       {tab === 'log' && (
         <div className="overflow-hidden rounded-[16px] bg-card">

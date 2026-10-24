@@ -22,15 +22,13 @@ export const MANAGE_GROUPS: ManageGroup[] = [
       { label: 'בריאות ההתראות', sub: 'מה באמת הוצג בטלפונים', href: '/dashboard/push-health', also: 'התראות הגיעו הוצגו' },
       { label: 'התראות', sub: 'מה נשלח לחברים', href: '/dashboard/settings?tab=notifications' },
       { label: 'תזכורות', sub: 'לפני אימון ובערב', href: '/dashboard/settings?tab=reminders' },
-      { label: 'ניתוב התראות לצוות', sub: 'מי מקבל מה', href: '/dashboard/settings?tab=notifRouting' },
     ],
   },
   {
     key: 'access', title: 'הרשאות ותחזוקה',
     items: [
-      { label: 'הרשאות', sub: 'מי רואה ומפרסם מה, לכל אדם', href: '/dashboard/access', also: 'הרשאות תוכן מפרסם' },
+      { label: 'הרשאות', sub: 'מי רואה ומפרסם מה, עמודים והתראות ניהול', href: '/dashboard/access', also: 'הרשאות תוכן מפרסם עמודים טאבים התראות ניהול ניתוב' },
       { label: 'תפקידים', sub: 'מאמנים, מנהלים, גרעין', href: '/dashboard/roles' },
-      { label: 'מה כל תפקיד רואה', sub: 'הרשאות לטאבים', href: '/dashboard/settings?tab=tabs', also: 'הרשאות' },
       { label: 'מצב תחזוקה', sub: 'מי נכנס בזמן תחזוקה', href: '/dashboard/athletes', also: 'תחזוקה' },
       { label: 'כל ההגדרות', sub: 'כל השאר', href: '/dashboard/settings' },
     ],
