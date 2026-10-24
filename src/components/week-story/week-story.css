@@ -120,3 +120,58 @@
 .ys.wk .wk-editbar .done:disabled{opacity:.7}
 .ys.wk .wk-poster .hl .hc{display:inline-block;white-space:nowrap}
 .ys.wk .wk-poster .hl .sep{font-style:normal;opacity:.6;margin:0 6px}
+
+/* Editable share cards (10-24): the summary keeps its look; in edit mode each piece is a tap target. */
+.ys.wk .wk-ed{position:relative;pointer-events:auto;cursor:pointer;border-radius:10px}
+.ys.wk .wk-ed:hover,.ys.wk .wk-ed:active{outline:1.5px dashed rgba(255,255,255,.6);outline-offset:3px}
+.ys.wk .wk-ed-x{position:absolute;top:-6px;inset-inline-start:-6px;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-style:normal;background:rgba(0,0,0,.5);box-shadow:0 0 0 1px rgba(255,255,255,.35);color:#fff}
+.ys.wk .wk-ed.none{opacity:.45}
+.ys.wk .wk-poster .hl .hc .wk-ed{display:inline-block}
+.ys.wk .wk-add{pointer-events:auto;margin-inline-start:8px;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.18);color:#fff;font-weight:900}
+.ys.wk .wk-poster .pl2{margin:10px 18px 0;font-size:15px;font-weight:800;line-height:1.4}
+/* The collage: 2–8 tiles packed two across; the first (and a route) tall. */
+.ys.wk .wk-col-wrap{justify-content:flex-start;gap:12px;padding-top:92px;padding-bottom:26px}
+.ys.wk .wk-col{flex:1 1 auto;min-height:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto;grid-auto-rows:minmax(0,1fr);grid-auto-flow:dense;gap:8px}
+.ys.wk.editing .wk-col-wrap{padding-bottom:84px}
+.ys.wk .wk-col.n2{grid-auto-rows:1fr}
+.ys.wk .wk-col-k{grid-column:1/-1;margin:0;font-size:14px;font-weight:800;opacity:.85;align-self:end}
+.ys.wk .wk-col-l{grid-column:1/-1;text-align:center}.ys.wk .wk-col-l img{height:14px;opacity:.9}
+.ys.wk .wk-tile{position:relative;border-radius:20px;padding:12px 14px;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;min-height:0;pointer-events:auto;text-align:start}
+.ys.wk .wk-tile.tall{grid-row:span 2}
+.ys.wk .wk-tile b{font-size:40px;font-weight:900;line-height:.95;letter-spacing:-1.5px;display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}
+.ys.wk .wk-tile.tall b{font-size:54px}
+.ys.wk .wk-col.n2 .wk-tile b{font-size:50px}
+.ys.wk .wk-tile b u{text-decoration:none;font-size:14px;letter-spacing:0;font-weight:800;opacity:.8}
+.ys.wk .wk-tile small{font-size:12.5px;font-weight:800;margin-top:4px;opacity:.85}
+.ys.wk .wk-tile.t-white{background:#fff;color:#0A0C1E}
+.ys.wk .wk-tile.t-g1{background:var(--g1);color:#fff}
+.ys.wk .wk-tile.t-g3{background:var(--g3);color:#fff}
+.ys.wk .wk-tile.t-peach{background:#FFB08F;color:#3a1406}
+.ys.wk .wk-tile.t-lime{background:#C6F432;color:#111}
+.ys.wk .wk-tile.t-glass{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.22)}
+.ys.wk .wk-tile.add{justify-content:center;align-items:center;border:2px dashed rgba(255,255,255,.55);background:none;color:#fff;font-weight:900;font-size:15px}
+.ys.wk .wk-route{position:absolute;top:10px;inset-inline:10px;width:calc(100% - 20px);height:55%}
+.ys.wk .wk-route path{fill:none;stroke:currentColor;stroke-width:3.5;stroke-linejoin:round;stroke-linecap:round}
+.ys.wk .wk-tile .wk-ed-x{top:8px;inset-inline-start:8px}
+/* Menus */
+.ys.wk .wk-menu{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:50vh;overflow:auto}
+.ys.wk .wk-menu button{display:grid;gap:3px;text-align:start;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.08);color:#fff}
+.ys.wk .wk-menu button b{font-size:12.5px;opacity:.8}.ys.wk .wk-menu button span{font-size:17px;font-weight:900}
+.ys.wk .wk-menu button.on{box-shadow:inset 0 0 0 2px #fff}
+.ys.wk .wk-menu button:disabled{opacity:.35}.ys.wk .wk-menu button:disabled span{font-size:13px;font-weight:700}
+.ys.wk .wk-rm{background:rgba(255,107,107,.16);color:#FFB3B3;border-radius:99px;padding:12px;font-weight:800}.ys.wk .wk-rm:disabled{opacity:.5}
+.ys.wk .wk-tcol{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ys.wk .wk-tcol>span{font-weight:800;font-size:13px}
+.ys.wk .sw2{width:34px;height:34px;border-radius:10px;border:2px solid rgba(255,255,255,.25);font-size:10px;font-weight:800;color:#fff}
+.ys.wk .sw2.on{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.4)}
+.ys.wk .sw2.t-auto{background:conic-gradient(#fff,var(--g1),#C6F432,var(--g3),#FFB08F,#fff)}.ys.wk .sw2.t-white{background:#fff}.ys.wk .sw2.t-g1{background:var(--g1)}.ys.wk .sw2.t-g3{background:var(--g3)}.ys.wk .sw2.t-peach{background:#FFB08F}.ys.wk .sw2.t-lime{background:#C6F432}.ys.wk .sw2.t-glass{background:rgba(255,255,255,.18)}
+.ys.wk .wk-clear,.ys.wk .wk-name{display:flex;gap:10px;align-items:flex-start;font-size:14px}
+.ys.wk .wk-clear input{width:22px;height:22px;margin-top:2px}.ys.wk .wk-clear span{display:grid;gap:2px}.ys.wk .wk-clear small,.ys.wk .wk-name small{font-size:12px;opacity:.7}
+.ys.wk .wk-name{flex-direction:column;gap:6px}.ys.wk .wk-name>span{font-weight:800}
+.ys.wk .wk-name input{width:100%;padding:11px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff;font-size:16px}
+/* Transparent export: no background, the cards keep their own fills. */
+.ys.ys-export.clear{background:transparent!important}
+.ys.ys-export.clear .bg{display:none}
+.ys.wk .wk-poster .pt small{display:block}
+.ys.wk .wk-poster .hl{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;row-gap:4px}
+.ys.wk .wk-poster .hl .hc{white-space:normal}
+.ys.ys-export.clear .wk-tile.t-glass{background:rgba(0,0,0,.42)}

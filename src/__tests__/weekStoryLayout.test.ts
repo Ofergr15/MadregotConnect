@@ -39,7 +39,7 @@ describe('week story layout', () => {
 
   it('the admin PUT accepts a layout and cleans it', () => {
     const r = settingsPatch({ layout: { hiddenSlides: ['km', 'x'], theme: 'night' } });
-    expect(r.ok && r.patch.layout).toEqual({ hiddenSlides: ['km'], hiddenParts: {}, workout: null, theme: 'night' });
+    expect(r.ok && r.patch.layout).toMatchObject({ hiddenSlides: ['km'], hiddenParts: {}, workout: null, theme: 'night' });
     expect(settingsPatch({ layout: 'x' }).ok).toBe(false);
   });
 });
@@ -60,9 +60,9 @@ describe('which workout and background', () => {
     let w = withMemberChoice({ hidePack: true }, { weekEnd: '2026-10-24', workout: 'long' });
     w = withMemberChoice(w, { theme: 'night' });
     expect(w.hidePack).toBe(true);
-    expect(memberChoices(w, '2026-10-24')).toEqual({ workout: 'long', theme: 'night' });
-    expect(memberChoices(w, '2026-10-31')).toEqual({ workout: null, theme: 'night' });
-    expect(memberChoices({ theme: 'pink', workout: { '2026-10-24': 'tempo' } }, '2026-10-24')).toEqual({ workout: null, theme: null });
+    expect(memberChoices(w, '2026-10-24')).toEqual({ workout: 'long', theme: 'night', name: null });
+    expect(memberChoices(w, '2026-10-31')).toEqual({ workout: null, theme: 'night', name: null });
+    expect(memberChoices({ theme: 'pink', workout: { '2026-10-24': 'tempo' } }, '2026-10-24')).toEqual({ workout: null, theme: null, name: null });
     for (let i = 0; i < 12; i++) w = withMemberChoice(w, { weekEnd: `2026-${String(i + 1).padStart(2, '0')}-01`, workout: 'quality' });
     expect(Object.keys(w.workout as object)).toHaveLength(8);
   });

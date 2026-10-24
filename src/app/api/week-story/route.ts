@@ -58,8 +58,8 @@ export async function PATCH(request: Request) {
   const { denied, caller } = await resolveVerifiedCaller(request);
   if (denied) return denied;
   if (!caller.athleteId) return NextResponse.json({ error: 'no athlete' }, { status: 400 });
-  const body = (await request.json().catch(() => ({}))) as { hidePack?: unknown; workout?: unknown; weekEnd?: unknown; theme?: unknown };
-  const change: { hidePack?: boolean; workout?: WorkoutPick; weekEnd?: string; theme?: Theme } = {};
+  const body = (await request.json().catch(() => ({}))) as { hidePack?: unknown; workout?: unknown; weekEnd?: unknown; theme?: unknown; name?: unknown };
+  const change: { hidePack?: boolean; workout?: WorkoutPick; weekEnd?: string; theme?: Theme; name?: string } = {};
   if ('hidePack' in body) {
     if (typeof body.hidePack !== 'boolean') return NextResponse.json({ error: 'hidePack must be true or false' }, { status: 400 });
     change.hidePack = body.hidePack;
@@ -73,6 +73,11 @@ export async function PATCH(request: Request) {
   if ('theme' in body) {
     if (!isTheme(body.theme)) return NextResponse.json({ error: 'theme must be a preset or #rrggbb' }, { status: 400 });
     change.theme = body.theme;
+  }
+  // The name the cards greet, the member's own (empty = the automatic one again).
+  if ('name' in body) {
+    if (typeof body.name !== 'string' || body.name.length > 40) return NextResponse.json({ error: 'name must be a short string' }, { status: 400 });
+    change.name = body.name;
   }
   if (!Object.keys(change).length) return NextResponse.json({ error: 'nothing to change' }, { status: 400 });
   const db = createServerClient();

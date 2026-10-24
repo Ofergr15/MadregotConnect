@@ -2,7 +2,9 @@
 // 2026-10-23 "נראה מעולה"): the admin hides whole slides or parts of a slide, picks the
 // club's default workout (the week's quality session or its long run) and the background.
 // Each member may switch their own story's workout (only between that week's two) and
-// background. Pure, so the server, the player and the tests read one set of rules.
+// background, and what the two share cards say (card.ts). Pure, so the server, the player and the tests read one set of rules.
+
+import { cleanCollage, cleanSummary, cleanText, DEFAULT_COLLAGE, DEFAULT_SUMMARY, NAME_MAX, type CollageCard, type SummaryCard } from './card';
 
 export type WorkoutPick = 'quality' | 'long';
 export type ThemeKey = 'blue' | 'night' | 'ocean' | 'graphite' | 'ember';
@@ -75,6 +77,7 @@ export const SLIDE_PARTS: Record<string, string[]> = {
   coach: ['title', 'score'],
   next: ['title'],
   club: ['km', 'runners', 'records', 'marathons'],
+  collage: [],
 };
 export const FIXED_SLIDES = ['intro', 'summary'];
 
@@ -84,8 +87,11 @@ export interface StoryLayout {
   /** The club's default workout slide; null = the quality session, else the long run. */
   workout: WorkoutPick | null;
   theme: Theme;
+  /** What the summary card and the closing collage say (card.ts); absent = the defaults. */
+  summary: SummaryCard;
+  collage: CollageCard;
 }
-export const DEFAULT_LAYOUT: StoryLayout = { hiddenSlides: [], hiddenParts: {}, workout: null, theme: 'blue' };
+export const DEFAULT_LAYOUT: StoryLayout = { hiddenSlides: [], hiddenParts: {}, workout: null, theme: 'blue', summary: DEFAULT_SUMMARY, collage: DEFAULT_COLLAGE };
 
 /** Hex kept upper-case so the same colour compares equal. */
 export const normTheme = (t: Theme): Theme => (isCustom(t) ? (t.toUpperCase() as Theme) : t);
@@ -94,7 +100,7 @@ const isPick = (v: unknown): v is WorkoutPick => v === 'quality' || v === 'long'
 
 /** A stored layout (or nothing, or junk) as one the player can trust. A missing column is the default. */
 export function cleanLayout(raw: unknown): StoryLayout {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ...DEFAULT_LAYOUT, hiddenParts: {} };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ...DEFAULT_LAYOUT, hiddenParts: {}, summary: cleanSummary(null), collage: cleanCollage(null) };
   const r = raw as Record<string, unknown>;
   const hiddenSlides = Array.isArray(r.hiddenSlides)
     ? [...new Set(r.hiddenSlides.filter((k): k is string => typeof k === 'string' && k in SLIDE_PARTS))] : [];
@@ -106,7 +112,7 @@ export function cleanLayout(raw: unknown): StoryLayout {
       if (ok.length) hiddenParts[slide] = ok;
     }
   }
-  return { hiddenSlides, hiddenParts, workout: isPick(r.workout) ? r.workout : null, theme: isTheme(r.theme) ? normTheme(r.theme) : 'blue' };
+  return { hiddenSlides, hiddenParts, workout: isPick(r.workout) ? r.workout : null, theme: isTheme(r.theme) ? normTheme(r.theme) : 'blue', summary: cleanSummary(r.summary), collage: cleanCollage(r.collage) };
 }
 
 export const slideShown = (l: StoryLayout, key: string) => FIXED_SLIDES.includes(key) || !l.hiddenSlides.includes(key);
@@ -138,15 +144,17 @@ export function pickWorkout(o: { available: WorkoutPick[]; club: WorkoutPick | n
 export const pickTheme = (club: Theme, member: Theme | null): Theme => member ?? club;
 
 /** The member's own choices kept in notification_prefs.weekStory: { workout: { [weekEnd]: pick }, theme }. */
-export function memberChoices(weekStory: unknown, weekEnd: string): { workout: WorkoutPick | null; theme: Theme | null } {
-  const w = (weekStory && typeof weekStory === 'object' ? weekStory : {}) as { workout?: unknown; theme?: unknown };
+export function memberChoices(weekStory: unknown, weekEnd: string): { workout: WorkoutPick | null; theme: Theme | null; name: string | null } {
+  const w = (weekStory && typeof weekStory === 'object' ? weekStory : {}) as { workout?: unknown; theme?: unknown; card?: { name?: unknown } };
   const byWeek = w.workout && typeof w.workout === 'object' ? (w.workout as Record<string, unknown>)[weekEnd] : null;
-  return { workout: isPick(byWeek) ? byWeek : null, theme: isTheme(w.theme) ? normTheme(w.theme) : retired(w.theme) ? 'blue' : null };
+  return { workout: isPick(byWeek) ? byWeek : null, theme: isTheme(w.theme) ? normTheme(w.theme) : retired(w.theme) ? 'blue' : null, name: cleanText(w.card?.name, NAME_MAX) || null };
 }
 /** The prefs after the member picks; keeps the last 8 weeks' picks and every other key. */
-export function withMemberChoice(weekStory: unknown, change: { weekEnd?: string; workout?: WorkoutPick; theme?: Theme }): Record<string, unknown> {
+export function withMemberChoice(weekStory: unknown, change: { weekEnd?: string; workout?: WorkoutPick; theme?: Theme; name?: string }): Record<string, unknown> {
   const w = { ...((weekStory && typeof weekStory === 'object' ? weekStory : {}) as Record<string, unknown>) };
   if (change.theme) w.theme = normTheme(change.theme);
+  // The name the cards greet: the member's own override; empty = back to the automatic one.
+  if (change.name !== undefined) w.card = { ...((w.card as object) || {}), name: cleanText(change.name, NAME_MAX) };
   if (change.workout && change.weekEnd) {
     const prev = w.workout && typeof w.workout === 'object' ? (w.workout as Record<string, WorkoutPick>) : {};
     const all = { ...prev, [change.weekEnd]: change.workout };

@@ -8,9 +8,10 @@ import { NumberRuns } from '@/components/trainee/ui';
 import type { WeekStory as Story } from '@/lib/week-story/server';
 import { fmtDuration, fmtPace, highlightOf, qualityVerdict, weekLabel } from '@/lib/week-story/model';
 import { EXPORT_H, EXPORT_W, captureSlide, shareImages } from '@/components/birthday/capture';
-import { SLIDE_MS, canRecordVideo, recordStory, shareVideo, videoLength } from '@/components/birthday/video';
+import { SLIDE_MS, blobImage, canRecordVideo, recordStory, reportVideoFail, shareVideo, videoLength } from '@/components/birthday/video';
+import { CHIP_KEYS, CHIP_NAME, HEADING_MAX, LINE_MAX, NAME_MAX, STAT_KEYS, STAT_NAME, TILE_COLORS, TILE_MAX, TILE_MIN, addTile, chipText, fillHeading, removeTile, setTile, statValue, streakOf, tileColor, tileSpan, type ChipKey, type StatKey, type StoryFacts, type TileColor } from '@/lib/week-story/card';
 import { academyBoardUrl } from '@/lib/academy/deep-links';
-import { THEMES, THEME_KEYS, hexToHsl, hslToHex, isCustom, partShown, slideShown, themeAccent, themeStops, toggleSlide, togglePart, FIXED_SLIDES, DEFAULT_LAYOUT, type StoryLayout, type Theme, type WorkoutPick } from '@/lib/week-story/layout';
+import { THEMES, THEME_KEYS, hexToHsl, hslToHex, isCustom, partShown, slideShown, themeAccent, themeStops, toggleSlide, togglePart, FIXED_SLIDES, cleanLayout, type StoryLayout, type Theme, type WorkoutPick } from '@/lib/week-story/layout';
 import '@/components/birthday/year-story.css';
 import './week-story.css';
 
@@ -35,7 +36,7 @@ interface Slide { key: string; dur: number; node: () => React.ReactNode }
 
 const SLIDE_NAME: Record<string, string> = {
   intro: 'פתיחה', km: 'ק״מ', plan: 'תוכנית', record: 'שיא', workout: 'אימון', pack: 'דבוקה',
-  coach: 'מאמן', next: 'שבוע הבא', club: 'מועדון', summary: 'סיכום',
+  coach: 'מאמן', next: 'שבוע הבא', club: 'מועדון', summary: 'סיכום', collage: 'קולאז׳',
 };
 
 /**
@@ -63,15 +64,22 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
   const [canVideo, setCanVideo] = useState(false);
   useEffect(() => { setCanVideo(canRecordVideo()); }, []);
   // A story cached from before 2.41.403 (or a read without migration 170) has no layout: the defaults (#crash 10-23 "e.hiddenSlides").
-  const [layout, setLayout] = useState<StoryLayout>(story.layout ?? DEFAULT_LAYOUT);
+  const [layout, setLayout] = useState<StoryLayout>(() => cleanLayout(story.layout));
   const [editing, setEditing] = useState(false);
   const [theme, setTheme] = useState<Theme>(story.theme);
   const [workout, setWorkout] = useState<WorkoutPick | null>(story.workout);
   const [sheet, setSheet] = useState<null | 'workout' | 'bg' | 'slides'>(null);
+  // An edit menu on a share card: the hero, a cell, a chip, a collage tile, or the texts.
+  const [menu, setMenu] = useState<null | { kind: 'hero' } | { kind: 'cell'; i: number } | { kind: 'chip'; i: number } | { kind: 'tile'; i: number } | { kind: 'text' }>(null);
+  // "רקע שקוף": the shared picture as a PNG with no background (not the video: no alpha on iOS).
+  const [clear, setClear] = useState(false);
+  const [cardName, setCardName] = useState<string>(story.mine?.name ?? '');
+  // A video this phone couldn't make: the same slides as pictures, one tap away (never a dead end).
+  const [stills, setStills] = useState<Blob[] | null>(null);
   const flash = useCallback((t: string) => { setNotice(t); setTimeout(() => setNotice(null), 2600); }, []);
 
   // The member's own pick, saved at once; a failed save puts the old one back.
-  const saveMine = useCallback(async (change: { workout?: WorkoutPick; theme?: Theme }) => {
+  const saveMine = useCallback(async (change: { workout?: WorkoutPick; theme?: Theme; name?: string }) => {
     const before = { workout, theme };
     if (change.workout) setWorkout(change.workout);
     if (change.theme) setTheme(change.theme);
@@ -117,6 +125,19 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
     );
   };
 
+  // What the cards can say this week (card.ts): every value from the story itself.
+  const facts = useMemo<StoryFacts>(() => {
+    const q = story.quality, lg = story.long, p = story.pack;
+    return {
+      km: s.km, seconds: s.seconds, runs: s.runs, planShare: s.planShare, daysActive: s.dayKm.filter((k) => k > 0).length,
+      lastWeekKm: s.lastWeekKm, streak: streakOf(story.weeksKm ?? []),
+      long: lg ? { km: lg.km, fastest: lg.kms.length ? Math.min(...lg.kms.map((k) => k.p)) : null } : null,
+      set: q && q.reps.length ? q.label : null, fastestRep: q && q.reps.length ? Math.min(...q.reps) : null,
+      rank: p && !hidePack ? { rank: p.rank, of: p.of } : null, clubKm: story.club?.km ?? null,
+      record: s.records[0]?.label ?? null, quality: q && qualityVerdict(q.vs).ok ? qualityVerdict(q.vs).text : null,
+    };
+  }, [story, s, hidePack]);
+
   const togglePack = useCallback(async () => {
     const next = !hidePack;
     setHidePack(next);
@@ -138,7 +159,7 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
       <div className="c end">
         <p className="eyebrow-s rise">השבוע שלך · <bdi>{label}</bdi></p>
         <h1 className="rise d1">שבוע טוב,<br /><span className="name">{story.name}</span> 👋</h1>
-        <p className="lead rise d2">{opening.join(', ')}.<br />הנה השבוע שלך.</p>
+        <p className="lead rise d2"><NumberRuns text={opening.join(', ')} />.<br />הנה השבוע שלך.</p>
         <p className="hint rise d3">לחיצה שמאלה להמשך ‹</p>
       </div></>) });
 
@@ -257,7 +278,7 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
         <div className="bg plain" />
         <div className="c">
           <p className="eyebrow-s rise">💬 מהמאמן השבוע</p>
-          {P('coach', 'title', <h2 className="rise d1">{a.comments > 0 ? `${a.comments} ${a.comments === 1 ? 'משוב' : 'משובים'}` : 'השבוע שלך בלוח'}</h2>)}
+          {P('coach', 'title', <h2 className="rise d1">{a.comments > 0 ? <><bdi>{a.comments}</bdi> {a.comments === 1 ? 'משוב' : 'משובים'}</> : 'השבוע שלך בלוח'}</h2>)}
           {a.score != null && P('coach', 'score', <span className="wk-pill rise d2">ציון לפי התוכנית · <bdi>{a.score}%</bdi></span>)}
         </div></>) });
     }
@@ -287,40 +308,84 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
         </div></>) });
     }
 
-    const tags = [
-      s.records[0] && `🏅 שיא ב־${s.records[0].label}`,
-      workout === 'quality' && q && qualityVerdict(q.vs).ok && `⚡ ${q.label} ${qualityVerdict(q.vs).text}`,
-      workout === 'long' && lg && `🏃 ארוכה ${km1(lg.km)} ק״מ`,
-      p && !hidePack && p.rank <= 3 && `${MEDAL[p.rank - 1]} מקום ${p.rank}`,
-    ].filter(Boolean) as string[];
-    // Each fact its own chip, numbers isolated run by run: joined into one string the bidi
-    // algorithm flipped them into each other (Sahar's week, 10-23: "⚡ 10 × 1.6 2 מקום 🥈 · ק״מ ביעד").
-    const chipsLine = <SummaryChips tags={tags} />;
+    const card = layout.summary;
+    const head = fillHeading(card.heading, (own && cardName) || story.name);
+    const sv = (k: StatKey) => statValue(k, facts);
+    const heroV = sv(card.hero) ?? sv('km')!;
+    const chipTexts = card.chips.map((k) => chipText(k, facts)).filter((t): t is string => !!t);
+    /** A piece of a card that opens its menu in edit mode, and is just itself otherwise. */
+    const E = (open: () => void, node: React.ReactNode, cls = '') => (editing
+      ? <div className={`wk-ed ${cls}`} role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); open(); }}>{node}<span className="wk-ed-x" aria-hidden>✎</span></div>
+      : node);
+    const collageShown = editing || slideShown(layout, 'collage');
+    const acts = (
+      <div className="acts rise d2">
+        {canVideo && <button type="button" className="v" onClick={() => void videoRef.current()} disabled={!!video}>🎬 סרטון לסטורי</button>}
+        <button type="button" className="p" onClick={() => void shareOneRef.current()} disabled={busy}>{busy ? 'מכין…' : clear ? 'שיתוף התמונה (רקע שקוף)' : 'שיתוף התמונה לסטורי'}</button>
+        {p && hidePack && <button type="button" onClick={() => void togglePack()}>להחזיר את שקף הדבוקה</button>}
+      </div>
+    );
     out.push({ key: 'summary', dur: 20000, node: () => (<>
       <div className="bg plain deep" />
       <div className="c wk-poster-wrap">
         <div className="wk-poster rise">
-          <div className="pt"><small>השבוע של</small><b>{story.name}</b><span><bdi>{label}</bdi></span></div>
-          <div className="pk"><bdi>{km1(s.km)}</bdi><u>ק״מ</u></div>
+          {E(() => setMenu({ kind: 'text' }), <div className="pt">{head.pre && <small><NumberRuns text={head.pre} /></small>}{head.name && <b>{head.name}</b>}{head.post && <small><NumberRuns text={head.post} /></small>}<span><bdi>{label}</bdi></span></div>)}
+          {E(() => setMenu({ kind: 'hero' }), <div className="pk"><bdi>{heroV.value}</bdi>{heroV.unit && <u>{heroV.unit}</u>}{!heroV.unit && card.hero !== 'km' && <u>{heroV.label}</u>}</div>)}
           <div className="pg">
-            <div><b>{s.runs}</b><small>ריצות</small></div>
-            {s.planShare != null ? <div><b><bdi>{Math.round(s.planShare * 100)}%</bdi></b><small>מהתוכנית</small></div> : <div><b><bdi>{fmtDuration(s.seconds)}</bdi></b><small>שעות</small></div>}
-            {fmtPace(s.seconds, s.km) && <div><b dir="ltr">{fmtPace(s.seconds, s.km)}</b><small>קצב</small></div>}
+            {card.cells.map((k, i) => {
+              const v = sv(k);
+              return <div key={i}>{E(() => setMenu({ kind: 'cell', i }), <><b><bdi>{v ? v.value : '—'}</bdi></b><small>{v ? v.label : STAT_NAME[k]}</small></>)}</div>;
+            })}
           </div>
-          <p className="hl">{tags.length ? chipsLine : <NumberRuns text={hl.text} />}</p>
+          {card.line && <p className="pl2"><NumberRuns text={card.line} /></p>}
+          <p className="hl">
+            {chipTexts.length || editing ? <>
+              {card.chips.map((k, i) => {
+                const t = chipText(k, facts);
+                if (!t && !editing) return null;
+                return <span key={k} className="hc">{i > 0 && <i className="sep" aria-hidden>·</i>}{E(() => setMenu({ kind: 'chip', i }), <NumberRuns text={t ?? `${CHIP_NAME[k]} — אין השבוע`} />, t ? '' : 'none')}</span>;
+              })}
+              {editing && card.chips.length < 4 && <button type="button" className="wk-add" onClick={(e) => { e.stopPropagation(); setMenu({ kind: 'chip', i: card.chips.length }); }}>＋</button>}
+            </> : <NumberRuns text={hl.text} />}
+          </p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <div className="pft"><img src="/images/wordmark-white.png" alt="" /></div>
         </div>
-        <div className="acts rise d2">
-          {canVideo && <button type="button" className="v" onClick={() => void videoRef.current()} disabled={!!video}>🎬 סרטון לסטורי</button>}
-          <button type="button" className="p" onClick={() => void shareOneRef.current()} disabled={busy}>{busy ? 'מכין…' : 'שיתוף התמונה לסטורי'}</button>
-          {p && hidePack && <button type="button" onClick={() => void togglePack()}>להחזיר את שקף הדבוקה</button>}
+        {!collageShown && acts}
+      </div></>) });
+
+    // The closing card: the week's best numbers on colour blocks (mockup strava-style slide 8).
+    const col = layout.collage;
+    out.push({ key: 'collage', dur: 20000, node: () => (<>
+      <div className="bg plain deep" />
+      <div className="c wk-col-wrap">
+        <div className={`wk-col rise n${col.tiles.length}`} style={{ gridTemplateRows: `auto repeat(${Math.ceil((col.tiles.reduce((t, _, i) => t + tileSpan(col, i), 0) + (editing && col.tiles.length < TILE_MAX ? 1 : 0)) / 2)}, minmax(0, 1fr)) auto` }}>
+          <p className="wk-col-k"><NumberRuns text={[head.pre, head.name, head.post].filter(Boolean).join(' ')} /> · <bdi>{label}</bdi></p>
+          {col.tiles.map((t, i) => {
+            const v = sv(t.stat);
+            const route = t.stat === 'long' ? story.long?.route : undefined;
+            return (
+              <div key={i} className={`wk-tile t-${tileColor(col, i)}${tileSpan(col, i) === 2 ? ' tall' : ''}`} role={editing ? 'button' : undefined}
+                onClick={editing ? (e) => { e.stopPropagation(); setMenu({ kind: 'tile', i }); } : undefined}>
+                {route && <RouteThumb pts={route} />}
+                <b><bdi>{v ? v.value : '—'}</bdi>{v?.unit && <u>{v.unit}</u>}</b>
+                {(!v || v.label !== v.unit) && <small>{v ? v.label : STAT_NAME[t.stat]}</small>}
+                {editing && <span className="wk-ed-x" aria-hidden>✎</span>}
+              </div>
+            );
+          })}
+          {editing && col.tiles.length < TILE_MAX && (
+            <button type="button" className="wk-tile add" onClick={(e) => { e.stopPropagation(); setLayout((l) => ({ ...l, collage: addTile(l.collage, STAT_KEYS.find((k) => sv(k) && !l.collage.tiles.some((x) => x.stat === k)) ?? 'km') })); }}>＋ ריבוע</button>
+          )}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <div className="wk-col-l"><img src="/images/wordmark-white.png" alt="" /></div>
         </div>
+        {collageShown && acts}
       </div></>) });
     // Hidden slides are gone for the reader; in edit mode they stay, dimmed, to bring back.
     return editing ? out : out.filter((x) => slideShown(layout, x.key));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [story, s, label, hl, hidePack, togglePack, busy, canVideo, video, onClose, router, layout, editing, workout, sheet, own]);
+  }, [story, s, label, hl, hidePack, togglePack, busy, canVideo, video, onClose, router, layout, editing, workout, sheet, own, clear, cardName, facts]);
 
   const [at, setAt] = useState(0);
   const [mounted, setMounted] = useState(false);
@@ -343,7 +408,7 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
   shareOneRef.current = async () => {
     setBusy(true); setNotice(null);
     try {
-      const r = await shareImages([await captureSlide(await renderStill(at))], `${base}-${slides[at].key}`);
+      const r = await shareImages([await captureSlide(await renderStill(at), { transparent: clear })], `${base}-${slides[at].key}`);
       if (r === 'downloaded') { setNotice('התמונה נשמרה'); setTimeout(() => setNotice(null), 2600); }
     } catch {
       setNotice('לא הצלחנו להכין את התמונה');
@@ -354,16 +419,21 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
   videoRef.current = async () => {
     const ac = new AbortController();
     videoAbort.current = ac;
-    setNotice(null); setVideoFile(null);
+    setNotice(null); setVideoFile(null); setStills(null);
     setVideo({ phase: 'prep', p: 0, slide: 1 });
-    const pictures: ImageBitmap[] = [];
+    const shots: Blob[] = [];
+    const pictures: HTMLImageElement[] = [];
+    let phase = 'capture';
     try {
       for (let i = 0; i < slides.length; i++) {
         if (ac.signal.aborted) return;
         setVideo({ phase: 'prep', p: i / slides.length, slide: i + 1 });
-        pictures.push(await createImageBitmap(await captureSlide(await renderStill(i))));
+        shots.push(await captureSlide(await renderStill(i)));
       }
       setExporting(null);
+      phase = 'decode';
+      for (const b of shots) pictures.push(await blobImage(b));
+      phase = 'record';
       const total = videoLength(pictures.length);
       const blob = await recordStory(pictures, {
         signal: ac.signal,
@@ -372,11 +442,21 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
       // Safari opens the share sheet only right after a tap: the ready video waits for one.
       setVideoFile(blob);
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') setNotice('לא הצלחנו להכין את הסרטון');
+      if ((err as Error).name === 'AbortError') return;
+      reportVideoFail('week', phase, err);
+      // The pictures made so far are the story still: offered instead of an error.
+      if (shots.length === slides.length) setStills(shots);
+      else setNotice('הסרטון לא נתמך במכשיר הזה — אפשר לשתף תמונה של כל שקף');
     } finally {
-      pictures.forEach((b) => b.close());
+      pictures.forEach((im) => URL.revokeObjectURL(im.src));
       setExporting(null); setVideo(null); videoAbort.current = null;
     }
+  };
+  const sendStills = async () => {
+    if (!stills) return;
+    const r = await shareImages(stills, base);
+    if (r === 'downloaded') { setNotice('התמונות נשמרו'); setTimeout(() => setNotice(null), 2600); }
+    if (r !== 'cancelled') setStills(null);
   };
   const sendVideo = async () => {
     if (!videoFile) return;
@@ -397,9 +477,9 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
   }, []);
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
-    if (at < slides.length - 1 && !busy && !video && !editing && !sheet) timer.current = setTimeout(() => go(1), slides[at].dur);
+    if (at < slides.length - 1 && !busy && !video && !editing && !sheet && !menu) timer.current = setTimeout(() => go(1), slides[at].dur);
     return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [at, slides, go, busy, video, editing, sheet]);
+  }, [at, slides, go, busy, video, editing, sheet, menu]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -456,8 +536,70 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
       {sheet === 'bg' && (
         <Sheet title="רקע" onClose={() => setSheet(null)}>
           <ThemeGrid value={editing ? layout.theme : theme} onPick={(t) => (editing ? pickClub({ theme: t }) : void saveMine({ theme: t }))} />
+          <label className="wk-clear"><input type="checkbox" checked={clear} onChange={(e) => setClear(e.target.checked)} /> <span><b>רקע שקוף</b><small>לתמונה בלבד (PNG) — להניח את הכרטיס על תמונה משלך באינסטגרם. בסרטון אין שקיפות.</small></span></label>
+          {own && !editing && (
+            <label className="wk-name"><span>השם בכרטיס</span>
+              <input type="text" dir="auto" maxLength={NAME_MAX} placeholder={story.name} value={cardName} onChange={(e) => setCardName(e.target.value)}
+                onBlur={() => void saveMine({ name: cardName })} />
+              <small>ריק = השם האוטומטי</small>
+            </label>
+          )}
         </Sheet>
       )}
+      {menu && (() => {
+                const sum = layout.summary;
+        const pickStat = (k: StatKey) => {
+          setLayout((l) => {
+            if (menu.kind === 'hero') return { ...l, summary: { ...l.summary, hero: k } };
+            if (menu.kind === 'cell') { const cells = [...l.summary.cells] as typeof l.summary.cells; cells[menu.i] = k; return { ...l, summary: { ...l.summary, cells } }; }
+            if (menu.kind === 'tile') return { ...l, collage: setTile(l.collage, menu.i, { stat: k }) };
+            return l;
+          });
+          setMenu(null);
+        };
+        if (menu.kind === 'text') {
+          return (
+            <Sheet title="הטקסטים בכרטיס" onClose={() => setMenu(null)}>
+              <label className="wk-name"><span>שורת הכותרת</span>
+                <input type="text" dir="auto" maxLength={HEADING_MAX} value={sum.heading} onChange={(e) => setLayout((l) => ({ ...l, summary: { ...l.summary, heading: e.target.value } }))} />
+                <small><bdi>{'{שם}'}</bdi> = השם של הרץ · עד <bdi>{HEADING_MAX}</bdi> תווים</small>
+              </label>
+              <label className="wk-name"><span>שורה משלך (לא חובה)</span>
+                <input type="text" dir="auto" maxLength={LINE_MAX} value={sum.line} placeholder="למשל: עוד שבוע בדרך למרתון" onChange={(e) => setLayout((l) => ({ ...l, summary: { ...l.summary, line: e.target.value } }))} />
+                <small>עד <bdi>{LINE_MAX}</bdi> תווים</small>
+              </label>
+            </Sheet>
+          );
+        }
+        if (menu.kind === 'chip') {
+          const cur = sum.chips[menu.i];
+          const put = (k: ChipKey) => { setLayout((l) => { const chips = [...l.summary.chips]; chips[menu.i] = k; return { ...l, summary: { ...l.summary, chips: [...new Set(chips)] } }; }); setMenu(null); };
+          return (
+            <Sheet title={cur ? 'להחליף או להסיר' : 'להוסיף שורה'} onClose={() => setMenu(null)}>
+              <div className="wk-menu">{CHIP_KEYS.map((k) => {
+                const t = chipText(k, facts);
+                return <button key={k} type="button" className={k === cur ? 'on' : ''} disabled={!t} onClick={() => put(k)}><b>{CHIP_NAME[k]}</b><span>{t ? <NumberRuns text={t} /> : 'אין השבוע'}</span></button>;
+              })}</div>
+              {cur && <button type="button" className="wk-rm" onClick={() => { setLayout((l) => ({ ...l, summary: { ...l.summary, chips: l.summary.chips.filter((_, j) => j !== menu.i) } })); setMenu(null); }}>להסיר את השורה</button>}
+            </Sheet>
+          );
+        }
+        const cur: StatKey = menu.kind === 'hero' ? sum.hero : menu.kind === 'cell' ? sum.cells[menu.i] : layout.collage.tiles[menu.i].stat;
+        return (
+          <Sheet title={menu.kind === 'tile' ? 'הריבוע' : 'להחליף נתון'} onClose={() => setMenu(null)}>
+            <div className="wk-menu">{STAT_KEYS.map((k) => {
+              const v = statValue(k, facts);
+              return <button key={k} type="button" className={k === cur ? 'on' : ''} disabled={!v} onClick={() => pickStat(k)}><b>{STAT_NAME[k]}</b><span>{v ? <><bdi>{v.value}</bdi>{v.unit ? <> {v.unit}</> : null}</> : 'אין השבוע'}</span></button>;
+            })}</div>
+            {menu.kind === 'tile' && <>
+              <div className="wk-tcol"><span>צבע</span>{TILE_COLORS.map((cl) => (
+                <button key={cl} type="button" aria-label={cl} className={`sw2 t-${cl === 'auto' ? 'auto' : cl}${layout.collage.tiles[menu.i].color === cl ? ' on' : ''}`} onClick={() => setLayout((l) => ({ ...l, collage: setTile(l.collage, menu.i, { color: cl as TileColor }) }))}>{cl === 'auto' ? 'אוטו׳' : ''}</button>
+              ))}</div>
+              <button type="button" className="wk-rm" disabled={layout.collage.tiles.length <= TILE_MIN} onClick={() => { setLayout((l) => ({ ...l, collage: removeTile(l.collage, menu.i) })); setMenu(null); }}>להסיר את הריבוע{layout.collage.tiles.length <= TILE_MIN ? <> (לפחות <bdi>{TILE_MIN}</bdi>)</> : null}</button>
+            </>}
+          </Sheet>
+        );
+      })()}
       {sheet === 'workout' && (
         <Sheet title="האימון בסטורי" onClose={() => setSheet(null)}>
           <div className="wk-chips">
@@ -477,6 +619,14 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
         </button>
       )}
       {notice && <p className="ys-notice" role="status">{notice}</p>}
+      {stills && !video && (
+        <div className="ys-video" role="status">
+          <b>🎬 סרטון לא נתמך במכשיר הזה</b>
+          <small>הכנו את כל <bdi>{stills.length}</bdi> השקפים כתמונות — אפשר לשתף אותן לסטורי</small>
+          <button type="button" className="go" onClick={() => void sendStills()}>שיתוף התמונות</button>
+          <button type="button" className="ghost" onClick={() => setStills(null)}>סגירה</button>
+        </div>
+      )}
       {(video || videoFile) && (
         <div className="ys-video" role="status">
           {video ? (<>
@@ -493,8 +643,8 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
         </div>
       )}
       {exporting != null && (
-        <div ref={exportRef} className="ys wk ys-export still" dir="rtl" aria-hidden style={{ width: EXPORT_W, height: EXPORT_H, ['--fit' as string]: EXPORT_H / 820, ...themeVars(theme) }}>
-          {slides[exporting].key !== 'summary' && (
+        <div ref={exportRef} className={`ys wk ys-export still${clear && !video ? ' clear' : ''}`} dir="rtl" aria-hidden style={{ width: EXPORT_W, height: EXPORT_H, ['--fit' as string]: EXPORT_H / 820, ...themeVars(theme) }}>
+          {!['summary', 'collage'].includes(slides[exporting].key) && (
             <div className="top">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/images/wordmark-white.png" alt="" />
@@ -517,6 +667,17 @@ function themeVars(t: Theme): React.CSSProperties {
   const [a, b, c] = themeStops(t);
   const acc = themeAccent(t);
   return { ['--g1' as string]: a, ['--g2' as string]: b, ['--g3' as string]: c, ['--c1' as string]: a, ['--c2' as string]: a, ['--c3' as string]: acc, ['--c4' as string]: b, ['--blue' as string]: acc } as React.CSSProperties;
+}
+
+/** The long run's route as one bold line (the collage's tile), north up. */
+function RouteThumb({ pts }: { pts: Array<[number, number]> }) {
+  const lat0 = pts.reduce((a, p) => a + p[0], 0) / pts.length;
+  const kx = Math.cos((lat0 * Math.PI) / 180);
+  const xs = pts.map((p) => p[1] * kx), ys = pts.map((p) => p[0]);
+  const W = 100, H = 70, w = Math.max(...xs) - Math.min(...xs) || 1e-6, h = Math.max(...ys) - Math.min(...ys) || 1e-6;
+  const sc = Math.min((W - 8) / w, (H - 8) / h), ox = (W - w * sc) / 2, oy = (H - h * sc) / 2;
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${(ox + (p[1] * kx - Math.min(...xs)) * sc).toFixed(1)},${(H - oy - (p[0] - Math.min(...ys)) * sc).toFixed(1)}`).join(' ');
+  return <svg className="wk-route" viewBox={`0 0 ${W} ${H}`} aria-hidden><path d={d} /></svg>;
 }
 
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {

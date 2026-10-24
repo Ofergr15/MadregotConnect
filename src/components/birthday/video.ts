@@ -51,12 +51,12 @@ export function videoMime(): string | null {
 export const canRecordVideo = () =>
   typeof document !== 'undefined' && !!videoMime() && typeof HTMLCanvasElement.prototype.captureStream === 'function';
 
-function draw(ctx: CanvasRenderingContext2D, img: ImageBitmap, x: number, zoom: number) {
+function draw(ctx: CanvasRenderingContext2D, img: CanvasImageSource, x: number, zoom: number) {
   const w = VIDEO_W * zoom, h = VIDEO_H * zoom;
   ctx.drawImage(img, x + (VIDEO_W - w) / 2, (VIDEO_H - h) / 2, w, h);
 }
 
-function paint(ctx: CanvasRenderingContext2D, frames: ImageBitmap[], f: Frame) {
+function paint(ctx: CanvasRenderingContext2D, frames: CanvasImageSource[], f: Frame) {
   ctx.fillStyle = '#060a52';
   ctx.fillRect(0, 0, VIDEO_W, VIDEO_H);
   // The story runs right to left: the next slide comes in from the left edge.
@@ -65,22 +65,45 @@ function paint(ctx: CanvasRenderingContext2D, frames: ImageBitmap[], f: Frame) {
   draw(ctx, frames[f.i], -VIDEO_W * (1 - e), 1 + ZOOM * f.through);
 }
 
+/**
+ * A slide picture, decoded as an <img> rather than an ImageBitmap: on iOS a bitmap is
+ * counted against the canvas memory cap (see capture.ts `release`), an image is not.
+ */
+export async function blobImage(blob: Blob): Promise<HTMLImageElement> {
+  const img = new Image();
+  img.src = URL.createObjectURL(blob);
+  try { await img.decode(); } catch { await new Promise<void>((r, j) => { img.onload = () => r(); img.onerror = () => j(new Error('image decode failed')); }); }
+  return img;
+}
+
+/** Why a video failed, for the bug board (kind 'error' via the reporter's crash channel). */
+export function reportVideoFail(where: string, phase: string, err: unknown) {
+  const e = err as { name?: string; message?: string };
+  try { window.dispatchEvent(new CustomEvent('mc:crash', { detail: `story video (${where}) ${phase}: ${e?.name || 'Error'}: ${String(e?.message || err).slice(0, 160)}` })); } catch { /* never the bug */ }
+}
+
 /** Plays `frames` on a canvas and records it. `onProgress` gets 0→1. */
-export async function recordStory(frames: ImageBitmap[], opts: { onProgress?: (p: number) => void; signal?: AbortSignal } = {}): Promise<Blob> {
+export async function recordStory(frames: CanvasImageSource[], opts: { onProgress?: (p: number) => void; signal?: AbortSignal } = {}): Promise<Blob> {
   const mime = videoMime();
   if (!mime || frames.length === 0) throw new Error('video not supported');
   const canvas = document.createElement('canvas');
   canvas.width = VIDEO_W;
   canvas.height = VIDEO_H;
+  // In the page (invisible): Safari is surest to feed a captured stream from a canvas it lays out.
+  canvas.setAttribute('aria-hidden', 'true');
+  Object.assign(canvas.style, { position: 'fixed', left: '-10px', top: '0', width: '1px', height: '1px', opacity: '0', pointerEvents: 'none' });
+  document.body.appendChild(canvas);
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('no canvas');
+  if (!ctx) { canvas.remove(); throw new Error('no canvas'); }
   paint(ctx, frames, frameAt(0, frames.length));
 
   const stream = canvas.captureStream(FPS);
-  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8_000_000 });
+  // The bitrate is a hint some encoders refuse; without it the phone picks its own.
+  let rec: MediaRecorder;
+  try { rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8_000_000 }); } catch { rec = new MediaRecorder(stream, { mimeType: mime }); }
   const chunks: Blob[] = [];
   rec.ondataavailable = (ev) => { if (ev.data.size) chunks.push(ev.data); };
-  const stopped = new Promise<void>((r) => { rec.onstop = () => r(); });
+  const stopped = new Promise<void>((r) => { rec.onstop = () => r(); rec.onerror = () => r(); });
   rec.start(500);
 
   const total = videoLength(frames.length);
@@ -101,7 +124,10 @@ export async function recordStory(frames: ImageBitmap[], opts: { onProgress?: (p
     stream.getTracks().forEach((tr) => tr.stop());
   });
   await stopped;
-  return new Blob(chunks, { type: mime.split(';')[0] });
+  canvas.remove();
+  const blob = new Blob(chunks, { type: mime.split(';')[0] });
+  if (!blob.size) throw new Error('empty recording');
+  return blob;
 }
 
 /** The phone's share sheet (Instagram, WhatsApp, Save Video), else a download. */

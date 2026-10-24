@@ -8,7 +8,7 @@ import {
   AZRIELI_ROUND_M, EVEREST_M, PIZZA_KCAL, TLV_VALENCIA_KM, timesInWords,
 } from '@/lib/birthday-year/stats';
 import { EXPORT_H, EXPORT_W, captureSlide, shareImages } from './capture';
-import { SLIDE_MS, canRecordVideo, recordStory, shareVideo, videoLength } from './video';
+import { SLIDE_MS, blobImage, canRecordVideo, recordStory, reportVideoFail, shareVideo, videoLength } from './video';
 import { storyVariant } from '@/lib/birthday-year/variant';
 import './year-story.css';
 
@@ -313,14 +313,16 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
     videoAbort.current = ac;
     setNotice(null); setVideoFile(null);
     setVideo({ phase: 'prep', p: 0, slide: 1 });
-    const pictures: ImageBitmap[] = [];
+    const pictures: HTMLImageElement[] = [];
+    let phase = 'capture';
     try {
       for (let i = 0; i < slides.length; i++) {
         if (ac.signal.aborted) return;
         setVideo({ phase: 'prep', p: i / slides.length, slide: i + 1 });
-        pictures.push(await createImageBitmap(await captureSlide(await renderStill(i))));
+        pictures.push(await blobImage(await captureSlide(await renderStill(i))));
       }
       setExporting(null);
+      phase = 'record';
       const total = videoLength(pictures.length);
       const blob = await recordStory(pictures, {
         signal: ac.signal,
@@ -330,9 +332,9 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
       // longer than that — so the ready video waits for one more tap.
       setVideoFile(blob);
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') setNotice('לא הצלחנו להכין את הסרטון');
+      if ((err as Error).name !== 'AbortError') { reportVideoFail('birthday', phase, err); setNotice('הסרטון לא נתמך במכשיר הזה — אפשר לשתף את התמונות'); }
     } finally {
-      pictures.forEach((b) => b.close());
+      pictures.forEach((im) => URL.revokeObjectURL(im.src));
       setExporting(null); setVideo(null); videoAbort.current = null;
     }
   };

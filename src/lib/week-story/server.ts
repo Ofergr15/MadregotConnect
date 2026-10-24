@@ -34,7 +34,11 @@ export interface StoryRecord { label: string; seconds: number | null }
 /** `vs`: the set's pace minus the plan's (seconds per km), as the quality screen reads it. */
 export interface StoryQuality { label: string; day: number; reps: number[]; target: number[]; vs: number }
 /** The long run: per km of the plan's main block, the pace run and the plan's band. */
-export interface StoryLong { day: number; km: number; name: string; kms: Array<{ p: number; lo: number; hi: number; mark: KmMark }>; onPlan: number }
+export interface StoryLong {
+  day: number; km: number; name: string; kms: Array<{ p: number; lo: number; hi: number; mark: KmMark }>; onPlan: number;
+  /** The run's route for the collage's thumbnail ([lat, lng], at most 60 points), when it has GPS. */
+  route?: Array<[number, number]>;
+}
 export interface StoryPackRow { name: string; km: number; me: boolean; avatarUrl: string | null }
 export interface StoryPack { name: string; rank: number; of: number; lastRank: number | null; top: StoryPackRow[] }
 export interface StoryClub { km: number; runners: number; records: number; marathons: number }
@@ -49,6 +53,8 @@ export interface WeekStory {
   plannedKm: number[] | null;
   missed: boolean[];
   biggestInWeeks: number;
+  /** The plan weeks' km, oldest first, this one last — for the streak on the cards. */
+  weeksKm: number[];
   quality: StoryQuality | null;
   pack: StoryPack | null;
   club: StoryClub | null;
@@ -62,7 +68,7 @@ export interface WeekStory {
   /** The club's layout (missing column = the default), the background shown, the member's own picks. */
   layout: StoryLayout;
   theme: Theme;
-  mine: { workout: WorkoutPick | null; theme: Theme | null };
+  mine: { workout: WorkoutPick | null; theme: Theme | null; name: string | null };
 }
 
 const runCols = 'id, activity_name, activity_type, start_time, distance, duration';
@@ -157,13 +163,17 @@ async function longFor(db: Db, plan: Awaited<ReturnType<typeof planBreakdownFor>
   const date = addDays(w.weekStart, ses.dayOfWeek);
   const run = runs.filter((r) => r.start_time.slice(0, 10) === date).sort((a, b) => b.distance - a.distance)[0];
   if (!run?.id) return null;
-  const { data } = await db.from('athlete_activities').select('splits, laps').eq('id', run.id).maybeSingle();
-  const row = data as { splits?: unknown; laps?: unknown } | null;
+  const { data } = await db.from('athlete_activities').select('splits, laps, route_preview').eq('id', run.id).maybeSingle();
+  const row = data as { splits?: unknown; laps?: unknown; route_preview?: unknown } | null;
   const full = displaySplits(row?.splits, row?.laps).filter((k) => k.distance >= 900 && k.averagePace > 0).map((k) => Math.round(k.averagePace));
   const pairs = pairKm(full, band);
   if (pairs.length < 5) return null;
   const kms = pairs.map((k) => ({ ...k, mark: markKm(k.p, [k.lo, k.hi]) }));
-  return { day: ses.dayOfWeek, km: Math.round(run.distance / 100) / 10, name: ses.name, kms, onPlan: kms.filter((k) => k.mark === 'on').length };
+  const pts = Array.isArray((row as { route_preview?: unknown } | null)?.route_preview) ? ((row as { route_preview: Array<{ lat?: number; lng?: number }> }).route_preview) : [];
+  const step = Math.max(1, Math.ceil(pts.length / 60));
+  const route = pts.filter((_, i) => i % step === 0 || i === pts.length - 1)
+    .filter((q) => typeof q?.lat === 'number' && typeof q?.lng === 'number').map((q) => [Math.round(q.lat! * 1e5) / 1e5, Math.round(q.lng! * 1e5) / 1e5] as [number, number]);
+  return { day: ses.dayOfWeek, km: Math.round(run.distance / 100) / 10, name: ses.name, kms, onPlan: kms.filter((k) => k.mark === 'on').length, ...(route.length >= 2 ? { route } : {}) };
 }
 
 /** The club's layout for the weekly story; before migration 170 there is no column, and that is the default. */
@@ -340,6 +350,7 @@ export async function loadWeekStory(db: Db, athleteId: string, today: string, ho
     plannedKm: sum.plannedKm > 0 ? sum.days.map((d) => d.planned) : null,
     missed: sum.days.map((d) => d.missed),
     biggestInWeeks: biggest,
+    weeksKm: pw.weeks.map((x) => x.km),
     quality,
     pack,
     club,
