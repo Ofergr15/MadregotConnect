@@ -107,11 +107,17 @@ describe('wiring', () => {
     expect(api).toMatch(/requireSession/);
     expect(api.match(/!auth\.user\.isSuperUser && !\(await isStoryEditor\(createServerClient\(\), auth\.user\.athleteId\)\)\) \{\s*return NextResponse\.json\(\{ error: 'Forbidden' \}, \{ status: 403 \}\)/g)).toHaveLength(2);
   });
-  it('the row sits at the top of the feed, above what\'s next', () => {
+  it('the row sits in the feed under the top (Ofer, 10-24: countdown, session, my week first)', () => {
     const feed = read('app/(app)/feed/page.tsx');
     // The QuietBoundary renders no element of its own, so `empty:` still sees the row.
     expect(feed).toMatch(/empty:mb-0">\s*(<QuietBoundary[^>]*>\s*)?<QualitySessionRow \/>/);
-    expect(feed.indexOf('<QualitySessionRow />')).toBeLessThan(feed.indexOf('<NextSessionCard />'));
+    const at = (x: string) => feed.indexOf(x);
+    expect(at('<GoalRaceBanner />')).toBeLessThan(at('<NextSessionCard />'));
+    expect(at('<GoalRaceBanner />')).toBeLessThan(at('focusId && (focusItem'));
+    expect(at('<NextSessionCard />')).toBeLessThan(at('<FeedHighlightCard />'));
+    expect(at('<FeedHighlightCard />')).toBeLessThan(at('<CelebrationStories'));
+    expect(at('<FeedHighlightCard />')).toBeLessThan(at('<QualitySessionRow />'));
+    expect(at('<FeedHighlightCard />')).toBeLessThan(at('photosItem && photosItem.id'));
   });
   it('the 7:30 push is once a day by the ledger and reads the plan, not the team days', () => {
     const tick = read('app/api/cron/tick/route.ts');

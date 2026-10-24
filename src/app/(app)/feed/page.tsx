@@ -587,10 +587,18 @@ export default function FeedPage() {
         <Spinner size={22} />
       </div>
 
+      {/* ═══ THE ORDER OF THE TOP (Ofer, 10-24): the countdown to Valencia, always first;
+          then today's session; then my week; then the reader's own status; and only then
+          the feed — the circles, the pinned, the updates, the photos, what changes. ═══ */}
+      {/* ═══ GOAL RACE ═══ the countdown to the club's goal race (Valencia), the very top. */}
+      <div className="mb-4 empty:mb-0">
+        <GoalRaceBanner />
+      </div>
+
       {/* ═══ The post or run a push notification was about ═══
-          Pinned at the very top, above everything else: the notification
-          promised this specific item, so it has to be the first thing on screen
-          and not something to scroll for. */}
+          Pinned at the top, under only the countdown's one line: the notification
+          promised this specific item, so it has to be on the first screen and not
+          something to scroll for. */}
       {focusId && (focusItem || focusError) && (
         <div className="mb-4">
           <div className="flex items-center justify-between px-1 mb-2">
@@ -632,9 +640,71 @@ export default function FeedPage() {
       <WhatsNewAutoSheet ready={!loading && !error && items.length > 0} />
       <OnboardingTestReset />
 
+      {/* ═══ WHAT'S NEXT ═══
+          One line: tomorrow's session (from 20:00 the evening before), its
+          distance, and whether Garmin has it. Tap opens the full session. Gone
+          once it's run. Read-only on the watch question by design — see
+          NextSessionCard. */}
+      {/* A one-day session (lib/day-session) is in the week the next-session card reads
+          (lib/day-session/week-merge.ts), so it is that card, like every session. */}
+      <div className="mb-4 empty:mb-0">
+        <QuietBoundary resetKey={weeklyForCards}>
+          <NextSessionCard />
+        </QuietBoundary>
+      </div>
+
+      {/* ═══ THIS WEEK ON THE WATCH ═══
+          Only when something the club sent is missing from the runner's watch (red),
+          or once after a send that all arrived (green). lib/watch/missing.ts. */}
+      <div className="mb-4 empty:mb-0">
+        <QuietBoundary resetKey={weeklyForCards}>
+          <WeekWatchCard />
+        </QuietBoundary>
+      </div>
+
+      {/* ═══ THE HIGHLIGHT CARD ═══
+          One number about the reader, above everything about everyone else: the
+          challenge they're mid-way through, or their own consistency when no
+          challenge is running. Renders nothing when there's nothing true to say,
+          so it costs no vertical space on a cold or empty account. */}
+      <div className="mb-4 empty:mb-0">
+        <QuietBoundary resetKey={highlightForCards}>
+          <FeedHighlightCard />
+        </QuietBoundary>
+      </div>
+
+      {/* ═══ LAST WEEK ═══
+          Saturday 18:00 → Sunday 10:00 only, and only for the reader's own week.
+          Above the setup nudge because it is the shortest-lived block on the
+          page — it has sixteen hours to be seen, the nudge has three
+          appearances. Dismissible, keyed to the Saturday. See WeekSummaryCard. */}
+      <div className="mb-4 empty:mb-0">
+        <WeekSummaryCard />
+      </div>
+
+      {/* ═══ FINISH SETTING UP ═══
+          Above everything about everyone else, and below the focused item only
+          (a push promised that one specifically). The score and the checklist
+          have existed for a while on /dashboard/profile — the one screen a member
+          who hasn't finished setting up never opens — so this is the same rows in
+          the place they will actually be seen. Self-hiding, skippable, and capped
+          at three appearances: see SetupNudgeCard and nudge-ledger.ts. */}
+      {/* Notifications that stopped reaching this phone (#108) — self-hiding. */}
+      <div className="mb-4 empty:mb-0">
+        <QuietBoundary resetKey={weeklyForCards}>
+          <PushDeadBanner />
+        </QuietBoundary>
+      </div>
+
+      <div className="mb-4 empty:mb-0">
+        {/* The required setup's members did all of it there (lib/setup/use-cohort). */}
+        {setupCohort === false && <SetupNudgeCard />}
+      </div>
+
       {/* ═══ CELEBRATIONS ═══
-          The day's birthdays and celebrations as a row of circles, always first
-          (CelebrationStories). Nothing on a day with nothing to celebrate. */}
+          The day's birthdays and celebrations as a row of circles, the feed's first row —
+          under the countdown, the session and my week (CelebrationStories). Nothing on a
+          day with nothing to celebrate. */}
       <CelebrationStories onComment={i => setCommentItem(i)} />
       {/* ═══ PINNED ═══ the club's posts pinned to the top until their time (PinnedPosts). */}
       {pinned.filter((p) => p.id !== focusItem?.id).map((p) => (
@@ -682,9 +752,6 @@ export default function FeedPage() {
         </div>
       )}
 
-      {/* ═══ GOAL RACE ═══
-          Weeks to the club's goal race, one slim line, above everything that
-          changes day to day. Renders nothing once the race is behind us. */}
       {/* ═══ BIRTHDAY ═══ the birthday person's year story, for the week after (lib/birthday-year). */}
       <div className="mb-4 empty:mb-0">
         <BirthdayYearCard />
@@ -693,70 +760,7 @@ export default function FeedPage() {
         <AnnualStoryCard />
       </div>
 
-      <div className="mb-4 empty:mb-0">
-        <GoalRaceBanner />
-      </div>
 
-      {/* ═══ WHAT'S NEXT ═══
-          One line: tomorrow's session (from 20:00 the evening before), its
-          distance, and whether Garmin has it. Tap opens the full session. Gone
-          once it's run. Read-only on the watch question by design — see
-          NextSessionCard. */}
-      {/* ═══ THIS WEEK ON THE WATCH ═══
-          Only when something the club sent is missing from the runner's watch (red),
-          or once after a send that all arrived (green). lib/watch/missing.ts. */}
-      <div className="mb-4 empty:mb-0">
-        <QuietBoundary resetKey={weeklyForCards}>
-          <WeekWatchCard />
-        </QuietBoundary>
-      </div>
-
-      {/* A one-day session (lib/day-session) is in the week the next-session card reads
-          (lib/day-session/week-merge.ts), so it is that card, like every session. */}
-      <div className="mb-4 empty:mb-0">
-        <QuietBoundary resetKey={weeklyForCards}>
-          <NextSessionCard />
-        </QuietBoundary>
-      </div>
-
-      {/* ═══ LAST WEEK ═══
-          Saturday 18:00 → Sunday 10:00 only, and only for the reader's own week.
-          Above the setup nudge because it is the shortest-lived block on the
-          page — it has sixteen hours to be seen, the nudge has three
-          appearances. Dismissible, keyed to the Saturday. See WeekSummaryCard. */}
-      <div className="mb-4 empty:mb-0">
-        <WeekSummaryCard />
-      </div>
-
-      {/* ═══ FINISH SETTING UP ═══
-          Above everything about everyone else, and below the focused item only
-          (a push promised that one specifically). The score and the checklist
-          have existed for a while on /dashboard/profile — the one screen a member
-          who hasn't finished setting up never opens — so this is the same rows in
-          the place they will actually be seen. Self-hiding, skippable, and capped
-          at three appearances: see SetupNudgeCard and nudge-ledger.ts. */}
-      {/* Notifications that stopped reaching this phone (#108) — self-hiding. */}
-      <div className="mb-4 empty:mb-0">
-        <QuietBoundary resetKey={weeklyForCards}>
-          <PushDeadBanner />
-        </QuietBoundary>
-      </div>
-
-      <div className="mb-4 empty:mb-0">
-        {/* The required setup's members did all of it there (lib/setup/use-cohort). */}
-        {setupCohort === false && <SetupNudgeCard />}
-      </div>
-
-      {/* ═══ THE HIGHLIGHT CARD ═══
-          One number about the reader, above everything about everyone else: the
-          challenge they're mid-way through, or their own consistency when no
-          challenge is running. Renders nothing when there's nothing true to say,
-          so it costs no vertical space on a cold or empty account. */}
-      <div className="mb-4 empty:mb-0">
-        <QuietBoundary resetKey={highlightForCards}>
-          <FeedHighlightCard />
-        </QuietBoundary>
-      </div>
 
       {/* Writing a post: a floating + on the phone (feed redesign 2026-10-12 —
           the row it replaces sat between the next-session card and the feed and
