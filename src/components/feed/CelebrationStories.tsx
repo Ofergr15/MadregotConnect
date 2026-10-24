@@ -21,6 +21,7 @@ import { useSearchParams } from 'next/navigation';
 import { useAthleteId } from '@/lib/use-athlete-id';
 import { firstUnseen, ringState } from '@/lib/feed/ring-state';
 import './celebrations.css';
+import { useNavIdentity } from '@/lib/nav-items';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // "חוגגים השבוע" — the row of circles at the top of the feed (Ofer, 2026-10-18:
@@ -267,6 +268,8 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
   const atOk = previewAt && /^\d{4}-\d{2}-\d{2}$/.test(previewAt) ? previewAt : null;
   const of = params?.get('weekStoryOf');
   const ofOk = of && /^[0-9a-f-]{36}$/i.test(of) ? of : null;
+  // An admin can edit the club's story right from the feed circle too (Ofer 10-24), not only from the stories screen.
+  const { isAdminAccount } = useNavIdentity();
   const { data: wk } = useApi<{ story: WeekStoryData | null }>(atOk ? `/api/week-story?at=${atOk}${ofOk ? `&athleteId=${ofOk}` : ''}` : '/api/week-story');
   const week = wk?.story ?? null;
   const weekKey = week ? `week:${week.window.weekEnd}` : null;
@@ -414,7 +417,7 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
         </div>
       </Sheet>
       {yearStory && <YearStory story={yearStory} onClose={() => setYearStory(null)} />}
-      {weekOpen && week && <WeekStory story={week} onClose={() => { setWeekOpen(false); if (weekKey) markSeen(weekKey); }} />}
+      {weekOpen && week && <WeekStory story={week} editable={isAdminAccount} onClose={() => { setWeekOpen(false); if (weekKey) markSeen(weekKey); }} />}
     </section>
   );
 }
