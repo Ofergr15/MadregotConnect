@@ -39,6 +39,8 @@ export interface StoryLong {
   /** The run's route for the collage's thumbnail ([lat, lng], at most 60 points), when it has GPS. */
   route?: Array<[number, number]>;
 }
+/** The week's body and effort numbers beside the km (cards: "השבוע במספרים"). Null = no data that week. */
+export interface WeekMore { km: number; seconds: number; runs: number; hr: number | null; elev: number | null; load: number | null; sleep: number | null; rhr: number | null }
 export interface StoryPackRow { name: string; km: number; me: boolean; avatarUrl: string | null }
 export interface StoryPack { name: string; rank: number; of: number; lastRank: number | null; top: StoryPackRow[] }
 export interface StoryClub { km: number; runners: number; records: number; marathons: number }
@@ -55,6 +57,8 @@ export interface WeekStory {
   biggestInWeeks: number;
   /** The plan weeks' km, oldest first, this one last — for the streak on the cards. */
   weeksKm: number[];
+  /** This week's and last week's effort and body numbers (weekStats), for the cards and their deltas. */
+  more?: { now: WeekMore; last: WeekMore | null };
   quality: StoryQuality | null;
   pack: StoryPack | null;
   club: StoryClub | null;
@@ -174,6 +178,47 @@ async function longFor(db: Db, plan: Awaited<ReturnType<typeof planBreakdownFor>
   const route = pts.filter((_, i) => i % step === 0 || i === pts.length - 1)
     .filter((q) => typeof q?.lat === 'number' && typeof q?.lng === 'number').map((q) => [Math.round(q.lat! * 1e5) / 1e5, Math.round(q.lng! * 1e5) / 1e5] as [number, number]);
   return { day: ses.dayOfWeek, km: Math.round(run.distance / 100) / 10, name: ses.name, kms, onPlan: kms.filter((k) => k.mark === 'on').length, ...(route.length >= 2 ? { route } : {}) };
+}
+
+/**
+ * The week by the numbers a watch keeps, this week and last: run time-weighted average HR,
+ * climb, Garmin training load (only when every run has one — a partial sum would read as
+ * a drop), and the nights' sleep and resting HR (only with 3+ nights, else it is one night).
+ */
+const AVG_MIN_NIGHTS = 3;
+async function weekStats(db: Db, athleteId: string, w: StoryWindow): Promise<{ now: WeekMore; last: WeekMore | null }> {
+  const lastStart = addDays(w.weekStart, -7);
+  const end = addDays(w.weekEnd, 1);
+  const [acts, { data: nights }] = await Promise.all([
+    fetchAllRows<RunActivityRow & { average_hr: number | null; elevation_gain: number | null; training_effect: { load?: number } | null }>((a, b) => db.from('athlete_activities')
+      .select(`${runCols}, average_hr, elevation_gain, training_effect`).eq('athlete_id', athleteId)
+      .gte('start_time', `${lastStart}T00:00:00`).lt('start_time', `${end}T00:00:00`).order('start_time').order('id').range(a, b)),
+    db.from('athlete_wellness').select('date, sleep_seconds, resting_hr').eq('athlete_id', athleteId).gte('date', lastStart).lt('date', end),
+  ]);
+  const runs = filterQualifyingRuns(acts);
+  const night = (nights || []) as Array<{ date: string; sleep_seconds: number | null; resting_hr: number | null }>;
+  const of = (from: string, to: string): WeekMore => {
+    const r = runs.filter((x) => x.start_time.slice(0, 10) >= from && x.start_time.slice(0, 10) < to);
+    const withHr = r.filter((x) => (x.average_hr ?? 0) > 0);
+    const hrT = withHr.reduce((t, x) => t + x.duration, 0);
+    const loads = r.map((x) => Number(x.training_effect?.load));
+    const n = night.filter((x) => x.date >= from && x.date < to);
+    const sl = n.map((x) => x.sleep_seconds).filter((v): v is number => (v ?? 0) > 0);
+    const rh = n.map((x) => x.resting_hr).filter((v): v is number => (v ?? 0) > 0);
+    const avg = (v: number[]) => Math.round(v.reduce((t, x) => t + x, 0) / v.length);
+    return {
+      km: Math.round(r.reduce((t, x) => t + x.distance, 0) / 100) / 10,
+      seconds: r.reduce((t, x) => t + x.duration, 0),
+      runs: r.length,
+      hr: hrT > 0 ? Math.round(withHr.reduce((t, x) => t + x.average_hr! * x.duration, 0) / hrT) : null,
+      elev: r.some((x) => x.elevation_gain != null) ? Math.round(r.reduce((t, x) => t + (x.elevation_gain || 0), 0)) : null,
+      load: r.length && loads.every((v) => v > 0) ? Math.round(loads.reduce((t, x) => t + x, 0)) : null,
+      sleep: sl.length >= AVG_MIN_NIGHTS ? avg(sl) : null,
+      rhr: rh.length >= AVG_MIN_NIGHTS ? avg(rh) : null,
+    };
+  };
+  const last = of(lastStart, w.weekStart);
+  return { now: of(w.weekStart, end), last: last.runs || last.sleep || last.rhr ? last : null };
 }
 
 /** The club's layout for the weekly story; before migration 170 there is no column, and that is the default. */
@@ -315,7 +360,7 @@ export async function loadWeekStory(db: Db, athleteId: string, today: string, ho
 
   const planP = planBreakdownFor(db, athleteId, w.weekStart).catch(() => null);
   const weekRuns = filterQualifyingRuns(acts).filter((r) => r.start_time.slice(0, 10) >= w.weekStart);
-  const [name, plan, records, quality, pack, club, academy, long, layout] = await Promise.all([
+  const [name, plan, records, quality, pack, club, academy, long, layout, more] = await Promise.all([
     greetName(db, athleteId, athlete.name),
     planP,
     recordsIn(db, athleteId, w),
@@ -325,6 +370,7 @@ export async function loadWeekStory(db: Db, athleteId: string, today: string, ho
     athlete.is_academy ? academyFor(db, athleteId, w, pw.dayRuns.flat().map((r) => r.id).filter((id): id is string => !!id)).catch(() => null) : Promise.resolve(null),
     planP.then((p) => longFor(db, p, w, weekRuns)).catch(() => null),
     layoutFor(db),
+    weekStats(db, athleteId, w).catch(() => undefined),
   ]);
 
   const sum = lastWeekSummary(plan?.dailyDistances, pw.days, pw.dayRuns);
@@ -351,6 +397,7 @@ export async function loadWeekStory(db: Db, athleteId: string, today: string, ho
     missed: sum.days.map((d) => d.missed),
     biggestInWeeks: biggest,
     weeksKm: pw.weeks.map((x) => x.km),
+    ...(more ? { more } : {}),
     quality,
     pack,
     club,

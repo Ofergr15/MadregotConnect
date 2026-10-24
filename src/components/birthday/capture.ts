@@ -47,6 +47,39 @@ export function release(c: HTMLCanvasElement | null | undefined) {
   if (c) { c.width = 0; c.height = 0; }
 }
 
+/**
+ * Only the card (the weekly summary's rounded rectangle), cropped tight with a small margin,
+ * at 3× for a sharp sticker: on transparency (a PNG to lay on one's own photo) or on the
+ * theme's gradient (`bg`: the three stops).
+ */
+export async function captureCard(card: HTMLElement, { transparent = true, bg }: { transparent?: boolean; bg?: [string, string, string] } = {}): Promise<Blob> {
+  await imagesReady(card);
+  const ratio = 3, pad = 16;
+  // On transparency the card's glass would vanish: it gets the theme as its own fill, corners kept.
+  const fill = transparent && bg ? { background: `linear-gradient(160deg, ${bg[0]}, ${bg[1]} 70%)` } : {};
+  const opts = { pixelRatio: ratio, cacheBust: false, style: { margin: '0', transform: 'none', opacity: '1', filter: 'none', animation: 'none', ...fill } };
+  const warm = await toCanvas(card, opts).catch(() => null);
+  release(warm);
+  const inner = await toCanvas(card, opts);
+  const out = document.createElement('canvas');
+  out.width = inner.width + pad * 2 * ratio;
+  out.height = inner.height + pad * 2 * ratio;
+  const ctx = out.getContext('2d');
+  if (!ctx) { release(inner); throw new Error('no canvas'); }
+  if (!transparent && bg) {
+    const g = ctx.createLinearGradient(0, 0, out.width, out.height);
+    g.addColorStop(0, bg[0]); g.addColorStop(0.55, bg[1]); g.addColorStop(1, bg[2]);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, out.width, out.height);
+  }
+  ctx.drawImage(inner, pad * ratio, pad * ratio);
+  release(inner);
+  const blob = await new Promise<Blob | null>((r) => out.toBlob(r, 'image/png'));
+  release(out);
+  if (!blob) throw new Error('capture failed');
+  return blob;
+}
+
 /** Hand pictures to the phone's share sheet (Instagram, Save to Photos…), else download them. */
 export async function shareImages(blobs: Blob[], base: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
   const files = blobs.map((b, i) => {

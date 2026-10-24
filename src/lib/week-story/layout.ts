@@ -91,7 +91,9 @@ export interface StoryLayout {
   summary: SummaryCard;
   collage: CollageCard;
 }
-export const DEFAULT_LAYOUT: StoryLayout = { hiddenSlides: [], hiddenParts: {}, workout: null, theme: 'blue', summary: DEFAULT_SUMMARY, collage: DEFAULT_COLLAGE };
+// Nothing hidden by default (the single-run slide going off is parked for later).
+export const DEFAULT_HIDDEN: string[] = [];
+export const DEFAULT_LAYOUT: StoryLayout = { hiddenSlides: DEFAULT_HIDDEN, hiddenParts: {}, workout: null, theme: 'blue', summary: DEFAULT_SUMMARY, collage: DEFAULT_COLLAGE };
 
 /** Hex kept upper-case so the same colour compares equal. */
 export const normTheme = (t: Theme): Theme => (isCustom(t) ? (t.toUpperCase() as Theme) : t);
@@ -100,10 +102,11 @@ const isPick = (v: unknown): v is WorkoutPick => v === 'quality' || v === 'long'
 
 /** A stored layout (or nothing, or junk) as one the player can trust. A missing column is the default. */
 export function cleanLayout(raw: unknown): StoryLayout {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ...DEFAULT_LAYOUT, hiddenParts: {}, summary: cleanSummary(null), collage: cleanCollage(null) };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ...DEFAULT_LAYOUT, hiddenSlides: [...DEFAULT_HIDDEN], hiddenParts: {}, summary: cleanSummary(null), collage: cleanCollage(null) };
   const r = raw as Record<string, unknown>;
+  // A layout the admin saved says what is hidden; one that never chose gets the default.
   const hiddenSlides = Array.isArray(r.hiddenSlides)
-    ? [...new Set(r.hiddenSlides.filter((k): k is string => typeof k === 'string' && k in SLIDE_PARTS))] : [];
+    ? [...new Set(r.hiddenSlides.filter((k): k is string => typeof k === 'string' && k in SLIDE_PARTS))] : [...DEFAULT_HIDDEN];
   const hiddenParts: Record<string, string[]> = {};
   if (r.hiddenParts && typeof r.hiddenParts === 'object' && !Array.isArray(r.hiddenParts)) {
     for (const [slide, parts] of Object.entries(r.hiddenParts as Record<string, unknown>)) {

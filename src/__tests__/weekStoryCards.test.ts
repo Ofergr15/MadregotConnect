@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import {
   DEFAULT_COLLAGE, DEFAULT_SUMMARY, TILE_MAX, TILE_MIN, addTile, chipText, cleanCollage, cleanSummary, cleanText,
-  fillHeading, removeTile, setTile, statValue, streakOf, tileColor, tileSpan, type CollageCard, type StoryFacts,
+  fillHeading, removeTile, setTile, shownCells, shownCollage, statValue, streakOf, tileColor, tileSpan, type CollageCard, type StoryFacts,
 } from '@/lib/week-story/card';
 import { cleanLayout, memberChoices, withMemberChoice } from '@/lib/week-story/layout';
 import { settingsPatch } from '@/lib/stories/admin';
@@ -61,6 +61,39 @@ describe('the collage', () => {
     expect(tileSpan(DEFAULT_COLLAGE, 1)).toBe(1);
     const two = { tiles: DEFAULT_COLLAGE.tiles.slice(0, 2) };
     expect([tileSpan(two, 0), tileSpan(two, 1)]).toEqual([2, 2]);
+  });
+});
+
+describe('week-level items and deltas (Ofer 18–24.10 against 11–17.10)', () => {
+  const W: StoryFacts = { ...F, now: { km: 106.1, seconds: 30989, runs: 8, hr: 143, elev: 499, load: null, sleep: null, rhr: null },
+    last: { km: 132.1, seconds: 36973, runs: 8, hr: 144, elev: 577, load: null, sleep: null, rhr: null } };
+  it('values and deltas: green better, red worse, pace and HR as ± numbers', () => {
+    expect(statValue('km', W)).toMatchObject({ value: '106.1', label: '8 ריצות', delta: { text: '▼ 20%', tone: 'bad' } });
+    expect(statValue('time', W)?.delta).toEqual({ text: '▼ 16%', tone: 'bad' });
+    expect(statValue('pace', W)).toMatchObject({ value: '4:52', delta: { text: '+12″', tone: 'bad' } });
+    expect(statValue('hr', W)).toMatchObject({ value: '143', delta: { text: '−1', tone: 'flat' } });
+    expect(statValue('elev', W)).toMatchObject({ value: '499', unit: 'מ׳' });
+    expect(statValue('runs', W)?.delta).toBeUndefined();
+  });
+  it('no data → no item: sleep and resting HR need 3+ nights, load every run', () => {
+    for (const k of ['sleep', 'rhr', 'load'] as const) expect(statValue(k, W)).toBeNull();
+    const S2: StoryFacts = { ...W, now: { ...W.now!, sleep: 17995, rhr: 36, load: 1132 }, last: { ...W.last!, sleep: 19132, rhr: 37, load: 1179 } };
+    expect(statValue('sleep', S2)).toMatchObject({ value: '4:59', delta: { text: '▼ 6%', tone: 'bad' } });
+    expect(statValue('rhr', S2)).toMatchObject({ value: '36', delta: { text: '−1', tone: 'good' } });
+  });
+  it('the collage drops tiles with no value and keeps the rest in order', () => {
+    const week = { tiles: (['km', 'time', 'pace', 'hr', 'plan', 'elev', 'sleep', 'rhr'] as const).map((stat) => ({ stat, color: 'auto' as const })) };
+    expect(shownCollage(week, W).tiles.map((t) => t.stat)).toEqual(['km', 'time', 'pace', 'hr', 'plan', 'elev']);
+  });
+  it('a summary cell with no value falls back to the next item not on the card', () => {
+    const card = { ...DEFAULT_SUMMARY, cells: ['sleep', 'plan', 'pace'] as typeof DEFAULT_SUMMARY.cells };
+    expect(shownCells(card, W)).toEqual(['runs', 'plan', 'pace']);
+    expect(shownCells(DEFAULT_SUMMARY, W)).toEqual(['runs', 'plan', 'pace']);
+  });
+  it('the default chips are week-level', () => {
+    expect(DEFAULT_SUMMARY.chips).toEqual(['record', 'hr', 'elev']);
+    expect(chipText('hr', W)).toBe('❤️ דופק ממוצע 143');
+    expect(chipText('elev', W)).toBe('⛰️ 499 מ׳ טיפוס');
   });
 });
 

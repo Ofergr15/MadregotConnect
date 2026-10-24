@@ -175,3 +175,25 @@
 .ys.wk .wk-poster .hl{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;row-gap:4px}
 .ys.wk .wk-poster .hl .hc{white-space:normal}
 .ys.ys-export.clear .wk-tile.t-glass{background:rgba(0,0,0,.42)}
+/* Against last week, in a tile or a cell (10-24). */
+.ys.wk .wk-dl{display:inline-block;font-style:normal;font-size:11px;font-weight:800;line-height:1;border-radius:99px;padding:3px 7px;margin-top:5px;background:rgba(0,0,0,.18);align-self:flex-start}
+.ys.wk .wk-dl.good{color:#0B7A4B;background:#D9FBEA}.ys.wk .wk-dl.bad{color:#9B1C1C;background:#FFE0E0}.ys.wk .wk-dl.flat{color:inherit;opacity:.8}
+.ys.wk .wk-poster .pg .wk-dl{margin-top:4px}
+.ys.wk .wk-tile.empty{opacity:.45}
+.ys.wk .wk-col.n7 .wk-tile,.ys.wk .wk-col.n8 .wk-tile{padding:9px 11px;border-radius:16px}
+.ys.wk .wk-col.n7 .wk-tile b,.ys.wk .wk-col.n8 .wk-tile b{font-size:30px}
+.ys.wk .wk-col.n7 .wk-tile.tall b,.ys.wk .wk-col.n8 .wk-tile.tall b{font-size:42px}
+.ys.wk .wk-col.n7 .wk-tile small,.ys.wk .wk-col.n8 .wk-tile small{font-size:11px;margin-top:2px}
+.ys.wk .wk-col.n7 .wk-dl,.ys.wk .wk-col.n8 .wk-dl{margin-top:3px;padding:2px 6px;font-size:10px}
+.ys.wk .wk-poster .pk .wk-dl{vertical-align:middle;margin-inline-start:8px;letter-spacing:0}
+.ys.wk .wk-menu .wk-dl{justify-self:start}
+.ys.wk .sl.show.s-summary .c{z-index:31;pointer-events:none}.ys.wk .sl.show.s-summary .acts{pointer-events:auto}
+/* Summary card pieces are whole tap targets (10-24): outlined in edit mode, invisible from the story. */
+.ys.wk .wk-poster .wk-ed{display:block;width:100%;pointer-events:auto}
+.ys.wk .wk-poster .wk-ed.on{outline:1.5px dashed rgba(255,255,255,.55);outline-offset:2px;background:rgba(255,255,255,.04)}
+.ys.wk .wk-poster .wk-ed.on:active{background:rgba(255,255,255,.14)}
+.ys.wk .wk-poster .hl .hc .wk-ed{display:inline-block;width:auto;padding:2px 4px}
+.ys.wk.can-edit .sl.show.s-summary .wk-poster{pointer-events:auto}
+.ys.wk .wk-poster{position:relative}
+.ys.wk .wk-poster .plogo{position:absolute;top:22px;left:18px;width:96px;height:auto;opacity:.95;pointer-events:none;z-index:2}
+.ys.wk .wk-poster{padding-bottom:18px}

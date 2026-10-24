@@ -11,7 +11,7 @@ describe('week story layout', () => {
   it('a missing column (null/undefined) or junk is the default: everything shown, blue', () => {
     for (const raw of [null, undefined, 'x', [], 7]) expect(cleanLayout(raw)).toEqual(DEFAULT_LAYOUT);
     const l = cleanLayout(null);
-    for (const k of ['intro', 'km', 'plan', 'workout', 'pack', 'club', 'summary']) expect(slideShown(l, k)).toBe(true);
+    for (const k of ['intro', 'km', 'plan', 'workout', 'pack', 'club', 'summary', 'collage']) expect(slideShown(l, k)).toBe(true);
     expect(partShown(l, 'km', 'days')).toBe(true);
   });
 
