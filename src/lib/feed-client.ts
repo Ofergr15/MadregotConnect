@@ -57,7 +57,12 @@ export async function fetchFeed(
   if (squad) qs.set('squad', squad);
   if (athlete) qs.set('athlete', athlete);
   const res = await fetch(`/api/feed?${qs}`, { headers: await authHeaders() });
-  return parse<{ items: FeedItem[]; nextCursor: string | null }>(res);
+  const page = await parse<{ items: FeedItem[]; nextCursor: string | null }>(res);
+  // `parse` reads a 200 that isn't JSON (a worker's or the network's page, not the API's) as {},
+  // and a page without a list crashed the feed on `items.length` (#143 / #146). Treat it as a
+  // failed load: the feed shows its retry instead.
+  if (!page || !Array.isArray(page.items)) throw new Error('Request failed (no feed page)');
+  return { items: page.items, nextCursor: page.nextCursor ?? null };
 }
 
 /** One page of the club feed, shared by the feed screen and the shell's prime below. */
