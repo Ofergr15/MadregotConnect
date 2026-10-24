@@ -266,10 +266,10 @@ export async function PUT(request: Request) {
 
     const supabase = createServerClient();
     let migrated = true;
-    let found = await supabase.from('athletes').select('id, name, role, extra_roles, is_academy').eq('id', athleteId).maybeSingle();
+    let found = await supabase.from('athletes').select('id, name, role, extra_roles, is_academy, is_core_runner').eq('id', athleteId).maybeSingle();
     if (found.error?.code === UNDEFINED_COLUMN) {
       migrated = false;
-      found = await supabase.from('athletes').select('id, name, role, is_academy').eq('id', athleteId).maybeSingle() as typeof found;
+      found = await supabase.from('athletes').select('id, name, role, is_academy, is_core_runner').eq('id', athleteId).maybeSingle() as typeof found;
     }
     if (found.error) throw found.error;
     const athlete = found.data as { id: string; name?: string | null; role: string | null; extra_roles?: string[] | null; is_academy?: boolean | null } | null;
@@ -314,13 +314,31 @@ export async function PUT(request: Request) {
     const { error } = await supabase.from('athletes').update(update).eq('id', athlete.id);
     if (error) throw error;
     if (academy !== wasAcademy) await applyAcademyMembership(supabase, athlete.id, academy);
+    let managerBefore = false;
     if (typeof body.clubManager === 'boolean') {
       const ids = await clubManagers(supabase);
       const has = ids.includes(athlete.id);
+      managerBefore = has;
       if (body.clubManager !== has) await setClubManagers(supabase, body.clubManager ? [...ids, athlete.id] : ids.filter((x) => x !== athlete.id));
     }
 
     const roles = grantedRoles(next.role, next.extra_roles);
+    // Into הרשאות' log (lib/access/grants), in words: what changed, by whom.
+    try {
+      const ROLE_HE: Record<string, string> = { admin: 'מנהל', coach: 'מאמן', academy_coach: 'מאמן אקדמיה', academy_manager: 'מנהל אקדמיה' };
+      const changes: string[] = [];
+      for (const r of roles) if (!before.includes(r)) changes.push(`+ ${ROLE_HE[r] ?? r}`);
+      for (const r of before) if (!roles.includes(r)) changes.push(`− ${ROLE_HE[r] ?? r}`);
+      if (academy !== wasAcademy) changes.push(`${academy ? '+' : '−'} מתאמן אקדמיה`);
+      if (storyEditor !== wasEditor) changes.push(`${storyEditor ? '+' : '−'} שיתוף האימון`);
+      if (typeof body.coreRunner === 'boolean' && body.coreRunner !== isCoreRunner(athlete as never)) changes.push(`${body.coreRunner ? '+' : '−'} גרעין`);
+      if (typeof body.clubManager === 'boolean' && body.clubManager !== managerBefore) changes.push(`${body.clubManager ? '+' : '−'} עמוד מספרים`);
+      if (changes.length) {
+        const { appendLog } = await import('@/lib/access/grants');
+        const { data: me } = caller.athleteId ? await supabase.from('athletes').select('name').eq('id', caller.athleteId).maybeSingle() : { data: null };
+        await appendLog(supabase, { by: caller.athleteId ?? null, byName: (me as { name?: string } | null)?.name ?? caller.email ?? null, athleteId: athlete.id, name: athlete.name ?? null, what: changes.join(' · ') });
+      }
+    } catch { /* the log never fails a save */ }
     // Only a role switched ON is news to them. Taking one away sends nothing.
     const added = newlyGranted(before, roles)[0] ?? null;
     const notified = added ? await sendRoleGranted(supabase, athlete.id, added, caller) : false;

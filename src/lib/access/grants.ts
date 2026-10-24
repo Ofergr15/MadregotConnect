@@ -19,7 +19,13 @@ export type ContentLevels = Record<ContentKind, Level>;
 
 export interface Grant { content?: Partial<Record<ContentKind, Level>> }
 export type Grants = Record<string, Grant>;
-export interface LogEntry { at: string; by: string | null; byName?: string | null; athleteId: string; name?: string | null; kind: ContentKind; from: Level; to: Level }
+export interface LogEntry {
+  at: string; by: string | null; byName?: string | null; athleteId: string; name?: string | null;
+  /** A Content level change… */
+  kind?: ContentKind; from?: Level; to?: Level;
+  /** …or anything else, said in words (a role, a switch, a page — the roles route writes these). */
+  what?: string;
+}
 
 export const GRANTS_KEY = 'access_grants';
 export const LOG_KEY = 'access_log';
@@ -73,6 +79,13 @@ export async function callerLevels(supabase: Db, c: Parameters<typeof roleLevels
 export async function readLog(supabase: Db): Promise<LogEntry[]> {
   const { data } = await supabase.from('app_settings').select('value').eq('key', LOG_KEY).maybeSingle();
   try { const v = JSON.parse((data as { value?: string } | null)?.value || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
+}
+
+/** One entry in the log, newest first (kept to 300). */
+export async function appendLog(supabase: Db, entry: Omit<LogEntry, 'at'>): Promise<void> {
+  const log = await readLog(supabase);
+  const now = new Date().toISOString();
+  await supabase.from('app_settings').upsert({ key: LOG_KEY, value: JSON.stringify([{ ...entry, at: now }, ...log].slice(0, 300)), updated_at: now }, { onConflict: 'key' });
 }
 
 /** Set one person's level for one part, and write it to the log. */
