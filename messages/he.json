@@ -6441,7 +6441,15 @@
     "othersDone": "מוכן",
     "othersOpen": "עוד לא",
     "glanceTitle": "סידור השבוע",
-    "glanceAll": "השבוע מוכן ✓"
+    "glanceAll": "השבוע מוכן ✓",
+    "watchesSend": "לשלוח את השבוע לשעונים",
+    "watchesSending": "שולח לשעונים… ממשיך גם אם סוגרים את המסך",
+    "watchesSendAnyway": "עוד חסר: {list}. לשלוח לשעונים בכל זאת?",
+    "watchesHave": "{ok}/{total} בשעונים",
+    "watchesMissingTitle": "לא קיבלו ({n}):",
+    "watchesResend": "לשלוח שוב רק ל־{n}",
+    "watchesAgain": "לשלוח שוב לכולם",
+    "watchesNoPlan": "קודם להעלות את התכנית"
   },
   "runAnalysis": {
     "gapNote": "\"בשטח שטוח\" — הקצב מתוקן לשיפוע: כמה מהר היית רץ את אותו מאמץ בלי עליות וירידות. בעלייה הוא מהיר מהקצב בפועל, בירידה איטי ממנו.",

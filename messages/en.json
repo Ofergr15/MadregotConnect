@@ -6441,7 +6441,15 @@
     "othersDone": "ready",
     "othersOpen": "not yet",
     "glanceTitle": "Week setup",
-    "glanceAll": "The week is ready ✓"
+    "glanceAll": "The week is ready ✓",
+    "watchesSend": "Send the week to the watches",
+    "watchesSending": "Sending to the watches… it carries on if you close the screen",
+    "watchesSendAnyway": "Still missing: {list}. Send to the watches anyway?",
+    "watchesHave": "{ok}/{total} on their watch",
+    "watchesMissingTitle": "Didn't get it ({n}):",
+    "watchesResend": "Resend to these {n} only",
+    "watchesAgain": "Send to everyone again",
+    "watchesNoPlan": "Upload the plan first"
   },
   "runAnalysis": {
     "gapNote": "\"On flat ground\" — grade-adjusted pace: how fast the same effort would be with no climbs or descents. Faster than the actual pace uphill, slower downhill.",

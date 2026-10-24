@@ -14,6 +14,7 @@ import {
 } from './model';
 import { pollsOfWeek, type WeekPoll } from '@/lib/surveys';
 import { LOG_KEY, skipped, withEntry, type LogAction, type LogEntry, type LogStore, type Step } from './log';
+import { WATCH_RESULTS_KEY, summarize, type WatchResultsStore } from './watch-results';
 
 type Db = ReturnType<typeof createServerClient>;
 
@@ -76,6 +77,8 @@ export interface WeekSnapshot {
   readiness: Readiness;
   /** Who did what this week, oldest first (lib/week-setup/log). */
   log: LogEntry[];
+  /** Who has the week on their watch, from the last sends (lib/week-setup/watch-results); null before any. */
+  watches: { ok: number; total: number; failed: Array<{ id: string; name: string; error?: string }>; at: string; by: string } | null;
 }
 
 const LANE = 'group2';
@@ -86,7 +89,7 @@ function typeOf(w: unknown): WorkoutType {
 
 export async function loadWeek(supabase: Db, weekStart: string): Promise<WeekSnapshot> {
   const weekEnd = addDays(weekStart, 6);
-  const [plans, sessions, program, lastProgram, reminderRaw, fired, approvals, planDaysRaw, folders, overrides, owners, templates, custom, staff, log] = await Promise.all([
+  const [plans, sessions, program, lastProgram, reminderRaw, fired, approvals, planDaysRaw, folders, overrides, owners, templates, custom, staff, log, watchStore] = await Promise.all([
     supabase.from('weekly_plans').select('status, created_at, parsed_workouts').eq('coach_id', COACH_ID).is('athlete_id', null).eq('week_start_date', weekStart),
     supabase.from('day_sessions').select('session_date, title, start_time, quality, nutrition').gte('session_date', weekStart).lte('session_date', weekEnd),
     supabase.from('program_weeks').select('week_number, training_pdf_url, nutrition_pdf_url').eq('week_start_date', weekStart).maybeSingle(),
@@ -105,6 +108,7 @@ export async function loadWeek(supabase: Db, weekStart: string): Promise<WeekSna
       .gte('next_run_at', `${addDays(weekStart, -1)}T21:00:00Z`).lte('next_run_at', `${weekEnd}T21:00:00Z`).limit(50),
     supabase.from('athletes').select('id, name, role, extra_roles, is_super_user').or('role.in.(admin,coach),is_super_user.eq.true'),
     loadWeekLog(supabase, weekStart).catch(() => [] as LogEntry[]),
+    readSetting<WatchResultsStore>(supabase, WATCH_RESULTS_KEY, {}).catch(() => ({} as WatchResultsStore)),
   ]);
 
   const cfg: ReminderConfig = { ...REMINDER_DEFAULT, ...reminderRaw, dayBefore: { ...REMINDER_DEFAULT.dayBefore, ...reminderRaw.dayBefore }, eveningBefore: { ...REMINDER_DEFAULT.eveningBefore, ...reminderRaw.eveningBefore } };
@@ -191,6 +195,7 @@ export async function loadWeek(supabase: Db, weekStart: string): Promise<WeekSna
       message: log.some((e) => e.step === 'message' && e.action === 'message_sent') || skipped(log, 'message'),
     }),
     log,
+    watches: watchStore[weekStart] ? { ...summarize(watchStore[weekStart]), at: watchStore[weekStart].at, by: watchStore[weekStart].by } : null,
   };
 }
 

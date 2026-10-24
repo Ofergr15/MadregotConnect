@@ -10,7 +10,9 @@ import { COACH_ID } from '@/lib/constants';
 import { deliveryFailedCopy } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
 import { authError, requireSession } from '@/lib/auth-session';
-import { logWeek } from '@/lib/week-setup/server';
+import { logWeek, readSetting, writeSetting } from '@/lib/week-setup/server';
+import { israelToday } from '@/lib/utils';
+import { WATCH_RESULTS_KEY, statusOf, summarize, withResults, type PushOutcome, type WatchResultsStore } from '@/lib/week-setup/watch-results';
 import { pushWeekToAthlete, type PushResult } from '@/lib/garmin/push-week';
 import { appleCandidates, deliverWeek, resolveWatchProvider } from '@/lib/watch';
 import { academyTraineesNotYours } from '@/lib/academy/pairing-server';
@@ -40,7 +42,7 @@ export async function POST(req: NextRequest) {
     // below. The academy planner sends false for a trainee whose paces it could
     // not resolve, so an unresolved pace stays information instead of becoming a
     // pace-zone alarm on their watch.
-    const { planId, workouts, athleteIds, weekStartDate, paceAlerts: paceAlertsAllowed, batches, wholeWeek, notifyAthletes, notifyLines, byAthleteGroup } = await req.json();
+    const { planId, workouts, athleteIds, weekStartDate, paceAlerts: paceAlertsAllowed, batches, wholeWeek, notifyAthletes, notifyLines, byAthleteGroup, resend } = await req.json();
 
     // THE WHOLE WEEK IN ONE REQUEST, for every staff sender (feedback
     // bb7fdd49). The planner sent one request per pace group from the phone, one
@@ -284,11 +286,19 @@ export async function POST(req: NextRequest) {
       // The same rule the planner applies: only the whole week, all delivered, is
       // 'pushed'. Written here because the phone may be asleep by now.
       if (wholeRequest && planId && results.length > 0) {
-        const ok = results.filter((r) => r.status === 'success').length;
-        const status = ok === results.length && wholeWeek === true ? 'pushed' : ok > 0 ? 'partial' : 'draft';
+        // Who has it, per runner, kept for the week (lib/week-setup/watch-results): a resend to
+        // some runners updates only theirs, and the status reads the whole record — so the two
+        // a resend failed again can't turn a week nineteen have into "draft".
+        // Best-effort: keeping the record must never fail the send it describes.
+        const store = await readSetting<WatchResultsStore>(supabase, WATCH_RESULTS_KEY, {}).catch(() => ({} as WatchResultsStore));
+        const nextStore = withResults(store, weekStartDate, results as PushOutcome[], { partial: resend === true, by: auth.user.name, now: new Date().toISOString(), today: israelToday() });
+        await writeSetting(supabase, WATCH_RESULTS_KEY, nextStore).catch((e) => console.warn('[push-workouts] results not kept', e));
+        const record = nextStore[weekStartDate];
+        const status = statusOf(record, resend === true ? true : wholeWeek === true);
         await supabase.from('weekly_plans').update({ status }).eq('id', planId);
+        const sum = summarize(record);
         // Who sent it and how many it reached, in the week's log (lib/week-setup, 10-24).
-        await logWeek(supabase, weekStartDate, { athleteId: auth.user.athleteId, name: auth.user.name }, 'watches', 'plan_sent', `${ok}/${results.length}`);
+        await logWeek(supabase, weekStartDate, { athleteId: auth.user.athleteId, name: auth.user.name }, 'watches', 'plan_sent', `${sum.ok}/${sum.total}${resend === true ? ' · שליחה חוזרת' : ''}`);
       }
       return results;
     })();

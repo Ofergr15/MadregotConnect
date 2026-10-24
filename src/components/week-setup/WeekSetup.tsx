@@ -165,7 +165,7 @@ export function WeekSetup() {
           <p className="mt-[9px] text-[13.5px] leading-relaxed text-ink-500">{t('messageLead')}</p>
         </WeekCard>
       )}
-      {may('workouts') && <WatchesCard d={data} m={meta('watches')} t={t} owner={ownerChip('workouts')} planner={planner} />}
+      {may('workouts') && <WatchesCard d={data} m={meta('watches')} t={t} owner={ownerChip('workouts')} onSent={() => { void mutate(); }} />}
 
       {others.length > 0 && (
         // The rest of the week, as status only: whose it is, done or not, and the last line without its detail.
@@ -638,17 +638,54 @@ function PollsCard({ d, m, t, lang, owner, skip }: { d: WeekSnapshot; m: Meta; t
 
 // ── the watches: the last step ──────────────────────────────────────────────────────
 
-function WatchesCard({ d, m, t, owner, planner }: { d: WeekSnapshot; m: Meta; t: T; owner: React.ReactNode; planner: string }) {
+function WatchesCard({ d, m, t, owner, onSent }: { d: WeekSnapshot; m: Meta; t: T; owner: React.ReactNode; onSent: () => void }) {
   // Everything before it that is still open — sending is meant for after (Ofer, 10-24).
   const before = d.readiness.missing.filter((s) => s !== 'watches');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const w = d.watches;
+  // The planner's own send, prepared on the server (lib/week-setup/watch-batches) and posted to
+  // the same route; `only` + resend: just the runners who didn't get it, their rows updated.
+  const sendWeek = async (only?: string[]) => {
+    if (!only && before.length && !window.confirm(t('watchesSendAnyway', { list: before.map((s) => t(`miss_${s}`)).join(' · ') }))) return;
+    setBusy(true); setErr(null);
+    try {
+      const prep = await fetch(`/api/week-setup/watches?week=${d.weekStart}${only ? `&only=${only.join(',')}` : ''}`, { headers: await apiHeaders() });
+      if (!prep.ok) throw new Error(prep.status === 404 ? t('watchesNoPlan') : t('failed'));
+      const { planId, batches } = await prep.json();
+      const res = await fetch('/api/garmin/push-workouts', {
+        method: 'POST', headers: await apiHeaders(true),
+        body: JSON.stringify({ planId, weekStartDate: d.weekStart, batches, wholeWeek: true, notifyAthletes: true, ...(only ? { resend: true } : {}) }),
+      }).catch(() => null);
+      // A dropped connection is not a failure: the server finishes the send without us.
+      if (res && !res.ok) throw new Error(t('failed'));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : t('failed'));
+    } finally {
+      setBusy(false);
+      onSent();
+    }
+  };
   return (
     <WeekCard icon={Watch} color={COLORS.watches} title={t('sec_watches')} owner={owner} {...m}
-      status={<Pill tone={PLAN_TONE[d.plan.status]}>{t(`plan_${d.plan.status}`)}</Pill>}
-      actions={d.plan.status !== 'pushed' && d.plan.status !== 'none' ? <Btn icon={Send} href={planner}>{t('watchesOpen')}</Btn> : undefined}>
-      <p className="mt-[9px] text-[13.5px] leading-relaxed text-ink-500">{t('watchesLead')}</p>
+      status={<Pill tone={PLAN_TONE[d.plan.status]}>{w ? t('watchesHave', { ok: w.ok, total: w.total }) : t(`plan_${d.plan.status}`)}</Pill>}
+      actions={d.plan.status === 'none' ? undefined : busy ? <Btn icon={Send} disabled>{t('watchesSending')}</Btn>
+        : w?.failed.length ? <Btn icon={Send} onClick={() => sendWeek(w.failed.map((f) => f.id))}>{t('watchesResend', { n: w.failed.length })}</Btn>
+          : <Btn kind={d.plan.status === 'pushed' ? 'sec' : 'pri'} icon={Send} onClick={() => sendWeek()}>{d.plan.status === 'pushed' ? t('watchesAgain') : t('watchesSend')}</Btn>}>
+      <p className="mt-[9px] text-[13.5px] leading-relaxed text-ink-500">{d.plan.status === 'none' ? t('watchesNoPlan') : t('watchesLead')}</p>
       {before.length > 0 && d.plan.status !== 'pushed' && (
         <p className="mt-1.5 text-[12.5px] font-bold text-[#B45309]">{t('watchesWaiting', { list: before.map((s) => t(`miss_${s}`)).join(' · ') })}</p>
       )}
+      {w && w.failed.length > 0 && (
+        // Who doesn't have it, and why — kept, so tomorrow still shows who is missing (lib/week-setup/watch-results).
+        <div className="mt-2.5 rounded-[14px] bg-[#FFF3E0] px-3 py-2.5 text-[12.5px] text-[#8A4A00]">
+          <b className="block font-extrabold">{t('watchesMissingTitle', { n: w.failed.length })}</b>
+          {w.failed.map((f) => (
+            <span key={f.id} className="block truncate"><bdi>{firstName(f.name)}</bdi>{f.error ? <> — <bdi>{f.error}</bdi></> : null}</span>
+          ))}
+        </div>
+      )}
+      {err && <p className="mt-2 text-[12.5px] font-bold text-[#AD3838]">{err}</p>}
     </WeekCard>
   );
 }
