@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import type { BarSegment } from '@/lib/academy/book-steps';
+import type { ShapeBar } from '@/lib/academy/book-classify';
 
 // ── The workout book v3's shared pieces ──────────────────────────────────────────────────
 //
@@ -220,3 +221,23 @@ export function initials(name: string): string {
   if (!parts.length) return '?';
   return (parts[0][0] + (parts[1]?.[0] ?? '')).toUpperCase();
 }
+
+const SHAPE_COLOR = { e: '#9ad1a8', t: '#f5a524', f: '#e5484d', gap: 'transparent' } as const;
+const SHAPE_HEIGHT = { e: 40, t: 75, f: 100, gap: 100 } as const;
+
+/**
+ * A workout's small drawing: width by time inside the work, rests as gaps (book-classify
+ * classifyShape — always bars, falling back to the name when the steps can't be read).
+ * Shared by the classify review and the book's own list (Ofer 10-24: the book showed
+ * only names).
+ */
+export function Shape({ bars }: { bars: ShapeBar[] }) {
+  return (
+    <span className="flex h-[38px] items-end overflow-hidden rounded-[10px] bg-page px-[5px] py-1">
+      {bars.map((b, i) => (
+        <span key={i} className="rounded-[1.5px]" style={{ background: SHAPE_COLOR[b.tone], height: `${SHAPE_HEIGHT[b.tone]}%`, flex: `${b.w} 0 0`, minWidth: b.tone === 'gap' ? 1 : 1.5 }} />
+      ))}
+    </span>
+  );
+}
+

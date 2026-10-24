@@ -7,8 +7,8 @@ import { cn } from '@/lib/utils';
 import { LIBRARY_KINDS, isUnclassified, type LibraryEntry, type LibraryKind } from '@/lib/academy/library';
 import { KIND_REQUIRED_TEXT } from '@/lib/academy/kind-choice';
 import { ESTIMATE_THRESHOLD_SEC, bookTotals, fromLibrarySteps, profileBar } from '@/lib/academy/book-steps';
-import { classifyFacts, classifyShape, classifyWorkout, type Classified, type ShapeBar } from '@/lib/academy/book-classify';
-import { BarButton, CARD, FlowOverlay, FlowScreen, N, PrimaryButton, ProfileBar, RICH, clockText, kmText } from './ui';
+import { classifyFacts, classifyShape, classifyWorkout, type Classified } from '@/lib/academy/book-classify';
+import { BarButton, CARD, FlowOverlay, FlowScreen, N, PrimaryButton, ProfileBar, RICH, clockText, kmText, Shape } from './ui';
 
 // ── "למלא את הספר מכל ההיסטוריה" and "סיווג" (Ofer, 2026-10-20) ───────────────────────────
 //
@@ -242,20 +242,6 @@ export function BookClassify({ entries, onClose, onClassified }: {
         </FlowScreen>
       )}
     </FlowOverlay>
-  );
-}
-
-const SHAPE_COLOR = { e: '#9ad1a8', t: '#f5a524', f: '#e5484d', gap: 'transparent' } as const;
-const SHAPE_HEIGHT = { e: 40, t: 75, f: 100, gap: 100 } as const;
-
-/** The row's own small drawing: width by time inside the work, rests as gaps (book-classify). */
-function Shape({ bars }: { bars: ShapeBar[] }) {
-  return (
-    <span className="flex h-[38px] items-end overflow-hidden rounded-[10px] bg-page px-[5px] py-1">
-      {bars.map((b, i) => (
-        <span key={i} className="rounded-[1.5px]" style={{ background: SHAPE_COLOR[b.tone], height: `${SHAPE_HEIGHT[b.tone]}%`, flex: `${b.w} 0 0`, minWidth: b.tone === 'gap' ? 1 : 1.5 }} />
-      ))}
-    </span>
   );
 }
 

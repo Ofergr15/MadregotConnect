@@ -9,6 +9,9 @@ import { KIND_LABEL, ZONE_LABEL } from './libraryText';
 import { WorkoutEditor, type WorkoutDraftPayload } from './WorkoutEditor';
 import { BookImport } from './book/BookImport';
 import { BookClassify, BookFill, unclassifiedOf } from './book/BookFill';
+import { Shape } from './book/ui';
+import { classifyShape } from '@/lib/academy/book-classify';
+import { fromLibrarySteps } from '@/lib/academy/book-steps';
 import {
   LIBRARY_KINDS,
   duplicateEntry,
@@ -258,6 +261,9 @@ function Row({
   busy?: boolean;
 }) {
   const shape = entryShape(entry.steps);
+  // The workout's drawing, as on the day's plan and the classify review — the book showed
+  // only names (Ofer 10-24). classifyShape always has bars (the name when steps can't be read).
+  const bars = useMemo(() => classifyShape(fromLibrarySteps(entry.steps), entry.name, entry.kind), [entry.steps, entry.name, entry.kind]);
   const { distanceM, durationSec } = entryVolume(entry.steps);
   const effort = effortLabel(entry.steps);
 
@@ -334,6 +340,7 @@ function Row({
           {entry.kindConfirmed === false && <span className="font-bold text-[#8A4308]">לסיווג · </span>}
           {useCountLabel(entry.useCount)}
         </p>
+        {bars.length > 0 && <div className="mt-1.5"><Shape bars={bars} /></div>}
       </div>
 
       {onDuplicate && (
