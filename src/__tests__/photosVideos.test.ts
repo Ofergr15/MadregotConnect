@@ -52,6 +52,9 @@ describe('the listing and the screens', () => {
     const v = read('src/components/photos/MediaViewer.tsx');
     expect(v).toMatch(/function Timeline\(/);
     expect(v).toMatch(/\['all', 'הכל'\], \['photos', 'תמונות'\], \['videos', 'סרטונים'\]/);
+    // the end of a video stays, like a photo: no going on by itself (Ofer, 10-24)
+    expect(v).toMatch(/const onEnded = useCallback\(\(\) => \{ setPaused\(true\); \}, \[\]\);/);
+    expect(v).toMatch(/if \(el\.ended\) el\.currentTime = 0;/);
     // a video as wide as it is long on the strip
     expect(v).toMatch(/const thumbW = \(x: MediaItem\) => \(x\.kind === 'video'/);
   });

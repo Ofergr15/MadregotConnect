@@ -399,14 +399,13 @@ export function MediaViewer({ items, startId, title, onClose, from, filter: star
   const togglePlay = useCallback(() => {
     const el = videoRef.current;
     if (!el) return;
-    if (el.paused) { void el.play().catch(() => {}); setPaused(false); } else { el.pause(); setPaused(true); }
+    if (el.paused) { if (el.ended) el.currentTime = 0; void el.play().catch(() => {}); setPaused(false); } else { el.pause(); setPaused(true); }
   }, []);
   const onFailed = useCallback(() => { setFailed(true); setWaiting(false); }, []);
-  // The end of a video: on to the next if it is a video too, else round again.
-  const onEnded = useCallback((k: number) => {
-    if (listRef.current[k + 1]?.kind === 'video') go(k + 1);
-    else { const el = videoRef.current; if (el) { el.currentTime = 0; void el.play().catch(() => {}); } }
-  }, [go]);
+  // The end of a video: it stays, like a photo — stopped, the play mark showing; a tap plays
+  // it again. Moving on is the viewer's own swipe (Ofer, 10-24: "not to the next video —
+  // like a photo, we decide when to move").
+  const onEnded = useCallback(() => { setPaused(true); }, []);
 
   // One tap: on a photo, shows/hides the chrome (two zoom at the point); on a video, the
   // video's own tap pauses it.
