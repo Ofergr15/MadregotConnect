@@ -6434,7 +6434,14 @@
     "watchesLead": "The last step: once everything else is ready, the workouts go to the runners' watches.",
     "watchesWaiting": "Still before it: {list}",
     "watchesOpen": "Send to watches (in the planner)",
-    "act_unskipped": "back on the list"
+    "act_unskipped": "back on the list",
+    "mineProgress": "{done}/{total} of your part",
+    "mineDone": "Your part is ready — thanks!",
+    "othersTitle": "The rest of the week",
+    "othersDone": "ready",
+    "othersOpen": "not yet",
+    "glanceTitle": "Week setup",
+    "glanceAll": "The week is ready ✓"
   },
   "runAnalysis": {
     "gapNote": "\"On flat ground\" — grade-adjusted pace: how fast the same effort would be with no climbs or descents. Faster than the actual pace uphill, slower downhill.",

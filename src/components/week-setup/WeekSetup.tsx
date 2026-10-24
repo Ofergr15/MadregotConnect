@@ -14,7 +14,7 @@ import { Sheet, Switch, SkeletonList, EmptyState } from '@/components/ui';
 import { SECTIONS, addDays, canEdit, israelHourToIso, type Owner, type Owners, type Section, type TimelineRow } from '@/lib/week-setup/model';
 import type { WeekSnapshot } from '@/lib/week-setup/server';
 import { Btn, Chips, DAY_LONG, DAY_SHORT, Field, OwnerChip, Pill, Trail, WeekCard, dm, dowOf, hh, inputCls, type Tone } from './parts';
-import { STEPS, lastByStep, type LogEntry, type Step } from '@/lib/week-setup/log';
+import { STEPS, lastByStep, mineOf, weekOfAction, type LogEntry, type Step } from '@/lib/week-setup/log';
 
 /**
  * "תחילת שבוע" — the club's week set up in one screen (mockup ~/.cache/madregot/week-setup.html,
@@ -32,7 +32,7 @@ import { STEPS, lastByStep, type LogEntry, type Step } from '@/lib/week-setup/lo
  */
 
 type Me = { id: string | null; admin: boolean; coach: boolean; approver: boolean };
-type Data = WeekSnapshot & { me: Me };
+type Data = WeekSnapshot & { me: Me; mine: Step[] };
 
 const COLORS: Record<Step, string> = {
   workouts: '#1525FF', nutrition: '#B45309', quality: '#C2185B', notifications: '#6D28D9', polls: '#475569', message: '#15803d', watches: '#0B5285',
@@ -53,7 +53,8 @@ export function WeekSetup() {
   const t = useTranslations('weekSetup');
   const lang = useLocale().startsWith('en') ? 'en' : 'he';
   const thisWeek = getPlanWeekStart(new Date());
-  const [week, setWeek] = useState(thisWeek);
+  // On a Saturday the screen is about the week that starts tomorrow (lib/week-setup/log weekOfAction).
+  const [week, setWeek] = useState(() => weekOfAction(israelToday()));
   useEffect(() => {
     const w = new URLSearchParams(window.location.search).get('week');
     if (w && /^\d{4}-\d{2}-\d{2}$/.test(w)) setWeek(getPlanWeekStart(new Date(`${w}T12:00:00`)));
@@ -128,9 +129,14 @@ export function WeekSetup() {
       </div>
 
       {coachOnly ? (
+        // A coach sees their own part: its progress and next step; the rest as status only (10-24).
         <div className="mx-4 mb-2.5 mt-3 rounded-2xl bg-[#EAF2F8] px-3.5 py-3">
           <b className="block text-[15px] text-[#0B3C61]">{t('coachHello', { name: coachName, what: list(mine) })}</b>
-          <span className="text-13 text-[#4A6A82]">{t('coachHelloSub', { name: adminName })}</span>
+          {(() => { const m = mineOf(data.readiness, data.mine); return (
+            <span className="mt-0.5 block text-13 font-bold text-[#0B5285]">
+              {m.next ? <>{t('mineProgress', { done: m.done, total: m.total })} · {t('next', { what: t(`miss_${m.next}`) })}</> : t('mineDone')}
+            </span>
+          ); })()}
         </div>
       ) : (
         <Progress r={data.readiness} t={t} />
@@ -162,10 +168,21 @@ export function WeekSetup() {
       {may('workouts') && <WatchesCard d={data} m={meta('watches')} t={t} owner={ownerChip('workouts')} planner={planner} />}
 
       {others.length > 0 && (
-        <div className="mx-5 mt-1 flex items-center gap-[7px] text-[12.5px] text-ink-400">
-          <Lock className="h-3.5 w-3.5 shrink-0" />
-          <span>{t('lockedRest', { list: list(others), name: adminName })}</span>
-        </div>
+        // The rest of the week, as status only: whose it is, done or not, and the last line without its detail.
+        <section className="mx-4 mb-2.5 rounded-[22px] bg-card px-3.5 py-3">
+          <div className="flex items-center gap-2"><Lock className="h-3.5 w-3.5 text-ink-400" /><b className="text-[14px] font-extrabold text-ink-900">{t('othersTitle')}</b></div>
+          {STEPS.filter((st) => !data.mine.includes(st)).map((st) => {
+            const ok = !data.readiness.missing.includes(st);
+            const e = last[st];
+            return (
+              <div key={st} className="flex items-center gap-2 border-b border-[#F3F4F6] py-2 text-[13px] last:border-0">
+                <span className={cn('grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-black', ok ? 'bg-[#15803d] text-white' : 'bg-[#EEEFF2] text-ink-400')}>{ok ? '✓' : STEPS.indexOf(st) + 1}</span>
+                <b className="flex-1 font-bold text-ink-900">{t(`sec_${st}`)}</b>
+                <span className="truncate text-[12px] text-ink-400">{e ? `${firstName(e.name)} · ${when(e.at)}` : adminName} · {ok ? t('othersDone') : t('othersOpen')}</span>
+              </div>
+            );
+          })}
+        </section>
       )}
 
       {me.admin && (

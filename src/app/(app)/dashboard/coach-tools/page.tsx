@@ -1,4 +1,5 @@
 'use client';
+import { WeekSetupGlance } from '@/components/week-setup/WeekSetupGlance';
 
 import { useEffect, useState } from 'react';
 import { AdminManage } from '@/components/admin/AdminManage';
@@ -258,6 +259,9 @@ function CoachToolsClassic() {
       </InsetSection>}
 
       {isClubCoachLens && <>
+
+      {/* The coach's own part of the Saturday's setup, how far it is (components/week-setup, 10-24). */}
+      <WeekSetupGlance />
 
       <InsetSection header={t('planning')}>
         {/* "תחילת שבוע" (lib/week-setup): the whole week in one screen, every part with its owner. */}

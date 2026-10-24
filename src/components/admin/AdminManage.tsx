@@ -8,6 +8,7 @@ import { useApi } from '@/lib/api';
 import { InsetRow, InsetSection } from '@/components/ui';
 import { MANAGE_GROUPS } from '@/lib/admin/manage-groups';
 import { findPlaces } from '@/lib/search/places';
+import { WeekSetupGlance } from '@/components/week-setup/WeekSetupGlance';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // ניהול — the admin's version (2026-10-20, mockups/admin-ia.html): seven rows
@@ -72,6 +73,8 @@ export function AdminManage() {
         </InsetSection>
       ) : (
         <>
+          {/* The Saturday's setup, how far it is and who did what (components/week-setup, 10-24). */}
+          <WeekSetupGlance />
           <InsetSection>
             {/* The coach space (lib/coach-space): visible here so the admin can open it while it is
                 still off for the coaches — an address to type is not a place (Ofer 10-23). */}

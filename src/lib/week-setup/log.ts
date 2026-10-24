@@ -68,3 +68,23 @@ export function weekOfAction(todayIsrael: string): string {
   const d = new Date(`${addDays(todayIsrael, 1)}T12:00:00Z`);
   return addDays(addDays(todayIsrael, 1), -d.getUTCDay());
 }
+
+/** The steps a person may do (the owners' split, lib/week-setup/model canEdit). */
+export function stepsOf(may: (section: Section) => boolean): Step[] {
+  return STEPS.filter((st) => may(ownerSectionOf(st)));
+}
+
+/**
+ * Someone who isn't an admin sees the rest of the week as status only (Ofer, 10-24: "think
+ * what Yair sees — he is exposed to only part of it"): their own steps' lines whole, the
+ * others' without the detail (a poll's question, a notification's text).
+ */
+export function redactLog(entries: LogEntry[], mine: Step[]): LogEntry[] {
+  return entries.map((e) => (mine.includes(e.step) ? e : { ...e, detail: undefined }));
+}
+
+/** How far one person's own steps are: of the week's readiness, only those. */
+export function mineOf(r: { missing: Step[] }, mine: Step[]): { done: number; total: number; next: Step | null } {
+  const open = mine.filter((st) => r.missing.includes(st));
+  return { done: mine.length - open.length, total: mine.length, next: open[0] ?? null };
+}
