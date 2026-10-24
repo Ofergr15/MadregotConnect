@@ -13,6 +13,7 @@ import {
   type OverrideStore, type Owners, type Readiness, type TimelineRow,
 } from './model';
 import { pollsOfWeek, type WeekPoll } from '@/lib/surveys';
+import { LOG_KEY, skipped, withEntry, type LogAction, type LogEntry, type LogStore, type Step } from './log';
 
 type Db = ReturnType<typeof createServerClient>;
 
@@ -73,6 +74,8 @@ export interface WeekSnapshot {
   owners: Owners;
   staff: Array<{ id: string; name: string; role: string }>;
   readiness: Readiness;
+  /** Who did what this week, oldest first (lib/week-setup/log). */
+  log: LogEntry[];
 }
 
 const LANE = 'group2';
@@ -83,7 +86,7 @@ function typeOf(w: unknown): WorkoutType {
 
 export async function loadWeek(supabase: Db, weekStart: string): Promise<WeekSnapshot> {
   const weekEnd = addDays(weekStart, 6);
-  const [plans, sessions, program, lastProgram, reminderRaw, fired, approvals, planDaysRaw, folders, overrides, owners, templates, custom, staff] = await Promise.all([
+  const [plans, sessions, program, lastProgram, reminderRaw, fired, approvals, planDaysRaw, folders, overrides, owners, templates, custom, staff, log] = await Promise.all([
     supabase.from('weekly_plans').select('status, created_at, parsed_workouts').eq('coach_id', COACH_ID).is('athlete_id', null).eq('week_start_date', weekStart),
     supabase.from('day_sessions').select('session_date, title, start_time, quality, nutrition').gte('session_date', weekStart).lte('session_date', weekEnd),
     supabase.from('program_weeks').select('week_number, training_pdf_url, nutrition_pdf_url').eq('week_start_date', weekStart).maybeSingle(),
@@ -101,6 +104,7 @@ export async function loadWeek(supabase: Db, weekStart: string): Promise<WeekSna
       .eq('kind', 'custom').in('status', ['scheduled', 'sent'])
       .gte('next_run_at', `${addDays(weekStart, -1)}T21:00:00Z`).lte('next_run_at', `${weekEnd}T21:00:00Z`).limit(50),
     supabase.from('athletes').select('id, name, role, extra_roles, is_super_user').or('role.in.(admin,coach),is_super_user.eq.true'),
+    loadWeekLog(supabase, weekStart).catch(() => [] as LogEntry[]),
   ]);
 
   const cfg: ReminderConfig = { ...REMINDER_DEFAULT, ...reminderRaw, dayBefore: { ...REMINDER_DEFAULT.dayBefore, ...reminderRaw.dayBefore }, eveningBefore: { ...REMINDER_DEFAULT.eveningBefore, ...reminderRaw.eveningBefore } };
@@ -180,10 +184,13 @@ export async function loadWeek(supabase: Db, weekStart: string): Promise<WeekSna
     staff: staffRows.filter((s) => !/^test /i.test(s.name)).map((s) => ({ id: s.id, name: s.name, role: s.is_super_user ? 'admin' : s.role })),
     readiness: readiness({
       planStatus: plan ? (status as 'draft' | 'partial' | 'pushed') : 'none',
-      nutritionPdf: !!program.data?.nutrition_pdf_url,
+      nutrition: !!program.data?.nutrition_pdf_url || skipped(log, 'nutrition'),
       qualityPicked: !!picked,
       toApprove: timeline.filter((r) => r.state === 'approve').length,
+      polls: templates.length > 0 || skipped(log, 'polls'),
+      message: log.some((e) => e.step === 'message' && e.action === 'message_sent') || skipped(log, 'message'),
     }),
+    log,
   };
 }
 
@@ -193,3 +200,50 @@ export function weekStartOf(date: string = israelToday()): string {
   return addDays(date, -d.getUTCDay());
 }
 export { qualityOf };
+
+// ── who did what (lib/week-setup/log) ────────────────────────────────────────────────
+
+/**
+ * Record one action of the week, by the person in the session. Best-effort: a failed write
+ * never fails the action it describes (the plan is saved; the line about it is a bonus).
+ */
+export async function logWeek(supabase: Db, weekStart: string, who: { athleteId: string | null; name: string } | null,
+  step: Step, action: LogAction, detail?: string): Promise<void> {
+  try {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) return;
+    const store = await readSetting<LogStore>(supabase, LOG_KEY, {});
+    const e: LogEntry = { at: new Date().toISOString(), by: who?.athleteId ?? null, name: who?.name?.trim() || 'מדרגות', step, action, ...(detail ? { detail: detail.slice(0, 120) } : {}) };
+    await writeSetting(supabase, LOG_KEY, withEntry(store, weekStart, e, israelToday()));
+  } catch (err) {
+    console.warn('[week-setup] log failed', step, action, err);
+  }
+}
+
+export const loadWeekLog = async (supabase: Db, weekStart: string): Promise<LogEntry[]> =>
+  ((await readSetting<LogStore>(supabase, LOG_KEY, {}))[weekStart] ?? []);
+
+/**
+ * "Your turn" — a push and an inbox row to every admin / super user but the one who acted
+ * (Ofer, 10-24: "then I know I can go on to the polls"). The Saturday screen's handoffs:
+ * the coach's plan uploaded, a part marked done.
+ */
+export async function tellWeekAdmins(supabase: Db, weekStart: string, actorId: string | null, copy: { title: string; body: string }): Promise<number> {
+  const { notifyAthlete } = await import('@/lib/push');
+  const { data: admins } = await supabase.from('athletes').select('id').or('role.eq.admin,is_super_user.eq.true');
+  let sent = 0;
+  for (const a of (admins ?? []).filter((x: { id: string }) => x.id !== actorId)) {
+    const r = await notifyAthlete({
+      athleteId: a.id, kind: 'week_setup_done', actorAthleteId: actorId, url: `/dashboard/week?week=${weekStart}`, category: 'management',
+      title: copy.title, body: copy.body,
+    }).catch(() => null);
+    sent += r?.delivered ?? 0;
+  }
+  return sent;
+}
+
+/** A verified caller (no name on it) as the log's "who". */
+export async function whoOf(supabase: Db, athleteId: string | null): Promise<{ athleteId: string | null; name: string }> {
+  if (!athleteId) return { athleteId: null, name: 'מדרגות' };
+  const { data } = await supabase.from('athletes').select('name').eq('id', athleteId).maybeSingle();
+  return { athleteId, name: (data?.name as string | undefined) || 'מדרגות' };
+}

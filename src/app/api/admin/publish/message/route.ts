@@ -1,4 +1,8 @@
 import { NextResponse } from 'next/server';
+import { logWeek } from '@/lib/week-setup/server';
+import { israelToday } from '@/lib/utils';
+import { weekOfAction } from '@/lib/week-setup/log';
+import { israelParts } from '@/lib/week-setup/model';
 import { createServerClient } from '@/lib/supabase/server';
 import { publishGate } from '@/lib/access/publish-gate';
 import { resolveAudience, sendPushLocalized } from '@/lib/push';
@@ -30,6 +34,9 @@ export async function POST(request: Request) {
   const scheduleAt = typeof b?.scheduleAt === 'string' && !Number.isNaN(Date.parse(b.scheduleAt)) && Date.parse(b.scheduleAt) > Date.now() + 60000
     ? new Date(b.scheduleAt).toISOString() : null;
   const db = createServerClient();
+  // In the week's log: a Saturday's message is the coming week's; a scheduled one, its day's week (lib/week-setup, 10-24).
+  const logMessage = () => logWeek(db, scheduleAt ? weekOfAction(israelParts(scheduleAt).date) : weekOfAction(israelToday()),
+    { athleteId: g.user.athleteId ?? null, name: g.user.name ?? '' }, 'message', 'message_sent', text.split('\n')[0].slice(0, 60));
   // "נעוץ בראש הפיד" (161). Not for a scheduled message: its post does not exist yet.
   const pin = scheduleAt ? null : pinUntil(readPinChoice(b?.pin), new Date(), { date: typeof b?.pinDate === 'string' ? b.pinDate : null });
   try {
@@ -37,6 +44,7 @@ export async function POST(request: Request) {
     if (b?.push === false) {
       const id = await publishClubPost(db, { body: text, media: imageUrl ? [{ path: '', url: imageUrl, w: null, h: null }] : [], payload: { message: true } });
       if (pin && id) await pinPost(db, id, pin);
+      await logMessage();
       return NextResponse.json({ feedItemId: id, notifications: 0, sent: 0 });
     }
     const { title, body } = splitMessage(text);
@@ -62,6 +70,7 @@ export async function POST(request: Request) {
       await publishAnnouncement(db, created);
     }
     if (pin) { const id = await postWithText(db, text); if (id) await pinPost(db, id, pin); }
+    await logMessage();
     return NextResponse.json({ notifications: rows, sent, scheduled: !!scheduleAt });
   } catch (err) {
     console.error('[publish/message] failed:', err);

@@ -36,19 +36,29 @@ export function OwnerChip({ name, initials, color, me }: { name: string; initial
   );
 }
 
-export function WeekCard({ icon, color, title, owner, status, children, actions }: {
+export function WeekCard({ icon, color, title, owner, status, children, actions, step, trail, next }: {
   icon: LucideIcon; color: string; title: string; owner: ReactNode; status?: ReactNode; children?: ReactNode; actions?: ReactNode;
+  /** Its place in the Saturday's order (1–7). */
+  step?: number;
+  /** Who did it last, and when (lib/week-setup/log) — "✓ Yair · שבת 21:17 · התכנית עלתה". */
+  trail?: ReactNode;
+  /** It is "הבא בתור": framed, so the eye goes there first. */
+  next?: boolean;
 }) {
   return (
-    <section className="mx-4 mb-2.5 rounded-[22px] bg-card p-3.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+    <section className={cn('mx-4 mb-2.5 rounded-[22px] bg-card p-3.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]', next && 'shadow-[0_0_0_2px_#1525FF]')}>
       <div className="flex items-center gap-[11px]">
-        <Tile icon={icon} color={color} />
+        <span className="relative">
+          <Tile icon={icon} color={color} />
+          {step != null && <i className="absolute -end-1 -top-1 grid h-[18px] w-[18px] place-items-center rounded-full bg-ink-900 text-[10px] font-extrabold not-italic text-white">{step}</i>}
+        </span>
         <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
           <b className="text-base font-extrabold text-ink-900">{title}</b>
           {owner}
         </div>
         {status}
       </div>
+      {trail}
       {children}
       {actions && <div className="mt-3 flex gap-2">{actions}</div>}
     </section>
@@ -105,3 +115,13 @@ export const DAY_LONG: Record<'he' | 'en', string[]> = {
 export const dm = (iso: string) => `${Number(iso.slice(8, 10))}.${Number(iso.slice(5, 7))}`;
 export const hh = (h: number) => `${String(h).padStart(2, '0')}:00`;
 export const dowOf = (iso: string) => new Date(`${iso}T12:00:00Z`).getUTCDay();
+
+/** The line under a step's title: who did it last and when. */
+export function Trail({ done, name, when, what }: { done: boolean; name: string; when: string; what: string }) {
+  return (
+    <p className={cn('mt-2 flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[12.5px] font-bold', done ? 'bg-[#E8F6EE] text-[#15803d]' : 'bg-[#F2F3F6] text-ink-500')}>
+      <span aria-hidden>{done ? '✓' : '•'}</span>
+      <span className="min-w-0 truncate"><bdi>{name}</bdi> · <bdi dir="ltr">{when}</bdi> · {what}</span>
+    </p>
+  );
+}

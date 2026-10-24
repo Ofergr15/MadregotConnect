@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { israelDateTime } from '@/lib/survey-reminders';
 import { useLocale, useTranslations } from 'next-intl';
 import {
-  Apple, BarChart3, Bell, Check, ChevronLeft, ClipboardList, ExternalLink, Folder, Lock, MessageCircle, Pencil, Plus, Send, Star, Upload, Users,
+  Apple, BarChart3, Bell, Check, ChevronLeft, ClipboardList, ExternalLink, Folder, History, Lock, MessageCircle, Pencil, Plus, Send, Star, Upload, Users, Watch,
 } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
@@ -13,7 +13,8 @@ import { cn, getPlanWeekStart, israelToday } from '@/lib/utils';
 import { Sheet, Switch, SkeletonList, EmptyState } from '@/components/ui';
 import { SECTIONS, addDays, canEdit, israelHourToIso, type Owner, type Owners, type Section, type TimelineRow } from '@/lib/week-setup/model';
 import type { WeekSnapshot } from '@/lib/week-setup/server';
-import { Btn, Chips, DAY_LONG, DAY_SHORT, Field, OwnerChip, Pill, WeekCard, dm, dowOf, hh, inputCls, type Tone } from './parts';
+import { Btn, Chips, DAY_LONG, DAY_SHORT, Field, OwnerChip, Pill, Trail, WeekCard, dm, dowOf, hh, inputCls, type Tone } from './parts';
+import { STEPS, lastByStep, type LogEntry, type Step } from '@/lib/week-setup/log';
 
 /**
  * "תחילת שבוע" — the club's week set up in one screen (mockup ~/.cache/madregot/week-setup.html,
@@ -22,14 +23,23 @@ import { Btn, Chips, DAY_LONG, DAY_SHORT, Field, OwnerChip, Pill, WeekCard, dm, 
  * the owners' split (lib/week-setup/model canEdit). Everything here is changeable: the
  * automatic notifications for this week only, the photo folders before and after they are
  * made, the quality days, the polls.
+ *
+ * The flow (Ofer, 10-24: "we see who set what — Yair pushed the plan — and I know I can go
+ * on to the polls; really a flow"; mockup ~/.cache/madregot/mockups/week-setup-v2.html): the
+ * seven steps in their order, numbered, "הבא בתור" framed; under each, who did it and when
+ * (lib/week-setup/log); "מה קרה השבוע" for everyone at the top; and sending to the watches
+ * is the last step, after everything else.
  */
 
 type Me = { id: string | null; admin: boolean; coach: boolean; approver: boolean };
 type Data = WeekSnapshot & { me: Me };
 
-const COLORS: Record<Section, string> = {
-  workouts: '#1525FF', nutrition: '#B45309', quality: '#C2185B', notifications: '#6D28D9', polls: '#475569', message: '#15803d',
+const COLORS: Record<Step, string> = {
+  workouts: '#1525FF', nutrition: '#B45309', quality: '#C2185B', notifications: '#6D28D9', polls: '#475569', message: '#15803d', watches: '#0B5285',
 };
+
+/** A step's place, its last line and whether it is next — what every card is given. */
+type Meta = { step: number; trail: React.ReactNode; next: boolean };
 
 const firstName = (n: string) => n.trim().split(/\s+/)[0] || n;
 const initials = (n: string) => n.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
@@ -86,6 +96,22 @@ export function WeekSetup() {
   const list = (ss: Section[]) => ss.map((s) => t(`sec_${s}`)).join(' · ');
   const nextWeek = addDays(thisWeek, 7);
   const range = (ws: string) => `${Number(ws.slice(8, 10))}–${dm(addDays(ws, 6))}`;
+  // Who did what (lib/week-setup/log): the last line of each step, and the step that is next.
+  const last = lastByStep(data.log);
+  const when = (iso: string) => new Date(iso).toLocaleString(lang === 'he' ? 'he-IL' : 'en-GB', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  const actLabel = (e: LogEntry) => `${t(`act_${e.action}`)}${e.detail ? ` · ${e.detail}` : ''}`;
+  const meta = (st: Step): Meta => {
+    const e = last[st];
+    return {
+      step: STEPS.indexOf(st) + 1,
+      next: data.readiness.next === st,
+      trail: e ? <Trail done={e.action !== 'unskipped'} name={firstName(e.name)} when={when(e.at)} what={actLabel(e)} /> : null,
+    };
+  };
+  const skippedNow = (st: Step) => last[st]?.action === 'skipped';
+  const skipBtn = (st: Step) => (
+    <Btn kind="sec" onClick={() => run(send('/api/week-setup/skip', 'POST', { week, step: st, undo: skippedNow(st) }))}>{skippedNow(st) ? t('unskip') : t('skipWeek')}</Btn>
+  );
 
   return (
     <div className="pb-28">
@@ -110,22 +136,30 @@ export function WeekSetup() {
         <Progress r={data.readiness} t={t} />
       )}
 
-      {may('workouts') && <WorkoutsCard d={data} t={t} lang={lang} owner={ownerChip('workouts')} planner={planner} adminName={adminName}
+      <WeekLog entries={data.log} t={t} when={when} label={actLabel} />
+
+      {may('workouts') && <WorkoutsCard d={data} m={meta('workouts')} t={t} lang={lang} owner={ownerChip('workouts')} planner={planner} adminName={adminName}
+        doneAlready={!!data.log.some((e) => e.action === 'done' && e.by === me.id)}
         onDone={coachOnly ? () => run(send('/api/week-setup/done', 'POST', { week, sections: mine })) : undefined} />}
-      {may('nutrition') && <NutritionCard d={data} t={t} lang={lang} owner={ownerChip('nutrition')} onUpload={(f) => run(uploadNutrition(data, f))} />}
-      {may('quality') && <QualityCard d={data} t={t} lang={lang} owner={ownerChip('quality')} onOpenFolder={setFolderDate}
+      {may('nutrition') && <NutritionCard d={data} m={meta('nutrition')} t={t} lang={lang} owner={ownerChip('nutrition')} onUpload={(f) => run(uploadNutrition(data, f))}
+        skip={!data.pdf.nutrition ? skipBtn('nutrition') : undefined} />}
+      {may('quality') && <QualityCard d={data} m={meta('quality')} t={t} lang={lang} owner={ownerChip('quality')} onOpenFolder={setFolderDate}
         onSave={(days) => run(send('/api/quality-session/plan-days', 'PUT', { week, days }))}
         onCreate={(date, name) => run(send('/api/social/folders', 'POST', { date, name }))} />}
-      {may('notifications') && <NotificationsCard d={data} t={t} lang={lang} owner={ownerChip('notifications')} onOpen={setNotif}
+      {may('notifications') && <NotificationsCard d={data} m={meta('notifications')} t={t} lang={lang} owner={ownerChip('notifications')} onOpen={setNotif}
         onToggle={(r, on) => run(send('/api/week-setup/override', 'PUT', { week, key: r.key, value: on ? null : { ...overrideOf(r), off: true } }))}
-        onApproveAll={() => run(approveAll(data.timeline))} />}
-      {may('polls') && <PollsCard d={data} t={t} lang={lang} owner={ownerChip('polls')} />}
+        onApproveAll={me.approver ? () => run(approveAll(data.timeline)) : undefined} />}
+      {may('polls') && <PollsCard d={data} m={meta('polls')} t={t} lang={lang} owner={ownerChip('polls')} skip={!data.polls.length ? skipBtn('polls') : undefined} />}
       {may('message') && (
-        <WeekCard icon={MessageCircle} color={COLORS.message} title={t('sec_message')} owner={ownerChip('message')}
-          actions={<Btn kind="sec" icon={Plus} href="/dashboard/content/publish?type=message">{t('writeMessage')}</Btn>}>
+        <WeekCard icon={MessageCircle} color={COLORS.message} title={t('sec_message')} owner={ownerChip('message')} {...meta('message')}
+          actions={<>
+            <Btn kind="sec" icon={Plus} href="/dashboard/content/publish?type=message">{t('writeMessage')}</Btn>
+            {!data.log.some((e) => e.step === 'message' && e.action === 'message_sent') && skipBtn('message')}
+          </>}>
           <p className="mt-[9px] text-[13.5px] leading-relaxed text-ink-500">{t('messageLead')}</p>
         </WeekCard>
       )}
+      {may('workouts') && <WatchesCard d={data} m={meta('watches')} t={t} owner={ownerChip('workouts')} planner={planner} />}
 
       {others.length > 0 && (
         <div className="mx-5 mt-1 flex items-center gap-[7px] text-[12.5px] text-ink-400">
@@ -147,7 +181,7 @@ export function WeekSetup() {
 
       <OwnersSheet open={ownersOpen} onClose={() => setOwnersOpen(false)} owners={data.owners} coachName={coachName} adminName={adminName} t={t}
         onSave={async (o) => { if (await run(send('/api/week-setup/owners', 'PUT', { owners: o }))) setOwnersOpen(false); }} />
-      <NotifSheet row={notif} d={data} t={t} lang={lang} week={week} onClose={() => setNotif(null)} run={run} />
+      <NotifSheet row={notif} d={data} t={t} lang={lang} week={week} approver={me.approver} onClose={() => setNotif(null)} run={run} />
       <FolderSheet date={folderDate} d={data} t={t} lang={lang} onClose={() => setFolderDate(null)} run={run} />
 
       {toast && (
@@ -173,6 +207,8 @@ function overrideOf(r: TimelineRow) {
   return {
     title: r.title !== r.defaultTitle ? r.title : undefined,
     body: r.body !== r.defaultBody ? r.body : undefined,
+    // Kept: turning it off and back on used to drop an hour change made to it (10-24).
+    hour: r.changed ? r.hour : undefined,
   };
 }
 
@@ -208,6 +244,7 @@ function Progress({ r, t }: { r: WeekSnapshot['readiness']; t: T }) {
       </div>
       <div className="min-w-0">
         <b className="block text-base font-extrabold text-ink-900">{ready ? t('ready') : t('notReady')}</b>
+        {!ready && r.next && <span className="block text-13 font-bold leading-snug text-brand-600">{t('next', { what: t(`miss_${r.next}`) })}</span>}
         {!ready && <span className="text-13 leading-snug text-ink-400">{t('missing', { list: r.missing.map((s) => t(`miss_${s}`)).join(' · ') })}</span>}
       </div>
     </div>
@@ -218,17 +255,18 @@ function Progress({ r, t }: { r: WeekSnapshot['readiness']; t: T }) {
 
 const PLAN_TONE: Record<WeekSnapshot['plan']['status'], Tone> = { none: 'todo', draft: 'warn', partial: 'warn', pushed: 'ok' };
 
-function WorkoutsCard({ d, t, lang, owner, planner, adminName, onDone }: { d: WeekSnapshot; t: T; lang: Lang; owner: React.ReactNode; planner: string; adminName: string; onDone?: () => Promise<boolean> }) {
-  const [done, setDone] = useState(false);
+function WorkoutsCard({ d, m, t, lang, owner, planner, adminName, onDone, doneAlready }: { d: WeekSnapshot; m: Meta; t: T; lang: Lang; owner: React.ReactNode; planner: string; adminName: string; onDone?: () => Promise<boolean>; doneAlready: boolean }) {
+  // Kept in the week's log, so it is still "sent" after a reload (it used to be this tap's state).
+  const [done, setDone] = useState(doneAlready);
+  useEffect(() => { setDone(doneAlready); }, [doneAlready]);
   const created = d.plan.createdAt ? new Date(d.plan.createdAt).toLocaleString(lang === 'he' ? 'he-IL' : 'en-GB', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit' }) : null;
   return (
     <>
       <div className="h-2.5" />
-      <WeekCard icon={ClipboardList} color={COLORS.workouts} title={t('sec_workouts')} owner={owner} status={<Pill tone={PLAN_TONE[d.plan.status]}>{t(`plan_${d.plan.status}`)}</Pill>}
-        actions={<>
-          {d.plan.status !== 'pushed' && <Btn icon={Send} href={planner}>{t('sendWatches')}</Btn>}
-          <Btn kind="sec" href={planner}>{t('openPlanner')}</Btn>
-        </>}>
+      {/* Sending to the watches is the last step now (WatchesCard), after everything else. */}
+      <WeekCard icon={ClipboardList} color={COLORS.workouts} title={t('sec_workouts')} owner={owner} {...m}
+        status={<Pill tone={d.plan.status === 'none' ? 'todo' : 'ok'}>{d.plan.status === 'none' ? t('plan_none') : t('act_plan_uploaded')}</Pill>}
+        actions={<Btn kind={d.plan.status === 'none' ? 'pri' : 'sec'} href={planner}>{t('openPlanner')}</Btn>}>
         <div className="mt-3 flex gap-1">
           {d.days.map((day) => {
             const km = day.sessions.reduce((a, s) => a + s.km, 0);
@@ -263,13 +301,13 @@ function WorkoutsCard({ d, t, lang, owner, planner, adminName, onDone }: { d: We
 
 // ── nutrition ───────────────────────────────────────────────────────────────────────
 
-function NutritionCard({ d, t, lang, owner, onUpload }: { d: WeekSnapshot; t: T; lang: Lang; owner: React.ReactNode; onUpload: (f: File) => Promise<boolean> }) {
+function NutritionCard({ d, m, t, lang, owner, onUpload, skip }: { d: WeekSnapshot; m: Meta; t: T; lang: Lang; owner: React.ReactNode; onUpload: (f: File) => Promise<boolean>; skip?: React.ReactNode }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   // The days that have something to eat around: a team day, a one-day session, or guidance already written.
   const days = d.days.filter((x) => x.team || x.daySession || x.sessions.some((s) => s.km >= 20));
   return (
-    <WeekCard icon={Apple} color={COLORS.nutrition} title={t('sec_nutrition')} owner={owner}
+    <WeekCard icon={Apple} color={COLORS.nutrition} title={t('sec_nutrition')} owner={owner} {...m} actions={skip}
       status={<Pill tone={d.pdf.nutrition ? 'ok' : 'todo'}>{d.pdf.nutrition ? t('pdfThere') : t('pdfMissing')}</Pill>}>
       <input ref={input} type="file" accept="application/pdf" className="hidden"
         onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setBusy(true); await onUpload(f); setBusy(false); }} />
@@ -305,8 +343,8 @@ function NutritionCard({ d, t, lang, owner, onUpload }: { d: WeekSnapshot; t: T;
 
 // ── quality days and folders ────────────────────────────────────────────────────────
 
-function QualityCard({ d, t, lang, owner, onSave, onOpenFolder, onCreate }: {
-  d: WeekSnapshot; t: T; lang: Lang; owner: React.ReactNode;
+function QualityCard({ d, m, t, lang, owner, onSave, onOpenFolder, onCreate }: {
+  d: WeekSnapshot; m: Meta; t: T; lang: Lang; owner: React.ReactNode;
   onSave: (days: number[]) => Promise<boolean>; onOpenFolder: (date: string) => void; onCreate: (date: string, name: string) => Promise<boolean>;
 }) {
   const [days, setDays] = useState<number[]>(d.qualityDays);
@@ -316,7 +354,7 @@ function QualityCard({ d, t, lang, owner, onSave, onOpenFolder, onCreate }: {
   const status = d.qualityPicked ? <Pill tone="ok">{d.qualityDays.map((k) => DAY_SHORT[lang][k]).join(' · ') || '—'}</Pill>
     : <Pill tone={d.qualityDays.length ? 'warn' : 'todo'}>{d.qualityDays.length ? t('qualityGuessed') : t('qualityNone')}</Pill>;
   return (
-    <WeekCard icon={Star} color={COLORS.quality} title={t('sec_quality')} owner={owner} status={status}
+    <WeekCard icon={Star} color={COLORS.quality} title={t('sec_quality')} owner={owner} status={status} {...m}
       actions={dirty ? <Btn icon={Check} onClick={() => onSave(days)}>{t('saveQuality')}</Btn> : undefined}>
       <p className="mt-[9px] text-[13.5px] leading-relaxed text-ink-500">{t('qualityLead')}</p>
       <div className="mt-2.5 flex flex-wrap gap-1.5">
@@ -399,15 +437,17 @@ function FolderSheet({ date, d, t, lang, onClose, run }: { date: string | null; 
 
 const STATE_TONE: Record<TimelineRow['state'], Tone> = { sent: 'ok', off: 'pause', approve: 'warn', skipped: 'pause', scheduled: 'auto' };
 
-function NotificationsCard({ d, t, lang, owner, onOpen, onToggle, onApproveAll }: {
-  d: WeekSnapshot; t: T; lang: Lang; owner: React.ReactNode; onOpen: (r: TimelineRow | 'new') => void; onToggle: (r: TimelineRow, on: boolean) => void; onApproveAll: () => void;
+function NotificationsCard({ d, m, t, lang, owner, onOpen, onToggle, onApproveAll }: {
+  d: WeekSnapshot; m: Meta; t: T; lang: Lang; owner: React.ReactNode; onOpen: (r: TimelineRow | 'new') => void; onToggle: (r: TimelineRow, on: boolean) => void;
+  /** Only for who may approve (it failed quietly for everyone else, 10-24). */
+  onApproveAll?: () => void;
 }) {
   const pending = d.timeline.filter((r) => r.state === 'approve').length;
   return (
-    <WeekCard icon={Bell} color={COLORS.notifications} title={t('sec_notifications')} owner={owner}
+    <WeekCard icon={Bell} color={COLORS.notifications} title={t('sec_notifications')} owner={owner} {...m}
       status={pending ? <Pill tone="warn">{t('toApprove', { n: pending })}</Pill> : undefined}
       actions={<>
-        {pending > 0 && <Btn icon={Check} onClick={onApproveAll}>{t('approveAll')}</Btn>}
+        {pending > 0 && onApproveAll && <Btn icon={Check} onClick={onApproveAll}>{t('approveAll')}</Btn>}
         <Btn kind="sec" icon={Plus} onClick={() => onOpen('new')}>{t('addNotif')}</Btn>
       </>}>
       <div className="mt-2">
@@ -440,8 +480,8 @@ function NotificationsCard({ d, t, lang, owner, onOpen, onToggle, onApproveAll }
 
 const audKey = (a: string) => (a === 'all' || a === 'noAnswer' || a === 'ranThisWeek' ? a : a === 'group' ? 'group' : 'all');
 
-function NotifSheet({ row, d, t, lang, week, onClose, run }: {
-  row: TimelineRow | 'new' | null; d: WeekSnapshot; t: T; lang: Lang; week: string; onClose: () => void; run: (p: Promise<boolean>) => Promise<boolean>;
+function NotifSheet({ row, d, t, lang, week, approver, onClose, run }: {
+  row: TimelineRow | 'new' | null; d: WeekSnapshot; t: T; lang: Lang; week: string; approver: boolean; onClose: () => void; run: (p: Promise<boolean>) => Promise<boolean>;
 }) {
   const isNew = row === 'new';
   const r = row && row !== 'new' ? row : null;
@@ -517,9 +557,9 @@ function NotifSheet({ row, d, t, lang, week, onClose, run }: {
             {auto && !story && r.state !== 'sent' && <>
               <Btn icon={Check} onClick={async () => {
                 const ok = await slot({ ...value(), off: r.state === 'off' ? true : undefined });
-                const approved = r.state === 'approve' ? await send('/api/notifications/approvals', 'POST', { date: addDays(r.date, 1), action: 'approve' }) : true;
+                const approved = r.state === 'approve' && approver ? await send('/api/notifications/approvals', 'POST', { date: addDays(r.date, 1), action: 'approve' }) : true;
                 done(await run(Promise.resolve(ok && approved)));
-              }}>{r.state === 'approve' ? t('approveSave') : t('save')}</Btn>
+              }}>{r.state === 'approve' && approver ? t('approveSave') : t('save')}</Btn>
               {r.stage === 'dayBefore' && <Btn kind="sec" icon={Send} disabled={!title.trim() || !body.trim()} onClick={async () => {
                 // Sent now in its place, so the automatic one stays quiet this week.
                 const ok = await sendNow();
@@ -552,15 +592,15 @@ function NotifSheet({ row, d, t, lang, week, onClose, run }: {
 
 // ── polls ───────────────────────────────────────────────────────────────────────────
 
-function PollsCard({ d, t, lang, owner }: { d: WeekSnapshot; t: T; lang: Lang; owner: React.ReactNode }) {
+function PollsCard({ d, m, t, lang, owner, skip }: { d: WeekSnapshot; m: Meta; t: T; lang: Lang; owner: React.ReactNode; skip?: React.ReactNode }) {
   // What is in the air this week and how many answered (mockup polls-proposal, 10-20). The
   // fixed weekly pack poll is gone: "מגיעים מחר?" asks attendance; a poll is any other question.
   const open = d.polls.filter((p) => p.open);
   const day = (iso: string) => { const x = israelDateTime(iso); return `${DAY_LONG[lang][x.dow]} ${x.time}`; };
   return (
-    <WeekCard icon={BarChart3} color={COLORS.polls} title={t('sec_polls')} owner={owner}
+    <WeekCard icon={BarChart3} color={COLORS.polls} title={t('sec_polls')} owner={owner} {...m}
       status={<Pill tone={open.length ? 'ok' : 'pause'}>{open.length ? t('pollsOpenCount', { n: open.length }) : t('pollsNoneShort')}</Pill>}
-      actions={<Btn kind="sec" icon={Plus} href="/dashboard/content/publish?type=survey">{t('newPoll')}</Btn>}>
+      actions={<><Btn kind="sec" icon={Plus} href="/dashboard/content/publish?type=survey">{t('newPoll')}</Btn>{skip}</>}>
       {!d.polls.length && <p className="mt-[9px] text-[13.5px] leading-relaxed text-ink-500">{t('pollsNone')}</p>}
       <div className="mt-2">
         {d.polls.map((p) => (
@@ -576,6 +616,50 @@ function PollsCard({ d, t, lang, owner }: { d: WeekSnapshot; t: T; lang: Lang; o
         ))}
       </div>
     </WeekCard>
+  );
+}
+
+// ── the watches: the last step ──────────────────────────────────────────────────────
+
+function WatchesCard({ d, m, t, owner, planner }: { d: WeekSnapshot; m: Meta; t: T; owner: React.ReactNode; planner: string }) {
+  // Everything before it that is still open — sending is meant for after (Ofer, 10-24).
+  const before = d.readiness.missing.filter((s) => s !== 'watches');
+  return (
+    <WeekCard icon={Watch} color={COLORS.watches} title={t('sec_watches')} owner={owner} {...m}
+      status={<Pill tone={PLAN_TONE[d.plan.status]}>{t(`plan_${d.plan.status}`)}</Pill>}
+      actions={d.plan.status !== 'pushed' && d.plan.status !== 'none' ? <Btn icon={Send} href={planner}>{t('watchesOpen')}</Btn> : undefined}>
+      <p className="mt-[9px] text-[13.5px] leading-relaxed text-ink-500">{t('watchesLead')}</p>
+      {before.length > 0 && d.plan.status !== 'pushed' && (
+        <p className="mt-1.5 text-[12.5px] font-bold text-[#B45309]">{t('watchesWaiting', { list: before.map((s) => t(`miss_${s}`)).join(' · ') })}</p>
+      )}
+    </WeekCard>
+  );
+}
+
+// ── what happened this week ─────────────────────────────────────────────────────────
+
+function WeekLog({ entries, t, when, label }: { entries: LogEntry[]; t: T; when: (iso: string) => string; label: (e: LogEntry) => string }) {
+  const [all, setAll] = useState(false);
+  const list = [...entries].reverse();
+  const shown = all ? list : list.slice(0, 4);
+  return (
+    <section className="mx-4 mb-2.5 mt-2.5 rounded-[22px] bg-card px-3.5 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+      <div className="flex items-center gap-2">
+        <History className="h-4 w-4 text-ink-500" />
+        <b className="flex-1 text-[14.5px] font-extrabold text-ink-900">{t('logTitle')}</b>
+        {list.length > 4 && <button type="button" onClick={() => setAll((v) => !v)} className="min-h-[32px] text-[12.5px] font-bold text-brand-600">{all ? t('logLess') : t('logAll', { n: list.length })}</button>}
+      </div>
+      {!list.length && <p className="mt-1.5 text-[12.5px] text-ink-400">{t('logEmpty')}</p>}
+      <ol className="mt-1.5">
+        {shown.map((e, i) => (
+          <li key={`${e.at}-${i}`} className="flex items-baseline gap-2 border-b border-[#F3F4F6] py-[7px] text-[13px] last:border-0">
+            <span className="w-[74px] shrink-0 text-[11.5px] font-bold text-ink-400"><bdi dir="ltr">{when(e.at)}</bdi></span>
+            <span className="min-w-0 flex-1"><b className="font-extrabold text-ink-900"><bdi>{firstName(e.name)}</bdi></b> · {label(e)}</span>
+            <span className="shrink-0 text-[11px] font-bold text-ink-300">{t(`sec_${e.step}`)}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 

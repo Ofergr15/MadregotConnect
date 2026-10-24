@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireStaffCaller } from '@/lib/auth/self-or-staff';
 import { israelToday } from '@/lib/utils';
 import { canEdit, withOverride, OVERRIDES_KEY, type NotifOverride } from '@/lib/week-setup/model';
-import { loadOverrides, loadOwners, writeSetting } from '@/lib/week-setup/server';
+import { loadOverrides, loadOwners, writeSetting, logWeek, whoOf } from '@/lib/week-setup/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +32,8 @@ export async function PUT(request: Request) {
   try {
     const store = await loadOverrides(supabase);
     await writeSetting(supabase, OVERRIDES_KEY, withOverride(store, week, key, value, israelToday()));
+    await logWeek(supabase, week, await whoOf(supabase, caller.athleteId), 'notifications', 'notif_changed',
+      !value ? 'חזרה לברירת המחדל' : value.off ? 'כובתה השבוע' : value.title?.slice(0, 60) || value.body?.slice(0, 60) || (value.hour != null ? `שעה ${value.hour}:00` : undefined));
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error('[week-setup] override failed:', error);

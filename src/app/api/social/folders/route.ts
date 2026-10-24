@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { loadOwners, logWeek, weekStartOf } from '@/lib/week-setup/server';
+import { canEdit } from '@/lib/week-setup/model';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
 import { createFolderNow, socialWeek, updateDayFolder } from '@/lib/quality-session/photos-server';
@@ -24,10 +26,16 @@ async function gate(request: Request, min: 1 | 3 = 3) {
   if (!auth.user.isSuperUser && auth.user.role !== 'admin') {
     // The grant alone (not the role floor): coaches keep exactly what they had here.
     const grant = auth.user.athleteId ? (await readGrants(createServerClient()))[auth.user.athleteId] : undefined;
-    if (levelsFor({ role: 'runner' }, grant).photos < min) return { denied: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) } as const;
+    // …or the coach the admin gave the week's quality days and folders (lib/week-setup owners):
+    // the Saturday screen offers them the folder, and it failed (10-24).
+    const ownsQuality = min === 3 && auth.user.isStaff && canEdit('quality', await loadOwners(createServerClient()), { admin: false, coach: true });
+    if (levelsFor({ role: 'runner' }, grant).photos < min && !ownsQuality) return { denied: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) } as const;
   }
   return { auth } as const;
 }
+
+/** The plan week (Sunday) a day's folder belongs to. */
+const weekOfDate = (date: string) => weekStartOf(date);
 
 export async function GET(request: Request) {
   const g = await gate(request, 1);
@@ -58,6 +66,7 @@ export async function POST(request: Request) {
       ...(typeof body?.createAt === 'string' && AT.test(body.createAt) ? { createAt: body.createAt } : {}),
     });
     if (!folder) return NextResponse.json({ error: 'drive-not-configured' }, { status: 503 });
+    await logWeek(createServerClient(), weekOfDate(date), { athleteId: g.auth.user.athleteId, name: g.auth.user.name }, 'quality', 'folder_made', name);
     return NextResponse.json({ folder });
   } catch (err) {
     console.error('[social/folders] POST failed:', err);
@@ -80,6 +89,8 @@ export async function PATCH(request: Request) {
       tags: tagsOf(body?.tags),
       createAt: body?.createAt === null ? null : typeof body?.createAt === 'string' && AT.test(body.createAt) ? body.createAt : undefined,
     });
+    await logWeek(createServerClient(), weekOfDate(date), { athleteId: g.auth.user.athleteId, name: g.auth.user.name }, 'quality', 'folder_changed',
+      body?.skipped === true ? 'בלי תיקייה' : typeof body?.name === 'string' ? body.name.slice(0, 60) : undefined);
     return NextResponse.json({ folder });
   } catch (err) {
     console.error('[social/folders] PATCH failed:', err);

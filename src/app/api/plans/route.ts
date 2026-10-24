@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
+import { logWeek, tellWeekAdmins } from '@/lib/week-setup/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { revalidateWeeklyPlans } from '@/lib/plans/cache';
 import { requireSession, authError } from '@/lib/auth-session';
@@ -94,6 +95,19 @@ export async function POST(req: NextRequest) {
     // Athletes read the plan through a 300s-cached query; without this they keep
     // being told there is no plan for up to five minutes after there is one.
     revalidateWeeklyPlans();
+    // The club's week (not one runner's): in the week's log, and — when the coach uploaded it —
+    // the admins hear it is their turn (lib/week-setup, Ofer 10-24). After the reply.
+    if (!athlete_id) {
+      const who = { athleteId: auth.user.athleteId, name: auth.user.name };
+      const isAdmin = auth.user.isSuperUser || auth.user.role === 'admin' || !!auth.user.roles?.includes('admin');
+      after(async () => {
+        await logWeek(supabase, String(week_start_date), who, 'workouts', 'plan_uploaded', existing ? 'עודכנה' : undefined);
+        if (!isAdmin) await tellWeekAdmins(supabase, String(week_start_date), who.athleteId, {
+          title: `📋 התכנית לשבוע ${Number(String(week_start_date).slice(8, 10))}.${Number(String(week_start_date).slice(5, 7))} עלתה`,
+          body: `העלה: ${who.name} · אפשר להמשיך בסידור השבוע — תזונה, ימי איכות, התראות וסקרים`,
+        });
+      });
+    }
     return NextResponse.json({ plan: data }, { status: 201 });
   } catch (error: any) {
     console.error('Create plan error:', error);

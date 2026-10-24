@@ -80,9 +80,35 @@ describe('israelHourToIso', () => {
   });
 });
 
-describe('readiness', () => {
-  it('counts what is done and names what is missing', () => {
-    expect(readiness({ planStatus: 'draft', nutritionPdf: true, qualityPicked: false, toApprove: 2 }))
-      .toEqual({ done: 1, total: 4, missing: ['workouts', 'quality', 'notifications'] });
+describe("readiness — the Saturday's seven steps, the watches last (10-24)", () => {
+  it('counts all seven, in order, and names the next one', () => {
+    expect(readiness({ planStatus: 'draft', nutrition: true, qualityPicked: false, toApprove: 2, polls: false, message: false }))
+      .toEqual({ done: 2, total: 7, missing: ['quality', 'notifications', 'polls', 'message', 'watches'], next: 'quality' });
+  });
+  it('the watches are done only once the whole week reached them', () => {
+    const all = { nutrition: true, qualityPicked: true, toApprove: 0, polls: true, message: true };
+    expect(readiness({ planStatus: 'partial', ...all })).toMatchObject({ done: 6, next: 'watches' });
+    expect(readiness({ planStatus: 'pushed', ...all })).toMatchObject({ done: 7, missing: [], next: null });
+    expect(readiness({ planStatus: 'none', ...all })).toMatchObject({ next: 'workouts' });
+  });
+});
+
+describe('the week\'s log — who did what', () => {
+  it('appends, keeps five weeks, and gives the last entry per step', async () => {
+    const { withEntry, lastByStep, skipped } = await import('@/lib/week-setup/log');
+    const e = (at: string, step: 'workouts' | 'polls', action: 'plan_uploaded' | 'skipped' | 'poll_created', name = 'Yair') => ({ at, by: 'a1', name, step, action } as const);
+    let store = withEntry({ '2026-09-06': [e('2026-09-05T18:00:00Z', 'workouts', 'plan_uploaded')] }, '2026-10-25', e('2026-10-24T18:17:00Z', 'workouts', 'plan_uploaded'), '2026-10-24');
+    expect(Object.keys(store)).toEqual(['2026-10-25']);
+    store = withEntry(store, '2026-10-25', e('2026-10-24T19:00:00Z', 'polls', 'skipped', 'Ofer'), '2026-10-24');
+    expect(lastByStep(store['2026-10-25']).workouts?.name).toBe('Yair');
+    expect(skipped(store['2026-10-25'], 'polls')).toBe(true);
+    store = withEntry(store, '2026-10-25', e('2026-10-24T19:05:00Z', 'polls', 'poll_created', 'Ofer'), '2026-10-24');
+    expect(skipped(store['2026-10-25'], 'polls')).toBe(false);
+  });
+  it("a Saturday's work is for the week that starts the next morning", async () => {
+    const { weekOfAction } = await import('@/lib/week-setup/log');
+    expect(weekOfAction('2026-10-24')).toBe('2026-10-25'); // Saturday
+    expect(weekOfAction('2026-10-25')).toBe('2026-10-25'); // Sunday
+    expect(weekOfAction('2026-10-30')).toBe('2026-10-25'); // Friday
   });
 });

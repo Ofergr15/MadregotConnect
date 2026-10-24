@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaffCaller } from '@/lib/auth/self-or-staff';
-import { notifyAthlete } from '@/lib/push';
+import { logWeek, tellWeekAdmins } from '@/lib/week-setup/server';
 import { SECTIONS, type Section } from '@/lib/week-setup/model';
 
 export const dynamic = 'force-dynamic';
@@ -19,15 +19,9 @@ export async function POST(request: Request) {
   if (!week || sections.length === 0) return NextResponse.json({ error: 'week and sections are required' }, { status: 400 });
   const supabase = createServerClient();
   const { data: me } = caller.athleteId ? await supabase.from('athletes').select('name').eq('id', caller.athleteId).maybeSingle() : { data: null };
-  const { data: admins } = await supabase.from('athletes').select('id').or('role.eq.admin,is_super_user.eq.true');
   const what = sections.map((s: Section) => LABEL[s]).join(' ו');
-  let sent = 0;
-  for (const a of (admins ?? []).filter((x: { id: string }) => x.id !== caller.athleteId)) {
-    const r = await notifyAthlete({
-      athleteId: a.id, kind: 'week_setup_done', actorAthleteId: caller.athleteId, url: `/dashboard/week?week=${week}`, category: 'management',
-      title: `${me?.name || 'המאמן'}: ${what} לשבוע מוכנים ✅`, body: 'פותחים את "תחילת שבוע" ומשלימים את השאר',
-    }).catch(() => null);
-    sent += r?.delivered ?? 0;
-  }
+  // Kept in the week's log, so the screen shows it after a reload too (it used to be the tap's own state).
+  await logWeek(supabase, week, { athleteId: caller.athleteId, name: me?.name || 'המאמן' }, sections[0] as Section, 'done', what);
+  const sent = await tellWeekAdmins(supabase, week, caller.athleteId, { title: `${me?.name || 'המאמן'}: ${what} לשבוע מוכנים ✅`, body: 'פותחים את "סידור השבוע" וממשיכים: התראות, סקרים וההודעה' });
   return NextResponse.json({ ok: true, sent });
 }

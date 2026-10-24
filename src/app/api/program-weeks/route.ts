@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { logWeek } from '@/lib/week-setup/server';
 import { requireSession, authError } from '@/lib/auth-session';
 
 export async function GET() {
@@ -120,5 +121,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // The nutrition PDF of the club's week, in the week's log (lib/week-setup, 10-24).
+  if (nutritionUrl) await logWeek(supabase, String(data?.week_start_date ?? rawStartDate).slice(0, 10), { athleteId: auth.user.athleteId, name: auth.user.name }, 'nutrition', 'nutrition_uploaded');
   return NextResponse.json(data, { status: 201 });
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logWeek, weekStartOf } from '@/lib/week-setup/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
 import { allAthleteIds } from '@/lib/push';
@@ -34,11 +35,11 @@ const hh = (h: number) => `${String(h).padStart(2, '0')}:00`;
 // the whole club. See lib/notifications/approval.ts.
 async function gate(request: Request) {
   const auth = await requireSession(request);
-  if (!auth.ok) return { denied: authError(auth), who: '' };
+  if (!auth.ok) return { denied: authError(auth), who: '', athleteId: null };
   if (!auth.user.canApprove && !auth.user.isSuperUser) {
-    return { denied: NextResponse.json({ error: 'Forbidden' }, { status: 403 }), who: '' };
+    return { denied: NextResponse.json({ error: 'Forbidden' }, { status: 403 }), who: '', athleteId: null };
   }
-  return { denied: null, who: auth.user.name || auth.user.email };
+  return { denied: null, who: auth.user.name || auth.user.email, athleteId: auth.user.athleteId };
 }
 
 export async function GET(request: Request) {
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const { denied, who } = await gate(request);
+  const { denied, who, athleteId } = await gate(request);
   if (denied) return denied;
   const body = await request.json().catch(() => ({}));
   const date = typeof body?.date === 'string' ? body.date : '';
@@ -67,6 +68,8 @@ export async function POST(request: Request) {
     const decision = action === 'reset' ? null
       : { status: action === 'approve' ? 'approved' as const : 'skipped' as const, by: who, at: new Date().toISOString() };
     await saveApprovals(supabase, withDecision(store, date, decision, israelToday()));
+    // The team day's week, in the week's log (lib/week-setup, 10-24).
+    if (action !== 'reset') await logWeek(supabase, weekStartOf(date), { athleteId, name: who }, 'notifications', action === 'approve' ? 'notif_approved' : 'notif_changed', action === 'skip' ? `לא לשלוח ל־${Number(date.slice(8, 10))}.${Number(date.slice(5, 7))}` : `${Number(date.slice(8, 10))}.${Number(date.slice(5, 7))}`);
     return NextResponse.json(await view(supabase));
   } catch (err) {
     console.error('[notifications/approvals] POST failed:', err);

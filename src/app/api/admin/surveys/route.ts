@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { logWeek } from '@/lib/week-setup/server';
+import { israelToday } from '@/lib/utils';
+import { weekOfAction } from '@/lib/week-setup/log';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireApprover } from '@/lib/auth/require-approver';
 import { publishGate } from '@/lib/access/publish-gate';
@@ -130,6 +133,8 @@ export async function POST(request: Request) {
       if (pin && feedItemId) await pinPost(createServerClient(), feedItemId, pin);
     }
 
+    // In the week's log — a Saturday's poll is for the coming week (lib/week-setup, 10-24).
+    await logWeek(createServerClient(), weekOfAction(israelToday()), { athleteId: g.user.athleteId ?? null, name: g.user.name ?? '' }, 'polls', 'poll_created', String(question_he || '').slice(0, 60));
     return NextResponse.json({ survey, sent, feedItemId, reminders, joinedAt: joinAt });
   } catch (err: unknown) {
     console.error('Failed to create survey:', err);

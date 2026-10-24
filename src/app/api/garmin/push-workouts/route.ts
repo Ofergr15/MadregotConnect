@@ -10,6 +10,7 @@ import { COACH_ID } from '@/lib/constants';
 import { deliveryFailedCopy } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
 import { authError, requireSession } from '@/lib/auth-session';
+import { logWeek } from '@/lib/week-setup/server';
 import { pushWeekToAthlete, type PushResult } from '@/lib/garmin/push-week';
 import { appleCandidates, deliverWeek, resolveWatchProvider } from '@/lib/watch';
 import { academyTraineesNotYours } from '@/lib/academy/pairing-server';
@@ -286,6 +287,8 @@ export async function POST(req: NextRequest) {
         const ok = results.filter((r) => r.status === 'success').length;
         const status = ok === results.length && wholeWeek === true ? 'pushed' : ok > 0 ? 'partial' : 'draft';
         await supabase.from('weekly_plans').update({ status }).eq('id', planId);
+        // Who sent it and how many it reached, in the week's log (lib/week-setup, 10-24).
+        await logWeek(supabase, weekStartDate, { athleteId: auth.user.athleteId, name: auth.user.name }, 'watches', 'plan_sent', `${ok}/${results.length}`);
       }
       return results;
     })();

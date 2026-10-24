@@ -14,6 +14,8 @@
  * is what actually goes out.
  */
 
+import type { Step } from './log';
+
 export const SECTIONS = ['workouts', 'nutrition', 'quality', 'notifications', 'polls', 'message'] as const;
 export type Section = (typeof SECTIONS)[number];
 export type Owner = 'coach' | 'admin' | 'both';
@@ -195,20 +197,31 @@ export function israelHourToIso(date: string, hour: number): string {
 
 // ── how ready the week is ───────────────────────────────────────────────────────────
 
-export interface Readiness { done: number; total: number; missing: Section[] }
+/**
+ * The Saturday's seven steps in their order (lib/week-setup/log STEPS), and the first one not
+ * done — "הבא בתור". Sending to the watches is last: nothing goes out to the runners before
+ * everything else is set (Ofer, 10-24). Nutrition, polls and the message may be set aside
+ * for a week ("not this week"), which counts as done.
+ */
+export interface Readiness { done: number; total: number; missing: Step[]; next: Step | null }
 
 export function readiness(x: {
   planStatus: 'none' | 'draft' | 'partial' | 'pushed';
-  nutritionPdf: boolean;
+  nutrition: boolean;
   qualityPicked: boolean;
   toApprove: number;
+  polls: boolean;
+  message: boolean;
 }): Readiness {
-  const checks: Array<[Section, boolean]> = [
-    ['workouts', x.planStatus === 'pushed'],
-    ['nutrition', x.nutritionPdf],
+  const checks: Array<[Step, boolean]> = [
+    ['workouts', x.planStatus !== 'none'],
+    ['nutrition', x.nutrition],
     ['quality', x.qualityPicked],
     ['notifications', x.toApprove === 0],
+    ['polls', x.polls],
+    ['message', x.message],
+    ['watches', x.planStatus === 'pushed'],
   ];
   const missing = checks.filter(([, ok]) => !ok).map(([s]) => s);
-  return { done: checks.length - missing.length, total: checks.length, missing };
+  return { done: checks.length - missing.length, total: checks.length, missing, next: missing[0] ?? null };
 }
