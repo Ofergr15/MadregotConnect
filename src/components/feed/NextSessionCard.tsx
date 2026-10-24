@@ -216,7 +216,9 @@ export function NextSessionCard() {
     // Nothing left this week to point at, but today's session is done: the ✓ alone.
     if (!doneToday) return null;
     return (
-      <div className="rounded-[26px] bg-card p-4 shadow-[0_0_0_0.5px_rgba(60,60,67,0.14),0_10px_28px_-14px_rgba(20,24,60,0.22)]">
+      // The same card, tighter (Ofer, 10-24: "I like the design — just compress it a bit"):
+      // the padding, the big line 28→24px, the gaps and the profile bar.
+      <div className="rounded-[26px] bg-card px-4 pb-3 pt-3 shadow-[0_0_0_0.5px_rgba(60,60,67,0.14),0_10px_28px_-14px_rgba(20,24,60,0.22)]">
         <DoneToday done={doneToday} divider={false} title={doneToday.session.name || t('today')} />
       </div>
     );
@@ -342,7 +344,7 @@ export function NextSessionCard() {
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: fill }} />
                 {whenWord} · {dayNames[s.dayOfWeek]}
               </span>
-              <span className="mt-0.5 block font-[ui-rounded,system-ui] text-[28px] font-bold leading-tight tracking-tight text-ink-900">
+              <span className="block font-[ui-rounded,system-ui] text-[24px] font-bold leading-tight tracking-tight text-ink-900">
                 {timeText || typeLabel}
               </span>
             </span>
@@ -374,12 +376,12 @@ export function NextSessionCard() {
               )}
             </span>
           </span>
-          <span className="mt-2 flex items-baseline justify-between gap-3">
+          <span className="mt-1 flex items-baseline justify-between gap-3">
             <span className="min-w-0 truncate text-lg font-extrabold text-ink-900">{numberRuns(timeText ? titleText : (nameQualifier(s.name, dayNames) || '')).map((r, i) => (r.ltr ? <bdi key={i} dir="ltr">{r.text}</bdi> : <span key={i}>{r.text}</span>))}</span>
             <span className="shrink-0 text-xs font-semibold text-ink-400"><bdi dir="ltr">{approx}{km}</bdi> {units.km}{s.durationSec ? <> · <bdi dir="ltr">{formatDurationClock(s.durationSec)}</bdi></> : null}</span>
           </span>
           {profile.length > 0 && (
-            <span className="mt-3 flex h-6 items-end gap-[2px]" aria-hidden>
+            <span className="mt-2 flex h-5 items-end gap-[2px]" aria-hidden>
               {profile.map((seg, i) => (
                 <span key={i} className="block rounded-t-[5px] rounded-b-[2px]" style={{ flexGrow: seg.share, flexBasis: 0, minWidth: 2, height: SEG_HEIGHT[seg.kind], background: SEG_COLOR[seg.kind] }} />
               ))}
@@ -387,8 +389,8 @@ export function NextSessionCard() {
           )}
         </button>
         {/* The week's plans, and a one-day session's own nutrition — only what exists. */}
-        <div className="mt-3 space-y-2 empty:hidden">
-          <SessionLinks weekStart={weekly!.currentWeekStart} hasClubPlan={weekly!.hasClubPlan ?? weekly!.hasPlan} daySession={s.daySession} />
+        <div className="mt-2.5 space-y-2 empty:hidden">
+          <SessionLinks compact weekStart={weekly!.currentWeekStart} hasClubPlan={weekly!.hasClubPlan ?? weekly!.hasPlan} daySession={s.daySession} />
         </div>
         {teamDay && (
           <SessionRsvp

@@ -14,7 +14,11 @@ import { planLinks, type DaySession, type NutritionWhen, type ProgramWeekLike } 
 
 const FOOD_ICON: Record<NutritionWhen, string> = { before: '🍌', during: '💧', after: '🥤' };
 
-export function SessionLinks({ weekStart, hasClubPlan, daySession }: { weekStart: string; hasClubPlan: boolean; daySession?: DaySessionMark }) {
+export function SessionLinks({ weekStart, hasClubPlan, daySession, compact = false }: {
+  weekStart: string; hasClubPlan: boolean; daySession?: DaySessionMark;
+  /** The feed's session card: 44px, the tap minimum, rather than 46 (10-24). */
+  compact?: boolean;
+}) {
   const t = useTranslations('daySession');
   const { data: weeks } = useApi<ProgramWeekLike[]>('/api/program-weeks');
   const { data: feed } = useApi<{ sessions: DaySession[] }>(daySession?.hasNutrition ? '/api/day-session' : null);
@@ -23,7 +27,7 @@ export function SessionLinks({ weekStart, hasClubPlan, daySession }: { weekStart
   const food = daySession ? feed?.sessions?.find((s) => s.date === daySession.date)?.nutrition ?? [] : [];
   if (!links.weekly && !links.nutrition && !food.length) return null;
 
-  const chip = 'flex min-h-[46px] flex-1 items-center justify-center gap-1.5 rounded-[14px] px-2 text-sm font-extrabold active:opacity-80';
+  const chip = `flex ${compact ? 'min-h-[44px]' : 'min-h-[46px]'} flex-1 items-center justify-center gap-1.5 rounded-[14px] px-2 text-sm font-extrabold active:opacity-80`;
   return (
     <>
       {(links.weekly || links.nutrition) && (
