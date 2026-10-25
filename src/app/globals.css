@@ -658,3 +658,12 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .mcl-progress{width:0;animation:mcl-progress 2.4s steps(6,end) forwards}
 @keyframes mcl-progress{to{width:92%}}
 @media (prefers-reduced-motion:reduce){.mcl-sharpen{animation:none;filter:none}.mcl-progress{animation:none;width:60%}}
+
+/* The feed week card's "הסיכום השבועי שלך" pill (FeedHighlightCard). */
+.wk-recap{background:linear-gradient(100deg,#1525FF,#6D28D9 55%,#1525FF);background-size:220% 100%;box-shadow:0 6px 16px -4px rgb(21 37 255 / .45);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .15s}
+.wk-recap:active{transform:scale(.96)}
+.wk-recap.live{animation:wk-recap-sh 2.6s linear infinite}
+.wk-recap.live .wk-recap-sp{animation:wk-recap-tw 1.6s ease-in-out infinite}
+@keyframes wk-recap-sh{to{background-position:-220% 0}}
+@keyframes wk-recap-tw{50%{transform:scale(1.25) rotate(12deg)}}
+@media (prefers-reduced-motion:reduce){.wk-recap.live,.wk-recap.live .wk-recap-sp{animation:none}}

@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
 import { Check, ChevronRight, X } from 'lucide-react';
 import { useApi } from '@/lib/api';
+import { OPEN_WEEK_STORY, SEEN_KEY } from '@/components/feed/CelebrationStories';
+import type { WeekStory as WeekStoryData } from '@/lib/week-story/server';
 import { formatWeekRange } from '@/lib/utils';
 import {
   WEEK_DAYS,
@@ -289,7 +291,11 @@ export function FeedHighlightCard() {
           : t('weekRemaining', { km: remaining, days: daysLeft });
 
   return (
-    <div className="bg-card rounded-card border border-page overflow-hidden">
+    <div className="relative bg-card rounded-card border border-page overflow-hidden">
+      {/* Saturday 12:00 – Sunday 20:00 only (the server answers a story only in that
+          window). Over the card's empty top-left corner, beside the eyebrow and the
+          number, so the card grows no taller; outside the Link so a tap opens the story. */}
+      <WeekRecapPill />
       <Link href="/dashboard/profile?tab=statistics" className="block px-4 pt-3.5 pb-4">
         {/* flex-wrap, and the range last: at 341px (the viewport 66cd0d25 was
             filed from) the eyebrow, a status pill and a date range may not fit on
@@ -347,5 +353,42 @@ export function FeedHighlightCard() {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * "✨ הסיכום השבועי שלך ›" at the card's top-left (Ofer 10-25): opens the week story that the
+ * feed's circle opens. Same SWR key as CelebrationStories, so no extra request. Shimmers
+ * until the story is seen (the circles' seen list), then sits still until the window closes.
+ */
+function WeekRecapPill() {
+  const { data } = useApi<{ story: WeekStoryData | null }>('/api/week-story');
+  const story = data?.story ?? null;
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    if (!story) return;
+    const key = `week:${story.window.weekEnd}`;
+    const read = () => {
+      try { setSeen((JSON.parse(localStorage.getItem(SEEN_KEY) ?? '[]') as string[]).includes(key)); } catch { /* private mode */ }
+    };
+    read();
+    window.addEventListener('focus', read);
+    return () => window.removeEventListener('focus', read);
+  }, [story]);
+  if (!story) return null;
+  const open = () => { setSeen(true); window.dispatchEvent(new Event(OPEN_WEEK_STORY)); };
+  return (
+    <button
+      type="button"
+      onClick={open}
+      className={`wk-recap absolute top-3 left-3 z-[1] flex flex-col items-start rounded-2xl px-3 py-1.5 text-start text-white ${seen ? '' : 'live'}`}
+    >
+      <span className="flex items-center gap-1 text-[13px] font-extrabold leading-[1.2]">
+        <span className="wk-recap-sp leading-none" aria-hidden>✨</span>הסיכום
+      </span>
+      <span className="flex items-center gap-0.5 text-[13px] font-extrabold leading-[1.2]">
+        השבועי שלך<ChevronRight className="h-3.5 w-3.5 rtl:rotate-180" strokeWidth={3} aria-hidden />
+      </span>
+    </button>
   );
 }

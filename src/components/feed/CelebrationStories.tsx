@@ -39,7 +39,8 @@ interface Entry {
   honorees: Array<{ id: string; name: string; avatarUrl: string | null }>;
 }
 
-const SEEN_KEY = 'mc:celebrations-seen';
+export const SEEN_KEY = 'mc:celebrations-seen';
+export const OPEN_WEEK_STORY = 'mc:open-week-story';
 /**
  * Set on the first tap on any circle (Ofer, 10-18: "people have to understand you tap
  * the circles, it is new"). Until then an unopened circle breathes and the first one
@@ -276,6 +277,12 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
   const [weekOpen, setWeekOpen] = useState(false);
   const fromPush = params?.get('weekStory') === '1';
   useEffect(() => { if (fromPush && week) setWeekOpen(true); }, [fromPush, week]);
+  // The "הסיכום השבועי שלך" pill on the feed's week card (FeedHighlightCard) opens it too.
+  useEffect(() => {
+    const go = () => setWeekOpen(true);
+    window.addEventListener(OPEN_WEEK_STORY, go);
+    return () => window.removeEventListener(OPEN_WEEK_STORY, go);
+  }, []);
   const entries = useMemo(() => data?.entries ?? [], [data]);
   const [seen, setSeen] = useState<string[]>([]);
   // True until read, so a returning member never sees the hint flash on load.
