@@ -340,7 +340,13 @@ export function WeekStory({ story, onClose, editable = false, own = true }: { st
     const summaryActs = (
       <div className="acts rise d2">
         {!collageShown && canVideo && <button type="button" className="v" onClick={() => void videoRef.current()} disabled={!!video}>🎬 סרטון לסטורי</button>}
-        <button type="button" className="p" onClick={() => void shareCardRef.current()} disabled={busy}>{busy ? 'מכין…' : clear ? 'שיתוף הכרטיס בלבד (שקוף)' : 'שיתוף הכרטיס בלבד'}</button>
+        <div className="wk-share-row">
+          <button type="button" className="p" onClick={() => void shareCardRef.current()} disabled={busy}>{busy ? 'מכין…' : clear ? 'שיתוף הכרטיס בלבד (שקוף)' : 'שיתוף הכרטיס בלבד'}</button>
+          {/* The colour (or transparent) right where you save it, not only behind 🎨 (Ofer 10-25). */}
+          <button type="button" className="wk-bg-go" onClick={() => setSheet('bg')} aria-label="צבע הכרטיס">
+            <i className="dot" style={clear ? undefined : themeVars(theme)} data-clear={clear || undefined} /> {clear ? 'שקוף' : 'צבע'}
+          </button>
+        </div>
         {!collageShown && <button type="button" onClick={() => void shareOneRef.current()} disabled={busy}>{clear ? 'שיתוף התמונה (רקע שקוף)' : 'שיתוף התמונה לסטורי'}</button>}
         {!collageShown && p && hidePack && <button type="button" onClick={() => void togglePack()}>להחזיר את שקף הדבוקה</button>}
       </div>

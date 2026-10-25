@@ -424,7 +424,7 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
         </div>
       </Sheet>
       {yearStory && <YearStory story={yearStory} onClose={() => setYearStory(null)} />}
-      {weekOpen && week && <WeekStory story={week} editable={isAdminAccount} onClose={() => { setWeekOpen(false); if (weekKey) markSeen(weekKey); }} />}
+      {weekOpen && week && <WeekStory story={week} editable={isAdminAccount} own={!ofOk} onClose={() => { setWeekOpen(false); if (weekKey) markSeen(weekKey); }} />}
     </section>
   );
 }

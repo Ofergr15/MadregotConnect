@@ -197,3 +197,8 @@
 .ys.wk .wk-poster{position:relative}
 .ys.wk .wk-poster .plogo{position:absolute;top:22px;left:18px;width:96px;height:auto;opacity:.95;pointer-events:none;z-index:2}
 .ys.wk .wk-poster{padding-bottom:18px}
+.ys.wk .acts .wk-share-row{display:flex;gap:8px;width:100%}
+.ys.wk .acts .wk-share-row .p{flex:1 1 auto;width:auto;min-width:0}
+.ys.wk .acts .wk-bg-go{flex:none;width:auto;height:54px;border-radius:17px;display:inline-flex;align-items:center;gap:7px;padding:0 16px;background:rgba(255,255,255,.16);color:#fff;font-weight:800;border:0}
+.ys.wk .acts .wk-bg-go .dot{display:inline-block;width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,var(--g1),var(--g2),var(--g3));border:2px solid #fff}
+.ys.wk .acts .wk-bg-go .dot[data-clear]{background:repeating-conic-gradient(#ccc 0 25%,#fff 0 50%) 0 0/8px 8px}
