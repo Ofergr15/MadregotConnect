@@ -240,6 +240,9 @@ export function FeedHighlightCard() {
   // inserting ~200px above the feed after the page has painted (perf trace
   // 2026-10-12). Silent on failure: the feed below is the page.
   const { data } = useApi<{ highlight: FeedHighlight | null }>('/api/feed/highlight');
+  // Whether the weekly-summary tile sits in the top-left corner (same key as WeekRecapPill).
+  const { data: wk } = useApi<{ story: WeekStoryData | null }>('/api/week-story');
+  const recap = !!wk?.story;
   const highlight = data?.highlight ?? null;
 
   useEffect(() => {
@@ -302,7 +305,7 @@ export function FeedHighlightCard() {
             one row, and the range is the part that can drop to a second line
             without cost. No `ms-auto` — end-aligning it would leave it stranded at
             the far edge of the second line when it does wrap. */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 ${recap ? 'pe-[124px]' : ''}`}>
           <span className="text-2xs font-bold text-ink-400">{t('weekEyebrow')}</span>
           <span
             className={`rounded-pill px-2 py-[2px] text-3xs font-bold ${STATUS_LOOK[status]}`}
