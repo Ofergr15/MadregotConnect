@@ -26,6 +26,7 @@ export async function GET(request: Request) {
       ...week_,
       log: me.admin ? week_.log : redactLog(week_.log, mine),
       polls: me.admin || mine.includes('polls') ? week_.polls : week_.polls.map((p) => ({ ...p, question: '' })),
+      plannedPolls: me.admin || mine.includes('polls') ? week_.plannedPolls : week_.plannedPolls.map((p) => ({ ...p, question: '', options: [] })),
       mine,
       me,
     });

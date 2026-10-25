@@ -15,6 +15,9 @@ import { SECTIONS, addDays, canEdit, israelHourToIso, type Owner, type Owners, t
 import type { WeekSnapshot } from '@/lib/week-setup/server';
 import { Btn, Chips, DAY_LONG, DAY_SHORT, Field, OwnerChip, Pill, Trail, WeekCard, dm, dowOf, hh, inputCls, type Tone } from './parts';
 import { STEPS, lastByStep, mineOf, weekOfAction, type LogEntry, type Step } from '@/lib/week-setup/log';
+import { pendingOf, type PlannedPoll } from '@/lib/week-setup/planned-polls';
+import { FOLDER_KINDS, KIND_LABEL, type FolderKind } from '@/lib/photos/folder-kind';
+import { MessageSheet, PollSheet } from './editors';
 
 /**
  * "תחילת שבוע" — the club's week set up in one screen (mockup ~/.cache/madregot/week-setup.html,
@@ -64,6 +67,9 @@ export function WeekSetup() {
   const [ownersOpen, setOwnersOpen] = useState(false);
   const [notif, setNotif] = useState<TimelineRow | 'new' | null>(null);
   const [folderDate, setFolderDate] = useState<string | null>(null);
+  // Stage 3: the poll (new, or one still waiting) and the message, edited in place.
+  const [pollOpen, setPollOpen] = useState<PlannedPoll | 'new' | null>(null);
+  const [msgOpen, setMsgOpen] = useState(false);
   useEffect(() => { if (!toast) return; const id = setTimeout(() => setToast(null), 2600); return () => clearTimeout(id); }, [toast]);
 
   const run = async (p: Promise<boolean>) => {
@@ -155,11 +161,12 @@ export function WeekSetup() {
       {may('notifications') && <NotificationsCard d={data} m={meta('notifications')} t={t} lang={lang} owner={ownerChip('notifications')} onOpen={setNotif}
         onToggle={(r, on) => run(send('/api/week-setup/override', 'PUT', { week, key: r.key, value: on ? null : { ...overrideOf(r), off: true } }))}
         onApproveAll={me.approver ? () => run(approveAll(data.timeline)) : undefined} />}
-      {may('polls') && <PollsCard d={data} m={meta('polls')} t={t} lang={lang} owner={ownerChip('polls')} skip={!data.polls.length ? skipBtn('polls') : undefined} />}
+      {may('polls') && <PollsCard d={data} m={meta('polls')} t={t} lang={lang} owner={ownerChip('polls')} onOpen={setPollOpen}
+        skip={!data.polls.length && !pendingOf(data.plannedPolls).length ? skipBtn('polls') : undefined} />}
       {may('message') && (
         <WeekCard icon={MessageCircle} color={COLORS.message} title={t('sec_message')} owner={ownerChip('message')} {...meta('message')}
           actions={<>
-            <Btn kind="sec" icon={Plus} href="/dashboard/content/publish?type=message">{t('writeMessage')}</Btn>
+            <Btn kind="sec" icon={Plus} onClick={() => setMsgOpen(true)}>{t('writeMessage')}</Btn>
             {!data.log.some((e) => e.step === 'message' && e.action === 'message_sent') && skipBtn('message')}
           </>}>
           <p className="mt-[9px] text-[13.5px] leading-relaxed text-ink-500">{t('messageLead')}</p>
@@ -199,7 +206,9 @@ export function WeekSetup() {
       <OwnersSheet open={ownersOpen} onClose={() => setOwnersOpen(false)} owners={data.owners} coachName={coachName} adminName={adminName} t={t}
         onSave={async (o) => { if (await run(send('/api/week-setup/owners', 'PUT', { owners: o }))) setOwnersOpen(false); }} />
       <NotifSheet row={notif} d={data} t={t} lang={lang} week={week} approver={me.approver} onClose={() => setNotif(null)} run={run} />
-      <FolderSheet date={folderDate} d={data} t={t} lang={lang} onClose={() => setFolderDate(null)} run={run} />
+      <FolderSheet date={folderDate} d={data} t={t} lang={lang} admin={me.admin} onClose={() => setFolderDate(null)} run={run} />
+      <PollSheet open={!!pollOpen} poll={pollOpen && pollOpen !== 'new' ? pollOpen : null} d={data} t={t} lang={lang} onClose={() => setPollOpen(null)} run={run} />
+      <MessageSheet open={msgOpen} d={data} t={t} lang={lang} onClose={() => setMsgOpen(false)} run={run} />
 
       {toast && (
         <div role="status" className={cn('fixed inset-x-0 bottom-[96px] z-50 mx-auto w-fit rounded-full px-4 py-2 text-sm font-bold text-white shadow-lg', toast.ok ? 'bg-ink-900' : 'bg-[#AD3838]')}>
@@ -415,13 +424,22 @@ function QualityCard({ d, m, t, lang, owner, onSave, onOpenFolder, onCreate }: {
   );
 }
 
-function FolderSheet({ date, d, t, lang, onClose, run }: { date: string | null; d: WeekSnapshot; t: T; lang: Lang; onClose: () => void; run: (p: Promise<boolean>) => Promise<boolean> }) {
+function FolderSheet({ date, d, t, lang, admin, onClose, run }: { date: string | null; d: WeekSnapshot; t: T; lang: Lang; admin: boolean; onClose: () => void; run: (p: Promise<boolean>) => Promise<boolean> }) {
   const day = date ? d.days.find((x) => x.date === date) : null;
   const f = date ? d.folders[date] : undefined;
   const [name, setName] = useState('');
   const [autoFeed, setAutoFeed] = useState(true);
   const [tell, setTell] = useState(true);
-  useEffect(() => { if (day) { setName(f?.name || day.folderName); setAutoFeed(f?.autoFeed !== false); setTell(!f?.toldAt); } }, [date]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [kind, setKind] = useState<FolderKind | ''>('');
+  const [tags, setTags] = useState('');
+  const [pinned, setPinned] = useState(false);
+  useEffect(() => { if (day) {
+    setName(f?.name || day.folderName); setAutoFeed(f?.autoFeed !== false); setTell(!f?.toldAt);
+    const x = f as unknown as { kind?: FolderKind; tags?: string[]; pinned?: boolean } | undefined;
+    setKind(x?.kind ?? ''); setTags((x?.tags ?? []).join(', ')); setPinned(!!x?.pinned);
+  } }, [date]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tagList = tags.split(/[,،]/).map((x) => x.trim().replace(/^#/, '')).filter(Boolean).slice(0, 6);
+  const extra = { ...(kind ? { kind } : {}), tags: tagList };
   if (!day) return <Sheet open={false} onOpenChange={() => {}} title="">{null}</Sheet>;
   const made = !!f?.folderId;
   const close = (ok: boolean) => { if (ok) onClose(); };
@@ -435,10 +453,26 @@ function FolderSheet({ date, d, t, lang, onClose, run }: { date: string | null; 
           <div className="mt-3 flex items-center justify-between text-sm font-semibold text-ink-900"><span>{t('tellEditors')}</span><Switch checked={tell} onChange={setTell} activeColor="bg-[#15803d]" /></div>
         )}
         <div className="mt-3 flex items-center justify-between text-sm font-semibold text-ink-900"><span>{t('autoFeed')}</span><Switch checked={autoFeed} onChange={setAutoFeed} activeColor="bg-[#15803d]" /></div>
+        <Field label={t('folderKind')}>
+          <div className="flex flex-wrap gap-1.5">
+            {FOLDER_KINDS.map((k) => (
+              <button key={k} type="button" onClick={() => setKind(kind === k ? '' : k)}
+                className={cn('min-h-[36px] rounded-xl px-3 text-[13px] font-bold', kind === k ? 'bg-ink-900 text-white' : 'bg-[#F2F3F6] text-ink-500')}>{KIND_LABEL[k]}</button>
+            ))}
+          </div>
+        </Field>
+        <Field label={t('folderTags')} hint={t('folderTagsHint')}><input className={inputCls} value={tags} onChange={(e) => setTags(e.target.value)} dir="auto" /></Field>
+        {/* The album's pin is the admin's (api/photos/folder-meta). */}
+        {made && admin && <div className="mt-3 flex items-center justify-between text-sm font-semibold text-ink-900"><span>{t('folderPin')}</span><Switch checked={pinned} onChange={setPinned} activeColor="bg-[#15803d]" /></div>}
         <div className="mt-4 flex gap-2">
-          <Btn icon={Check} onClick={async () => close(await run(send('/api/social/folders', 'PATCH', { date: day.date, name: name.trim(), autoFeed })))}>{t('save')}</Btn>
+          <Btn icon={Check} onClick={async () => {
+            const okFolder = await send('/api/social/folders', 'PATCH', { date: day.date, name: name.trim(), autoFeed, ...extra });
+            // The pin is the album's (folder-meta), once the Drive folder exists.
+            const okPin = made && pinned !== !!(f as unknown as { pinned?: boolean })?.pinned ? await send('/api/photos/folder-meta', 'PATCH', { id: f!.folderId, pinned }) : true;
+            close(await run(Promise.resolve(okFolder && okPin)));
+          }}>{t('save')}</Btn>
           {made ? <Btn kind="sec" icon={ExternalLink} href={f!.link}>{t('openDrive')}</Btn>
-            : !f?.skipped && <Btn kind="sec" icon={Folder} onClick={async () => close(await run(send('/api/social/folders', 'POST', { date: day.date, name: name.trim() || day.folderName, autoFeed, notifyEditors: tell })))}>{t('folderOpenNow')}</Btn>}
+            : !f?.skipped && <Btn kind="sec" icon={Folder} onClick={async () => close(await run(send('/api/social/folders', 'POST', { date: day.date, name: name.trim() || day.folderName, autoFeed, notifyEditors: tell, ...extra })))}>{t('folderOpenNow')}</Btn>}
         </div>
         <div className="mt-3.5 flex justify-center">
           {f?.skipped
@@ -507,8 +541,9 @@ function NotifSheet({ row, d, t, lang, week, approver, onClose, run }: {
   const [hour, setHour] = useState(8);
   const [date, setDate] = useState(week);
   const [as, setAs] = useState<'club' | 'me'>('club');
+  const [group, setGroup] = useState('');
   useEffect(() => {
-    if (r) { setTitle(r.title); setBody(r.body); setHour(r.hour); setDate(r.date); }
+    if (r) { setTitle(r.title); setBody(r.body); setHour(r.hour); setDate(r.date); setGroup(r.group ?? ''); }
     else if (isNew) { setTitle(''); setBody(''); setHour(8); setDate(d.days.find((x) => x.date >= israelToday())?.date ?? week); }
     setAs('club');
   }, [row]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -522,6 +557,8 @@ function NotifSheet({ row, d, t, lang, week, approver, onClose, run }: {
     title: r && title.trim() !== r.defaultTitle ? title : undefined,
     body: r && body.trim() !== r.defaultBody ? body : undefined,
     hour: r && (hour !== r.hour || r.changed) ? hour : undefined,
+    // One pace group this week instead of everyone (the tick sends to the override's audience).
+    audience: r?.stage === 'dayBefore' && group ? group : undefined,
   });
   const sendNow = () => send('/api/notifications', 'POST', {
     title_he: title.trim(), body_he: body.trim(), schedule_type: 'now', audience_type: 'all', url: '/dashboard', ...(as === 'me' ? { as: 'me' } : {}),
@@ -561,7 +598,14 @@ function NotifSheet({ row, d, t, lang, week, approver, onClose, run }: {
               <Chips value={as} onChange={setAs} options={[{ value: 'club', label: t('senderClub') }, { value: 'me', label: t('senderMe') }]} />
             </Field>
           )}
-          {r && <Field label={t('fAudience')}><div className={inputCls}>{t(`aud_${audKey(r.audience)}`)}</div></Field>}
+          {r && r.stage === 'dayBefore' ? (
+            <Field label={t('notifAudience')}>
+              <select className={inputCls} value={group} onChange={(e) => setGroup(e.target.value)}>
+                <option value="">{t('notifAudienceAll')}</option>
+                {d.groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+            </Field>
+          ) : r && <Field label={t('fAudience')}><div className={inputCls}>{t(`aud_${audKey(r.audience)}`)}</div></Field>}
           {past && (isNew || r?.stage === 'custom') && <p className="mt-2 text-[12.5px] font-bold text-[#AD3838]">{t('pastTime')}</p>}
 
           <div className="mt-4 flex gap-2">
@@ -609,17 +653,36 @@ function NotifSheet({ row, d, t, lang, week, approver, onClose, run }: {
 
 // ── polls ───────────────────────────────────────────────────────────────────────────
 
-function PollsCard({ d, m, t, lang, owner, skip }: { d: WeekSnapshot; m: Meta; t: T; lang: Lang; owner: React.ReactNode; skip?: React.ReactNode }) {
+function PollsCard({ d, m, t, lang, owner, skip, onOpen }: { d: WeekSnapshot; m: Meta; t: T; lang: Lang; owner: React.ReactNode; skip?: React.ReactNode; onOpen: (p: PlannedPoll | 'new') => void }) {
   // What is in the air this week and how many answered (mockup polls-proposal, 10-20). The
   // fixed weekly pack poll is gone: "מגיעים מחר?" asks attendance; a poll is any other question.
   const open = d.polls.filter((p) => p.open);
   const day = (iso: string) => { const x = israelDateTime(iso); return `${DAY_LONG[lang][x.dow]} ${x.time}`; };
   return (
     <WeekCard icon={BarChart3} color={COLORS.polls} title={t('sec_polls')} owner={owner} {...m}
-      status={<Pill tone={open.length ? 'ok' : 'pause'}>{open.length ? t('pollsOpenCount', { n: open.length }) : t('pollsNoneShort')}</Pill>}
-      actions={<><Btn kind="sec" icon={Plus} href="/dashboard/content/publish?type=survey">{t('newPoll')}</Btn>{skip}</>}>
-      {!d.polls.length && <p className="mt-[9px] text-[13.5px] leading-relaxed text-ink-500">{t('pollsNone')}</p>}
+      status={<Pill tone={open.length ? 'ok' : pendingOf(d.plannedPolls).length ? 'auto' : 'pause'}>
+        {open.length ? t('pollsOpenCount', { n: open.length }) : pendingOf(d.plannedPolls).length ? t('pollsScheduledCount', { n: pendingOf(d.plannedPolls).length }) : t('pollsNoneShort')}
+      </Pill>}
+      actions={<><Btn kind="sec" icon={Plus} onClick={() => onOpen('new')}>{t('newPoll')}</Btn>{skip}</>}>
+      {!d.polls.length && !pendingOf(d.plannedPolls).length && <p className="mt-[9px] text-[13.5px] leading-relaxed text-ink-500">{t('pollsNone')}</p>}
+      {/* Written here, waiting for their moment (lib/week-setup/planned-polls): a tap edits. */}
       <div className="mt-2">
+        {d.plannedPolls.filter((p) => !p.publishedAt || p.error).map((p) => {
+          const at = israelDateTime(p.sendAt);
+          return (
+            <button key={p.id} type="button" disabled={!!p.publishedAt} onClick={() => onOpen(p)} className="flex min-h-[48px] w-full items-center gap-2 border-b border-[#F3F4F6] py-[9px] text-start last:border-0">
+              <span className="flex min-w-0 flex-1 flex-col">
+                <b dir="auto" className="truncate text-[13.5px] font-bold text-ink-900">{p.question || t('sec_polls')}</b>
+                <span className={cn('truncate text-[11.5px]', p.error ? 'font-bold text-[#AD3838]' : 'text-ink-400')}>
+                  {p.error ? t('pollFailed', { error: p.error }) : t('pollScheduled', { when: `${DAY_LONG[lang][at.dow]} ${at.time}${p.rides ? ` · ${t('pollRides')}` : ''}` })}
+                </span>
+              </span>
+              {!p.publishedAt && <Pencil className="h-4 w-4 shrink-0 text-ink-400" />}
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-0.5">
         {d.polls.map((p) => (
           <Link key={p.id} href={`/dashboard/content/surveys/${p.id}`} className="flex min-h-[48px] items-center gap-2 border-b border-[#F3F4F6] py-[9px] last:border-0">
             <span className="flex min-w-0 flex-1 flex-col">

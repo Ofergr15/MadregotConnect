@@ -125,6 +125,8 @@ export interface TimelineRow {
   changed: boolean;
   /** A scheduled one's row id (custom). */
   id?: string;
+  /** This week's one pace group instead of everyone (the override's audience). */
+  group?: string | null;
 }
 
 export interface TimelineInput {
@@ -160,7 +162,8 @@ export function weekTimeline(x: TimelineInput): TimelineRow[] {
         title: o?.title || def.title, body: o?.body || def.body, defaultTitle: def.title, defaultBody: def.body,
         audience: stage === 'dayBefore' ? 'all' : 'noAnswer',
         state: sent ? 'sent' : o?.off ? 'off' : approval === 'pending' ? 'approve' : approval === 'skipped' ? 'skipped' : 'scheduled',
-        changed: !!(o && (o.title || o.body || o.hour != null || o.off)),
+        changed: !!(o && (o.title || o.body || o.hour != null || o.off || o.audience)),
+        group: o?.audience ?? null,
       });
     }
   }

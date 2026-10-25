@@ -54,6 +54,7 @@ import { ASK_HOUR, REMIND_HOUR, gateState, isAskDay, stageDue, addDays, type App
 import { loadApprovals, qualityOf } from '@/lib/notifications/approval-server';
 import { overrideFor, withOverrideCopy, type OverrideStore } from '@/lib/week-setup/model';
 import { loadOverrides } from '@/lib/week-setup/server';
+import { sendDuePolls } from '@/lib/week-setup/planned-polls-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -714,6 +715,17 @@ async function run(request: Request) {
   // somebody turns it on — see runSetupSnapshots.
   const setupSnapshot = await runSetupSnapshots(supabase, now);
   if (setupSnapshot.sent) fired.push(`setupSnapshot → ${setupSnapshot.sent}`);
+
+  // ── The week's planned polls (lib/week-setup/planned-polls) ─────────────────
+  // Written on the Saturday screen with the moment they go out; sent here when it comes —
+  // "with the day-before notification" is half an hour before it, so a club poll rides
+  // inside "מגיעים מחר?" (Stage 1 claims it). Steady state: one read that finds nothing due.
+  try {
+    const polls = await sendDuePolls(supabase, now);
+    if (polls) fired.push(`plannedPolls → ${polls}`);
+  } catch (err) {
+    console.error('[cron/tick] planned polls failed', err);
+  }
 
   // ── The academy's test reminders ─────────────────────────────────────────
   // The two rows a confirmed test invitation arms (migration 112). Beside the
