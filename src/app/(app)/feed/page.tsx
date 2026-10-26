@@ -20,6 +20,7 @@ import { FeedCommentSheet } from '@/components/FeedCommentSheet';
 import { FeedComposer } from '@/components/FeedComposer';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { FeedHighlightCard } from '@/components/FeedHighlightCard';
+import { PodiumCard } from '@/components/podium/PodiumCard';
 import { GroupRunCard } from '@/components/GroupRunCard';
 import { groupFeedItems } from '@/lib/feed/group-runs';
 import { SquadStandings } from '@/components/SquadStandings';
@@ -670,6 +671,13 @@ export default function FeedPage() {
       <div className="mb-4 empty:mb-0">
         <QuietBoundary resetKey={highlightForCards}>
           <FeedHighlightCard />
+        </QuietBoundary>
+      </div>
+
+      {/* הזמנת פודיום (lib/podium): the core squad's order, while it's open. Nothing for anyone else. */}
+      <div className="mb-4 empty:mb-0">
+        <QuietBoundary resetKey={highlightForCards}>
+          <PodiumCard />
         </QuietBoundary>
       </div>
 

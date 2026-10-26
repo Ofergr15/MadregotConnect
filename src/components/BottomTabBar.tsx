@@ -83,6 +83,8 @@ export function BottomTabBar() {
   const navItems = ready ? resolveNavItems({ ...identity, fallback: true }) : [];
   // The dot on "ניהול": pain reports and unanswered requests waiting for a coach.
   // Called before the early return below (rules of hooks); a null key fetches nothing.
+  // The same key the feed's PodiumCard reads: one request, and only once the sheet can show.
+  const { data: podium } = useApi<{ round: unknown }>(ready && moreOpen ? '/api/podium' : null);
   const { data: attention } = useApi<{ total: number; people?: number }>(ready && isStaffView ? '/api/staff/attention' : null);
   // How many runners wait for an answer (lib/feedback/waiting.ts) — a number, not just a dot (2026-10-19).
   const attentionCount = attention ? (attention.people ?? attention.total) : 0;
@@ -260,6 +262,8 @@ export function BottomTabBar() {
               <MoreCard icon={Search} label={t('search' as any)} href="/dashboard/search" active={isActive('/dashboard/search')} onClick={() => setMoreOpen(false)} />
               {STORE_OPEN && <MoreCard icon={ShoppingBag} label={t('store' as any)} href="/dashboard/store" active={isActive('/dashboard/store')} onClick={() => setMoreOpen(false)} />}
               <MoreCard icon={Gift} label={t('benefits' as any)} href="/dashboard/benefits" active={isActive('/dashboard/benefits')} onClick={() => setMoreOpen(false)} />
+              {/* הזמנת פודיום (lib/podium): shown to whoever a round is open to (the server decides), and to staff. */}
+              {(!!podium?.round || isStaffView || isSuper) && <MoreCard icon={ShoppingBag} label={t('podium' as any)} href="/dashboard/store/podium" active={isActive('/dashboard/store/podium')} onClick={() => setMoreOpen(false)} />}
               {/* Review — static, like the three above, and for a stronger
                   reason: it's the "something is broken" channel, so it cannot be
                   gated by a permission row that might itself be the thing that's

@@ -162,6 +162,13 @@ export const KIND_CATEGORY: Record<string, Category> = {
   // which made them the only staff alerts no toggle could reach. They go through
   // the same notifyStaff fan-out now, so they belong to the same channel.
   store_order: 'management',
+  // הזמנת פודיום (lib/podium/notify): the round opening and its reminder are club news;
+  // "over the budget — approve?" is the staff's; the runner's answer and an admin's edit are theirs.
+  podium_round: 'news',
+  podium_reminder: 'news',
+  podium_approval: 'management',
+  podium_locked: 'management',
+  podium_update: 'news',
   feedback_alert: 'management',
   // Tomorrow's pre-workout pushes waiting for an admin's OK (lib/notifications/approval.ts).
   push_approval: 'management',

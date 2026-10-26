@@ -7,6 +7,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { useApi, apiHeaders } from '@/lib/api';
 import { useAthleteId } from '@/lib/use-athlete-id';
 import { Card, Button, EmptyState, SkeletonCard, SegmentedControl, Sheet } from '@/components/ui';
+import { PodiumCard } from '@/components/podium/PodiumCard';
 
 interface Product {
   id: string;
@@ -205,6 +206,8 @@ function StorePageContent() {
           </button>
         )}
       </div>
+
+      <PodiumCard where="store" />
 
       <SegmentedControl<'shop' | 'orders'>
         value={tab}

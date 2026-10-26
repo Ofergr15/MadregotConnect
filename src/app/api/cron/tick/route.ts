@@ -716,6 +716,14 @@ async function run(request: Request) {
   const setupSnapshot = await runSetupSnapshots(supabase, now);
   if (setupSnapshot.sent) fired.push(`setupSnapshot → ${setupSnapshot.sent}`);
 
+  // ── הזמנת פודיום (lib/podium/notify): "open", "closes tomorrow", "closed" — each once ──
+  try {
+    const { runPodiumPushes } = await import('@/lib/podium/notify');
+    fired.push(...(await runPodiumPushes(supabase, now)));
+  } catch (err) {
+    console.error('[cron/tick] podium pushes failed', err);
+  }
+
   // ── The week's planned polls (lib/week-setup/planned-polls) ─────────────────
   // Written on the Saturday screen with the moment they go out; sent here when it comes —
   // "with the day-before notification" is half an hour before it, so a club poll rides
