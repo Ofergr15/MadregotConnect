@@ -7,6 +7,7 @@ import { isAdminHome, useNavIdentity } from '@/lib/nav-items';
 import { useTranslations } from 'next-intl';
 import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles, UserCog, Zap, CalendarPlus, UserCheck, CalendarCheck, Footprints } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
+import { StoreAdminSection } from '@/components/podium/StoreAdminSection';
 import { flowGroup, type EntryQueueMember } from '@/lib/admin/entry-queue';
 import { getSupabase } from '@/lib/supabase/client';
 import { isViewingPerson } from '@/lib/view-as-person';
@@ -256,9 +257,10 @@ function CoachToolsClassic() {
           href="/dashboard/control-room"
         />
         <InsetRow icon={BarChart3} iconBg="bg-ink-900" label={t('clubNumbers')} sublabel={t('clubNumbersSub')} href="/dashboard/numbers" />
-        {/* הזמנת פודיום (lib/podium): rounds, orders, receiving and the split. */}
-        <InsetRow icon={ShoppingBag} iconBg="bg-[#FF5A1F]" label="הזמנת פודיום" sublabel="סבבים · הזמנות · קבלה וחלוקה" href="/dashboard/store/podium/admin" />
       </InsetSection>}
+
+      {/* חנות: the Podium round's live status and every door into it, plus the club store (Ofer 10-26). */}
+      {isAdminLens && <StoreAdminSection />}
 
       {isClubCoachLens && <>
 
@@ -353,7 +355,6 @@ function CoachToolsClassic() {
         <InsetRow icon={Bell} iconBg="bg-band-2" label={ts('workoutReminders')} href="/dashboard/settings?tab=reminders" />
         <InsetRow icon={Award} iconBg="bg-fuchsia-500" label={ts('badgeManager')} href="/dashboard/settings?tab=badges" />
         <InsetRow icon={Trophy} iconBg="bg-band-3" label={ts('challengeManager')} href="/dashboard/settings?tab=challenges" />
-        <InsetRow icon={ShoppingBag} iconBg="bg-band-2" label={ts('storeManager')} href="/dashboard/settings?tab=store" />
         <InsetRow icon={Gift} iconBg="bg-pink-600" label={ts('perksManager')} href="/dashboard/settings?tab=perks" />
       </InsetSection>
 

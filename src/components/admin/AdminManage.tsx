@@ -6,6 +6,7 @@ import { Search, GraduationCap, Bug, Sparkles, Trophy, Bell, ShieldCheck, Gauge,
 import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { InsetRow, InsetSection } from '@/components/ui';
+import { StoreAdminSection } from '@/components/podium/StoreAdminSection';
 import { MANAGE_GROUPS } from '@/lib/admin/manage-groups';
 import { findPlaces } from '@/lib/search/places';
 import { WeekSetupGlance } from '@/components/week-setup/WeekSetupGlance';
@@ -27,6 +28,7 @@ const INDEX: Array<{ label: string; href: string; also?: string }> = [
   { label: 'דיווחים', href: '/dashboard/review/all', also: 'באגים תקלות' },
   { label: 'גרסאות', href: '/dashboard/whats-new', also: 'מה חדש שחרור אישור' },
   { label: 'חדר בקרה', href: '/dashboard/control-room' },
+  { label: 'הזמנת פודיום', href: '/dashboard/store/podium/admin', also: 'חנות פודיום ג׳לים תזונה הזמנה קבלה חלוקה' },
   { label: 'אזור המאמן', href: '/dashboard/coach/today', also: 'מאמן היום השבוע רצים תובנות' },
   { label: 'בדיקות הרשמה', href: '/dashboard/tests', also: 'בדיקה טסט הרשמה זרימה' },
   { label: 'מדרגות במספרים', href: '/dashboard/numbers', also: 'מספרים גרפים' },
@@ -84,6 +86,8 @@ export function AdminManage() {
               trailing={needs?.reports ? <span className="rounded-full bg-[#ff9500] px-2 text-[13px] font-bold leading-[20px] text-white tabular-nums">{needs.reports}</span> : null} />
             <InsetRow icon={Sparkles} iconBg="bg-[#ff9500]" label="גרסאות" sublabel="מה יצא, ואישור השחרור הבא" href="/dashboard/whats-new" />
           </InsetSection>
+          {/* חנות: the Podium order's live status and every door into it (Ofer 10-26). */}
+          <StoreAdminSection />
           <InsetSection>
             {MANAGE_GROUPS.map((g) => (
               <InsetRow key={g.key} icon={g.key === 'club' ? Trophy : g.key === 'notify' ? Bell : ShieldCheck}
