@@ -11,7 +11,7 @@ import { TOUR_REPLAY_EVENT } from '@/lib/tour/store';
 import { useTourPrefs } from '@/lib/tour/use-prefs';
 import { openViewAsChooser } from '@/lib/view-as-person';
 import { cn } from '@/lib/utils';
-import { athletePrimaryOrder, resolveNavItems, useNavIdentity, type NavItem, STORE_OPEN, ADMIN_HOME_ORDER, NUMBERS_TAB_ITEM, isAdminHome, COACH_SPACE_ITEMS } from '@/lib/nav-items';
+import { athletePrimaryOrder, resolveNavItems, useNavIdentity, type NavItem, STORE_TAB_OPEN, ADMIN_HOME_ORDER, NUMBERS_TAB_ITEM, isAdminHome, COACH_SPACE_ITEMS } from '@/lib/nav-items';
 import { useCoachSpace } from '@/lib/coach-space/use-coach-space';
 import { startViewAs, stopViewAs, MAINTENANCE_MODE, VIEW_AS_SCENARIOS } from '@/lib/impersonation';
 import { Sheet } from '@/components/ui';
@@ -83,8 +83,6 @@ export function BottomTabBar() {
   const navItems = ready ? resolveNavItems({ ...identity, fallback: true }) : [];
   // The dot on "ניהול": pain reports and unanswered requests waiting for a coach.
   // Called before the early return below (rules of hooks); a null key fetches nothing.
-  // The same key the feed's PodiumCard reads: one request, and only once the sheet can show.
-  const { data: podium } = useApi<{ round: unknown }>(ready && moreOpen ? '/api/podium' : null);
   const { data: attention } = useApi<{ total: number; people?: number }>(ready && isStaffView ? '/api/staff/attention' : null);
   // How many runners wait for an answer (lib/feedback/waiting.ts) — a number, not just a dot (2026-10-19).
   const attentionCount = attention ? (attention.people ?? attention.total) : 0;
@@ -260,10 +258,8 @@ export function BottomTabBar() {
             <p className={cn('px-1 mb-2 text-2xs font-bold uppercase tracking-wider', 'text-ink-400')}>{t('quickActions' as any)}</p>
             <div className="grid grid-cols-3 gap-3">
               <MoreCard icon={Search} label={t('search' as any)} href="/dashboard/search" active={isActive('/dashboard/search')} onClick={() => setMoreOpen(false)} />
-              {STORE_OPEN && <MoreCard icon={ShoppingBag} label={t('store' as any)} href="/dashboard/store" active={isActive('/dashboard/store')} onClick={() => setMoreOpen(false)} />}
+              {STORE_TAB_OPEN && <MoreCard icon={ShoppingBag} label={t('store' as any)} href="/dashboard/store" active={isActive('/dashboard/store')} onClick={() => setMoreOpen(false)} />}
               <MoreCard icon={Gift} label={t('benefits' as any)} href="/dashboard/benefits" active={isActive('/dashboard/benefits')} onClick={() => setMoreOpen(false)} />
-              {/* הזמנת פודיום (lib/podium): shown to whoever a round is open to (the server decides), and to staff. */}
-              {(!!podium?.round || isStaffView || isSuper) && <MoreCard icon={ShoppingBag} label={t('podium' as any)} href="/dashboard/store/podium" active={isActive('/dashboard/store/podium')} onClick={() => setMoreOpen(false)} />}
               {/* Review — static, like the three above, and for a stronger
                   reason: it's the "something is broken" channel, so it cannot be
                   gated by a permission row that might itself be the thing that's

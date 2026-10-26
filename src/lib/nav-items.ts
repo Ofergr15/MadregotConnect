@@ -143,6 +143,11 @@ export const STORE_ITEM: NavItem = { href: '/dashboard/store', tab: 'store', lab
  * Coach Tools → store manager; the page itself stays at its address.
  */
 export const STORE_OPEN = false;
+/**
+ * The "חנות" door itself (More sheet, search) — open again since 2026-10-26 (Ofer), with the
+ * Podium order as the only thing in it while STORE_OPEN keeps the club's own products hidden.
+ */
+export const STORE_TAB_OPEN = true;
 export const BENEFITS_ITEM: NavItem = { href: '/dashboard/benefits', tab: 'benefits', labelKey: 'benefits', icon: Gift };
 // Run together (398963c7) — a static row like the two above. Member-to-member,
 // nothing on it staff-gated, so a permission row in front of the door would only

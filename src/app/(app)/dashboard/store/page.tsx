@@ -8,6 +8,7 @@ import { useApi, apiHeaders } from '@/lib/api';
 import { useAthleteId } from '@/lib/use-athlete-id';
 import { Card, Button, EmptyState, SkeletonCard, SegmentedControl, Sheet } from '@/components/ui';
 import { PodiumCard } from '@/components/podium/PodiumCard';
+import { STORE_OPEN } from '@/lib/nav-items';
 
 interface Product {
   id: string;
@@ -44,7 +45,26 @@ export default function StorePage() {
   );
 }
 
+/** While the club's own products are hidden (STORE_OPEN), the store is the Podium order alone (Ofer 10-26). */
+function PodiumOnlyStore() {
+  const { data, isLoading } = useApi<{ round: unknown }>('/api/podium');
+  return (
+    <div className="space-y-4">
+      <h1 className="text-2xl font-extrabold tracking-tight text-ink-700" dir="rtl">חנות</h1>
+      <PodiumCard where="store" />
+      {!isLoading && !data?.round && (
+        <EmptyState icon={ShoppingBag} title="אין כרגע הזמנה פתוחה" description="כשתיפתח הזמנה, היא תופיע כאן ותגיע התראה." className="py-12" />
+      )}
+    </div>
+  );
+}
+
 function StorePageContent() {
+  if (!STORE_OPEN) return <PodiumOnlyStore />;
+  return <ClubStore />;
+}
+
+function ClubStore() {
   const t = useTranslations('store');
   const locale = useLocale();
   const [tab, setTab] = useState<'shop' | 'orders'>('shop');

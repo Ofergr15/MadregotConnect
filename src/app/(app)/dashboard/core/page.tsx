@@ -7,6 +7,7 @@ import { ChevronLeft, MapPin } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { Sheet, SkeletonList } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { PodiumCard } from '@/components/podium/PodiumCard';
 
 // "הגרעין שלי" v2 (mockup ~/.cache/madregot/core-perks-v2, Ofer 10-21: "the maps aren't
 // nice — make the whole page more professional"). A member card like a wallet pass, the
@@ -77,6 +78,8 @@ function CoreScreen() {
       {data && (
         <>
           <MemberCard name={data.name} preview={data.preview} perks={perks} />
+          {/* הזמנת פודיום (lib/podium): when an order is open to this runner, right under the card. */}
+          <div className="mt-4 empty:mt-0"><PodiumCard where="store" /></div>
           {groups.map(([label, color, list]) => list.length > 0 && (
             <section key={label}>
               <div className="flex items-center gap-[7px] px-1 pb-2 pt-5 text-13 font-extrabold text-ink-700">
