@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ChevronRight, ExternalLink, Search, ShoppingBag, Lock, Settings2 } from 'lucide-react';
+import { ChevronRight, ExternalLink, Search, ShoppingBag, Lock, Settings2, Trash2 } from 'lucide-react';
 import { useApi, apiHeaders } from '@/lib/api';
 import { textMatches } from '@/lib/search/match';
 import { cn } from '@/lib/utils';
@@ -11,7 +11,7 @@ import {
   AUDIENCE_TAG, GROUPS, dealNudge, orderable, englishName, groupOf, hebrewName, itemCount, orderRegularTotal, orderTotal, overBy,
   type Approval, type PodiumProduct, type PodiumRound, type RoundState,
 } from '@/lib/podium/model';
-import { Price, ProductCard, ProductImage, ProductLine, Stepper, shekel, shekelRound, whenIL } from '@/components/podium/parts';
+import { Price, ProductCard, ProductImage, ProductLine, Stepper, shekel, shekelRound, timeLeft, whenIL } from '@/components/podium/parts';
 
 interface Mine { id: string; items: Record<string, number>; submittedAt: string | null; approval: Approval; updatedAt: string; editedByClub: boolean }
 interface Delivered { at: string; got: Record<string, number>; missing: Record<string, number>; gotValue: number; missingValue: number; owes: number }
@@ -40,7 +40,7 @@ export default function PodiumOrderPage() {
   const [group, setGroup] = useState<string>('all');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<PodiumProduct | null>(null);
-  const [cartOpen, setCartOpen] = useState(false);
+  const [view, setView] = useState<'shop' | 'cart'>('shop');
   const [accept, setAccept] = useState(false);
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [sending, setSending] = useState(false);
@@ -52,6 +52,7 @@ export default function PodiumOrderPage() {
   const count = itemCount(items);
   const budget = round?.budget ?? 600;
   const over = overBy(total, budget);
+  const lines = Object.entries(items).filter(([id]) => byId.has(id));
 
   // The cart saves itself: 700ms after the last tap, the whole cart in one PUT.
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -79,7 +80,7 @@ export default function PodiumOrderPage() {
     setSending(true);
     const ok = await save(items, true);
     setSending(false);
-    if (ok) setCartOpen(false);
+    if (ok) window.scrollTo({ top: 0 });
   };
 
   const shown = products.filter((p) => orderable(p) && (group === 'all' || groupOf(p.dept) === group) && (!q.trim() || textMatches(q, p.name)));
@@ -105,6 +106,17 @@ export default function PodiumOrderPage() {
       {data?.delivered ? <Got d={data.delivered} byId={byId} /> : <Budget total={total} budget={budget} />}
 
       {round.state !== 'upcoming' && !data?.delivered && (
+        <div className="flex rounded-2xl bg-[#E3E5EB] p-1">
+          {([['shop', 'מוצרים'], ['cart', 'העגלה שלי']] as const).map(([k, l]) => (
+            <button key={k} type="button" onClick={() => { setView(k); window.scrollTo({ top: 0 }); }}
+              className={cn('flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-extrabold transition-colors', view === k ? 'bg-card text-ink-900 shadow-sm' : 'text-ink-500')}>
+              {l}{k === 'cart' && count > 0 && <bdi className={cn('min-w-[22px] rounded-pill px-1.5 text-xs leading-5 text-white', over > 0 ? 'bg-[#FF5A1F]' : 'bg-brand-600')}>{count}</bdi>}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {round.state !== 'upcoming' && !data?.delivered && view === 'shop' && (
         <>
           <div className="flex items-center gap-2 rounded-xl bg-card px-3 py-2.5 ring-1 ring-black/[0.04]">
             <Search className="h-4 w-4 text-ink-400" />
@@ -123,49 +135,79 @@ export default function PodiumOrderPage() {
         </>
       )}
 
-      {count > 0 && !data?.delivered && (
-        <button type="button" onClick={() => setCartOpen(true)}
+      {/* העגלה שלי — the whole order on one screen: every line with its photo, quantity, remove
+          and line total; the totals against the budget; the over-budget confirmation; send. */}
+      {round.state !== 'upcoming' && !data?.delivered && view === 'cart' && (
+        count === 0 ? (
+          <div className="rounded-card bg-card px-6 py-10 text-center ring-1 ring-black/[0.04]">
+            <ShoppingBag className="mx-auto h-10 w-10 text-ink-300" />
+            <p className="mt-3 text-base font-extrabold text-ink-900">העגלה ריקה</p>
+            <p className="mt-1 text-13 text-ink-500">מוסיפים מוצרים עם ה-+ בכל מוצר</p>
+            <button type="button" onClick={() => setView('shop')} className="mt-4 rounded-2xl bg-brand-600 px-5 py-3 text-sm font-extrabold text-white">למוצרים</button>
+          </div>
+        ) : (
+          <>
+            <div className="rounded-card bg-card px-4 py-1 ring-1 ring-black/[0.04]">
+              {lines.map(([id, n]) => {
+                const p = byId.get(id)!;
+                const nudge = dealNudge(p.deal, n);
+                return (
+                  <div key={id} className="flex gap-3 border-b border-page py-3 last:border-0">
+                    <button type="button" onClick={() => setOpen(p)} className="h-[68px] w-[68px] shrink-0 rounded-2xl bg-white p-1.5 ring-1 ring-black/5"><ProductImage p={p} /></button>
+                    <div className="min-w-0 flex-1">
+                      <button type="button" onClick={() => setOpen(p)} dir="ltr" className="block w-full truncate text-left text-13 font-bold text-ink-900">{englishName(p.name)}</button>
+                      <span className="block text-2xs text-ink-400"><bdi dir="ltr">{shekel(p.price ?? 0)}</bdi> ליחידה{hebrewName(p.name) ? ` · ${hebrewName(p.name)}` : ''}</span>
+                      {nudge && <span className="mt-0.5 block text-2xs font-bold text-[#C2410C]">🎁 {nudge}</span>}
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <Stepper qty={n} size="sm" disabled={!editable} onChange={(v) => setQty(id, v)} />
+                        <b className="text-[15px] font-black tabular-nums"><bdi dir="ltr">{shekelRound((p.price ?? 0) * n)}</bdi></b>
+                      </div>
+                    </div>
+                    {editable && <button type="button" aria-label="להסיר" onClick={() => setQty(id, 0)} className="self-start p-1 text-ink-300 active:text-red-600"><Trash2 className="h-4 w-4" /></button>}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="space-y-1.5 rounded-card bg-card p-4 text-sm ring-1 ring-black/[0.04]">
+              <Row k={`${count} פריטים · מחיר רגיל`} v={shekelRound(regular)} />
+              {regular > total && <Row k="מבצעי האתר" v={`−${shekelRound(regular - total)}`} tone="text-accent-900 font-bold" />}
+              <Row k="סה״כ משוער" v={shekelRound(total)} big />
+              <Row k="התקציב שלך" v={shekelRound(budget)} />
+              {over > 0 ? <Row k="ההפרש שעליך" v={shekelRound(over)} tone="text-[#C2410C] font-extrabold" /> : <Row k="נשאר בתקציב" v={shekelRound(budget - total)} tone="text-ink-500" />}
+              <p className="pt-1 text-2xs leading-relaxed text-ink-400">המחירים מהאתר של פודיום. המחיר הסופי נקבע בחנות, ויכול לרדת עוד בזכות מבצעים.</p>
+            </div>
+
+            {editable && (
+              <div className="space-y-2">
+                {over > 0 && (
+                  <label className="flex items-start gap-2.5 rounded-2xl bg-[#FFF1EA] p-3 text-13 text-[#9A3412]">
+                    <input type="checkbox" className="mt-0.5 h-5 w-5 accent-[#FF5A1F]" checked={accept} onChange={(e) => setAccept(e.target.checked)} />
+                    <span><b>מעל התקציב ב-<bdi dir="ltr">{shekelRound(over)}</bdi>.</b> אני מעביר/ה את ההפרש למועדון. ההזמנה תחכה לאישור.</span>
+                  </label>
+                )}
+                {msg && <p className="text-center text-xs font-bold text-red-600">{msg}</p>}
+                <button type="button" disabled={sending || (over > 0 && !accept)} onClick={() => void send()}
+                  className="w-full rounded-2xl bg-brand-600 py-4 text-base font-extrabold text-white disabled:opacity-50">
+                  {sending ? 'שולח…' : mine?.submittedAt ? 'עדכון ההזמנה' : '✓ שליחת ההזמנה'}
+                </button>
+                <p className="text-center text-2xs text-ink-400">{saving === 'saving' ? 'שומר…' : 'כל שינוי נשמר לבד'} · אפשר לשנות עד {whenIL(round.locksAt)}</p>
+              </div>
+            )}
+          </>
+        )
+      )}
+
+      {count > 0 && !data?.delivered && view === 'shop' && (
+        <button type="button" onClick={() => { setView('cart'); window.scrollTo({ top: 0 }); }}
           className="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+84px)] z-30 mx-auto flex max-w-md items-center justify-between rounded-[20px] bg-ink-900 px-4 py-3.5 text-white shadow-[0_14px_30px_-6px_rgb(0_0_0/0.5)]">
           <span className="text-start"><b className="block text-sm"><bdi>{count}</bdi> פריטים</b><small className="text-2xs opacity-70">{saving === 'saving' ? 'שומר…' : saving === 'error' ? 'לא נשמר' : mine?.submittedAt ? 'נשלח · השינויים נשמרים' : 'טיוטה · נשמר אוטומטית'}</small></span>
-          <span className={cn('rounded-xl px-3.5 py-2 text-sm font-extrabold', over > 0 ? 'bg-[#FF5A1F]' : 'bg-brand-600')}><bdi>{shekelRound(total)}</bdi> · לסל ›</span>
+          <span className={cn('rounded-xl px-3.5 py-2 text-sm font-extrabold', over > 0 ? 'bg-[#FF5A1F]' : 'bg-brand-600')}><bdi dir="ltr">{shekelRound(total)}</bdi> · לעגלה ›</span>
         </button>
       )}
 
       <Sheet open={!!open} onOpenChange={(o) => { if (!o) setOpen(null); }} title="">
         {open && <ProductSheet p={open} qty={items[open.id] ?? 0} onQty={(n) => setQty(open.id, n)} locked={!editable} />}
-      </Sheet>
-
-      <Sheet open={cartOpen} onOpenChange={setCartOpen} title="ההזמנה שלי"
-        footer={editable && count > 0 ? (
-          <div className="space-y-2">
-            {over > 0 && (
-              <label className="flex items-start gap-2.5 rounded-2xl bg-[#FFF1EA] p-3 text-13 text-[#9A3412]">
-                <input type="checkbox" className="mt-0.5 h-5 w-5 accent-[#FF5A1F]" checked={accept} onChange={(e) => setAccept(e.target.checked)} />
-                <span><b>מעל התקציב ב-<bdi>{shekelRound(over)}</bdi>.</b> אני מעביר/ה את ההפרש למועדון. ההזמנה תחכה לאישור.</span>
-              </label>
-            )}
-            {msg && <p className="text-center text-xs font-bold text-red-600">{msg}</p>}
-            <button type="button" disabled={sending || (over > 0 && !accept)} onClick={() => void send()}
-              className="w-full rounded-2xl bg-brand-600 py-3.5 text-base font-extrabold text-white disabled:opacity-50">
-              {sending ? 'שולח…' : mine?.submittedAt ? 'עדכון ההזמנה' : '✓ שליחת ההזמנה'}
-            </button>
-            <p className="text-center text-2xs text-ink-400">אפשר לשנות עד {whenIL(round.locksAt)}</p>
-          </div>
-        ) : undefined}>
-        <div className="divide-y divide-page">
-          {Object.entries(items).filter(([id]) => byId.has(id)).map(([id, n]) => (
-            <ProductLine key={id} p={byId.get(id)!} qty={n} onQty={editable ? (v) => setQty(id, v) : undefined} locked={!editable}
-              right={<b className="min-w-[48px] text-left text-sm tabular-nums"><bdi>{shekelRound((byId.get(id)!.price ?? 0) * n)}</bdi></b>} />
-          ))}
-        </div>
-        <div className="mt-3 space-y-1.5 rounded-2xl bg-page p-3.5 text-sm">
-          {regular > total && <Row k="מחיר רגיל" v={shekelRound(regular)} />}
-          {regular > total && <Row k="מבצעי האתר" v={`−${shekelRound(regular - total)}`} tone="text-accent-900 font-bold" />}
-          <Row k="סה״כ משוער" v={shekelRound(total)} big />
-          <Row k="התקציב שלך" v={shekelRound(budget)} />
-          {over > 0 && <Row k="ההפרש שעליך" v={shekelRound(over)} tone="text-[#C2410C] font-extrabold" />}
-        </div>
-        <p className="mt-2 text-2xs leading-relaxed text-ink-400">המחירים מהאתר של פודיום. המחיר הסופי נקבע בחנות, ויכול לרדת עוד בזכות מבצעי &quot;קנו X קבלו 1&quot;.</p>
       </Sheet>
     </div>
   );
@@ -175,8 +217,8 @@ function Header({ staff, title = 'הזמנת פודיום', sub, tag }: { staff:
   return (
     <div className="flex items-end justify-between gap-3 pt-1">
       <div className="min-w-0">
-        <Link href="/dashboard/store" className="mb-1 inline-flex items-center gap-0.5 text-13 font-bold text-brand-600"><ChevronRight className="h-4 w-4 rtl:rotate-0 ltr:rotate-180" />החנות</Link>
-        {tag && <span className="mb-1 inline-flex rounded-pill bg-card px-2.5 py-0.5 text-3xs font-extrabold text-ink-500 ring-1 ring-black/5">{tag}</span>}
+        <Link href="/dashboard/store" className="mb-1 flex w-fit items-center gap-0.5 text-13 font-bold text-brand-600"><ChevronRight className="h-4 w-4 rtl:rotate-0 ltr:rotate-180" />החנות</Link>
+        {tag && <span className="mb-1 block w-fit rounded-pill bg-card px-2.5 py-0.5 text-3xs font-extrabold text-ink-500 ring-1 ring-black/5">{tag}</span>}
         <h1 className="text-[26px] font-black leading-tight tracking-tight text-ink-900">{title}</h1>
         {sub && <p className="text-13 text-ink-500">{sub}</p>}
       </div>
@@ -235,14 +277,15 @@ function statusLine(round: { state: RoundState; locksAt: string }, mine: Mine | 
   if (round.state === 'upcoming') return { text: 'עוד לא נפתח. תגיע התראה כשאפשר להזמין.', tone: 'bg-page text-ink-500', icon: '⏳' };
   if (round.state !== 'open') {
     return mine?.submittedAt
-      ? { text: 'ההזמנה סגורה ונשלחה לפודיום. אי אפשר לשנות.', tone: 'bg-page text-ink-700', icon: <Lock className="h-4 w-4" /> }
+      ? { text: round.state === 'sent' ? 'ההזמנה נשלחה לפודיום. נעדכן כשהיא אצלך.' : 'ההזמנה נסגרה. אי אפשר לשנות.', tone: 'bg-page text-ink-700', icon: <Lock className="h-4 w-4" /> }
       : { text: 'ההזמנה נסגרה.', tone: 'bg-page text-ink-500', icon: <Lock className="h-4 w-4" /> };
   }
   if (mine?.approval === 'pending' && mine.submittedAt) return { text: 'נשלח · מעל התקציב, מחכה לאישור המועדון', tone: 'bg-[#FFF1EA] text-[#9A3412]', icon: '⏳' };
   if (mine?.approval === 'rejected') return { text: 'המועדון לא אישר את החריגה. צריך להוריד לתקציב.', tone: 'bg-red-50 text-red-700', icon: '✋' };
   if (mine?.editedByClub && mine.submittedAt) return { text: 'המועדון עדכן את ההזמנה שלך', tone: 'bg-brand-600/10 text-brand-700', icon: '✏️' };
   if (mine?.approval === 'approved' && mine.submittedAt) return { text: 'ההזמנה אושרה. נשאר להעביר את ההפרש.', tone: 'bg-accent-600/10 text-accent-900', icon: '✅' };
-  if (mine?.submittedAt) return { text: `נשלח ✓ אפשר לשנות עד ${whenIL(round.locksAt)}`, tone: 'bg-accent-600/10 text-accent-900', icon: '✓' };
+  if (mine?.submittedAt) return { text: `סיימת ✓ אפשר לערוך ${timeLeft(round.locksAt) ?? ''} (עד ${whenIL(round.locksAt)})`, tone: 'bg-accent-600/10 text-accent-900', icon: '✓' };
+  if (mine && Object.keys(mine.items).length > 0) return { text: `ההזמנה בתהליך · עוד לא נשלחה · נסגרת ${timeLeft(round.locksAt) ?? ''}`, tone: 'bg-[#FFF1EA] text-[#9A3412]', icon: '🛒' };
   return null;
 }
 

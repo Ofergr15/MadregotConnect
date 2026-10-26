@@ -12,6 +12,16 @@ export const whenIL = (iso: string) => new Intl.DateTimeFormat('he-IL', {
   timeZone: 'Asia/Jerusalem', weekday: 'long', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
 }).format(new Date(iso));
 
+/** "עוד 2 ימים ו-5 שעות" / "עוד 3 שעות" / "עוד 20 דקות" until `iso`; null once it has passed. */
+export function timeLeft(iso: string, now = Date.now()): string | null {
+  const ms = new Date(iso).getTime() - now;
+  if (ms <= 0) return null;
+  const m = Math.floor(ms / 60000); const h = Math.floor(m / 60); const d = Math.floor(h / 24);
+  if (d >= 1) return h % 24 ? `עוד ${d === 1 ? 'יום' : `${d} ימים`} ו-${h % 24} שעות` : `עוד ${d === 1 ? 'יום' : `${d} ימים`}`;
+  if (h >= 1) return `עוד ${h === 1 ? 'שעה' : `${h} שעות`}`;
+  return `עוד ${Math.max(1, m)} דקות`;
+}
+
 export function Stepper({ qty, onChange, disabled, size = 'md', floating }: {
   qty: number; onChange: (q: number) => void; disabled?: boolean; size?: 'md' | 'sm'; floating?: boolean;
 }) {
