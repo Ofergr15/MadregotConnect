@@ -44,6 +44,7 @@ export async function POST(request: Request) {
     if (!b.title?.trim() || !valid(b.opensAt) || !valid(b.locksAt) || Date.parse(b.locksAt!) <= Date.parse(b.opensAt!)) {
       return NextResponse.json({ error: 'bad round', message: 'צריך שם, פתיחה וסגירה (הסגירה אחרי הפתיחה)' }, { status: 400 });
     }
+    // Core at most (Ofer 10-26): anything else that isn't one of the offered audiences becomes the core.
     const audience = (AUDIENCES.some((a) => a.key === b.audience) ? b.audience : 'core') as Audience;
     const ids = Array.isArray(b.audienceIds) ? b.audienceIds.filter((x) => typeof x === 'string' && /^[0-9a-f-]{36}$/i.test(x)).slice(0, 500) : [];
     if (audience === 'people' && ids.length === 0) return NextResponse.json({ error: 'bad round', message: 'צריך לבחור לפחות אדם אחד' }, { status: 400 });

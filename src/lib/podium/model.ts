@@ -30,14 +30,15 @@ export interface PodiumProduct {
   sort: number;
 }
 
-/** Who a round is for. 'me' = only the admin who opened it (a dry run before the club sees it). */
+/** Who a round is for. 'me' = only the admin who opened it (a dry run before the club sees it).
+ *  A core-squad feature (Ofer 10-26): the widest choice offered is the core; 'all' is kept only
+ *  for a round saved before that. */
 export type Audience = 'me' | 'admins' | 'people' | 'core' | 'all';
 export const AUDIENCES: Array<{ key: Audience; label: string; hint: string }> = [
   { key: 'me', label: 'רק אני', hint: 'בדיקה. אף אחד אחר לא רואה' },
   { key: 'admins', label: 'אדמינים', hint: 'הצוות בלבד' },
   { key: 'people', label: 'אנשים מסוימים', hint: 'בוחרים מהרשימה' },
   { key: 'core', label: 'הגרעין 🌰', hint: 'כל רצי הגרעין' },
-  { key: 'all', label: 'כל המועדון', hint: 'כל החברים' },
 ];
 
 /** The small label on the card and the page: who this round is for. */

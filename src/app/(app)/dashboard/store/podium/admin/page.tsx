@@ -129,7 +129,7 @@ function PodiumAdmin() {
                 <b className="text-13 text-ink-900">🔔 התראת פתיחה</b>
                 <span className="text-2xs font-bold text-ink-500">{round.autoNotify === false ? 'ידנית בלבד' : 'אוטומטית בפתיחה'}</span>
               </div>
-              <p className="mt-0.5 text-2xs text-ink-500">נשלחה ל-<bdi>{round.notifiedCount ?? 0}</bdi> מתוך <bdi>{data?.core.length ?? 0}</bdi>{round.state === 'upcoming' ? ` · ${round.autoNotify === false ? 'לא תישלח לבד' : `תצא ${whenIL(round.opensAt)}`}` : ''}</p>
+              <p className="mt-0.5 text-2xs text-ink-500">נשלחת רק ל{round.audience === 'core' ? 'גרעין' : round.audience === 'me' ? 'ך' : round.audience === 'admins' ? 'אדמינים' : 'מי שפתחת לו'} · נשלחה ל-<bdi>{round.notifiedCount ?? 0}</bdi> מתוך <bdi>{data?.core.length ?? 0}</bdi>{round.state === 'upcoming' ? ` · ${round.autoNotify === false ? 'לא תישלח לבד' : `תצא ${whenIL(round.opensAt)}`}` : ''}</p>
               {round.state === 'open' && (
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <button type="button" disabled={!!busy || (round.notifiedCount ?? 0) >= (data?.core.length ?? 0)}
@@ -257,7 +257,7 @@ function Reach({ round, people, audience, busy, onWiden }: {
   const target = (k: 'core' | 'all') => all.filter(([, m]) => (k === 'all' ? true : m.isCore)).map(([id]) => id);
   const added = (k: 'core' | 'all') => target(k).filter((id) => !now.has(id)).length;
   const names = audience.map((id) => people[id]?.name).filter(Boolean) as string[];
-  const options = (['core', 'all'] as const).filter((k) => round.audience !== k && !(k === 'core' && round.audience === 'all'));
+  const options = (['core'] as Array<'core' | 'all'>).filter((k) => round.audience !== k && round.audience !== 'all');
   const open = round.state === 'open';
   return (
     <div className="mt-3 rounded-2xl bg-page p-3">
@@ -395,7 +395,7 @@ function RoundForm({ init, onSave, onCancel, onDelete, busy, people }: {
             </button>
           ))}
         </div>
-        <p className="mt-1.5 text-2xs text-ink-400"><bdi>{count}</bdi> {count === 1 ? 'אדם' : 'אנשים'} יראו את ההזמנה ויקבלו התראה{audience === 'me' ? '. אפשר להרחיב אחר כך, ורק החדשים יקבלו התראה.' : ''}</p>
+        <p className="mt-1.5 text-2xs text-ink-400"><bdi>{count}</bdi> {count === 1 ? 'אדם' : 'אנשים'} יראו את ההזמנה, ורק הם יקבלו התראה{audience === 'me' ? '. אפשר להרחיב אחר כך, ורק החדשים יקבלו התראה.' : ''}</p>
         {audience === 'people' && (
           <div className="mt-2 rounded-xl bg-page p-2">
             <input value={who} onChange={(e) => setWho(e.target.value)} placeholder="חיפוש שם" className="mb-1 w-full rounded-lg bg-card px-3 py-2 text-sm outline-none" />
