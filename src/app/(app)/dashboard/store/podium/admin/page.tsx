@@ -99,7 +99,18 @@ function PodiumAdmin() {
               </div>
               <button type="button" onClick={() => setRoundForm(round)} className="text-13 font-bold text-brand-600">עריכה</button>
             </div>
-            <div className={cn('mt-3 rounded-xl px-3 py-2 text-13 font-bold', STATE[round.state].tone)}>{STATE[round.state].label}</div>
+            <div className={cn('mt-3 rounded-xl px-3 py-2 text-13 font-bold', STATE[round.state].tone)}>{stateLabel(round)}</div>
+            {round.state !== 'sent' && round.state !== 'locked' && (
+              <Reach round={round} people={data?.people ?? {}} audience={data?.core ?? []} busy={!!busy}
+                onWiden={(audience, notify) => act('reach', async () => {
+                  await post('/api/admin/podium', { action: 'update', id: round.id, title: round.title, opensAt: round.opensAt, locksAt: round.locksAt, budget: round.budget,
+                    audience, audienceIds: round.audienceIds, autoNotify: notify === 'auto' ? true : notify === 'none' ? false : round.autoNotify !== false, notifyTitle: round.notifyTitle ?? '', notifyBody: round.notifyBody ?? '' });
+                  if (notify === 'now' && round.state === 'open') {
+                    const j = await post('/api/admin/podium', { action: 'notify', id: round.id });
+                    setNote(`נפתח ל${audience === 'all' ? 'כולם' : 'גרעין'} · התראה נשלחה ל-${j.sent}`);
+                  } else setNote(`נפתח ל${audience === 'all' ? 'כולם' : 'גרעין'}`);
+                })} />
+            )}
             <div className="mt-3 grid grid-cols-4 gap-2 text-center">
               <Kpi n={`${sent.length}/${data?.core.length ?? 0}`} l="שלחו" />
               <Kpi n={String([...totals.values()].reduce((a, b) => a + b, 0))} l="פריטים" />
@@ -218,6 +229,79 @@ function PodiumAdmin() {
         {roundForm && <RoundForm init={roundForm} busy={!!busy} people={data?.people ?? {}} onCancel={() => setRoundForm(null)}
           onSave={(r) => act('round', async () => { const j = await post('/api/admin/podium', { action: roundForm.id ? 'update' : 'create', id: roundForm.id, ...r }); if (j.id) setRoundId(j.id); }).then(() => setRoundForm(null))}
           onDelete={roundForm.id ? () => { if (confirm('למחוק את הסבב וכל ההזמנות שבו?')) void act('delr', () => post('/api/admin/podium', { action: 'delete', id: roundForm.id })).then(() => { setRoundForm(null); setRoundId(null); }); } : undefined} />}
+      </Sheet>
+    </div>
+  );
+}
+
+/** "פתוח" means little alone: say to whom (Ofer 10-26). */
+function stateLabel(r: Round): string {
+  if (r.state !== 'open' && r.state !== 'upcoming') return STATE[r.state].label;
+  const who = r.audience === 'all' ? 'לכולם' : r.audience === 'core' ? 'לגרעין' : r.audience === 'admins' ? 'חלקית · אדמינים בלבד'
+    : r.audience === 'me' ? 'רק לך (בדיקה)' : `חלקית · רק ל-${r.audienceIds.length} אנשים`;
+  return r.state === 'open' ? `🟢 פתוח ${who}` : `⏳ ייפתח ${who} · ${whenIL(r.opensAt)}`;
+}
+
+/**
+ * "למי זה פתוח" — the round's reach, and the way to widen it: to the core or to everyone, with
+ * what will happen spelled out before it does (who is added, whether they're notified, when).
+ */
+function Reach({ round, people, audience, busy, onWiden }: {
+  round: Round; people: Resp['people']; audience: string[]; busy: boolean;
+  onWiden: (to: 'core' | 'all', notify: 'now' | 'auto' | 'none') => void;
+}) {
+  const [to, setTo] = useState<'core' | 'all' | null>(null);
+  const [notify, setNotify] = useState<'now' | 'auto' | 'none'>('now');
+  const all = Object.entries(people);
+  const now = new Set(audience);
+  const target = (k: 'core' | 'all') => all.filter(([, m]) => (k === 'all' ? true : m.isCore)).map(([id]) => id);
+  const added = (k: 'core' | 'all') => target(k).filter((id) => !now.has(id)).length;
+  const names = audience.map((id) => people[id]?.name).filter(Boolean) as string[];
+  const options = (['core', 'all'] as const).filter((k) => round.audience !== k && !(k === 'core' && round.audience === 'all'));
+  const open = round.state === 'open';
+  return (
+    <div className="mt-3 rounded-2xl bg-page p-3">
+      <div className="flex items-center justify-between gap-2">
+        <b className="text-13 text-ink-900">למי זה פתוח</b>
+        <span className="text-2xs font-bold text-ink-500"><bdi>{audience.length}</bdi> אנשים</span>
+      </div>
+      <p className="mt-1 text-13 leading-relaxed text-ink-700">{round.audience === 'all' ? 'כל המועדון' : round.audience === 'core' ? 'כל רצי הגרעין' : names.length ? names.join(' · ') : '—'}</p>
+      {options.length > 0 && (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          {options.map((k) => (
+            <button key={k} type="button" disabled={busy} onClick={() => { setTo(k); setNotify(open ? 'now' : 'auto'); }}
+              className={cn('rounded-xl py-2.5 text-xs font-extrabold', k === 'all' ? 'bg-accent-600 text-white' : 'bg-[#0c0c0d] text-white', options.length === 1 && 'col-span-2')}>
+              {k === 'all' ? '🏃 לפתוח לכולם' : '🌰 לפתוח לגרעין'} · +<bdi>{added(k)}</bdi>
+            </button>
+          ))}
+        </div>
+      )}
+      <Sheet open={!!to} onOpenChange={(v) => { if (!v) setTo(null); }} title={to === 'all' ? 'לפתוח לכל המועדון?' : 'לפתוח לגרעין?'}>
+        {to && (
+          <div className="space-y-3 pb-2">
+            <div className="rounded-2xl bg-page p-3.5 text-13 leading-relaxed text-ink-700">
+              <b className="block text-ink-900">מה יקרה</b>
+              • <bdi>{added(to)}</bdi> אנשים חדשים יראו את ההזמנה: כרטיס בפיד, בחנות ובעמוד הגרעין. סה״כ <bdi>{target(to).length}</bdi>.<br />
+              • מי שכבר מזמין ממשיך כרגיל, ושום הזמנה לא משתנה.<br />
+              • התקציב (<bdi dir="ltr">{shekelRound(round.budget)}</bdi>) והסגירה ({whenIL(round.locksAt)}) נשארים.
+            </div>
+            <div>
+              <b className="mb-1.5 block text-13 text-ink-900">התראה לחדשים</b>
+              {([
+                ...(open ? [['now', 'לשלוח עכשיו', `${added(to)} יקבלו "${round.notifyTitle?.trim() || `🛒 ${round.title} פתוחה`}" מיד`]] : []),
+                ['auto', open ? 'אוטומטית' : 'אוטומטית בפתיחה', open ? 'תצא לבד תוך כמה דקות' : `תצא ב-${whenIL(round.opensAt)}`],
+                ['none', 'בלי התראה', 'יראו את הכרטיס כשייכנסו לאפליקציה. אפשר לשלוח אחר כך מכאן'],
+              ] as Array<['now' | 'auto' | 'none', string, string]>).map(([k, l, h]) => (
+                <label key={k} className={cn('mb-1.5 flex items-start gap-2.5 rounded-xl p-3 ring-1', notify === k ? 'bg-brand-600/5 ring-brand-600' : 'bg-card ring-black/5')}>
+                  <input type="radio" name="reach-notify" className="mt-0.5 h-4 w-4 accent-brand-600" checked={notify === k} onChange={() => setNotify(k)} />
+                  <span><b className="block text-13 text-ink-900">{l}</b><small className="text-2xs text-ink-500">{h}</small></span>
+                </label>
+              ))}
+            </div>
+            <button type="button" disabled={busy} onClick={() => { onWiden(to, notify); setTo(null); }}
+              className="w-full rounded-2xl bg-brand-600 py-3.5 font-extrabold text-white disabled:opacity-50">{to === 'all' ? 'לפתוח לכולם' : 'לפתוח לגרעין'}</button>
+          </div>
+        )}
       </Sheet>
     </div>
   );
