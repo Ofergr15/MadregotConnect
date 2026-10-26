@@ -31,24 +31,11 @@ export async function runPodiumPushes(db: Db, now = new Date()): Promise<string[
       const { data: got } = await db.from('podium_rounds').update({ [col]: now.toISOString() }).eq('id', round.id).is(col, null).select('id');
       return !!got?.length;
     };
-    // "It's open": to everyone in the audience not told yet — so a wider audience later reaches
-    // only the newcomers. The ledger is written before the send, so a slow send never doubles.
-    if (state === 'open') {
-      const toldList: string[] = r.notified_open_ids ?? [];
-      const told = new Set<string>(toldList);
-      const due = (await audienceOf(db, round)).filter((a) => !told.has(a.id));
-      if (due.length) {
-        const { data: got } = await db.from('podium_rounds').update({ notified_open_ids: [...toldList, ...due.map((a) => a.id)] })
-          .eq('id', round.id).filter('notified_open_ids', 'eq', `{${toldList.join(',')}}`).select('id');
-        if (got?.length) {
-          await Promise.all(due.map((a) => notifyAthlete({
-            athleteId: a.id, kind: 'podium_round', url: PODIUM_URL, tag: `podium-open-${round.id}`, category: 'news',
-            title: `🛒 ${round.title} פתוחה`,
-            body: `ג׳לים, וופלים ומשקאות מפודיום, עד ${shekel(round.budget)} לכל אחד. אפשר להזמין עד ${when(round.locksAt)}.`,
-          })));
-          fired.push(`podiumOpen → ${due.length}`);
-        }
-      }
+    // "It's open": to everyone in the audience not told yet — unless the admin turned the automatic
+    // send off for this round (then only the ניהול button sends it).
+    if (state === 'open' && r.auto_notify !== false) {
+      const n = await sendOpenPush(db, round, r);
+      if (n) fired.push(`podiumOpen → ${n}`);
     }
     const remindAt = new Date(round.locksAt).getTime() - REMIND_HOURS * 3600_000;
     if (state === 'open' && now.getTime() >= remindAt && !r.notified_remind_at && (await stamp('notified_remind_at'))) {
@@ -80,6 +67,36 @@ export async function runPodiumPushes(db: Db, now = new Date()): Promise<string[
     }
   }
   return fired;
+}
+
+/** The "it's open" wording: the admin's own text when set, else the default. */
+export function openCopy(round: PodiumRound, r: { notify_title?: string | null; notify_body?: string | null }) {
+  return {
+    title: r.notify_title?.trim() || `🛒 ${round.title} פתוחה`,
+    body: r.notify_body?.trim() || `ג׳לים, וופלים ומשקאות מפודיום, עד ${shekel(round.budget)} לכל אחד. אפשר להזמין עד ${when(round.locksAt)}.`,
+  };
+}
+
+/**
+ * Send "it's open" to the round's audience. By default only to whoever hasn't had it (the
+ * per-person ledger, written before the send so two senders never double); `again` sends to
+ * everyone in the audience once more. Returns how many it went to.
+ */
+export async function sendOpenPush(db: Db, round: PodiumRound, r: any, opts: { again?: boolean } = {}): Promise<number> {
+  const toldList: string[] = r.notified_open_ids ?? [];
+  const told = new Set<string>(toldList);
+  const audience = await audienceOf(db, round);
+  const due = opts.again ? audience : audience.filter((a) => !told.has(a.id));
+  if (!due.length) return 0;
+  const next = [...new Set([...toldList, ...due.map((a) => a.id)])];
+  const { data: got } = await db.from('podium_rounds').update({ notified_open_ids: next })
+    .eq('id', round.id).filter('notified_open_ids', 'eq', `{${toldList.join(',')}}`).select('id');
+  if (!got?.length) return 0;
+  const copy = openCopy(round, r);
+  await Promise.all(due.map((a) => notifyAthlete({
+    athleteId: a.id, kind: 'podium_round', url: PODIUM_URL, tag: `podium-open-${round.id}`, category: 'news', ...copy,
+  })));
+  return due.length;
 }
 
 /** A runner sent an order over the budget: the staff are asked. */

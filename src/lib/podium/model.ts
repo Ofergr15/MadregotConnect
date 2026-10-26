@@ -70,6 +70,11 @@ export interface PodiumRound {
   sentAt: string | null;
   /** Receiving finished (lib/podium/receive). */
   receivedAt?: string | null;
+  /** The "it's open" notification (migration 174): automatic or by hand only, its text, who has had it. */
+  autoNotify?: boolean;
+  notifyTitle?: string | null;
+  notifyBody?: string | null;
+  notifiedCount?: number;
 }
 
 export type RoundState = 'upcoming' | 'open' | 'locked' | 'sent';

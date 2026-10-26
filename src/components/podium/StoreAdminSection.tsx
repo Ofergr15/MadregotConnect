@@ -52,6 +52,7 @@ export function StoreAdminSection() {
     pending > 0 && { text: `${pending} מעל התקציב מחכים לאישור`, href: admin, tone: 'text-[#9A3412]' },
     r?.state === 'locked' && { text: 'ההזמנה נסגרה: להוריד קובץ ולסמן "נשלח לפודיום"', href: admin, tone: 'text-[#9A3412]' },
     r?.state === 'sent' && { text: r.receivedAt ? 'לחלק ולסמן "נמסר" לכל אחד' : 'כשהסחורה מגיעה: לסמן מה הגיע', href: admin, tone: 'text-brand-700' },
+    r?.state === 'open' && r.autoNotify === false && (r.notifiedCount ?? 0) < (data?.core.length ?? 0) && { text: `ההתראה עוד לא נשלחה ל-${(data?.core.length ?? 0) - (r.notifiedCount ?? 0)}: לשלוח`, href: admin, tone: 'text-brand-700' },
     unmatched > 0 && { text: `${unmatched} מוצרים לא נמצאו באתר: רצים לא רואים אותם`, href: `${admin}?tab=catalog`, tone: 'text-ink-600' },
   ].filter(Boolean) as Array<{ text: string; href: string; tone: string }>;
 
@@ -74,7 +75,8 @@ export function StoreAdminSection() {
 
         {r && (
           <>
-            <p className="mt-2 text-2xs text-ink-400">{r.title} · {r.state === 'upcoming' ? `נפתח ${whenIL(r.opensAt)}` : r.state === 'open' ? `נסגר ${whenIL(r.locksAt)}` : `נסגר ${whenIL(r.locksAt)}`}</p>
+            <p className="mt-2 text-2xs text-ink-400">🔔 {r.autoNotify === false ? 'התראה ידנית' : 'התראה אוטומטית'} · נשלחה ל-<bdi>{r.notifiedCount ?? 0}</bdi> מתוך <bdi>{data!.core.length}</bdi></p>
+            <p className="mt-0.5 text-2xs text-ink-400">{r.title} · {r.state === 'upcoming' ? `נפתח ${whenIL(r.opensAt)}` : r.state === 'open' ? `נסגר ${whenIL(r.locksAt)}` : `נסגר ${whenIL(r.locksAt)}`}</p>
             <div className="mt-2 grid grid-cols-4 gap-1.5 text-center">
               {[[`${sent.length}/${data!.core.length}`, 'שלחו'], [String(items), 'פריטים'], [shekelRound(total), 'משוער'], [String(pending), 'לאישור']].map(([n, l], i) => (
                 <div key={l} className={cn('rounded-xl py-2', i === 3 && pending ? 'bg-[#FFF1EA] text-[#9A3412]' : 'bg-page')}>

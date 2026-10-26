@@ -112,6 +112,24 @@ function PodiumAdmin() {
                 ? <button type="button" disabled={!!busy} onClick={() => void act('unsent', () => post('/api/admin/podium', { action: 'unsent', id: round.id }))} className="rounded-2xl bg-page py-3 text-sm font-extrabold text-ink-700">ביטול &quot;נשלח&quot;</button>
                 : <button type="button" disabled={!!busy || round.state !== 'locked'} onClick={() => { if (confirm('לסמן שההזמנה נשלחה לפודיום? אחרי זה אי אפשר לערוך.')) void act('sent', () => post('/api/admin/podium', { action: 'sent', id: round.id })); }} className="rounded-2xl bg-page py-3 text-sm font-extrabold text-ink-700 disabled:opacity-40">📦 נשלח לפודיום</button>}
             </div>
+            {/* 🔔 the "it's open" notification: automatic or by hand, how many had it, send now (Ofer 10-26). */}
+            <div className="mt-3 rounded-2xl bg-page p-3">
+              <div className="flex items-center justify-between gap-2">
+                <b className="text-13 text-ink-900">🔔 התראת פתיחה</b>
+                <span className="text-2xs font-bold text-ink-500">{round.autoNotify === false ? 'ידנית בלבד' : 'אוטומטית בפתיחה'}</span>
+              </div>
+              <p className="mt-0.5 text-2xs text-ink-500">נשלחה ל-<bdi>{round.notifiedCount ?? 0}</bdi> מתוך <bdi>{data?.core.length ?? 0}</bdi>{round.state === 'upcoming' ? ` · ${round.autoNotify === false ? 'לא תישלח לבד' : `תצא ${whenIL(round.opensAt)}`}` : ''}</p>
+              {round.state === 'open' && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button type="button" disabled={!!busy || (round.notifiedCount ?? 0) >= (data?.core.length ?? 0)}
+                    onClick={() => void act('notify', async () => { const j = await post('/api/admin/podium', { action: 'notify', id: round.id }); setNote(j.sent ? `נשלחה ל-${j.sent}` : 'כולם כבר קיבלו'); })}
+                    className="rounded-xl bg-brand-600 py-2.5 text-xs font-extrabold text-white disabled:opacity-40">לשלוח עכשיו{(data?.core.length ?? 0) - (round.notifiedCount ?? 0) > 0 ? ` · ${(data?.core.length ?? 0) - (round.notifiedCount ?? 0)} שלא קיבלו` : ''}</button>
+                  <button type="button" disabled={!!busy}
+                    onClick={() => { if (confirm('לשלוח את ההתראה שוב לכל מי שההזמנה פתוחה לו?')) void act('notify', async () => { const j = await post('/api/admin/podium', { action: 'notify', id: round.id, again: true }); setNote(`נשלחה שוב ל-${j.sent}`); }); }}
+                    className="rounded-xl bg-card py-2.5 text-xs font-extrabold text-ink-700 ring-1 ring-black/5">שוב לכולם</button>
+                </div>
+              )}
+            </div>
             {round.state === 'open' && <p className="mt-2 text-2xs text-ink-400">אחרי הסגירה רצים לא יכולים לשנות. אדמין עדיין יכול לערוך עד שמסמנים &quot;נשלח&quot;.</p>}
           </div>
 
@@ -262,12 +280,15 @@ const toLocal = (iso?: string) => {
 };
 
 function RoundForm({ init, onSave, onCancel, onDelete, busy, people }: {
-  init: Partial<Round>; onSave: (r: { title: string; opensAt: string; locksAt: string; budget: number; audience: Audience; audienceIds: string[] }) => void;
+  init: Partial<Round>; onSave: (r: { title: string; opensAt: string; locksAt: string; budget: number; audience: Audience; audienceIds: string[]; autoNotify: boolean; notifyTitle: string; notifyBody: string }) => void;
   onCancel: () => void; onDelete?: () => void; busy: boolean; people: Resp['people'];
 }) {
   const [audience, setAudience] = useState<Audience>(init.audience ?? 'me');
   const [ids, setIds] = useState<string[]>(init.audienceIds ?? []);
   const [who, setWho] = useState('');
+  const [auto, setAuto] = useState(init.autoNotify !== false);
+  const [nTitle, setNTitle] = useState(init.notifyTitle ?? '');
+  const [nBody, setNBody] = useState(init.notifyBody ?? '');
   const [title, setTitle] = useState(init.title ?? '');
   const [opens, setOpens] = useState(toLocal(init.opensAt) || toLocal(new Date().toISOString()));
   const [locks, setLocks] = useState(toLocal(init.locksAt));
@@ -308,8 +329,16 @@ function RoundForm({ init, onSave, onCancel, onDelete, busy, people }: {
       <label className="block"><span className="mb-1 block text-13 font-bold text-ink-700">נפתח להזמנות</span><input type="datetime-local" dir="ltr" className={`${field} text-right`} value={opens} onChange={(e) => setOpens(e.target.value)} /></label>
       <label className="block"><span className="mb-1 block text-13 font-bold text-ink-700">נסגר לשינויים</span><input type="datetime-local" dir="ltr" className={`${field} text-right`} value={locks} onChange={(e) => setLocks(e.target.value)} /><small className="text-2xs text-ink-400">מהרגע הזה רצים לא יכולים לערוך. תזכורת יוצאת 24 שעות לפני.</small></label>
       <label className="block"><span className="mb-1 block text-13 font-bold text-ink-700">תקציב לרץ (₪)</span><input inputMode="numeric" className={field} value={budget} onChange={(e) => setBudget(e.target.value.replace(/[^\d]/g, ''))} /><small className="text-2xs text-ink-400">מעל זה ההזמנה צריכה אישור, וההפרש על הרץ.</small></label>
-      <p className="rounded-xl bg-page px-3 py-2 text-2xs leading-relaxed text-ink-500">בפתיחה כל מי שההזמנה פתוחה לו מקבל התראה. יום לפני הסגירה תזכורת למי שלא שלח, ובסגירה התראה לצוות.</p>
-      <button type="button" disabled={!ok || busy} onClick={() => onSave({ title: title.trim(), opensAt: new Date(opens).toISOString(), locksAt: new Date(locks).toISOString(), budget: Number(budget) || DEFAULT_BUDGET, audience, audienceIds: audience === 'people' ? ids : [] })} className="w-full rounded-2xl bg-brand-600 py-3.5 font-extrabold text-white disabled:opacity-50">שמירה</button>
+      <div className="rounded-xl bg-page p-3">
+        <label className="flex items-center justify-between gap-3">
+          <span><b className="block text-13 text-ink-900">🔔 התראה אוטומטית בפתיחה</b><small className="text-2xs text-ink-500">{auto ? 'יוצאת לבד ברגע הפתיחה, ולמי שנוסף אחר כך' : 'כבוי: שולחים בעצמך מהניהול, מתי שרוצים'}</small></span>
+          <input type="checkbox" className="h-6 w-6 shrink-0 accent-brand-600" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
+        </label>
+        <input value={nTitle} onChange={(e) => setNTitle(e.target.value)} maxLength={80} placeholder={`🛒 ${title || 'הזמנת פודיום'} פתוחה`} className="mt-2 w-full rounded-lg bg-card px-3 py-2 text-13 font-bold outline-none" />
+        <textarea value={nBody} onChange={(e) => setNBody(e.target.value)} maxLength={240} rows={2} placeholder={`ג׳לים, וופלים ומשקאות מפודיום, עד ₪${budget || DEFAULT_BUDGET} לכל אחד. אפשר להזמין עד…`} className="mt-1.5 w-full resize-none rounded-lg bg-card px-3 py-2 text-13 outline-none" />
+        <small className="text-3xs text-ink-400">ריק = הנוסח הרגיל. תזכורת יוצאת יום לפני הסגירה למי שלא שלח.</small>
+      </div>
+      <button type="button" disabled={!ok || busy} onClick={() => onSave({ title: title.trim(), opensAt: new Date(opens).toISOString(), locksAt: new Date(locks).toISOString(), budget: Number(budget) || DEFAULT_BUDGET, audience, audienceIds: audience === 'people' ? ids : [], autoNotify: auto, notifyTitle: nTitle, notifyBody: nBody })} className="w-full rounded-2xl bg-brand-600 py-3.5 font-extrabold text-white disabled:opacity-50">שמירה</button>
       <div className="flex justify-between">
         <button type="button" onClick={onCancel} className="text-13 font-bold text-ink-500">ביטול</button>
         {onDelete && <button type="button" onClick={onDelete} className="text-13 font-bold text-red-600">מחיקת הסבב</button>}
