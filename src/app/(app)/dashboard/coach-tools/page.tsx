@@ -7,7 +7,7 @@ import { isAdminHome, useNavIdentity } from '@/lib/nav-items';
 import { useTranslations } from 'next-intl';
 import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles, UserCog, Zap, CalendarPlus, UserCheck, CalendarCheck, Footprints } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
-import { StoreAdminSection } from '@/components/podium/StoreAdminSection';
+import { StoreRow } from '@/components/podium/StoreAdminSection';
 import { flowGroup, type EntryQueueMember } from '@/lib/admin/entry-queue';
 import { getSupabase } from '@/lib/supabase/client';
 import { isViewingPerson } from '@/lib/view-as-person';
@@ -260,7 +260,7 @@ function CoachToolsClassic() {
       </InsetSection>}
 
       {/* חנות: the Podium round's live status and every door into it, plus the club store (Ofer 10-26). */}
-      {isAdminLens && <StoreAdminSection />}
+      {isAdminLens && <InsetSection><StoreRow /></InsetSection>}
 
       {isClubCoachLens && <>
 

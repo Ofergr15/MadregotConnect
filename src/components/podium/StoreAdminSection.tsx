@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { ChevronLeft, Download, Plus, ShoppingBag, Store } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { InsetSection } from '@/components/ui';
+import { InsetSection, InsetRow } from '@/components/ui';
 import { STORE_OPEN } from '@/lib/nav-items';
 import { itemCount, orderTotal, type Approval, type PodiumProduct, type PodiumRound, type RoundState } from '@/lib/podium/model';
-import { shekelRound, whenIL } from '@/components/podium/parts';
+import { shekelRound, timeLeft, whenIL } from '@/components/podium/parts';
 
 type Round = PodiumRound & { state: RoundState };
 interface Resp {
@@ -22,6 +22,18 @@ const STATE: Record<RoundState, { label: string; dot: string }> = {
   locked: { label: 'נסגר · לשלוח לפודיום', dot: 'bg-[#FF5A1F]' },
   sent: { label: 'נשלח · לקבלה וחלוקה', dot: 'bg-brand-600' },
 };
+
+function Fact({ k, children }: { k: string; children: React.ReactNode }) {
+  return <div className="flex items-start gap-3 px-3.5 py-2.5"><span className="w-12 shrink-0 pt-0.5 text-2xs font-bold text-ink-400">{k}</span><span className="min-w-0 flex-1">{children}</span></div>;
+}
+
+/** Partly open or open to everyone — the badge. */
+function reach(r: Round): { label: string; tone: string } {
+  if (r.audience === 'all') return { label: '🏃 פתוח לכולם', tone: 'bg-accent-600 text-white' };
+  if (r.audience === 'core') return { label: '🌰 פתוח לגרעין', tone: 'bg-[#0c0c0d] text-white' };
+  if (r.audience === 'me') return { label: '🔒 רק אני · בדיקה', tone: 'bg-ink-300 text-ink-900' };
+  return { label: r.audience === 'admins' ? '🛡️ חלקית · אדמינים' : `✉️ חלקית · ${r.audienceIds.length} אנשים`, tone: 'bg-[#FF5A1F] text-white' };
+}
 
 /** Who the round is open to, in words — names when it's a few people. */
 function audienceLine(r: Round, people: Resp['people']): string {
@@ -38,7 +50,7 @@ function audienceLine(r: Round, people: Resp['people']): string {
  * and to whom. Today Podium is the only open one; the club store is closed to members (STORE_OPEN).
  * Under Podium: what waits for the admin — approvals, unmatched products, the stage's next step.
  */
-export function StoreAdminSection() {
+export function StoreAdminSection({ header = 'חנות' }: { header?: string | null } = {}) {
   const { data } = useApi<Resp>('/api/admin/podium');
   const r = data?.round ?? null;
   const sent = (data?.orders ?? []).filter((o) => o.submittedAt);
@@ -57,7 +69,7 @@ export function StoreAdminSection() {
   ].filter(Boolean) as Array<{ text: string; href: string; tone: string }>;
 
   return (
-    <InsetSection header="חנות">
+    <InsetSection header={header ?? undefined}>
       {/* ── פודיום ── */}
       <div className="p-4">
         <Link href={admin} className="flex items-center gap-3">
@@ -68,15 +80,32 @@ export function StoreAdminSection() {
               {r ? <span className="flex items-center gap-1 rounded-pill bg-page px-2 py-0.5 text-3xs font-extrabold text-ink-700"><i className={cn('h-1.5 w-1.5 rounded-full', STATE[r.state].dot)} />{STATE[r.state].label}</span>
                 : <span className="rounded-pill bg-page px-2 py-0.5 text-3xs font-extrabold text-ink-400">סגור</span>}
             </span>
-            <span className="block truncate text-2xs text-ink-500">{!data ? '…' : r ? (live ? audienceLine(r, data.people) : r.title) : 'אין הזמנה פתוחה'}</span>
+            <span className="block truncate text-2xs text-ink-500">{!data ? '…' : r ? r.title : 'אין הזמנה פתוחה'}</span>
           </span>
           <ChevronLeft className="h-4 w-4 text-ink-300" />
         </Link>
 
         {r && (
           <>
-            <p className="mt-2 text-2xs text-ink-400">🔔 {r.autoNotify === false ? 'התראה ידנית' : 'התראה אוטומטית'} · נשלחה ל-<bdi>{r.notifiedCount ?? 0}</bdi> מתוך <bdi>{data!.core.length}</bdi></p>
-            <p className="mt-0.5 text-2xs text-ink-400">{r.title} · {r.state === 'upcoming' ? `נפתח ${whenIL(r.opensAt)}` : r.state === 'open' ? `נסגר ${whenIL(r.locksAt)}` : `נסגר ${whenIL(r.locksAt)}`}</p>
+            {/* Who, when it opens, when it closes — the three things to know at a glance (Ofer 10-26). */}
+            <div className="mt-3 divide-y divide-card overflow-hidden rounded-2xl bg-page">
+              <Fact k="פתוח ל">
+                <span className={cn('rounded-pill px-2 py-0.5 text-2xs font-extrabold', reach(r).tone)}>{reach(r).label}</span>
+                <span className="mt-0.5 block text-2xs text-ink-500">{audienceLine(r, data!.people).replace(/^פתוח /, '')}{r.audience !== 'all' && r.audience !== 'core' ? '' : ` · ${data!.core.length} אנשים`}</span>
+              </Fact>
+              <Fact k="נפתח">
+                <b className="text-13 text-ink-900">{whenIL(r.opensAt)}</b>
+                {r.state === 'upcoming' && <span className="block text-2xs text-ink-500">{timeLeft(r.opensAt)}</span>}
+              </Fact>
+              <Fact k="נסגר">
+                <b className="text-13 text-ink-900">{whenIL(r.locksAt)}</b>
+                <span className="block text-2xs text-ink-500">{r.state === 'open' ? timeLeft(r.locksAt) : r.state === 'upcoming' ? '' : 'נסגר · אי אפשר לשנות'}</span>
+              </Fact>
+              <Fact k="התראה">
+                <b className="text-13 text-ink-900">{r.autoNotify === false ? 'ידנית' : 'אוטומטית'}</b>
+                <span className="block text-2xs text-ink-500">נשלחה ל-<bdi>{r.notifiedCount ?? 0}</bdi> מתוך <bdi>{data!.core.length}</bdi></span>
+              </Fact>
+            </div>
             <div className="mt-2 grid grid-cols-4 gap-1.5 text-center">
               {[[`${sent.length}/${data!.core.length}`, 'שלחו'], [String(items), 'פריטים'], [shekelRound(total), 'משוער'], [String(pending), 'לאישור']].map(([n, l], i) => (
                 <div key={l} className={cn('rounded-xl py-2', i === 3 && pending ? 'bg-[#FFF1EA] text-[#9A3412]' : 'bg-page')}>
@@ -120,4 +149,20 @@ export function StoreAdminSection() {
       </Link>
     </InsetSection>
   );
+}
+
+/**
+ * The one "חנות" row on ניהול: how many stores are open and what waits, the stores themselves one
+ * level in (/dashboard/manage/store). Same key as the section, so opening it costs nothing.
+ */
+export function StoreRow() {
+  const { data } = useApi<Resp>('/api/admin/podium');
+  const r = data?.round ?? null;
+  const pending = (data?.orders ?? []).filter((o) => o.submittedAt && o.approval === 'pending').length;
+  const open = r && r.state !== 'sent' ? 1 : 0;
+  const sub = !data ? 'פודיום · חנות המועדון'
+    : pending ? `פודיום: ${pending} מחכים לאישור`
+    : r ? `פודיום ${STATE[r.state].label}${open ? ` · ${audienceLine(r, data.people).replace(/^פתוח /, '')}` : ''}`
+    : 'אין הזמנה פתוחה';
+  return <InsetRow icon={ShoppingBag} iconBg="bg-[#FF5A1F]" label="חנות" sublabel={sub} href="/dashboard/manage/store" />;
 }

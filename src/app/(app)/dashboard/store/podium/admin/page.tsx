@@ -73,7 +73,7 @@ function PodiumAdmin() {
   return (
     <div className="space-y-3 pb-16">
       <div className="pt-1">
-        <Link href="/dashboard/store/podium" className="mb-1 inline-flex items-center gap-0.5 text-13 font-bold text-brand-600"><ChevronRight className="h-4 w-4" />ההזמנה</Link>
+        <Link href="/dashboard/manage/store" className="mb-1 inline-flex items-center gap-0.5 text-13 font-bold text-brand-600"><ChevronRight className="h-4 w-4" />חנות</Link>
         <div className="flex items-end justify-between gap-2">
           <h1 className="text-[26px] font-black leading-tight tracking-tight text-ink-900">ניהול פודיום</h1>
           <button type="button" onClick={() => setRoundForm({ title: '', budget: DEFAULT_BUDGET })} className="flex items-center gap-1 rounded-pill bg-brand-600 px-3 py-2 text-13 font-bold text-white"><Plus className="h-4 w-4" />סבב חדש</button>
