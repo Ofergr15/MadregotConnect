@@ -9,7 +9,7 @@ import { textMatches } from '@/lib/search/match';
 import { cn } from '@/lib/utils';
 import { Sheet, SkeletonCard, SegmentedControl } from '@/components/ui';
 import {
-  AUDIENCES, AUDIENCE_TAG, DEFAULT_BUDGET, englishName, itemCount, orderTotal, overBy, roundTotals,
+  AUDIENCES, AUDIENCE_TAG, DEFAULT_BUDGET, englishName, hebrewName, itemCount, orderTotal, overBy, roundTotals,
   type Approval, type Audience, type PodiumProduct, type PodiumRound, type RoundState,
 } from '@/lib/podium/model';
 import { ProductImage, ProductLine, shekelRound, whenIL } from '@/components/podium/parts';
@@ -36,7 +36,7 @@ function PodiumAdmin() {
   const [roundId, setRoundId] = useState<string | null>(null);
   const key = `/api/admin/podium${roundId ? `?round=${roundId}` : ''}`;
   const { data, mutate, isLoading } = useApi<Resp>(key);
-  const [tab, setTab] = useState<'people' | 'products' | 'catalog' | 'receive' | 'split' | null>(null);
+  const [tab, setTab] = useState<'people' | 'products' | 'catalog' | 'receive' | 'split' | null>(() => (params?.get('tab') === 'catalog' ? 'catalog' : null));
   const [edit, setEdit] = useState<string | null>(params?.get('order') ?? null);
   const [roundForm, setRoundForm] = useState<Partial<Round> | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -325,7 +325,7 @@ function Catalog({ products, busy, act, post }: {
 }) {
   const [links, setLinks] = useState<Record<string, string>>({});
   const [result, setResult] = useState<string | null>(null);
-  const missing = products.filter((p) => p.price == null);
+  const missing = products.filter((p) => p.price == null && !p.hidden);
   const rest = products.filter((p) => p.price != null);
   const checked = products.map((p) => p.checkedAt).filter(Boolean).sort().at(-1);
   return (
@@ -341,15 +341,32 @@ function Catalog({ products, busy, act, post }: {
       </div>
 
       {missing.length > 0 && (
-        <div className="rounded-card bg-card p-4 ring-1 ring-black/[0.04]">
-          <p className="text-13 font-extrabold text-ink-900">לא נמצאו באתר · <bdi>{missing.length}</bdi></p>
-          <p className="mb-2 text-2xs text-ink-400">רצים לא רואים אותם. מצאת את המוצר באתר? הדבק את הקישור לעמוד המוצר.</p>
+        <div className="rounded-card bg-card p-4 ring-1 ring-[#F5C26B]">
+          <p className="text-[15px] font-extrabold text-ink-900">⚠️ <bdi>{missing.length}</bdi> מוצרים לא נמצאו באתר</p>
+          <p className="mt-1 text-13 leading-relaxed text-ink-600">
+            חיפשנו באתר של פודיום כל מוצר מהקובץ &quot;מדרגות תזונה&quot; לפי <b>הברקוד</b> שלו. את אלה לא מצאנו.
+            כנראה הם לא נמכרים באתר, או רשומים שם עם ברקוד אחר. <b>רצים לא רואים אותם</b> עד שיש להם מחיר.
+          </p>
+          <ol className="mt-2 space-y-0.5 rounded-xl bg-page px-3 py-2 text-2xs leading-relaxed text-ink-600">
+            <li>1. &quot;חיפוש באתר&quot; פותח את פודיום עם שם המוצר</li>
+            <li>2. מצאת? מעתיקים את הכתובת של עמוד המוצר</li>
+            <li>3. מדביקים כאן ו&quot;הוספה&quot;. התמונה, המחיר והמבצע נכנסים לבד</li>
+          </ol>
           {missing.map((p) => (
-            <div key={p.id} className="border-t border-page py-2.5">
-              <span dir="ltr" className="block text-left text-13 font-bold">{englishName(p.name)}</span>
-              <div className="mt-1.5 flex gap-2">
-                <input dir="ltr" value={links[p.id] ?? ''} onChange={(e) => setLinks((s) => ({ ...s, [p.id]: e.target.value }))} placeholder="https://www.podiumsport.co.il/items/…" className="min-w-0 flex-1 rounded-xl bg-page px-3 py-2 text-xs outline-none" />
+            <div key={p.id} className="mt-3 border-t border-page pt-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <span dir="ltr" className="block text-left text-13 font-bold text-ink-900">{englishName(p.name)}</span>
+                  <span className="block text-2xs text-ink-400">{[hebrewName(p.name), p.dept].filter(Boolean).join(' · ')}</span>
+                  <span className="block text-2xs text-ink-400">פריט <bdi>{p.sku}</bdi> · ברקוד <bdi>{p.barcode}</bdi> · לא נמצא בחיפוש לפי ברקוד</span>
+                </div>
+                <a href={`https://www.podiumsport.co.il/search/?q=${encodeURIComponent(englishName(p.name).slice(0, 60))}`} target="_blank" rel="noreferrer"
+                  className="shrink-0 rounded-xl bg-page px-2.5 py-1.5 text-2xs font-extrabold text-brand-600">חיפוש באתר ↗</a>
+              </div>
+              <div className="mt-2 flex gap-2">
+                <input dir="ltr" value={links[p.id] ?? ''} onChange={(e) => setLinks((s) => ({ ...s, [p.id]: e.target.value }))} placeholder="הדבקת קישור לעמוד המוצר" className="min-w-0 flex-1 rounded-xl bg-page px-3 py-2 text-xs outline-none" />
                 <button type="button" disabled={!links[p.id]?.trim() || !!busy} onClick={() => void act(`l${p.id}`, () => post('/api/admin/podium/products', { action: 'link', id: p.id, url: links[p.id] }))} className="flex items-center gap-1 rounded-xl bg-brand-600 px-3 text-xs font-extrabold text-white disabled:opacity-40"><Link2 className="h-3.5 w-3.5" />{busy === `l${p.id}` ? '…' : 'הוספה'}</button>
+                <button type="button" disabled={!!busy} onClick={() => void act('h', () => post('/api/admin/podium/products', { action: 'hide', id: p.id, hidden: true }))} className="rounded-xl px-2 text-2xs font-bold text-ink-400">לא צריך</button>
               </div>
             </div>
           ))}
