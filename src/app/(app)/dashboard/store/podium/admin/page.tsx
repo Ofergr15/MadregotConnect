@@ -335,7 +335,7 @@ function Catalog({ products, busy, act, post }: {
           const r = await post('/api/admin/podium/products', { action: 'check' });
           setResult(`עודכנו ${r.updated ?? 0} מוצרים${r.changed?.length ? ` · ${r.changed.length} שינויי מחיר` : ''}${r.missing?.length ? ` · ${r.missing.length} לא נמצאו` : ''}`);
         })} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-ink-900 py-3 text-sm font-extrabold text-white disabled:opacity-60">
-          <RefreshCw className={cn('h-4 w-4', busy === 'check' && 'animate-spin')} />{busy === 'check' ? 'בודק מול האתר…' : 'בדיקת מחירים ומבצעים מול האתר'}
+          <RefreshCw className={cn('h-4 w-4', busy === 'check' && 'animate-spin')} />{busy === 'check' ? 'בודק מול האתר…' : 'בדיקת מחירים מול האתר'}
         </button>
         <p className="mt-2 text-center text-2xs text-ink-400">{result ?? (checked ? `נבדק לאחרונה ${whenIL(checked)}` : '')}</p>
       </div>
@@ -350,7 +350,7 @@ function Catalog({ products, busy, act, post }: {
           <ol className="mt-2 space-y-0.5 rounded-xl bg-page px-3 py-2 text-2xs leading-relaxed text-ink-600">
             <li>1. &quot;חיפוש באתר&quot; פותח את פודיום עם שם המוצר</li>
             <li>2. מצאת? מעתיקים את הכתובת של עמוד המוצר</li>
-            <li>3. מדביקים כאן ו&quot;הוספה&quot;. התמונה, המחיר והמבצע נכנסים לבד</li>
+            <li>3. מדביקים כאן ו&quot;הוספה&quot;. התמונה והמחיר נכנסים לבד</li>
           </ol>
           {missing.map((p) => (
             <div key={p.id} className="mt-3 border-t border-page pt-3">
@@ -379,7 +379,7 @@ function Catalog({ products, busy, act, post }: {
             <div className="h-11 w-11 shrink-0 rounded-xl bg-white p-1 ring-1 ring-black/5"><ProductImage p={p} /></div>
             <div className="min-w-0 flex-1">
               <span dir="ltr" className="block truncate text-left text-13 font-bold">{englishName(p.name)}</span>
-              <span className="block truncate text-2xs text-ink-400"><bdi>{shekelRound(p.price!)}</bdi>{p.regularPrice ? ` (רגיל ${shekelRound(p.regularPrice)})` : ''}{p.deal ? ` · ${p.deal}` : ''}</span>
+              <span className="block truncate text-2xs text-ink-400"><bdi dir="ltr">{shekelRound(p.price!)}</bdi>{hebrewName(p.name) ? ` · ${hebrewName(p.name)}` : ''}</span>
             </div>
             <button type="button" aria-label={p.hidden ? 'להציג' : 'להסתיר'} disabled={!!busy} onClick={() => void act('h', () => post('/api/admin/podium/products', { action: 'hide', id: p.id, hidden: !p.hidden }))} className="p-2 text-ink-400">
               {p.hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

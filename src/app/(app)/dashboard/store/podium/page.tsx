@@ -8,7 +8,7 @@ import { textMatches } from '@/lib/search/match';
 import { cn } from '@/lib/utils';
 import { Sheet, SkeletonCard, EmptyState } from '@/components/ui';
 import {
-  AUDIENCE_TAG, GROUPS, dealNudge, orderable, englishName, groupOf, hebrewName, itemCount, orderRegularTotal, orderTotal, overBy,
+  AUDIENCE_TAG, GROUPS, orderable, englishName, groupOf, hebrewName, itemCount, orderTotal, overBy,
   type Approval, type PodiumProduct, type PodiumRound, type RoundState,
 } from '@/lib/podium/model';
 import { Price, ProductCard, ProductImage, ProductLine, Stepper, shekel, shekelRound, timeLeft, whenIL } from '@/components/podium/parts';
@@ -48,7 +48,6 @@ export default function PodiumOrderPage() {
 
   const editable = round?.state === 'open';
   const total = orderTotal(items, byId);
-  const regular = orderRegularTotal(items, products);
   const count = itemCount(items);
   const budget = round?.budget ?? 600;
   const over = overBy(total, budget);
@@ -150,14 +149,12 @@ export default function PodiumOrderPage() {
             <div className="rounded-card bg-card px-4 py-1 ring-1 ring-black/[0.04]">
               {lines.map(([id, n]) => {
                 const p = byId.get(id)!;
-                const nudge = dealNudge(p.deal, n);
                 return (
                   <div key={id} className="flex gap-3 border-b border-page py-3 last:border-0">
                     <button type="button" onClick={() => setOpen(p)} className="h-[68px] w-[68px] shrink-0 rounded-2xl bg-white p-1.5 ring-1 ring-black/5"><ProductImage p={p} /></button>
                     <div className="min-w-0 flex-1">
                       <button type="button" onClick={() => setOpen(p)} dir="ltr" className="block w-full truncate text-left text-13 font-bold text-ink-900">{englishName(p.name)}</button>
                       <span className="block text-2xs text-ink-400"><bdi dir="ltr">{shekel(p.price ?? 0)}</bdi> ליחידה{hebrewName(p.name) ? ` · ${hebrewName(p.name)}` : ''}</span>
-                      {nudge && <span className="mt-0.5 block text-2xs font-bold text-[#C2410C]">🎁 {nudge}</span>}
                       <div className="mt-2 flex items-center justify-between gap-2">
                         <Stepper qty={n} size="sm" disabled={!editable} onChange={(v) => setQty(id, v)} />
                         <b className="text-[15px] font-black tabular-nums"><bdi dir="ltr">{shekelRound((p.price ?? 0) * n)}</bdi></b>
@@ -170,12 +167,11 @@ export default function PodiumOrderPage() {
             </div>
 
             <div className="space-y-1.5 rounded-card bg-card p-4 text-sm ring-1 ring-black/[0.04]">
-              <Row k={`${count} פריטים · מחיר רגיל`} v={shekelRound(regular)} />
-              {regular > total && <Row k="מבצעי האתר" v={`−${shekelRound(regular - total)}`} tone="text-accent-900 font-bold" />}
+              <Row k="פריטים" v={String(count)} />
               <Row k="סה״כ משוער" v={shekelRound(total)} big />
               <Row k="התקציב שלך" v={shekelRound(budget)} />
               {over > 0 ? <Row k="ההפרש שעליך" v={shekelRound(over)} tone="text-[#C2410C] font-extrabold" /> : <Row k="נשאר בתקציב" v={shekelRound(budget - total)} tone="text-ink-500" />}
-              <p className="pt-1 text-2xs leading-relaxed text-ink-400">המחירים מהאתר של פודיום. המחיר הסופי נקבע בחנות, ויכול לרדת עוד בזכות מבצעים.</p>
+              <p className="pt-1 text-2xs leading-relaxed text-ink-400">המחירים מהאתר של פודיום, במחיר רגיל (בלי מבצעים). המחיר הסופי נקבע בחנות.</p>
             </div>
 
             {editable && (
@@ -290,7 +286,6 @@ function statusLine(round: { state: RoundState; locksAt: string }, mine: Mine | 
 }
 
 function ProductSheet({ p, qty, onQty, locked }: { p: PodiumProduct; qty: number; onQty: (n: number) => void; locked: boolean }) {
-  const nudge = dealNudge(p.deal, qty);
   return (
     <div className="space-y-3 pb-2">
       <div className="mx-auto aspect-square w-full max-w-[280px] rounded-3xl bg-white p-4"><ProductImage p={p} /></div>
@@ -299,7 +294,6 @@ function ProductSheet({ p, qty, onQty, locked }: { p: PodiumProduct; qty: number
         <p className="text-13 text-ink-400">{[hebrewName(p.name), p.dept].filter(Boolean).join(' · ')}</p>
       </div>
       <Price p={p} big />
-      {p.deal && <div className="rounded-2xl bg-[#FFF1EA] px-3.5 py-2.5 text-13 font-bold text-[#9A3412]">🎁 {p.deal}{nudge ? ` · ${nudge}` : ''}</div>}
       <div className="flex items-center justify-between gap-3">
         <Stepper qty={qty} onChange={onQty} disabled={locked} />
         {p.url && <a href={p.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-13 font-bold text-brand-600">לעמוד באתר <ExternalLink className="h-3.5 w-3.5" /></a>}

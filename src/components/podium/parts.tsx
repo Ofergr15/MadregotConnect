@@ -55,7 +55,6 @@ export function Price({ p, big }: { p: PodiumProduct; big?: boolean }) {
   return (
     <span className="flex items-baseline gap-1.5">
       <b className={cn('font-black tabular-nums text-ink-900', big ? 'text-[28px]' : 'text-[17px]')}>{shekel(p.price)}</b>
-      {p.regularPrice && p.regularPrice > p.price && <s className={cn('tabular-nums text-ink-400', big ? 'text-base' : 'text-xs')}>{shekel(p.regularPrice)}</s>}
     </span>
   );
 }
@@ -75,9 +74,6 @@ export function ProductCard({ p, qty, onQty, onOpen, locked }: {
       className={cn('overflow-hidden rounded-[20px] bg-card text-start transition-shadow', qty > 0 ? 'ring-2 ring-brand-600' : 'ring-1 ring-black/[0.04]')}>
       <div className="relative aspect-square bg-white p-3">
         <ProductImage p={p} />
-        {p.deal && (
-          <span className="absolute top-2 end-2 max-w-[80%] rounded-lg bg-[#FF5A1F] px-1.5 py-0.5 text-[10.5px] font-extrabold leading-tight text-white">{p.deal}</span>
-        )}
         <div className="absolute bottom-2 start-2">
           <Stepper qty={qty} onChange={onQty} disabled={locked} floating />
         </div>
