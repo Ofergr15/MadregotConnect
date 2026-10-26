@@ -8,13 +8,14 @@ import { textMatches } from '@/lib/search/match';
 import { cn } from '@/lib/utils';
 import { Sheet, SkeletonCard, EmptyState } from '@/components/ui';
 import {
-  AUDIENCE_TAG, GROUPS, dealNudge, englishName, groupOf, hebrewName, itemCount, orderRegularTotal, orderTotal, overBy,
+  AUDIENCE_TAG, GROUPS, dealNudge, orderable, englishName, groupOf, hebrewName, itemCount, orderRegularTotal, orderTotal, overBy,
   type Approval, type PodiumProduct, type PodiumRound, type RoundState,
 } from '@/lib/podium/model';
 import { Price, ProductCard, ProductImage, ProductLine, Stepper, shekel, shekelRound, whenIL } from '@/components/podium/parts';
 
 interface Mine { id: string; items: Record<string, number>; submittedAt: string | null; approval: Approval; updatedAt: string; editedByClub: boolean }
-interface Resp { staff: boolean; round: (PodiumRound & { state: RoundState }) | null; products?: PodiumProduct[]; order?: Mine | null; error?: string }
+interface Delivered { at: string; got: Record<string, number>; missing: Record<string, number>; gotValue: number; missingValue: number; owes: number }
+interface Resp { staff: boolean; round: (PodiumRound & { state: RoundState }) | null; products?: PodiumProduct[]; order?: Mine | null; delivered?: Delivered | null; error?: string }
 
 /**
  * הזמנת פודיום — the club's order from Podium (lib/podium/model), for whoever the round is open to. The cart saves itself as you tap;
@@ -81,7 +82,7 @@ export default function PodiumOrderPage() {
     if (ok) setCartOpen(false);
   };
 
-  const shown = products.filter((p) => (group === 'all' || groupOf(p.dept) === group) && (!q.trim() || textMatches(q, p.name)));
+  const shown = products.filter((p) => orderable(p) && (group === 'all' || groupOf(p.dept) === group) && (!q.trim() || textMatches(q, p.name)));
   const groups = GROUPS.filter((g) => products.some((p) => groupOf(p.dept) === g.key));
 
   if (isLoading && !data) return <div className="grid grid-cols-2 gap-3 pt-16">{Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} className="h-60" />)}</div>;
@@ -101,9 +102,9 @@ export default function PodiumOrderPage() {
 
       {status && <div className={cn('flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-13 font-bold', status.tone)}>{status.icon}<span className="flex-1">{status.text}</span></div>}
 
-      <Budget total={total} budget={budget} />
+      {data?.delivered ? <Got d={data.delivered} byId={byId} /> : <Budget total={total} budget={budget} />}
 
-      {round.state !== 'upcoming' && (
+      {round.state !== 'upcoming' && !data?.delivered && (
         <>
           <div className="flex items-center gap-2 rounded-xl bg-card px-3 py-2.5 ring-1 ring-black/[0.04]">
             <Search className="h-4 w-4 text-ink-400" />
@@ -122,7 +123,7 @@ export default function PodiumOrderPage() {
         </>
       )}
 
-      {count > 0 && (
+      {count > 0 && !data?.delivered && (
         <button type="button" onClick={() => setCartOpen(true)}
           className="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+84px)] z-30 mx-auto flex max-w-md items-center justify-between rounded-[20px] bg-ink-900 px-4 py-3.5 text-white shadow-[0_14px_30px_-6px_rgb(0_0_0/0.5)]">
           <span className="text-start"><b className="block text-sm"><bdi>{count}</bdi> פריטים</b><small className="text-2xs opacity-70">{saving === 'saving' ? 'שומר…' : saving === 'error' ? 'לא נשמר' : mine?.submittedAt ? 'נשלח · השינויים נשמרים' : 'טיוטה · נשמר אוטומטית'}</small></span>
@@ -180,6 +181,33 @@ function Header({ staff, title = 'הזמנת פודיום', sub, tag }: { staff:
         {sub && <p className="text-13 text-ink-500">{sub}</p>}
       </div>
       {staff && <Link href="/dashboard/store/podium/admin" className="flex shrink-0 items-center gap-1 rounded-pill bg-card px-3 py-2 text-13 font-bold text-ink-700 ring-1 ring-black/5"><Settings2 className="h-4 w-4" />ניהול</Link>}
+    </div>
+  );
+}
+
+/** Handed over (lib/podium/receive): what came, what didn't, and what to transfer — recomputed on what came. */
+function Got({ d, byId }: { d: Delivered; byId: Map<string, PodiumProduct> }) {
+  const lines = Object.keys({ ...d.got, ...d.missing }).filter((id) => byId.has(id));
+  const got = Object.values(d.got).reduce((a, b) => a + b, 0);
+  const miss = Object.values(d.missing).reduce((a, b) => a + b, 0);
+  return (
+    <div className="space-y-3">
+      <div className="rounded-card bg-card p-4 ring-1 ring-black/[0.04]">
+        <p className="text-base font-black text-ink-900">📦 ההזמנה שלך אצלך</p>
+        <p className="text-13 text-ink-500">{miss > 0 ? <>קיבלת <bdi>{got}</bdi> מתוך <bdi>{got + miss}</bdi> פריטים. <bdi>{miss}</bdi> לא הגיעו מהחנות.</> : <>קיבלת את כל <bdi>{got}</bdi> הפריטים.</>}</p>
+        <div className="mt-2 divide-y divide-page">
+          {lines.map((id) => {
+            const g = d.got[id] ?? 0; const m = d.missing[id] ?? 0; const p = byId.get(id)!;
+            return <ProductLine key={id} p={p} qty={g} right={m > 0 ? <span className="text-2xs font-extrabold text-[#C2410C]">חסר <bdi>{m}</bdi></span> : undefined} />;
+          })}
+        </div>
+        <div className="mt-3 space-y-1.5 rounded-2xl bg-page p-3.5 text-sm">
+          {d.missingValue > 0 && <div className="flex justify-between font-bold text-[#C2410C]"><span>לא הגיע</span><bdi dir="ltr">{shekelRound(d.missingValue)}</bdi></div>}
+          <div className="flex justify-between font-black"><span>שווי מה שקיבלת</span><bdi dir="ltr">{shekelRound(d.gotValue)}</bdi></div>
+          {d.owes > 0 && <div className="flex justify-between font-extrabold text-[#C2410C]"><span>להעביר למועדון</span><bdi dir="ltr">{shekelRound(d.owes)}</bdi></div>}
+        </div>
+        {d.owes > 0 && <p className="mt-2 text-2xs text-ink-400">ההפרש חושב מחדש לפי מה שקיבלת בפועל.</p>}
+      </div>
     </div>
   );
 }

@@ -16,7 +16,7 @@ const toProduct = (r: any): PodiumProduct => ({
   deal: r.deal ?? null, hidden: !!r.hidden, checkedAt: r.checked_at ?? null, sort: r.sort ?? 0,
 });
 export const toRound = (r: any): PodiumRound => ({
-  id: r.id, title: r.title, audience: (r.audience ?? 'core') as Audience, audienceIds: r.audience_ids ?? [], createdBy: r.created_by ?? null, opensAt: r.opens_at, locksAt: r.locks_at, budget: Number(r.budget), sentAt: r.sent_at ?? null,
+  id: r.id, title: r.title, audience: (r.audience ?? 'core') as Audience, audienceIds: r.audience_ids ?? [], createdBy: r.created_by ?? null, opensAt: r.opens_at, locksAt: r.locks_at, budget: Number(r.budget), sentAt: r.sent_at ?? null, receivedAt: r.received_at ?? null,
 });
 
 export async function loadProducts(db: Db): Promise<PodiumProduct[]> {
@@ -44,11 +44,16 @@ export async function listRounds(db: Db): Promise<PodiumRound[]> {
   return (data ?? []).map(toRound);
 }
 
-export interface OrderRow extends PodiumOrder { approvedTotal: number | null; updatedBy: string | null }
+export interface OrderRow extends PodiumOrder {
+  approvedTotal: number | null; updatedBy: string | null;
+  /** After receiving (lib/podium/receive): the admin's hand-set share, and when it was handed over. */
+  allocation: Record<string, number> | null; deliveredAt: string | null;
+}
 
 const toOrder = (r: any): OrderRow => ({
   id: r.id, roundId: r.round_id, athleteId: r.athlete_id, submittedAt: r.submitted_at ?? null, approval: r.approval as Approval,
   updatedAt: r.updated_at, approvedTotal: r.approved_total == null ? null : Number(r.approved_total), updatedBy: r.updated_by ?? null,
+  allocation: r.allocation ?? null, deliveredAt: r.delivered_at ?? null,
   items: Object.fromEntries(((r.podium_order_items ?? []) as Array<{ product_id: string; quantity: number }>).map((i) => [i.product_id, i.quantity])),
 });
 
@@ -154,4 +159,14 @@ export async function linkProduct(db: Db, id: string, url: string): Promise<Podi
   const { data, error } = await db.from('podium_products').update(siteRow(s)).eq('id', id).select('*').single();
   if (error) throw error;
   return toProduct(data);
+}
+
+/** How many of each product arrived for a round; a product with no row arrived in full. */
+export async function loadReceived(db: Db, roundId: string, ordered: Map<string, number>): Promise<{ received: Record<string, number>; recorded: boolean }> {
+  const { data, error } = await db.from('podium_received').select('product_id, quantity').eq('round_id', roundId);
+  if (error) return { received: Object.fromEntries(ordered), recorded: false };
+  const rows = (data ?? []) as Array<{ product_id: string; quantity: number }>;
+  const received: Record<string, number> = Object.fromEntries(ordered);
+  for (const r of rows) received[r.product_id] = r.quantity;
+  return { received, recorded: rows.length > 0 };
 }

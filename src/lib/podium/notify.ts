@@ -105,4 +105,17 @@ export async function tellRunner(opts: { athleteId: string; kind: 'approved' | '
   await notifyAthlete({ athleteId: opts.athleteId, kind: 'podium_update', url: PODIUM_URL, tag: `podium-${opts.kind}-${opts.round.id}`, category: 'news', actorAthleteId: opts.actorId, ...copy });
 }
 
+/** Handed over: what they got, what didn't arrive, and what to transfer now (recomputed on what they got). */
+export async function tellDelivered(opts: { athleteId: string; round: PodiumRound; share: import('@/lib/podium/receive').Share; actorId: string | null }) {
+  const { share } = opts;
+  const got = Object.values(share.got).reduce((a, b) => a + b, 0);
+  const ordered = got + Object.values(share.missing).reduce((a, b) => a + b, 0);
+  const miss = ordered - got;
+  const body = [
+    miss > 0 ? `קיבלת ${got} מתוך ${ordered} פריטים. ${miss} לא הגיעו מהחנות (${shekel(share.missingValue)}).` : `קיבלת את כל ${got} הפריטים.`,
+    share.owes > 0 ? `להעביר למועדון: ${shekel(share.owes)}.` : '',
+  ].filter(Boolean).join(' ');
+  await notifyAthlete({ athleteId: opts.athleteId, kind: 'podium_update', url: PODIUM_URL, tag: `podium-delivered-${opts.round.id}`, category: 'news', actorAthleteId: opts.actorId, title: '📦 ההזמנה שלך מפודיום אצלך', body });
+}
+
 export type { PodiumProduct };

@@ -5,6 +5,7 @@ import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { cleanItems, orderTotal, orderable, overBy, roundState } from '@/lib/podium/model';
 import { currentRound, loadOrder, loadProducts, saveOrder } from '@/lib/podium/server';
 import { askApproval } from '@/lib/podium/notify';
+import { receiveView } from '@/lib/podium/receive-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,11 +33,15 @@ export async function GET(request: Request) {
   try {
     const round = await currentRound(db, g.viewer!);
     if (!round) return NextResponse.json({ round: null, staff: g.staff });
-    const [products, order] = await Promise.all([loadProducts(db), loadOrder(db, round.id, g.athleteId)]);
+    const [allProducts, order] = await Promise.all([loadProducts(db), loadOrder(db, round.id, g.athleteId)]);
+    // Handed over: what they got and what didn't arrive (lib/podium/receive) — told only after "נמסר".
+    const delivered = order?.deliveredAt ? (await receiveView(db, round, { products: allProducts })).shares[order.id] ?? null : null;
+    const products = allProducts.filter((p) => orderable(p) || !!order?.items[p.id]);
     return NextResponse.json({
       staff: g.staff,
       round: { ...round, state: roundState(round) },
-      products: products.filter(orderable),
+      products,
+      delivered: delivered && { at: order!.deliveredAt, got: delivered.got, missing: delivered.missing, gotValue: delivered.gotValue, missingValue: delivered.missingValue, owes: delivered.owes },
       order: order && { id: order.id, items: order.items, submittedAt: order.submittedAt, approval: order.approval, updatedAt: order.updatedAt, editedByClub: !!order.updatedBy && order.updatedBy !== g.athleteId },
     });
   } catch (err) {

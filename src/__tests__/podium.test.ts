@@ -112,3 +112,33 @@ describe('podium audience', () => {
     expect(audienceAllows({ ...base, audience: 'all' }, { athleteId: null, isCore: true, isStaff: true })).toBe(false);
   });
 });
+
+describe('podium receiving', () => {
+  it('first to send is served first; hand-set shares come out of stock first; money recomputed', async () => {
+    const { allocate, shareOf, missing, overAllocated, packingCsv } = await import('@/lib/podium/receive');
+    const o = (id: string, at: string, items: Record<string, number>, allocation: Record<string, number> | null = null) =>
+      ({ id, submittedAt: at, approval: 'none' as const, items, allocation });
+    const orders = [
+      o('late', '2026-11-03', { g: 5, w: 2 }),
+      o('early', '2026-11-01', { g: 4, w: 2 }),
+      o('draft', null as unknown as string, { g: 9 }),
+      { ...o('no', '2026-11-01', { g: 3 }), approval: 'rejected' as const },
+    ];
+    const a = allocate(orders, { g: 6, w: 4 });
+    expect(a.get('early')).toEqual({ g: 4, w: 2 });
+    expect(a.get('late')).toEqual({ g: 2, w: 2 });
+    expect(a.has('draft')).toBe(false);
+    expect(a.has('no')).toBe(false);
+    const b = allocate([o('late', '2026-11-03', { g: 5 }, { g: 5 }), o('early', '2026-11-01', { g: 4 })], { g: 6 });
+    expect(b.get('late')).toEqual({ g: 5 });
+    expect(b.get('early')).toEqual({ g: 1 });
+    expect(overAllocated(allocate([o('x', '1', { g: 5 }, { g: 5 })], { g: 3 }), { g: 3 })).toEqual(['g']);
+    expect(missing({ g: 5, w: 2 }, { g: 2, w: 2 })).toEqual({ g: 3 });
+    const ps = [P('g', { price: 100 }), P('w', { price: 50 })];
+    const s = shareOf({ g: 8, w: 2 }, { g: 6, w: 2 }, ps, 600);
+    expect([s.orderedValue, s.gotValue, s.missingValue, s.owes]).toEqual([900, 700, 200, 100]);
+    expect(shareOf({ g: 8 }, { g: 5 }, ps, 600).owes).toBe(0);
+    const csv = packingCsv([{ name: 'דנה', items: { g: 5 }, got: { g: 2 } }], ps);
+    expect(csv.trim().split('\r\n')[1]).toBe(`דנה,ג'ל אנרגיה GU Gel g,bg,5,2,3`);
+  });
+});

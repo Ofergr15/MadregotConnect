@@ -13,6 +13,7 @@ import {
   type Approval, type Audience, type PodiumProduct, type PodiumRound, type RoundState,
 } from '@/lib/podium/model';
 import { ProductImage, ProductLine, shekelRound, whenIL } from '@/components/podium/parts';
+import { DistributePanel, ReceivePanel } from '@/components/podium/ReceivePanels';
 
 type Round = PodiumRound & { state: RoundState };
 interface Order { id: string; athleteId: string; items: Record<string, number>; submittedAt: string | null; approval: Approval; updatedAt: string }
@@ -35,7 +36,7 @@ function PodiumAdmin() {
   const [roundId, setRoundId] = useState<string | null>(null);
   const key = `/api/admin/podium${roundId ? `?round=${roundId}` : ''}`;
   const { data, mutate, isLoading } = useApi<Resp>(key);
-  const [tab, setTab] = useState<'people' | 'products' | 'catalog'>('people');
+  const [tab, setTab] = useState<'people' | 'products' | 'catalog' | 'receive' | 'split' | null>(null);
   const [edit, setEdit] = useState<string | null>(params?.get('order') ?? null);
   const [roundForm, setRoundForm] = useState<Partial<Round> | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -52,6 +53,8 @@ function PodiumAdmin() {
   const ordered = new Set(orders.map((o) => o.athleteId));
   const notOrdered = (data?.core ?? []).filter((id) => !ordered.has(id));
   const name = (id: string) => data?.people[id]?.name ?? 'רץ';
+  // Once sent, the screen opens on receiving (or the split, when receiving is done).
+  const view = tab ?? (round?.state === 'sent' ? (round.receivedAt ? 'split' : 'receive') : 'people');
 
   const post = async (url: string, body: unknown, method = 'POST') => {
     const r = await fetch(url, { method, headers: await apiHeaders(true), body: JSON.stringify(body) });
@@ -132,10 +135,18 @@ function PodiumAdmin() {
 
       {note && <p className="rounded-xl bg-red-50 px-3 py-2 text-13 font-bold text-red-700">{note}</p>}
 
-      <SegmentedControl<'people' | 'products' | 'catalog'> value={tab} onChange={setTab}
+      {/* After "נשלח לפודיום": receiving the goods and the split (lib/podium/receive) come first. */}
+      {round?.state === 'sent' && (
+        <SegmentedControl<'receive' | 'split'> value={view === 'split' ? 'split' : 'receive'} onChange={setTab}
+          options={[{ value: 'receive', label: '📦 קבלה' }, { value: 'split', label: '🎁 חלוקה' }]} />
+      )}
+      {round?.state === 'sent' && view === 'receive' && <ReceivePanel round={round} products={products} onDone={() => setTab('split')} />}
+      {round?.state === 'sent' && view === 'split' && <DistributePanel round={round} products={products} orders={orders} names={name} />}
+
+      <SegmentedControl<'people' | 'products' | 'catalog'> value={view === 'people' || view === 'products' || view === 'catalog' ? view : ('' as 'people')} onChange={setTab}
         options={[{ value: 'people', label: 'לפי רץ' }, { value: 'products', label: 'לפי מוצר' }, { value: 'catalog', label: 'קטלוג' }]} />
 
-      {tab === 'people' && round && (
+      {view === 'people' && round && (
         <div className="rounded-card bg-card px-4 py-1 ring-1 ring-black/[0.04]">
           {[...orders].sort((a, b) => Number(!!b.submittedAt) - Number(!!a.submittedAt) || name(a.athleteId).localeCompare(name(b.athleteId), 'he')).map((o) => (
             <button key={o.id} type="button" onClick={() => setEdit(o.id)} className="flex w-full items-center gap-3 border-b border-page py-3 text-start last:border-0">
@@ -158,7 +169,7 @@ function PodiumAdmin() {
         </div>
       )}
 
-      {tab === 'products' && round && (
+      {view === 'products' && round && (
         <div className="rounded-card bg-card px-4 py-1 ring-1 ring-black/[0.04]">
           {[...totals.entries()].sort((a, b) => b[1] - a[1]).map(([id, n]) => {
             const p = byId.get(id); if (!p) return null;
@@ -174,7 +185,7 @@ function PodiumAdmin() {
         </div>
       )}
 
-      {tab === 'catalog' && <Catalog products={products} busy={busy} act={act} post={post} />}
+      {view === 'catalog' && <Catalog products={products} busy={busy} act={act} post={post} />}
 
       <Sheet open={!!edit} onOpenChange={(o) => { if (!o) setEdit(null); }} title={edit ? name(orders.find((o) => o.id === edit)?.athleteId ?? '') : ''}>
         {edit && round && orders.find((o) => o.id === edit) && (

@@ -68,6 +68,8 @@ export interface PodiumRound {
   locksAt: string;
   budget: number;
   sentAt: string | null;
+  /** Receiving finished (lib/podium/receive). */
+  receivedAt?: string | null;
 }
 
 export type RoundState = 'upcoming' | 'open' | 'locked' | 'sent';
