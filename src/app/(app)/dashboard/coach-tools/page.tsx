@@ -256,6 +256,8 @@ function CoachToolsClassic() {
           href="/dashboard/control-room"
         />
         <InsetRow icon={BarChart3} iconBg="bg-ink-900" label={t('clubNumbers')} sublabel={t('clubNumbersSub')} href="/dashboard/numbers" />
+        {/* הזמנת פודיום (lib/podium): rounds, orders, receiving and the split. */}
+        <InsetRow icon={ShoppingBag} iconBg="bg-[#FF5A1F]" label="הזמנת פודיום" sublabel="סבבים · הזמנות · קבלה וחלוקה" href="/dashboard/store/podium/admin" />
       </InsetSection>}
 
       {isClubCoachLens && <>
