@@ -29,9 +29,9 @@ export function PodiumCard({ where = 'feed' }: { where?: 'feed' | 'store' }) {
   const stage = round.state === 'upcoming' ? { tag: '⏳ בקרוב', line: `נפתחת ${whenIL(round.opensAt)}`, tone: 'bg-white/15' }
     : round.state === 'sent' ? { tag: '📦 נשלחה לפודיום', line: 'ההזמנה בדרך. נעדכן כשהיא אצלך.', tone: 'bg-white/15' }
     : round.state === 'locked' ? { tag: '🔒 נסגרה', line: mine?.submittedAt ? 'ההזמנה נסגרה ונשלחת לפודיום. אי אפשר לשנות.' : 'ההזמנה נסגרה. הסל לא נשלח.', tone: 'bg-white/15' }
-    : mine?.submittedAt ? { tag: '✓ סיימת', line: mine.approval === 'pending' ? `מחכה לאישור חריגה · אפשר לערוך ${left ?? ''}`.trim() : `אפשר לערוך ${left ?? ''}`.trim(), tone: 'bg-[#16A34A]' }
-    : n > 0 ? { tag: '🛒 ההזמנה בתהליך', line: `עוד לא נשלחה · נסגרת ${left ?? ''}`.trim(), tone: 'bg-[#FF5A1F]' }
-    : { tag: AUDIENCE_TAG[round.audience] ?? AUDIENCE_TAG.core, line: `ג׳לים, וופלים ומשקאות · נסגרת ${left ?? ''}`.trim(), tone: 'bg-white/15' };
+    : mine?.submittedAt ? { tag: '✓ בוצע', line: `${mine.approval === 'pending' ? 'מחכה לאישור חריגה · ' : ''}אפשר לערוך עד ${whenIL(round.locksAt)}${left ? ` (${left})` : ''}`, tone: 'bg-[#16A34A]' }
+    : n > 0 ? { tag: '🛒 ההזמנה בתהליך', line: `עוד לא נשלחה · נסגרת ${whenIL(round.locksAt)}${left ? ` (${left})` : ''}`, tone: 'bg-[#FF5A1F]' }
+    : { tag: AUDIENCE_TAG[round.audience] ?? AUDIENCE_TAG.core, line: `אפשר להזמין עד ${whenIL(round.locksAt)}${left ? ` (${left})` : ''}`, tone: 'bg-white/15' };
   return (
     <Link href="/dashboard/store/podium" className="relative block overflow-hidden rounded-card bg-[#0E0F2E] p-4 text-white">
       <div className="pointer-events-none absolute top-5 left-7 flex">

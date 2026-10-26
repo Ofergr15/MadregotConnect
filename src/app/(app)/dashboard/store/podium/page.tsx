@@ -35,12 +35,14 @@ export default function PodiumOrderPage() {
     loaded.current = true;
     setItems(data.order?.items ?? {});
     setMine(data.order ?? null);
+    if (data.order?.submittedAt && data.round?.state === 'open') setView('done');
   }, [data]);
 
   const [group, setGroup] = useState<string>('all');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<PodiumProduct | null>(null);
-  const [view, setView] = useState<'shop' | 'cart'>('shop');
+  // A sent order opens on its 'done' summary; ✏️ עריכה goes to the cart (Ofer 10-26).
+  const [view, setView] = useState<'done' | 'shop' | 'cart'>('shop');
   const [accept, setAccept] = useState(false);
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [sending, setSending] = useState(false);
@@ -79,7 +81,7 @@ export default function PodiumOrderPage() {
     setSending(true);
     const ok = await save(items, true);
     setSending(false);
-    if (ok) window.scrollTo({ top: 0 });
+    if (ok) { setView('done'); window.scrollTo({ top: 0 }); }
   };
 
   const shown = products.filter((p) => orderable(p) && (group === 'all' || groupOf(p.dept) === group) && (!q.trim() || textMatches(q, p.name)));
@@ -100,11 +102,11 @@ export default function PodiumOrderPage() {
     <div className="space-y-3 pb-28">
       <Header staff={!!data?.staff} title={round.title} tag={AUDIENCE_TAG[round.audience]} sub={round.state === 'upcoming' ? `נפתחת ${whenIL(round.opensAt)}` : round.state === 'open' ? `אפשר להזמין עד ${whenIL(round.locksAt)}` : 'ההזמנה נסגרה'} />
 
-      {status && <div className={cn('flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-13 font-bold', status.tone)}>{status.icon}<span className="flex-1">{status.text}</span></div>}
+      {status && view !== 'done' && <div className={cn('flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-13 font-bold', status.tone)}>{status.icon}<span className="flex-1">{status.text}</span></div>}
 
       {data?.delivered ? <Got d={data.delivered} byId={byId} /> : <Budget total={total} budget={budget} />}
 
-      {round.state !== 'upcoming' && !data?.delivered && (
+      {round.state !== 'upcoming' && !data?.delivered && view !== 'done' && (
         <div className="flex rounded-2xl bg-[#E3E5EB] p-1">
           {([['shop', 'מוצרים'], ['cart', 'העגלה שלי']] as const).map(([k, l]) => (
             <button key={k} type="button" onClick={() => { setView(k); window.scrollTo({ top: 0 }); }}
@@ -194,6 +196,25 @@ export default function PodiumOrderPage() {
         )
       )}
 
+      {/* בוצע: the sent order at a glance, until when it can change, and the way back in. */}
+      {round.state === 'open' && !data?.delivered && view === 'done' && mine?.submittedAt && (
+        <div className="rounded-card bg-card p-5 ring-1 ring-black/[0.04]">
+          <div className="text-center">
+            <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[#16A34A] text-2xl font-black text-white">✓</span>
+            <p className="mt-3 text-xl font-black text-ink-900">ההזמנה בוצעה</p>
+            <p className="mt-1 text-13 text-ink-500"><bdi>{count}</bdi> פריטים · <bdi dir="ltr">{shekelRound(total)}</bdi>{mine.approval === 'pending' ? ' · מחכה לאישור חריגה' : ''}</p>
+          </div>
+          <div className="mt-4 rounded-2xl bg-[#ECFDF5] px-4 py-3 text-center text-[#065F46]">
+            <b className="block text-sm">אפשר לערוך עד {whenIL(round.locksAt)}</b>
+            {timeLeft(round.locksAt) && <span className="text-13">{timeLeft(round.locksAt)}</span>}
+          </div>
+          <div className="mt-3 divide-y divide-page">
+            {lines.map(([id, n]) => <ProductLine key={id} p={byId.get(id)!} qty={n} right={<b className="min-w-[48px] text-left text-13 tabular-nums"><bdi dir="ltr">{shekelRound((byId.get(id)!.price ?? 0) * n)}</bdi></b>} />)}
+          </div>
+          <button type="button" onClick={() => { setView('cart'); window.scrollTo({ top: 0 }); }} className="mt-4 w-full rounded-2xl bg-ink-900 py-3.5 text-base font-extrabold text-white">✏️ עריכת ההזמנה</button>
+        </div>
+      )}
+
       {count > 0 && !data?.delivered && view === 'shop' && (
         <button type="button" onClick={() => { setView('cart'); window.scrollTo({ top: 0 }); }}
           className="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+84px)] z-30 mx-auto flex max-w-md items-center justify-between rounded-[20px] bg-ink-900 px-4 py-3.5 text-white shadow-[0_14px_30px_-6px_rgb(0_0_0/0.5)]">
@@ -280,8 +301,8 @@ function statusLine(round: { state: RoundState; locksAt: string }, mine: Mine | 
   if (mine?.approval === 'rejected') return { text: 'המועדון לא אישר את החריגה. צריך להוריד לתקציב.', tone: 'bg-red-50 text-red-700', icon: '✋' };
   if (mine?.editedByClub && mine.submittedAt) return { text: 'המועדון עדכן את ההזמנה שלך', tone: 'bg-brand-600/10 text-brand-700', icon: '✏️' };
   if (mine?.approval === 'approved' && mine.submittedAt) return { text: 'ההזמנה אושרה. נשאר להעביר את ההפרש.', tone: 'bg-accent-600/10 text-accent-900', icon: '✅' };
-  if (mine?.submittedAt) return { text: `סיימת ✓ אפשר לערוך ${timeLeft(round.locksAt) ?? ''} (עד ${whenIL(round.locksAt)})`, tone: 'bg-accent-600/10 text-accent-900', icon: '✓' };
-  if (mine && Object.keys(mine.items).length > 0) return { text: `ההזמנה בתהליך · עוד לא נשלחה · נסגרת ${timeLeft(round.locksAt) ?? ''}`, tone: 'bg-[#FFF1EA] text-[#9A3412]', icon: '🛒' };
+  if (mine?.submittedAt) return { text: `בוצע ✓ אפשר לערוך עד ${whenIL(round.locksAt)}${timeLeft(round.locksAt) ? ` (${timeLeft(round.locksAt)})` : ''}`, tone: 'bg-accent-600/10 text-accent-900', icon: '✓' };
+  if (mine && Object.keys(mine.items).length > 0) return { text: `ההזמנה בתהליך · עוד לא נשלחה · נסגרת ${whenIL(round.locksAt)}${timeLeft(round.locksAt) ? ` (${timeLeft(round.locksAt)})` : ''}`, tone: 'bg-[#FFF1EA] text-[#9A3412]', icon: '🛒' };
   return null;
 }
 
