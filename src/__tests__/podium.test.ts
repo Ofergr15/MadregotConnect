@@ -142,3 +142,18 @@ describe('podium receiving', () => {
     expect(csv.trim().split('\r\n')[1]).toBe(`דנה,ג'ל אנרגיה GU Gel g,bg,5,2,3`);
   });
 });
+
+describe('podium time left (Hebrew)', () => {
+  it('reads naturally', async () => {
+    const { timeLeft } = await import('@/components/podium/parts');
+    const at = (h: number) => new Date(Date.UTC(2026, 9, 27, 8) + h * 3600_000).toISOString();
+    const now = Date.UTC(2026, 9, 27, 8);
+    expect(timeLeft(at(49), now)).toBe('עוד יומיים ושעה');
+    expect(timeLeft(at(50), now)).toBe('עוד יומיים ושעתיים');
+    expect(timeLeft(at(77), now)).toBe('עוד 3 ימים ו-5 שעות');
+    expect(timeLeft(at(24), now)).toBe('עוד יום');
+    expect(timeLeft(at(2), now)).toBe('עוד שעתיים');
+    expect(timeLeft(at(0.5), now)).toBe('עוד 30 דקות');
+    expect(timeLeft(at(-1), now)).toBeNull();
+  });
+});
