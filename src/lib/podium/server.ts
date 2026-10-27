@@ -25,7 +25,7 @@ const toProduct = (r: any): PodiumProduct => ({
 });
 export const toRound = (r: any): PodiumRound => ({
   id: r.id, title: r.title, audience: (r.audience ?? 'core') as Audience, audienceIds: r.audience_ids ?? [], createdBy: r.created_by ?? null, opensAt: r.opens_at, locksAt: r.locks_at, budget: Number(r.budget), sentAt: r.sent_at ?? null, receivedAt: r.received_at ?? null,
-  autoNotify: r.auto_notify !== false, notifyTitle: r.notify_title ?? null, notifyBody: r.notify_body ?? null, notifiedCount: (r.notified_open_ids ?? []).length,
+  autoNotify: r.auto_notify !== false, notifyTitle: r.notify_title ?? null, notifyBody: r.notify_body ?? null, notifiedCount: (r.notified_open_ids ?? []).length, notifiedIds: r.notified_open_ids ?? [],
 });
 
 export async function loadProducts(db: Db): Promise<PodiumProduct[]> {

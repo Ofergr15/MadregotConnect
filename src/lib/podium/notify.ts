@@ -82,11 +82,14 @@ export function openCopy(round: PodiumRound, r: { notify_title?: string | null; 
  * per-person ledger, written before the send so two senders never double); `again` sends to
  * everyone in the audience once more. Returns how many it went to.
  */
-export async function sendOpenPush(db: Db, round: PodiumRound, r: any, opts: { again?: boolean } = {}): Promise<number> {
+export async function sendOpenPush(db: Db, round: PodiumRound, r: any, opts: { again?: boolean; only?: string[] } = {}): Promise<number> {
   const toldList: string[] = r.notified_open_ids ?? [];
   const told = new Set<string>(toldList);
   const audience = await audienceOf(db, round);
-  const due = opts.again ? audience : audience.filter((a) => !told.has(a.id));
+  // `only`: one person (or a few) by hand — e.g. a runner just added to the core (Ofer 10-27).
+  // Still only people the round is open to; sent even if they've had it before.
+  const due = opts.only ? audience.filter((a) => opts.only!.includes(a.id))
+    : opts.again ? audience : audience.filter((a) => !told.has(a.id));
   if (!due.length) return 0;
   const next = [...new Set([...toldList, ...due.map((a) => a.id)])];
   const { data: got } = await db.from('podium_rounds').update({ notified_open_ids: next })

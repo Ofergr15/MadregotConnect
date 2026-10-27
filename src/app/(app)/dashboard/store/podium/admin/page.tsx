@@ -251,6 +251,14 @@ function Reach({ round, people, audience, busy, onWiden }: {
   onWiden: (to: 'core' | 'all', notify: 'now' | 'auto' | 'none') => void;
 }) {
   const [to, setTo] = useState<'core' | 'all' | null>(null);
+  const [sendingTo, setSendingTo] = useState<string | null>(null);
+  const [sentTo, setSentTo] = useState<string[]>([]);
+  const sendOne = async (id: string) => {
+    setSendingTo(id);
+    const r = await fetch('/api/admin/podium', { method: 'POST', headers: await apiHeaders(true), body: JSON.stringify({ action: 'notify', id: round.id, athleteIds: [id] }) }).catch(() => null);
+    if (r?.ok) setSentTo((s) => [...s, id]); else alert((await r?.json().catch(() => ({})))?.message ?? 'לא נשלח');
+    setSendingTo(null);
+  };
   const [notify, setNotify] = useState<'now' | 'auto' | 'none'>('now');
   const all = Object.entries(people);
   const now = new Set(audience);
@@ -265,7 +273,24 @@ function Reach({ round, people, audience, busy, onWiden }: {
         <b className="text-13 text-ink-900">למי זה פתוח</b>
         <span className="text-2xs font-bold text-ink-500"><bdi>{audience.length}</bdi> אנשים</span>
       </div>
-      <p className="mt-1 text-13 leading-relaxed text-ink-700">{round.audience === 'all' ? 'כל המועדון' : round.audience === 'core' ? 'כל רצי הגרעין' : names.length ? names.join(' · ') : '—'}</p>
+      <p className="mt-1 text-13 leading-relaxed text-ink-700">{round.audience === 'core' ? 'כל רצי הגרעין' : round.audience === 'all' ? 'כל המועדון' : `${names.length} אנשים`}</p>
+      {/* Each person: had "it's open"? and 🔔 to send it to them alone (Ofer 10-27). */}
+      <details className="mt-1.5 rounded-xl bg-card" open={audience.length <= 6}>
+        <summary className="cursor-pointer px-3 py-2 text-2xs font-bold text-ink-500">מי ברשימה · <bdi>{audience.filter((id) => round.notifiedIds?.includes(id)).length}</bdi> קיבלו התראה</summary>
+        <div className="max-h-72 overflow-y-auto px-3 pb-2">
+          {[...audience].sort((x, y) => Number(!!round.notifiedIds?.includes(x)) - Number(!!round.notifiedIds?.includes(y)) || (people[x]?.name ?? '').localeCompare(people[y]?.name ?? '', 'he')).map((id) => {
+            const had = !!round.notifiedIds?.includes(id);
+            return (
+              <div key={id} className="flex items-center gap-2 border-t border-page py-2 first:border-0">
+                <span className="min-w-0 flex-1 truncate text-13 text-ink-900">{people[id]?.name ?? 'רץ'}</span>
+                <span className={cn('text-3xs font-bold', had ? 'text-accent-900' : 'text-ink-400')}>{had ? '✓ קיבל' : 'לא קיבל'}</span>
+                {open && <button type="button" disabled={busy || sendingTo === id} onClick={() => void sendOne(id)}
+                  className="rounded-lg bg-brand-600/10 px-2.5 py-1 text-2xs font-extrabold text-brand-700 disabled:opacity-40">{sendingTo === id ? '…' : sentTo.includes(id) ? '✓ נשלח' : '🔔 לשלוח'}</button>}
+              </div>
+            );
+          })}
+        </div>
+      </details>
       {options.length > 0 && (
         <div className="mt-2 grid grid-cols-2 gap-2">
           {options.map((k) => (

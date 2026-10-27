@@ -37,7 +37,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const { denied, caller } = await requireStaffCaller(request);
   if (denied) return denied;
-  const b = await request.json().catch(() => ({})) as { action?: string; id?: string; title?: string; opensAt?: string; locksAt?: string; budget?: number; audience?: string; audienceIds?: string[]; autoNotify?: boolean; notifyTitle?: string; notifyBody?: string; again?: boolean };
+  const b = await request.json().catch(() => ({})) as { action?: string; id?: string; title?: string; opensAt?: string; locksAt?: string; budget?: number; audience?: string; audienceIds?: string[]; autoNotify?: boolean; notifyTitle?: string; notifyBody?: string; again?: boolean; athleteIds?: string[] };
   const db = createServerClient();
   const valid = (s?: string) => !!s && !Number.isNaN(Date.parse(s));
   if (b.action === 'create' || b.action === 'update') {
@@ -75,7 +75,9 @@ export async function POST(request: Request) {
     if (!raw) return NextResponse.json({ error: 'no round' }, { status: 404 });
     const round = toRound(raw);
     if (roundState(round) !== 'open') return NextResponse.json({ error: 'not open', message: 'אפשר לשלוח התראה רק כשההזמנה פתוחה' }, { status: 409 });
-    const sent = await sendOpenPush(db, round, raw, { again: !!b.again });
+    const only = Array.isArray(b.athleteIds) ? b.athleteIds.filter((x) => typeof x === 'string').slice(0, 50) : undefined;
+    const sent = await sendOpenPush(db, round, raw, { again: !!b.again, only });
+    if (only && !sent) return NextResponse.json({ error: 'not in audience', message: 'ההזמנה לא פתוחה לאדם הזה' }, { status: 409 });
     return NextResponse.json({ sent, copy: openCopy(round, raw) });
   }
   if ((b.action === 'sent' || b.action === 'unsent' || b.action === 'delete') && b.id) {

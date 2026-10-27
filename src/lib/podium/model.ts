@@ -76,6 +76,8 @@ export interface PodiumRound {
   notifyTitle?: string | null;
   notifyBody?: string | null;
   notifiedCount?: number;
+  /** Who has had "it's open" (the per-person ledger). */
+  notifiedIds?: string[];
 }
 
 export type RoundState = 'upcoming' | 'open' | 'locked' | 'sent';
