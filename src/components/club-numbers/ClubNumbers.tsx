@@ -119,7 +119,12 @@ export function ClubNumbers() {
           : (
             <>
               {tab === 'overview' && <Overview d={data} go={go} />}
-              {tab === 'core' && <Core d={data} onSaved={() => mutate()} />}
+              {tab === 'core' && <Core d={data} onSaved={async () => {
+                // The screen reads a snapshot (up to 10 minutes old): after a change, ask for fresh
+                // numbers, or the person just added stays under "מתאימים" and the tap looks dead (Ofer 10-27).
+                const res = await fetch('/api/admin/club-numbers?fresh=1', { headers: await apiHeaders() }).catch(() => null);
+                if (res?.ok) await mutate(await res.json(), { revalidate: false }); else await mutate();
+              }} />}
               {tab === 'growth' && <Growth d={data} />}
               {tab === 'packs' && <Packs d={data} />}
               {tab === 'academy' && <Academy d={data} />}
@@ -290,17 +295,21 @@ function Core({ d, onSaved }: { d: Data; onSaved: () => void }) {
   );
 }
 
-function Suggested({ d, canEdit, onSaved }: { d: Data; canEdit: boolean; onSaved: () => void }) {
+function Suggested({ d, canEdit, onSaved }: { d: Data; canEdit: boolean; onSaved: () => void | Promise<void> }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [added, setAdded] = useState<string[]>([]);
+  const [err, setErr] = useState<string | null>(null);
   const add = async (id: string) => {
-    setBusy(id);
+    setBusy(id); setErr(null);
     const res = await fetch('/api/admin/core-runners', { method: 'PUT', headers: await apiHeaders(true), body: JSON.stringify({ athleteId: id, isCoreRunner: true }) }).catch(() => null);
+    if (res?.ok) { setAdded((a) => [...a, id]); await onSaved(); }
+    else setErr(res?.status === 403 ? 'אין הרשאה להוסיף לגרעין' : 'לא הצלחנו להוסיף. נסו שוב.');
     setBusy(null);
-    if (res?.ok) onSaved();
   };
   return (
     <>
       <Sub>מתאימים לגרעין · עוד לא בו</Sub>
+      {err && <p className="mx-[18px] mb-2 rounded-xl bg-red-50 px-3 py-2 text-[12.5px] font-bold text-red-700">{err}</p>}
       <Card className="px-3.5 py-1.5">
         {d.core.suggested.map((r) => (
           <div key={r.id} className="flex items-center gap-2.5 border-b border-[#F3F4F6] py-2.5 last:border-0">
@@ -308,7 +317,9 @@ function Suggested({ d, canEdit, onSaved }: { d: Data; canEdit: boolean; onSaved
               <b className="text-[13.5px] font-bold">{r.name}</b>
               <span className="text-[11.5px] text-ink-400">{r.pack} · <B>{r.runs8}</B> ריצות ב-8 שבועות · <B>{Math.round(r.avg4)}</B> ק״מ בשבוע</span>
             </Link>
-            {canEdit && <button type="button" disabled={busy === r.id} onClick={() => add(r.id)} className="flex-none rounded-full bg-[#E8F6EE] px-3 py-[5px] text-[11.5px] font-extrabold text-[#15803d] disabled:opacity-50">להוסיף</button>}
+            {canEdit && (added.includes(r.id)
+              ? <span className="flex-none rounded-full bg-[#15803d] px-3 py-[5px] text-[11.5px] font-extrabold text-white">✓ נוסף</span>
+              : <button type="button" disabled={!!busy} onClick={() => add(r.id)} className="flex-none rounded-full bg-[#E8F6EE] px-3 py-[5px] text-[11.5px] font-extrabold text-[#15803d] disabled:opacity-50">{busy === r.id ? 'מוסיף…' : 'להוסיף'}</button>)}
           </div>
         ))}
       </Card>
