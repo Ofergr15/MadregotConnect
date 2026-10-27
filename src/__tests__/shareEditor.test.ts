@@ -294,7 +294,7 @@ describe('the lap chart in the editor', () => {
     expect((EDITOR + LOOK).match(/editorChart: true/g)).toHaveLength(2);
     expect(SHEET).not.toMatch(/editorChart/);
     expect(RENDER).toMatch(/const trace = c\.editorChart && act\.hrTrace/);
-    expect(RENDER).toMatch(/if \(c\.editorChart && !labelled && !taken\.some\(y => Math\.abs\(y - topY\) < p\(11\)\)\) \{\s*ctx\.fillText\(formatPace\(fast\), start, topY\);/);
+    expect(RENDER).toMatch(/if \(c\.editorChart && scaleShown && !taken\.some\(y => Math\.abs\(y - topY\) < p\(11\)\)\) \{\s*ctx\.fillText\(formatPace\(fast\), start, topY\);/);
   });
 
   it('runs time left to right for everyone, the scale kept on the right', () => {
