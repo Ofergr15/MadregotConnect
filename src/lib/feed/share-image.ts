@@ -2412,6 +2412,10 @@ function layoutSegments(c: LayoutCtx, laps: SegmentBand[], heading: { value: str
     : allFit ? laps
       : laps.filter(l => l.kind === 'active' && pitch(l) >= p(28));
   const labelled = named.length > 0;
+  // The pace scale gives way only when EVERY bar carries its own pace. With a few wide
+  // blocks labelled among many thin reps (20 × 500 with its warm-up laps, Ofer 10-27),
+  // the one "4:51" under a cool-down lap used to take the whole scale with it.
+  const scaleShown = !(labelled && allFit);
   const withTargets = labelled && c.targets && named.some(l => l.target != null);
   const rowsUnder = labelled ? p(24) + (withTargets ? p(15) : 0) : 0;
   const chartH = p(210) - rowsUnder * 0.4;
@@ -2501,7 +2505,7 @@ function layoutSegments(c: LayoutCtx, laps: SegmentBand[], heading: { value: str
   const footY = bottom + rowsUnder + p(13);
   // The pace scale takes a gutter on the reading-start side; bars with their own
   // numbers need none.
-  const gutter = labelled ? 0 : p(26);
+  const gutter = scaleShown ? p(26) : 0;
   const barsW = w - gutter;
   // The direction time runs in, which `timeLtr` can turn against the text's.
   const trtl = rtl && !c.timeLtr;
@@ -2685,7 +2689,7 @@ function layoutSegments(c: LayoutCtx, laps: SegmentBand[], heading: { value: str
   // shared for, so it is labelled first; the round values fill in under it. It
   // used to start at the first round value, so a 3:42 rep's top read "4:00".
   const topY = yOf(fast) + p(3);
-  if (c.editorChart && !labelled && !taken.some(y => Math.abs(y - topY) < p(11))) {
+  if (c.editorChart && scaleShown && !taken.some(y => Math.abs(y - topY) < p(11))) {
     ctx.fillText(formatPace(fast), start, topY);
     taken.push(topY);
   }
@@ -2695,7 +2699,7 @@ function layoutSegments(c: LayoutCtx, laps: SegmentBand[], heading: { value: str
   const step = floorPace - fast > (c.editorChart ? 330 : 150) ? 60 : 30;
   for (let pc = Math.ceil(fast / step) * step; pc <= floorPace; pc += step) {
     const ty = yOf(pc);
-    if (labelled || ty < chartTop - p(2) || ty > bottom - p(4)) continue;
+    if (!scaleShown || ty < chartTop - p(2) || ty > bottom - p(4)) continue;
     if (taken.some(y => Math.abs(y - (ty + p(3))) < p(11))) continue;
     ctx.fillText(formatPace(pc), start, ty + p(3));
     taken.push(ty + p(3));
