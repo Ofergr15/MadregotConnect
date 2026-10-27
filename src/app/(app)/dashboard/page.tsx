@@ -1,5 +1,6 @@
 'use client';
 
+import { rsvpOpen, sessionDate } from '@/lib/attendance/rsvp-open';
 import { useEffect, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
@@ -241,7 +242,8 @@ export default function DashboardPage() {
   useEffect(() => {
     const raw = new URLSearchParams(window.location.search).get('rsvp');
     const m = raw?.match(/^(\d{4}-\d{2}-\d{2}):(\d)$/);
-    if (m) setRsvpUrlOverride({ weekStart: m[1], day: Number(m[2]) });
+    // A push tapped after the session began asks nothing (lib/attendance/rsvp-open).
+    if (m && rsvpOpen(sessionDate(m[1], Number(m[2])), null)) setRsvpUrlOverride({ weekStart: m[1], day: Number(m[2]) });
   }, []);
   // A push notification's ?editActivity=<id> deep-link — reopens the same
   // "customize your post" sheet the live sync-diff below shows, without

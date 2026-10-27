@@ -8,6 +8,7 @@ import { Check, ChevronDown, ChevronLeft, ChevronRight, Link2, Moon, Sun, Watch,
 import { useApi } from '@/lib/api';
 import { addDaysToDateStr, getPlanWeekStart, GROUP_HEX, israelNow, israelToday } from '@/lib/utils';
 import { SessionRsvp } from '@/components/feed/SessionRsvp';
+import { rsvpOpen } from '@/lib/attendance/rsvp-open';
 import { packPace, paceRangeText, profileSegments, type SegmentKind } from '@/lib/plans/session-profile';
 import type { Lineup } from '@/lib/attendance/lineup';
 import {
@@ -275,6 +276,8 @@ export function NextSessionCard() {
   const timeText = s.daySession?.startTime
     || (teamDay && !s.daySession && typeof workoutHour === 'number'
       ? `${String(Math.floor(workoutHour)).padStart(2, '0')}:${String(Math.round((workoutHour % 1) * 60)).padStart(2, '0')}` : '');
+  // When it starts, as an hour: the one-day session's own time, else the club's.
+  const startHour = (() => { const m = /^(\d{1,2}):(\d{2})/.exec(s.daySession?.startTime || ''); return m ? Number(m[1]) + Number(m[2]) / 60 : workoutHour; })();
   const rsvpWeekStart = getPlanWeekStart(new Date(`${next.date}T12:00:00`));
   const answered = teamDay && !!lineup?.mine;
   const collapsed = answered && openState !== 'open';
@@ -392,7 +395,8 @@ export function NextSessionCard() {
         <div className="mt-2.5 space-y-2 empty:hidden">
           <SessionLinks compact weekStart={weekly!.currentWeekStart} hasClubPlan={weekly!.hasClubPlan ?? weekly!.hasPlan} daySession={s.daySession} />
         </div>
-        {teamDay && (
+        {/* Taken down once the session starts — it is no longer a question (lib/attendance/rsvp-open). */}
+        {teamDay && rsvpOpen(next.date, startHour) && (
           <SessionRsvp
             weekStart={rsvpWeekStart}
             day={s.dayOfWeek}

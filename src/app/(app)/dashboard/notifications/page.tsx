@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, CheckCheck, ThumbsUp, CheckCircle2, XCircle, SlidersHorizontal, Footprints, Archive, Bug, Gauge } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { rsvpOpen, sessionDate } from '@/lib/attendance/rsvp-open';
 import { useApi, apiHeaders } from '@/lib/api';
 import { useAthleteId } from '@/lib/use-athlete-id';
 import { SkeletonList, EmptyState, InsetSection, InsetRow } from '@/components/ui';
@@ -352,7 +353,7 @@ export default function NotificationsInboxPage() {
                 <span className="text-xs text-ink-400 shrink-0">{timeAgo(it.sentAt, tn, dateLocale)}</span>
                 <KudosButton activityId={kudosId} athleteId={athleteId} initialGiven={it.kudosGiven} />
               </div>
-            ) : rsvp && athleteId ? (
+            ) : rsvp && athleteId && rsvpOpen(sessionDate(rsvp.weekStart, rsvp.day), null) ? (
               <div className="flex flex-col items-end gap-1.5">
                 <span className="text-xs text-ink-400 shrink-0">{timeAgo(it.sentAt, tn, dateLocale)}</span>
                 <RsvpInlineButtons
