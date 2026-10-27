@@ -27,6 +27,9 @@ import { ChevronLeft, ChevronRight, Download, Image as ImageIcon, Loader2, Play,
 import { cn } from '@/lib/utils';
 import { Progress, VideoSlide, clock, report, tapTimeOf, type SlideMode, type ViewerVideo } from './video-slide';
 
+/** Whether the member turned the sound on — kept, since the volume keys can't do it (10-27). */
+const SOUND_KEY = 'mc_video_sound';
+
 export interface ViewerPhoto {
   id: string;
   thumb: string | null;
@@ -115,7 +118,10 @@ export function MediaViewer({ items, startId, title, onClose, from, filter: star
   const bgRef = useRef<HTMLDivElement>(null);
 
   // ── the video on screen: sound, pause, buffering ───────────────────────────────
-  const [muted, setMuted] = useState(true);
+  // An iPhone's volume keys never unmute a web video — the page is not told they were
+  // pressed (Ofer 10-27). So once someone turns the sound on it stays on, for every video
+  // and the next visit; a play the phone refuses with sound falls back to silent.
+  const [muted, setMuted] = useState(() => { try { return localStorage.getItem(SOUND_KEY) !== 'on'; } catch { return true; } });
   const mutedRef = useRef(muted);
   mutedRef.current = muted;
   const [paused, setPaused] = useState(false);
@@ -393,6 +399,8 @@ export function MediaViewer({ items, startId, title, onClose, from, filter: star
     el.muted = mutedRef.current;
     // A copy is attached a moment later (hls.js loads lazily): play once it can, not "paused".
     void el.play().catch(() => {
+      // With sound and refused (no tap behind it): play silent; the 🔇 button shows it.
+      if (!el.muted) { el.muted = true; setMuted(true); void el.play().catch(() => {}); return; }
       el.addEventListener('canplay', () => { void el.play().catch(() => setPaused(true)); }, { once: true });
     });
   }, []);
@@ -511,7 +519,7 @@ export function MediaViewer({ items, startId, title, onClose, from, filter: star
             <span className="text-[12px] opacity-80"><bdi dir="ltr">{hhmm(item.t)}</bdi>{item.t ? ' · ' : ''}{isVideo ? 'סרטון' : 'תמונה'} <bdi dir="ltr">{counted}</bdi> מתוך <bdi dir="ltr">{list.filter((x) => x.kind === item.kind).length}</bdi></span>
           </div>
           {isVideo ? (
-            <button type="button" onClick={() => { const next = !muted; setMuted(next); const el = videoRef.current; if (el) { el.muted = next; if (el.paused) void el.play().catch(() => {}); } }}
+            <button type="button" onClick={() => { const next = !muted; setMuted(next); try { localStorage.setItem(SOUND_KEY, next ? 'off' : 'on'); } catch { /* private mode */ } const el = videoRef.current; if (el) { el.muted = next; if (el.paused) void el.play().catch(() => {}); } }}
               aria-label={muted ? 'להפעיל קול' : 'להשתיק'}
               className={cn('grid h-11 w-11 place-items-center rounded-full', muted ? 'bg-white text-ink-900' : 'bg-black/40')}>
               {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}

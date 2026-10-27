@@ -26,9 +26,9 @@ describe('the listing and the screens', () => {
     expect(lib).toMatch(/const folderPhotos = async \(drive: drive_v3\.Drive, folderId: string\) => \(await folderMedia\(drive, folderId, false\)\)\.photos;/);
     expect(lib).toMatch(/const LIBRARY_PATH = 'library.json';/);
   });
-  it('muted on every open; the videos either side are ready before it lands; the swipe settles first', () => {
+  it('muted until the member turns the sound on, then it stays on; the videos either side are ready before it lands; the swipe settles first', () => {
     const v = read('src/components/photos/MediaViewer.tsx') + read('src/components/photos/video-slide.tsx');
-    expect(v).toMatch(/const \[muted, setMuted\] = useState\(true\);/);
+    expect(v).toMatch(/const \[muted, setMuted\] = useState\(\(\) => \{ try \{ return localStorage\.getItem\(SOUND_KEY\) !== 'on'/);
     expect(v).toMatch(/const mode: SlideMode = k === cur \? 'play' : Math\.abs\(k - cur\) === 1 \? 'ready'/);
     // 'metadata' got an iPhone a neighbour's list and none of its video, and an original's
     // swipe waited ~0.97 s (measured 10-23): every live slide preloads its opening.
