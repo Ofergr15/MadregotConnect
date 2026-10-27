@@ -1,5 +1,6 @@
 'use client';
 
+import { useCoreConfirm } from '@/components/CoreAddConfirm';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -483,6 +484,7 @@ export default function SettingsPage() {
   const [savedUsers, setSavedUsers] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [pendingChange, setPendingChange] = useState<{ user: User; newRole: Role } | null>(null);
+  const { ask: askCore, sheet: coreSheet } = useCoreConfirm();
   const [pendingDelete, setPendingDelete] = useState<User | null>(null);
   const [permissions, setPermissions] = useState<TabPermission[]>([]);
   const [savedPermissions, setSavedPermissions] = useState<TabPermission[]>([]);
@@ -980,16 +982,12 @@ export default function SettingsPage() {
 
   // The גרעין keeps its own route on purpose: /api/admin/users PUT writes `role`,
   // and migration 091 exists precisely to stop membership from being a role.
-  const handleCoreToggle = (user: User) =>
-    saveUserEdit(
-      user,
-      async () => fetch('/api/admin/core-runners', {
-        method: 'PUT',
-        headers: await apiHeaders(true),
-        body: JSON.stringify({ athleteId: user.id, isCoreRunner: !user.isCoreRunner }),
-      }),
-      t('failedToUpdateCoreRunner'),
-    );
+  const handleCoreToggle = async (user: User) => {
+    // Asked first (CoreAddConfirm): who it is and the pushes; the sheet does the save.
+    const res = await askCore({ id: user.id, name: user.name || '' }, !user.isCoreRunner);
+    if (!res) return;
+    await saveUserEdit(user, async () => res, t('failedToUpdateCoreRunner'));
+  };
 
   const confirmRoleChange = async () => {
     if (!pendingChange) return;
@@ -1063,6 +1061,7 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-4xl mx-auto">
+      {coreSheet}
       {pendingChange && (
         <ConfirmDialog
           user={pendingChange.user}

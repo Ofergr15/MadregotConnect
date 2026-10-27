@@ -145,7 +145,7 @@ export async function afterPackMove(
       kind: 'pack_moved',
       actorAthleteId: p.byAthleteId ?? null,
       copy: (locale) => packMovedCopy(locale, { lane: laneOfName(group?.name), resent: resent.length > 0 }),
-      url: '/dashboard/profile',
+      url: '/dashboard/profile?tab=group', // the pack section, not the profile's top
       tag: 'pack-moved',
     });
   } catch (err) {
@@ -173,7 +173,7 @@ export async function notifyPackScheduled(
         resent: false,
         from: `${Number(p.from.slice(8, 10))}.${Number(p.from.slice(5, 7))}`,
       }),
-      url: '/dashboard/profile',
+      url: '/dashboard/profile?tab=group', // the pack section, not the profile's top
       tag: 'pack-moved',
     });
   } catch (err) {

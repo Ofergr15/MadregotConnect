@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
           await sendPushToSubscriptions(subs, {
             title: '📸 מצאנו תמונות שלך!',
             body: `${tagged} תמונות מריצות קודמות מתויגות עליך`,
-            url: '/feed', // /dashboard/photos is switched off (notFound) until it ships
+            url: '/dashboard/photos', // the photos page is live (was /feed while it was off)
             tag: `photos-backfill-${user.athleteId}`,
             category: 'news',
           });

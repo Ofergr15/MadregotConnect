@@ -20,9 +20,9 @@ describe('notification links open the exact place', () => {
   it('a follow opens the follower, not your own profile', () => {
     expect(src('src/app/api/athletes/follow/route.ts')).toContain('teammateHref(followerId)');
   });
-  it('nothing points at the switched-off photos page', () => {
-    expect(src('src/app/api/photos/notify-import/route.ts')).not.toContain("url: '/dashboard/photos");
-    expect(src('src/app/api/photos/enroll-selfie/route.ts')).not.toContain("url: '/dashboard/photos");
+  it('photo pushes open the photos page, now live (10-27; it was /feed while the page was off)', () => {
+    expect(src('src/app/api/photos/notify-import/route.ts')).toContain("url: '/dashboard/photos'");
+    expect(src('src/app/api/photos/enroll-selfie/route.ts')).toContain("url: '/dashboard/photos'");
   });
   it('a coach message is written to the inbox too, not only pushed', () => {
     const s = src('src/app/api/workout-feedback/[id]/messages/route.ts');

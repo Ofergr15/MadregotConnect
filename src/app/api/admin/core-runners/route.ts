@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { notifyAthlete } from '@/lib/push';
+import { openCoreRound, welcomeCopy } from '@/lib/core-runner-add';
+import { openCopy, PODIUM_URL } from '@/lib/podium/notify';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { CORE_RUNNER_ROLE, isCoreRunner, isLegacyCoreRunner } from '@/lib/core-runner';
@@ -100,6 +102,10 @@ export async function PUT(request: Request) {
       isCoreRunner?: boolean;
       /** false = add quietly, without the welcome push. */
       notify?: boolean;
+      /** The sheet's own wording for the welcome push. */
+      welcomeTitle?: string; welcomeBody?: string;
+      /** Also send the open store order's push to this person (core-runner-add.ts). */
+      podium?: boolean; podiumTitle?: string; podiumBody?: string;
     };
     if (!body.athleteId || typeof body.isCoreRunner !== 'boolean') {
       return NextResponse.json({ error: 'athleteId and isCoreRunner are required' }, { status: 400 });
@@ -150,19 +156,35 @@ export async function PUT(request: Request) {
           supabase.from('club_perks').select('id', { count: 'exact', head: true }).eq('active', true).eq('tier', 'core_runner'),
         ]);
         const w = who as { name?: string | null; gender?: string | null } | null;
-        const first = (w?.name || '').trim().split(/\s+/)[0];
-        const she = w?.gender === 'female';
+        const def = welcomeCopy(w?.name, w?.gender, count ?? 0);
         const r = await notifyAthlete({
           athleteId: body.athleteId, kind: 'core_welcome', url: '/dashboard/core?welcome=1', tag: 'core-welcome', category: 'achievements',
-          title: `🌟 ${she ? 'ברוכה הבאה' : 'ברוך הבא'} לגרעין${first ? `, ${first}` : ''}!`,
-          body: `${count ?? 0} הטבות מחכות לך: נעליים, פיזיו, LIFT ועוד`,
+          title: body.welcomeTitle?.trim().slice(0, 120) || def.title,
+          body: body.welcomeBody?.trim().slice(0, 300) || def.body,
         });
         pushed = (r.delivered ?? 0) > 0;
       } catch (err) {
         console.warn('core welcome push failed', err);
       }
     }
-    return NextResponse.json({ success: true, isCoreRunner: body.isCoreRunner, roleReset: clearingLegacy, pushed });
+    // The open store order, to this one person, when the sheet asked for it.
+    let podiumSent = false;
+    if (body.isCoreRunner && body.podium) {
+      try {
+        const open = await openCoreRound(supabase);
+        if (open) {
+          const def = openCopy(open.round, open.raw);
+          const r = await notifyAthlete({
+            athleteId: body.athleteId, kind: 'podium_round', url: PODIUM_URL, tag: `podium-open-${open.round.id}`, category: 'news',
+            title: body.podiumTitle?.trim().slice(0, 120) || def.title, body: body.podiumBody?.trim().slice(0, 300) || def.body,
+          });
+          void r; podiumSent = true;
+          const told = (open.raw.notified_open_ids as string[] | null) ?? [];
+          if (!told.includes(body.athleteId)) await supabase.from('podium_rounds').update({ notified_open_ids: [...told, body.athleteId] }).eq('id', open.round.id);
+        }
+      } catch (err) { console.warn('core podium push failed', err); }
+    }
+    return NextResponse.json({ success: true, isCoreRunner: body.isCoreRunner, roleReset: clearingLegacy, pushed, podiumSent });
   } catch (error) {
     console.error('Failed to update core-runner flag:', error);
     return NextResponse.json({ error: 'Failed to update' }, { status: 500 });

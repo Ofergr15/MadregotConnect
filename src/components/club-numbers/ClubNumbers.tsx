@@ -1,5 +1,6 @@
 'use client';
 
+import { useCoreConfirm } from '@/components/CoreAddConfirm';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Eye, GraduationCap, Pencil, ShieldCheck, Users } from 'lucide-react';
@@ -299,15 +300,20 @@ function Suggested({ d, canEdit, onSaved }: { d: Data; canEdit: boolean; onSaved
   const [busy, setBusy] = useState<string | null>(null);
   const [added, setAdded] = useState<string[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const { ask, sheet } = useCoreConfirm();
   const add = async (id: string) => {
-    setBusy(id); setErr(null);
-    const res = await fetch('/api/admin/core-runners', { method: 'PUT', headers: await apiHeaders(true), body: JSON.stringify({ athleteId: id, isCoreRunner: true }) }).catch(() => null);
+    setErr(null);
+    // Asked first (CoreAddConfirm): who it is and the pushes; the sheet does the save.
+    const res = await ask({ id, name: d.core.suggested.find((r) => r.id === id)?.name || '' }, true);
+    if (!res) return;
+    setBusy(id);
     if (res?.ok) { setAdded((a) => [...a, id]); await onSaved(); }
     else setErr(res?.status === 403 ? 'אין הרשאה להוסיף לגרעין' : 'לא הצלחנו להוסיף. נסו שוב.');
     setBusy(null);
   };
   return (
     <>
+      {sheet}
       <Sub>מתאימים לגרעין · עוד לא בו</Sub>
       {err && <p className="mx-[18px] mb-2 rounded-xl bg-red-50 px-3 py-2 text-[12.5px] font-bold text-red-700">{err}</p>}
       <Card className="px-3.5 py-1.5">

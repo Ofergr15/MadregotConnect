@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, ChevronLeft, Search, X } from 'lucide-react';
 import { Card, LoadingBlock } from '@/components/ui';
+import { useCoreConfirm } from '@/components/CoreAddConfirm';
 import CoreRunnerBadge from '@/components/CoreRunnerBadge';
 import { AthleteLink } from '@/components/AthleteLink';
 import { apiHeaders, useApi } from '@/lib/api';
@@ -62,6 +63,7 @@ const ROLE_LABEL: Record<string, string> = {
 export default function CoreRunnersManager() {
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const { ask: askCore, sheet: coreSheet } = useCoreConfirm();
   const [error, setError] = useState<string | null>(null);
 
   const { data, isLoading, mutate } = useApi<{ athletes?: CoreAthlete[]; migrated?: boolean }>(
@@ -95,17 +97,15 @@ export default function CoreRunnersManager() {
   // the row moves at once, the save goes out behind it, and only a failure puts it back.
   // It used to wait for the save AND a re-read of the whole list before anything moved.
   const toggle = async (a: CoreAthlete, next: boolean) => {
-    setBusyId(a.id);
     setError(null);
+    // Asked first, with who it is and the pushes (CoreAddConfirm); the sheet does the save.
+    const res = await askCore({ id: a.id, name: a.name || '' }, next);
+    if (!res) return;
+    setBusyId(a.id);
     const flip = (list: CoreAthlete[] | undefined, to: boolean) =>
       (list || []).map((x) => (x.id === a.id ? { ...x, isCoreRunner: to, isLegacy: to ? x.isLegacy : false } : x));
     await mutate((cur) => (cur ? { ...cur, athletes: flip(cur.athletes, next) } : cur), { revalidate: false });
     try {
-      const res = await fetch('/api/admin/core-runners', {
-        method: 'PUT',
-        headers: await apiHeaders(true),
-        body: JSON.stringify({ athleteId: a.id, isCoreRunner: next }),
-      });
       const out = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(
@@ -126,6 +126,7 @@ export default function CoreRunnersManager() {
 
   return (
     <div dir="rtl">
+      {coreSheet}
       <div>
         <h2 className="text-[22px] font-extrabold text-ink-900 leading-tight">
           {CORE_RUNNER_MARK} {CORE_RUNNER_LABEL_PLURAL}
