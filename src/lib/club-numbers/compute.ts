@@ -72,6 +72,9 @@ export function loadState(last7: number, weekly28: number): { ratio: number | nu
 
 // ── the whole thing ────────────────────────────────────────────────────────────────
 
+/** Weeks of the last eight a runner may miss and still be offered for the core. */
+export const CORE_WEEKS_OFF = 1;
+
 export function computeClubNumbers(x: NInput) {
   const today = x.today;
   const thisWeek = sundayOf(today);
@@ -195,7 +198,9 @@ export function computeClubNumbers(x: NInput) {
   });
   // הגרעין is the club's own list (the flag, managed by hand); who fits the rule but is not in it is offered.
   const inCore = new Set(people.filter((a) => a.core).map((a) => a.id));
-  const fits = (r: (typeof runnerRows)[number]) => last8.length > 0 && r.weeks3plus8 === last8.length;
+  // 3+ runs in all but one of the last 8 weeks (Ofer, 10-28): one week off — a holiday, a cold,
+  // abroad — no longer hides a runner. Yair ran 8–9 a week and was left out by Yom Kippur's week.
+  const fits = (r: (typeof runnerRows)[number]) => last8.length > 0 && r.weeks3plus8 >= last8.length - CORE_WEEKS_OFF;
   const core = runnerRows.filter((r) => inCore.has(r.id)).sort((p, q) => q.avg4 - p.avg4);
   const suggested = runnerRows.filter((r) => !inCore.has(r.id) && fits(r)).sort((p, q) => q.runs8 - p.runs8)
     .map((r) => ({ id: r.id, name: r.name, pack: r.pack, runs8: r.runs8, avg4: r.avg4 }));

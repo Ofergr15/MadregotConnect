@@ -74,6 +74,10 @@ describe('computeClubNumbers', () => {
     expect(out.attention.dropping.map((r) => r.id)).toContain('b');
     expect(out.attention.notOpening.map((r) => r.id)).toEqual(['b']);
   });
+  it('offers for the core whoever ran 3+ in 7 of the last 8 weeks — one week off is allowed (10-28)', async () => {
+    const { CORE_WEEKS_OFF } = await import('@/lib/club-numbers/compute');
+    expect(CORE_WEEKS_OFF).toBe(1);
+  });
   it('takes the core from the club flag, and offers who fits the rule', () => {
     expect(out.core.runners).toEqual([]);
     expect(out.core.suggested.map((r) => r.id)).toEqual(['a']);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCoreConfirm } from '@/components/CoreAddConfirm';
+import { personMatches } from '@/lib/search/match';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Eye, GraduationCap, Pencil, ShieldCheck, Users } from 'lucide-react';
@@ -250,7 +251,7 @@ function Core({ d, onSaved }: { d: Data; onSaved: () => void }) {
     <>
       <div className="flex items-center justify-between px-[18px] pt-3"><h2 className="text-[22px] font-black">רצי גרעין</h2>
         {d.access?.admin && <Link href="/dashboard/roles?filter=core" className="flex min-h-[36px] items-center gap-1 text-[13px] font-bold text-brand-600"><Pencil className="h-3.5 w-3.5" />עריכה</Link>}</div>
-      <p className="mx-[18px] mt-1 text-[13.5px] leading-relaxed text-ink-500">הגרעין של המועדון — <B>{rs.length}</B> רצים, אותה רשימה שמקבלת את ההטבות. {d.core.suggested.length > 0 && <>ועוד <B>{d.core.suggested.length}</B> שמתאימים: 3+ ריצות בכל אחד מ-8 השבועות האחרונים.</>}</p>
+      <p className="mx-[18px] mt-1 text-[13.5px] leading-relaxed text-ink-500">הגרעין של המועדון — <B>{rs.length}</B> רצים, אותה רשימה שמקבלת את ההטבות. {d.core.suggested.length > 0 && <>ועוד <B>{d.core.suggested.length}</B> שמתאימים: 3+ ריצות ב-7 מתוך 8 השבועות האחרונים.</>}</p>
       <div className="mx-4 mt-3 flex gap-2">
         <Kpi label="רצו השבוע" value={<B>{`${rs.filter((r) => r.soFar > 0).length}/${rs.length}`}</B>} />
         <Kpi label="עומס רגיל" value={<B>{balanced}</B>} note={<>מתוך <B>{rs.length}</B></>} />
@@ -292,6 +293,57 @@ function Core({ d, onSaved }: { d: Data; onSaved: () => void }) {
         </Link>
       ))}
       {d.core.suggested.length > 0 && <Suggested d={d} canEdit={!!d.access?.admin} onSaved={onSaved} />}
+      {d.access?.admin && <AddAnyone d={d} onSaved={onSaved} />}
+    </>
+  );
+}
+
+/**
+ * Anyone in the club into the core, by name — not only who the rule offers (Ofer, 10-28: Yair
+ * "doesn't show up as an option at all": the rule had left him out, and the screen offered
+ * nothing else). The same confirm and save as the suggestions.
+ */
+function AddAnyone({ d, onSaved }: { d: Data; onSaved: () => void | Promise<void> }) {
+  const [q, setQ] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [added, setAdded] = useState<string[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const { ask, sheet } = useCoreConfirm();
+  const hits = q.trim() ? d.core.all.filter((a) => !a.inCore && personMatches(a.name, q)).slice(0, 8) : [];
+  const add = async (id: string, name: string) => {
+    setErr(null);
+    const res = await ask({ id, name }, true);
+    if (!res) return;
+    setBusy(id);
+    if (res.ok) { setAdded((a) => [...a, id]); await onSaved(); }
+    else setErr(res.status === 403 ? 'אין הרשאה להוסיף לגרעין' : 'לא הצלחנו להוסיף. נסו שוב.');
+    setBusy(null);
+  };
+  return (
+    <>
+      {sheet}
+      <Sub>להוסיף מישהו אחר לגרעין</Sub>
+      <div className="mx-4">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="חיפוש לפי שם" aria-label="חיפוש רץ להוספה לגרעין"
+          className="min-h-[44px] w-full rounded-xl bg-card px-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-600" />
+      </div>
+      {err && <p className="mx-[18px] mt-2 rounded-xl bg-red-50 px-3 py-2 text-[12.5px] font-bold text-red-700">{err}</p>}
+      {q.trim() && (
+        <Card className="mt-2 px-3.5 py-1.5">
+          {hits.length === 0 && <p className="py-2.5 text-[12.5px] text-ink-400">אין מישהו בשם הזה מחוץ לגרעין</p>}
+          {hits.map((a) => (
+            <div key={a.id} className="flex items-center gap-2.5 border-b border-[#F3F4F6] py-2.5 last:border-0">
+              <Link href={profile(a.id)} className="flex min-w-0 flex-1 flex-col">
+                <b className="text-[13.5px] font-bold">{a.name}</b>
+                <span className="text-[11.5px] text-ink-400">{a.pack}</span>
+              </Link>
+              {added.includes(a.id)
+                ? <span className="flex-none rounded-full bg-[#15803d] px-3 py-[5px] text-[11.5px] font-extrabold text-white">✓ נוסף</span>
+                : <button type="button" disabled={!!busy} onClick={() => add(a.id, a.name)} className="min-h-[36px] flex-none rounded-full bg-[#E8F6EE] px-3 text-[11.5px] font-extrabold text-[#15803d] disabled:opacity-50">{busy === a.id ? 'מוסיף…' : 'להוסיף'}</button>}
+            </div>
+          ))}
+        </Card>
+      )}
     </>
   );
 }
