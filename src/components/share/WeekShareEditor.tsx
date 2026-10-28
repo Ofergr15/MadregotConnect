@@ -782,6 +782,28 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
         ))}
       </div>
 
+      {/* WHAT'S ON THE CARD — the same row as the workout's (Ofer, 10-28: "a solution not only
+          for this but for more screens"): the week's numbers, one tap each, without finding the
+          "מספרים" label on the card. The look's own capacity holds (one number on a one-number look). */}
+      {!inPart && (
+        <div className="flex-none px-4 pt-2" data-whats-on>
+          <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <span className="flex-none text-2xs font-extrabold text-white/55">{ts('whatsOn')}</span>
+            {NUMBER_ORDER.filter(k => avail.includes(k)).map(k => {
+              const on = picks.includes(k);
+              const blocked = !on && picks.length >= cap && cap > 1;
+              return (
+                <button key={k} type="button" aria-pressed={on} disabled={blocked} onClick={() => tapNumber(k)}
+                  className={cn('flex min-h-[34px] flex-none items-center gap-1 rounded-full px-3 text-2xs font-extrabold',
+                    on ? 'bg-[#FF5315] text-white' : 'bg-white/[0.08] text-white/75', blocked && 'opacity-35')}>
+                  {on && <Check className="h-3 w-3" strokeWidth={3} />}{text.labels[k]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* The looks and the part options come up only while editing; Done puts them
           away and the card takes the room back. */}
       <div className={cn(

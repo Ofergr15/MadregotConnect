@@ -3604,7 +3604,18 @@
     "looksStickers": "Clear stickers",
     "stickerAlways": "A clear sticker: place it on any photo in your story, then move and resize it.",
     "applyAllHint": "Editing pack 1 · the look goes to all {n} packs",
-    "applyAll": "Apply to all {n} packs"
+    "applyAll": "Apply to all {n} packs",
+    "whatsOn": "On the card",
+    "whatsTitle": "Title",
+    "whatsDate": "Date",
+    "whatsStart": "Start time",
+    "bgColor": "Pick a colour",
+    "bgClear": "Clear",
+    "fillGradient": "Soft gradient",
+    "fillSolid": "Solid",
+    "colorOther": "Other colour",
+    "colorDarkened": "Darkened a little so the white numbers read",
+    "fillLabel": "Fill"
   },
   "watchAlerts": {
     "title": "Alerts & voice on your watch",

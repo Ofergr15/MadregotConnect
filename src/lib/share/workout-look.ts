@@ -15,7 +15,9 @@ import {
  * background, the colour, the logo and the chart's options. The run's own things
  * (its route, laps, numbers, title text) are not in it: those come with each run.
  */
-export type WorkoutBackground = 'photo' | 'club' | 'sticker';
+export type WorkoutBackground = 'photo' | 'club' | 'sticker' | 'color';
+/** A colour background's fill: from the colour to a darker one (like the club's blue), or one flat colour. */
+export type BackgroundFill = 'gradient' | 'solid';
 
 export interface WorkoutLook {
   template: ShareTemplate;
@@ -34,6 +36,9 @@ export interface WorkoutLook {
   targets: boolean;
   avgLine: boolean;
   hrLine: boolean;
+  /** A colour background (bg 'color', Ofer 10-28: "change the blue — clear, or a colour I pick"). */
+  bgColor?: string;
+  bgFill?: BackgroundFill;
 }
 
 /**
@@ -79,6 +84,7 @@ export function lookRenderOptions(
   const d = drawnTemplate(view, { routeOnly: look.routeOnly, withPhoto: look.bg === 'photo' && !!photo });
   return {
     background: look.bg === 'photo' && supportsPhoto(d) ? photo : null,
+    backgroundColor: look.bg === 'color' && look.bgColor ? { hex: readableColor(look.bgColor), fill: look.bgFill ?? 'gradient' } : undefined,
     transparent: isStickerTemplate(d) || (look.bg === 'sticker' && supportsTransparent(d)),
     template: d,
     accent: look.accent,
@@ -96,6 +102,66 @@ export function lookRenderOptions(
     timeLtr: true,
     metrics: asWorkoutMetrics(own ? look.keys : fitChipKeys(subject, view, look.keys)),
   };
+}
+
+// ── a colour the white numbers can be read on ────────────────────────────────
+
+const HEX = /^#[0-9a-f]{6}$/i;
+const lin = (c: number) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; };
+const lum = (hex: string) => { const n = parseInt(hex.slice(1), 16); return 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255); };
+/** White on it, WCAG. */
+export const whiteContrast = (hex: string) => 1.05 / (lum(hex) + 0.05);
+/** Toward black by `k` (0..1). */
+export function darken(hex: string, k: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (v: number) => Math.max(0, Math.round(v * (1 - k))).toString(16).padStart(2, '0');
+  return `#${ch((n >> 16) & 255)}${ch((n >> 8) & 255)}${ch(n & 255)}`;
+}
+/**
+ * The colour picked, darkened just enough that the card's white numbers read on it (3:1, the
+ * large-text bar): a yellow or a white would leave them invisible. A colour that already
+ * reads is kept exactly. Anything that isn't a #rrggbb is the club's blue.
+ */
+export function readableColor(hex: string): string {
+  if (!HEX.test(hex)) return '#1525FF';
+  let c = hex.toLowerCase();
+  for (let i = 0; i < 20 && whiteContrast(c) < 3; i++) c = darken(c, 0.08);
+  return c;
+}
+
+/** The shades offered first (mockup share-card-colors): black, dark grey, the club's blue, Madregot orange, pink, purple, green. */
+export const COLOR_SWATCHES = ['#0b0b10', '#2b2d42', '#1525FF', '#E2561B', '#C2185B', '#6D28D9', '#0B7258'] as const;
+
+// ── remembered on this phone ─────────────────────────────────────────────────
+
+const VIEW_KEYS = 'mc-share-view-keys-v1';
+const BG_KEY = 'mc-share-bg-v1';
+
+/** The numbers last chosen for one view ("tags" keeps its own, "list" its own). */
+export function loadViewKeys(view: ShareTemplate): string[] | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(VIEW_KEYS) || '{}')[view];
+    return Array.isArray(v) && v.every((x) => typeof x === 'string') && v.length ? v : null;
+  } catch { return null; }
+}
+export function saveViewKeys(view: ShareTemplate, keys: string[]): void {
+  try {
+    const all = JSON.parse(localStorage.getItem(VIEW_KEYS) || '{}');
+    localStorage.setItem(VIEW_KEYS, JSON.stringify({ ...all, [view]: keys }));
+  } catch { /* private mode: not remembered */ }
+}
+
+export interface SavedBackground { bg: 'club' | 'sticker' | 'color'; color?: string; fill?: BackgroundFill }
+/** The last background chosen (a photo is never remembered — it is the run's own). */
+export function loadBackground(): SavedBackground | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(BG_KEY) || 'null');
+    if (!v || !['club', 'sticker', 'color'].includes(v.bg)) return null;
+    return { bg: v.bg, ...(HEX.test(v.color) ? { color: v.color } : {}), ...(v.fill === 'solid' || v.fill === 'gradient' ? { fill: v.fill } : {}) };
+  } catch { return null; }
+}
+export function saveBackground(b: SavedBackground): void {
+  try { localStorage.setItem(BG_KEY, JSON.stringify(b)); } catch { /* not remembered */ }
 }
 
 // ── the last look, for next time ─────────────────────────────────────────────

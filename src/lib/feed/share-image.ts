@@ -261,6 +261,8 @@ export interface ShareI18n {
 export interface ShareCardOptions {
   /** Athlete-chosen background photo. Falls back to a brand gradient. */
   background?: Blob | null;
+  /** A colour in place of the club's blue, already readable under white (lib/share/workout-look readableColor). */
+  backgroundColor?: { hex: string; fill: 'gradient' | 'solid' };
   /**
    * Render the overlay alone on a transparent canvas, exported as PNG.
    *
@@ -575,6 +577,25 @@ export function drawShareBars(
   ctx.fillText(axis[1], endEdge, box.y + box.h);
 
   ctx.restore();
+}
+
+/** A picked colour, flat or as the club's blue is drawn: darker, the colour, darker again. */
+function drawColorBackground(ctx: CanvasRenderingContext2D, hex: string, fill: 'gradient' | 'solid') {
+  if (fill === 'solid') {
+    ctx.fillStyle = hex;
+  } else {
+    const shade = (k: number) => {
+      const n = parseInt(hex.slice(1), 16);
+      const ch = (v: number) => Math.round(v * (1 - k)).toString(16).padStart(2, '0');
+      return `#${ch((n >> 16) & 255)}${ch((n >> 8) & 255)}${ch(n & 255)}`;
+    };
+    const g = ctx.createLinearGradient(0, 0, STORY_W, STORY_H);
+    g.addColorStop(0, shade(0.45));
+    g.addColorStop(0.55, hex);
+    g.addColorStop(1, shade(0.65));
+    ctx.fillStyle = g;
+  }
+  ctx.fillRect(0, 0, STORY_W, STORY_H);
 }
 
 function drawBrandGradient(ctx: CanvasRenderingContext2D) {
@@ -2801,7 +2822,10 @@ export async function renderShareCard(
         // to the gradient rather than failing the whole share.
       }
     }
-    if (!drewPhoto) drawBrandGradient(ctx);
+    if (!drewPhoto) {
+      if (opts.backgroundColor) drawColorBackground(ctx, opts.backgroundColor.hex, opts.backgroundColor.fill);
+      else drawBrandGradient(ctx);
+    }
     // The scrim exists to keep white type readable over an unknown photo. The
     // card template brings its own panel, and over our own flat gradient the
     // scrim only mutes the background for no legibility gain — so the newer

@@ -23,7 +23,10 @@ import type { FeedItem } from '@/lib/feed/project';
 import { fetchActivityDetails } from '@/lib/activities-client';
 import type { HrTrace } from '@/lib/share/hr-trace';
 import { workoutHeadline, type PlanSegment } from '@/lib/share/plan-segments';
-import { fitLook, lookRenderOptions, type WorkoutBackground, type WorkoutLook } from '@/lib/share/workout-look';
+import {
+  COLOR_SWATCHES, fitLook, loadBackground, loadViewKeys, lookRenderOptions, readableColor, saveBackground, saveViewKeys,
+  type BackgroundFill, type WorkoutBackground, type WorkoutLook,
+} from '@/lib/share/workout-look';
 
 /**
  * THE WORKOUT SHARE EDITOR: THE CARD IS THE CONTROL PANEL.
@@ -193,7 +196,13 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
   const seed = useMemo(() => (initialLook ? fitLook(initialLook, { kind: 'workout', item: given }) : null), []); // eslint-disable-line react-hooks/exhaustive-deps -- the opening look only
   const [template, setTemplate] = useState<ShareTemplate>(() => seed?.template ?? defaultTemplate(subject));
   useEffect(() => { setShelf(isStickerTemplate(template) ? 'stickers' : 'cards'); }, [template]);
-  const [keys, setKeys] = useState<string[]>(() => seed?.keys ?? defaultChipKeys(subject, defaultTemplate(subject)));
+  // The numbers last chosen for this view on this phone (lib/share/workout-look), else its default.
+  const [keys, setKeys] = useState<string[]>(() => {
+    if (seed?.keys) return seed.keys;
+    const first = defaultTemplate(subject);
+    const saved = loadViewKeys(first);
+    return saved ? fitChipKeys(subject, first, saved) : defaultChipKeys(subject, first);
+  });
   // The reps-on-target number needs the route's steps (the feed's cut has no targets), so
   // the opening numbers are picked again when they come — unless the athlete already chose.
   const keysChosen = useRef(!!seed?.keys);
@@ -208,7 +217,12 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
   const originalTitle = item.activity?.activityName ?? '';
   const [typedTitle, setTypedTitle] = useState<string | null>(null);
   const [routeOnly, setRouteOnly] = useState(seed?.routeOnly ?? false);
-  const [bg, setBg] = useState<WorkoutBackground>(seed?.bg === 'photo' ? 'club' : seed?.bg ?? 'club');
+  // The background last chosen (never a photo — that is the run's own), and a picked colour's fill.
+  const savedBg = useMemo(() => loadBackground(), []);
+  const [bg, setBg] = useState<WorkoutBackground>(seed?.bg === 'photo' ? 'club' : seed?.bg ?? savedBg?.bg ?? 'club');
+  const [bgColor, setBgColor] = useState<string>(seed?.bgColor ?? savedBg?.color ?? '#E2561B');
+  const [bgFill, setBgFill] = useState<BackgroundFill>(seed?.bgFill ?? savedBg?.fill ?? 'gradient');
+  useEffect(() => { if (bg !== 'photo') saveBackground({ bg, color: bgColor, fill: bgFill }); }, [bg, bgColor, bgFill]);
   const [accent, setAccent] = useState<ShareAccent>(seed?.accent ?? 'white');
   const [brand, setBrand] = useState<ShareBrand | null>(seed?.brand ?? null);
   const modes = splitModes(subject);
@@ -279,7 +293,8 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
     setBrand(null);
     setMode('looks');
     setHitMap({});
-    setKeys(prev => fitChipKeys(subject, next, prev));
+    // The numbers this view had last time, else the ones on the card now, fitted to it.
+    setKeys(prev => fitChipKeys(subject, next, loadViewKeys(next) ?? prev));
   }, [subject]);
 
   const openPart = useCallback((next: Mode) => {
@@ -346,8 +361,10 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
   // from, and what "להחיל על כל הדבוקות" hands on.
   const look = useMemo<WorkoutLook>(() => ({
     template, keys, cardLang, showTitle, showStartTime, showDate, showShoe, routeOnly, bg, accent, brand,
-    splitMode, paceLabels, targets: targets && targetsOk, avgLine, hrLine,
-  }), [template, keys, cardLang, showTitle, showStartTime, showDate, showShoe, routeOnly, bg, accent, brand, splitMode, paceLabels, targets, targetsOk, avgLine, hrLine]);
+    splitMode, paceLabels, targets: targets && targetsOk, avgLine, hrLine, bgColor, bgFill,
+  }), [template, keys, cardLang, showTitle, showStartTime, showDate, showShoe, routeOnly, bg, accent, brand, splitMode, paceLabels, targets, targetsOk, avgLine, hrLine, bgColor, bgFill]);
+  // What the athlete chose for this view is remembered for it (only once they chose).
+  useEffect(() => { if (keysChosen.current && !fixed) saveViewKeys(template, keys); }, [keys, template]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const renderOpts = useCallback((view: ShareTemplate, own: boolean) =>
     lookRenderOptions(look, subject, { photo, titleText, view, own }),
@@ -871,9 +888,38 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
         <>
           <div className="flex gap-2">
             {opt('club', t('bgClub'), 'bg-gradient-to-br from-[#1525FF] to-[#0a0f5c]', true)}
+            {opt('color', t('bgColor'), 'bg-[conic-gradient(#FF5315,#ffb703,#2ec27e,#1525FF,#9b5de5,#FF5315)]', true)}
+            {opt('sticker', t('bgClear'), 'bg-[repeating-conic-gradient(#555_0_25%,#999_0_50%)] bg-[length:10px_10px]', stickerView)}
             {opt('photo', photo && bg === 'photo' ? t('changePhoto') : t('bgPhoto'), 'bg-white/15', photoView)}
-            {opt('sticker', t('sticker'), 'bg-[repeating-conic-gradient(#555_0_25%,#999_0_50%)] bg-[length:10px_10px]', stickerView)}
           </div>
+          {bg === 'color' && (
+            // A colour of one's own (mockup share-card-colors): the shades, any other, flat or soft.
+            <>
+              <div className="mt-2.5 flex items-center gap-2" dir="ltr">
+                {COLOR_SWATCHES.map(c => (
+                  <button key={c} type="button" aria-label={c} aria-pressed={bgColor.toLowerCase() === c.toLowerCase()} onClick={() => setBgColor(c)}
+                    className={cn('h-9 w-9 flex-none rounded-full border-[2.5px]', bgColor.toLowerCase() === c.toLowerCase() ? 'border-white ring-2 ring-[#FF5315]' : 'border-transparent')}
+                    style={{ background: c }} />
+                ))}
+                <label className="relative h-9 w-9 flex-none cursor-pointer rounded-full bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)]" aria-label={t('colorOther')}>
+                  <span className="absolute inset-0 grid place-items-center text-base font-black text-white [text-shadow:0_0_4px_#000]">+</span>
+                  <input type="color" value={bgColor} onChange={e => setBgColor(e.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+                </label>
+              </div>
+              <div className="mt-2.5 flex items-center justify-between text-xs font-bold text-white/80">
+                <span>{t('fillLabel')}</span>
+                <div className="flex rounded-full bg-white/[0.08] p-0.5">
+                  {(['gradient', 'solid'] as const).map(f => (
+                    <button key={f} type="button" aria-pressed={bgFill === f} onClick={() => setBgFill(f)}
+                      className={cn('min-h-[32px] rounded-full px-3 text-2xs font-extrabold', bgFill === f ? 'bg-white text-ink-900' : 'text-white/60')}>
+                      {t(f === 'gradient' ? 'fillGradient' : 'fillSolid')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {readableColor(bgColor) !== bgColor.toLowerCase() && <p className="mt-2 text-center text-2xs text-white/55">{t('colorDarkened')}</p>}
+            </>
+          )}
           {!photoView && <p className="mt-2 text-center text-2xs text-white/55">{t('noPhotoView')}</p>}
           {transparent && <p className="mt-2 text-center text-2xs leading-relaxed text-white/55">{t('stickerHint')}</p>}
         </>
@@ -1076,6 +1122,48 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
           <i key={v.key} className={cn('h-1.5 rounded-full transition-all', centred === v.key ? 'w-[18px] bg-white' : 'w-1.5 bg-white/35')} />
         ))}
       </div>
+
+      {/* WHAT'S ON THE CARD (Ofer, 10-28: "only distance, logo and average pace, without the time"
+          — the numbers could be switched, but only from the "מספרים" label on the card, which
+          nobody found). One row under the card, always: every number, and the title and the date
+          where the view prints them; the logo stays on. Remembered per view. */}
+      {!inPart && (
+        <div className="flex-none px-4 pt-2" data-whats-on>
+          <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <span className="flex-none text-2xs font-extrabold text-white/55">{t('whatsOn')}</span>
+            {!fixed && [...keys.map(k => chips.find(c => c.key === k)).filter((c): c is NonNullable<typeof c> => !!c), ...chips.filter(c => !keys.includes(c.key))].map(chip => {
+              const on = keys.includes(chip.key);
+              const blocked = (!on && full) || (on && keys.length === 1);
+              return (
+                <button key={chip.key} type="button" aria-pressed={on} disabled={!on && full}
+                  onClick={() => { if (blocked) return; keysChosen.current = true; setKeys(prev => toggleChip(prev, chip.key, capacity)); }}
+                  className={cn('flex min-h-[34px] flex-none items-center gap-1 rounded-full px-3 text-2xs font-extrabold',
+                    on ? 'bg-[#FF5315] text-white' : 'bg-white/[0.08] text-white/75', !on && full && 'opacity-35')}>
+                  {on && <Check className="h-3 w-3" strokeWidth={3} />}{chip.label}
+                </button>
+              );
+            })}
+            {titleOk && (
+              <button type="button" aria-pressed={showTitle} onClick={() => setShowTitle(v => !v)}
+                className={cn('flex min-h-[34px] flex-none items-center gap-1 rounded-full px-3 text-2xs font-extrabold', showTitle ? 'bg-[#FF5315] text-white' : 'bg-white/[0.08] text-white/75')}>
+                {showTitle && <Check className="h-3 w-3" strokeWidth={3} />}{t('whatsTitle')}
+              </button>
+            )}
+            {dateOk && (
+              <button type="button" aria-pressed={showDate} onClick={() => setShowDate(v => !v)}
+                className={cn('flex min-h-[34px] flex-none items-center gap-1 rounded-full px-3 text-2xs font-extrabold', showDate ? 'bg-[#FF5315] text-white' : 'bg-white/[0.08] text-white/75')}>
+                {showDate && <Check className="h-3 w-3" strokeWidth={3} />}{t('whatsDate')}
+              </button>
+            )}
+            {startOk && (
+              <button type="button" aria-pressed={showStartTime} onClick={() => setShowStartTime(v => !v)}
+                className={cn('flex min-h-[34px] flex-none items-center gap-1 rounded-full px-3 text-2xs font-extrabold', showStartTime ? 'bg-[#FF5315] text-white' : 'bg-white/[0.08] text-white/75')}>
+                {showStartTime && <Check className="h-3 w-3" strokeWidth={3} />}{t('whatsStart')}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* The looks and the part options come up only while editing; Done puts them
           away and the card takes the room back (feedback 2026-09-29). */}

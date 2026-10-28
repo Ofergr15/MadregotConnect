@@ -3604,7 +3604,18 @@
     "looksStickers": "מדבקות שקופות",
     "stickerAlways": "מדבקה שקופה: מניחים אותה על כל תמונה בסטורי, ואפשר להזיז ולהגדיל.",
     "applyAllHint": "עורכים על דבוקה 1 · המראה עובר לכל {n} הדבוקות",
-    "applyAll": "להחיל על {n} הדבוקות"
+    "applyAll": "להחיל על {n} הדבוקות",
+    "whatsOn": "מה מופיע",
+    "whatsTitle": "כותרת",
+    "whatsDate": "תאריך",
+    "whatsStart": "שעת התחלה",
+    "bgColor": "צבע לבחירה",
+    "bgClear": "שקוף",
+    "fillGradient": "מעבר עדין",
+    "fillSolid": "אחיד",
+    "colorOther": "צבע אחר",
+    "colorDarkened": "הוכהה מעט, כדי שהמספרים הלבנים ייקראו",
+    "fillLabel": "מילוי"
   },
   "watchAlerts": {
     "title": "התראות וקול בשעון",
