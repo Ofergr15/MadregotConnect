@@ -129,6 +129,10 @@ export async function POST(request: Request) {
     // success either way, so the form cannot be used to learn whose address is on the roster.
     const phoneValue = typeof phone === 'string' ? phone.trim() || null : null;
     const intakeObj = intake && typeof intake === 'object' ? (intake as Record<string, unknown>) : null;
+    // An imported card is let in by its own confirmation — unless the accept refused (no coach
+    // chosen in the file, say). The answer says which, so the screen never promises an install
+    // mail that did not go out (sign-up E2E, 2026-10-28).
+    let letIn = false;
     const afterSave = async (athleteId: string | null, existingMember: boolean, likelyMember: string | null = null) => {
       const candidateId = await recordFormCandidate(supabase as any, {
         name: fullName, email: normEmail, phone: phoneValue, inviteToken, src, athleteId, intake: intakeObj,
@@ -147,7 +151,7 @@ export async function POST(request: Request) {
           console.error('Academy register: import accept failed:', err);
           return { accepted: false };
         });
-        if (r.accepted || (r as { reason?: string }).reason === 'already') return;
+        if (r.accepted || (r as { reason?: string }).reason === 'already') { letIn = true; return; }
       }
       await notifyAdminNewAcademyRegistration({
         name: fullName, email: normEmail, phone, existingMember, candidateId,
@@ -169,7 +173,7 @@ export async function POST(request: Request) {
 
     if (existing && existing.onboarding_status !== 'academy_pending') {
       await afterSave(null, true);
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, ...(imported ? { letIn } : {}) });
     }
 
     // Accepted already (approved), not yet signed in: the form is sent again — from the
@@ -181,7 +185,7 @@ export async function POST(request: Request) {
       if (imported) Object.assign(details, importProfileColumns(intakeObj));
       const { error: detailsError } = await supabase.from('athletes').update(details).eq('id', existing.id);
       if (detailsError) console.error('Academy register: details refresh failed:', detailsError.message);
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, ...(imported ? { letIn } : {}) });
     }
 
     const token = existing?.invite_token || randomBytes(16).toString('hex');
@@ -225,7 +229,7 @@ export async function POST(request: Request) {
 
     await afterSave(athleteId, false, await likelyClubMember(supabase as any, { name: fullName, email: normEmail, phone: phoneValue, athleteId }));
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, ...(imported ? { letIn } : {}) });
   } catch (error: any) {
     console.error('Academy register error:', error);
     return NextResponse.json({ error: error.message || 'Registration failed' }, { status: 500 });

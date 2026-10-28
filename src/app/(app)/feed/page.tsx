@@ -638,7 +638,9 @@ export default function FeedPage() {
           skeleton is the mistake it exists to avoid. Never opens for somebody who
           joined after the feature shipped. See WhatsNewSheet and
           lib/whats-new/ledger.ts. */}
-      <WhatsNewAutoSheet ready={!loading && !error && items.length > 0} />
+      {/* Not for the required setup's members: for somebody who just joined, all of it is
+          new, and the sheet opened on top of the setup itself (sign-up E2E, 2026-10-27). */}
+      <WhatsNewAutoSheet ready={!loading && !error && items.length > 0 && setupCohort === false} />
       <OnboardingTestReset />
 
       {/* ═══ WHAT'S NEXT ═══

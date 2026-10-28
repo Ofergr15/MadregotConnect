@@ -1,5 +1,6 @@
 'use client';
 
+import { nameProblem } from '@/lib/names/latin';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronRight } from 'lucide-react';
@@ -88,6 +89,10 @@ export function JoinFlow({ initialPath }: { initialPath?: 'club' | 'academy' | n
   };
   const details = () => {
     if (!first.trim() || !last.trim()) return setError('שם פרטי ושם משפחה');
+    // The club's roster is in English letters (lib/names/latin), as on Strava: a Hebrew name
+    // here was dropped at the approval link, which then showed an empty form instead of
+    // "הכול נכון" (sign-up E2E, 2026-10-27) — and an English one is what Strava sign-in matches.
+    if (path === 'club' && nameProblem(`${first} ${last}`) === 'not-latin') return setError('השם באנגלית, כמו ב-Strava — למשל Dana Levi');
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('האימייל לא נראה תקין');
     if (suggestEmail(email) && typoOk !== email.trim()) return setError('typo');
     if (phone.replace(/\D/g, '').length < 9) return setError('מספר נייד');
@@ -149,7 +154,7 @@ export function JoinFlow({ initialPath }: { initialPath?: 'club' | 'academy' | n
         <Back onClick={() => go('path')} />
         <span className="rounded-xl bg-[#EEF0FF] px-3 py-1.5 text-[13px]">המסלול: <b className="font-black">{path === 'academy' ? '🎯 האקדמיה' : '🏃 המועדון'}</b> · <button type="button" onClick={() => go('path')} className="font-black text-brand-600">שינוי</button></span>
       </div>
-      <div className="grid grid-cols-2 gap-2"><Field label="שם פרטי" value={first} onChange={setFirst} required /><Field label="שם משפחה" value={last} onChange={setLast} required /></div>
+      <div className="grid grid-cols-2 gap-2"><Field label={path === 'club' ? 'שם פרטי (באנגלית)' : 'שם פרטי'} value={first} onChange={setFirst} dir={path === 'club' ? 'ltr' : undefined} placeholder={path === 'club' ? 'Dana' : undefined} required /><Field label={path === 'club' ? 'שם משפחה (באנגלית)' : 'שם משפחה'} value={last} onChange={setLast} dir={path === 'club' ? 'ltr' : undefined} placeholder={path === 'club' ? 'Levi' : undefined} required /></div>
       <Field label="אימייל" value={email} onChange={setEmail} type="email" dir="ltr" required />
       <Field label="נייד" value={phone} onChange={setPhone} type="tel" dir="ltr" placeholder="050-0000000" required />
       <p className="mt-1 px-1 text-[13px] font-extrabold" style={{ color: JOURNEY.soft }}>איך הגעת אלינו?</p>

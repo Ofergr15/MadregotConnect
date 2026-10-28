@@ -43,6 +43,10 @@ export function importProfileColumns(intake: Record<string, unknown> | null): Re
   if (w != null) out.weight_kg = Math.round(w * 10) / 10;
   if (typeof intake.shirtSize === 'string' && ['XS', 'S', 'M', 'L', 'XL', 'XXL'].includes(intake.shirtSize)) out.shirt_size = intake.shirtSize;
   if (typeof intake.shoeSize === 'string' && EU_SHOE_SIZES.includes(intake.shoeSize)) out.shoe_size = intake.shoeSize;
+  for (const [key, col] of [['pantsSize', 'pants_size'], ['tightsSize', 'tights_size']] as const) {
+    if (typeof intake[key] === 'string' && ['XS', 'S', 'M', 'L', 'XL', 'XXL'].includes(intake[key] as string)) out[col] = intake[key];
+  }
+  if (typeof intake.socksSize === 'string' && ['35-38', '39-42', '43-46', '47+'].includes(intake.socksSize)) out.socks_size = intake.socksSize;
   return out;
 }
 

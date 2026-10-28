@@ -404,6 +404,8 @@ export default function AcademyRegisterPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || data.error || 'ההרשמה נכשלה');
+      // An imported card that was not let in (the accept refused) reads as a regular "received".
+      if (data.letIn === false) setImported(null);
       setDone(true);
     } catch (err: any) {
       setError(err.message || 'ההרשמה נכשלה');

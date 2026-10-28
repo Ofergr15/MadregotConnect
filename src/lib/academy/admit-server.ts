@@ -1,4 +1,5 @@
 import { randomBytes } from 'crypto';
+import { importProfileColumns } from '@/lib/academy/import-form';
 import { syncApprovedJoiner } from '@/lib/onboarding/approval-sync';
 import { NextResponse } from 'next/server';
 import { hasRole } from '@/lib/auth/roles';
@@ -227,6 +228,23 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
   if (updateError) {
     console.error('Accept: athlete update failed:', updateError);
     return NextResponse.json({ error: 'Failed to accept' }, { status: 500 });
+  }
+
+  // What the academy form already said — birth date, height, weight, gender, the sizes —
+  // onto the account, where it is still empty, so the app's setup does not ask it again
+  // (sign-up E2E 2026-10-27: a new trainee was asked all of it a second time). Best effort:
+  // a column a database lacks (or an odd answer) costs only that detail.
+  try {
+    const { data: form } = await supabase.from('academy_candidates').select('intake').eq('id', id).maybeSingle();
+    const fromForm = importProfileColumns(((form as { intake?: Record<string, unknown> | null } | null)?.intake) ?? null);
+    const cols = Object.keys(fromForm);
+    if (cols.length) {
+      const { data: now } = await supabase.from('athletes').select(cols.join(', ')).eq('id', athlete.id).maybeSingle();
+      const empty = Object.fromEntries(Object.entries(fromForm).filter(([k]) => (now as Record<string, unknown> | null)?.[k] == null));
+      if (Object.keys(empty).length) await supabase.from('athletes').update(empty).eq('id', athlete.id);
+    }
+  } catch (err) {
+    console.error('Accept: carrying the form details failed:', err);
   }
 
   // The academy join date, as every other door into the academy stamps it. Without

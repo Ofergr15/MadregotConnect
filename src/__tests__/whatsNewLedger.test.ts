@@ -167,7 +167,8 @@ describe('the sheet component', () => {
     expect(sheet).toMatch(/\{ ready \}: \{ ready: boolean \}/);
     expect(sheet).toMatch(/if \(!ready \|\| !all \|\| entries\) return;/);
     const feed = read('app/(app)/feed/page.tsx');
-    expect(feed).toMatch(/<WhatsNewAutoSheet ready=\{!loading && !error && items\.length > 0\} \/>/);
+    // …and never for the required setup's members (everything is new to them).
+    expect(feed).toMatch(/<WhatsNewAutoSheet ready=\{!loading && !error && items\.length > 0 && setupCohort === false\} \/>/);
   });
 
   it('spends the slugs when it opens, not when it closes', () => {
