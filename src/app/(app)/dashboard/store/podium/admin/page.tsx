@@ -49,7 +49,9 @@ function PodiumAdmin() {
   const sent = orders.filter((o) => o.submittedAt);
   const totals = useMemo(() => roundTotals(orders), [orders]);
   const sum = sent.reduce((s, o) => s + orderTotal(o.items, byId), 0);
-  const pending = sent.filter((o) => o.approval === 'pending');
+  // Over the budget: no approval any more (Ofer 10-28) — shown, clearly, so the admin knows before ordering.
+  const overList = round ? sent.map((o) => ({ o, t: orderTotal(o.items, byId) })).filter((x) => x.t > round.budget).sort((a, b) => b.t - a.t) : [];
+  const overSum = overList.reduce((a, x) => a + (x.t - (round?.budget ?? 0)), 0);
   const ordered = new Set(orders.map((o) => o.athleteId));
   const notOrdered = (data?.core ?? []).filter((id) => !ordered.has(id));
   const name = (id: string) => data?.people[id]?.name ?? 'רץ';
@@ -115,7 +117,7 @@ function PodiumAdmin() {
               <Kpi n={`${sent.length}/${data?.core.length ?? 0}`} l="שלחו" />
               <Kpi n={String([...totals.values()].reduce((a, b) => a + b, 0))} l="פריטים" />
               <Kpi n={shekelRound(sum)} l="משוער" />
-              <Kpi n={String(pending.length)} l="לאישור" warn={pending.length > 0} />
+              <Kpi n={String(overList.length)} l="מעל התקציב" warn={overList.length > 0} />
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <a href={`/api/admin/podium/csv?round=${round.id}`} className="flex items-center justify-center gap-1.5 rounded-2xl bg-ink-900 py-3 text-sm font-extrabold text-white"><Download className="h-4 w-4" />קובץ לפודיום</a>
@@ -144,19 +146,20 @@ function PodiumAdmin() {
             {round.state === 'open' && <p className="mt-2 text-2xs text-ink-400">אחרי הסגירה רצים לא יכולים לשנות. אדמין עדיין יכול לערוך עד שמסמנים &quot;נשלח&quot;.</p>}
           </div>
 
-          {pending.length > 0 && (
-            <div className="rounded-card bg-[#FFF1EA] p-3">
-              <p className="mb-2 text-13 font-extrabold text-[#9A3412]">מחכים לאישור חריגה</p>
-              {pending.map((o) => {
-                const t = orderTotal(o.items, byId);
-                return (
-                  <div key={o.id} className="flex items-center gap-2 border-t border-white/60 py-2 first:border-0">
-                    <span className="min-w-0 flex-1 text-13"><b>{name(o.athleteId)}</b> · <bdi>{shekelRound(t)}</bdi> <span className="text-[#C2410C]">· מעל ב-<bdi>{shekelRound(overBy(t, round.budget))}</bdi></span></span>
-                    <button type="button" disabled={!!busy} onClick={() => void act('a', () => post(`/api/admin/podium/orders/${o.id}`, { approval: 'approved' }, 'PATCH'))} className="rounded-xl bg-accent-600 px-3 py-1.5 text-xs font-extrabold text-white">אישור</button>
-                    <button type="button" disabled={!!busy} onClick={() => void act('r', () => post(`/api/admin/podium/orders/${o.id}`, { approval: 'rejected' }, 'PATCH'))} className="rounded-xl bg-white px-3 py-1.5 text-xs font-extrabold text-ink-700">לא</button>
-                  </div>
-                );
-              })}
+          {overList.length > 0 && (
+            <div className="rounded-card bg-[#FFF1EA] p-3.5">
+              <div className="flex items-baseline justify-between">
+                <p className="text-13 font-extrabold text-[#9A3412]">⚠️ מעל התקציב · <bdi>{overList.length}</bdi></p>
+                <span className="text-2xs font-bold text-[#9A3412]">ההפרש שמעבירים: <bdi dir="ltr">{shekelRound(overSum)}</bdi></span>
+              </div>
+              <p className="mb-1.5 text-2xs text-[#9A3412]/80">בלי אישור: כל אחד מהם הוזהר וההפרש עליו. כדאי לבדוק לפני שמזמינים.</p>
+              {overList.map(({ o, t }) => (
+                <button key={o.id} type="button" onClick={() => setEdit(o.id)} className="flex w-full items-center gap-2 border-t border-white/70 py-2 text-start">
+                  <span className="min-w-0 flex-1 truncate text-13 text-ink-900"><b>{name(o.athleteId)}</b></span>
+                  <span className="text-13 tabular-nums"><bdi dir="ltr">{shekelRound(t)}</bdi></span>
+                  <span className="rounded-pill bg-[#FF5A1F] px-2 py-0.5 text-3xs font-extrabold text-white">+<bdi dir="ltr">{shekelRound(t - round!.budget)}</bdi></span>
+                </button>
+              ))}
             </div>
           )}
         </>
@@ -184,7 +187,7 @@ function PodiumAdmin() {
                 <b className="block truncate text-sm text-ink-900">{name(o.athleteId)}</b>
                 <span className="text-2xs text-ink-400"><bdi>{itemCount(o.items)}</bdi> פריטים · <bdi>{shekelRound(orderTotal(o.items, byId))}</bdi></span>
               </span>
-              <Chip o={o} />
+              <Chip o={o} over={round ? orderTotal(o.items, byId) - round.budget : 0} />
               <ChevronRight className="h-4 w-4 rotate-180 text-ink-300" />
             </button>
           ))}
@@ -341,9 +344,9 @@ function Avatar({ url, name }: { url?: string | null; name: string }) {
   return url ? <img src={url} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" /> : <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-600/10 text-sm font-extrabold text-brand-600">{name.slice(0, 1)}</span>;
 }
 
-function Chip({ o }: { o: Order }) {
+function Chip({ o, over }: { o: Order; over?: number }) {
   const c = !o.submittedAt ? ['טיוטה', 'bg-page text-ink-500']
-    : o.approval === 'pending' ? ['לאישור', 'bg-[#FFF1EA] text-[#9A3412]']
+    : over && over > 0 ? [`מעל ב-₪${Math.round(over)}`, 'bg-[#FF5A1F] text-white']
     : o.approval === 'rejected' ? ['לא אושר', 'bg-red-50 text-red-700']
     : o.approval === 'approved' ? ['אושר', 'bg-accent-600/10 text-accent-900']
     : ['נשלח', 'bg-accent-600/10 text-accent-900'];

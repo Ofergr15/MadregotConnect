@@ -54,14 +54,15 @@ export function StoreAdminSection({ header = 'חנות' }: { header?: string | n
   const { data } = useApi<Resp>('/api/admin/podium');
   const r = data?.round ?? null;
   const sent = (data?.orders ?? []).filter((o) => o.submittedAt);
-  const pending = sent.filter((o) => o.approval === 'pending').length;
+  // Over the budget (no approval any more, Ofer 10-28): how many, shown so it's seen before ordering.
+  const pending = r ? sent.filter((o) => orderTotal(o.items, data?.products ?? []) > r.budget).length : 0;
   const items = sent.reduce((s, o) => s + itemCount(o.items), 0);
   const total = sent.reduce((s, o) => s + orderTotal(o.items, data?.products ?? []), 0);
   const unmatched = (data?.products ?? []).filter((p) => p.price == null && !p.hidden).length;
   const admin = '/dashboard/store/podium/admin';
   const live = r && r.state !== 'sent';
   const todo = [
-    pending > 0 && { text: `${pending} מעל התקציב מחכים לאישור`, href: admin, tone: 'text-[#9A3412]' },
+    pending > 0 && { text: `${pending} מעל התקציב · לבדוק לפני ההזמנה`, href: admin, tone: 'text-[#9A3412]' },
     r?.state === 'locked' && { text: 'ההזמנה נסגרה: להוריד קובץ ולסמן "נשלח לפודיום"', href: admin, tone: 'text-[#9A3412]' },
     r?.state === 'sent' && { text: r.receivedAt ? 'לחלק ולסמן "נמסר" לכל אחד' : 'כשהסחורה מגיעה: לסמן מה הגיע', href: admin, tone: 'text-brand-700' },
     r?.state === 'open' && r.autoNotify === false && (r.notifiedCount ?? 0) < (data?.core.length ?? 0) && { text: `ההתראה עוד לא נשלחה ל-${(data?.core.length ?? 0) - (r.notifiedCount ?? 0)}: לשלוח`, href: admin, tone: 'text-brand-700' },
@@ -107,7 +108,7 @@ export function StoreAdminSection({ header = 'חנות' }: { header?: string | n
               </Fact>
             </div>
             <div className="mt-2 grid grid-cols-4 gap-1.5 text-center">
-              {[[`${sent.length}/${data!.core.length}`, 'שלחו'], [String(items), 'פריטים'], [shekelRound(total), 'משוער'], [String(pending), 'לאישור']].map(([n, l], i) => (
+              {[[`${sent.length}/${data!.core.length}`, 'שלחו'], [String(items), 'פריטים'], [shekelRound(total), 'משוער'], [String(pending), 'מעל התקציב']].map(([n, l], i) => (
                 <div key={l} className={cn('rounded-xl py-2', i === 3 && pending ? 'bg-[#FFF1EA] text-[#9A3412]' : 'bg-page')}>
                   <b className="block text-[15px] font-black tabular-nums"><bdi dir="ltr">{n}</bdi></b><small className="text-3xs text-ink-500">{l}</small>
                 </div>
@@ -158,10 +159,10 @@ export function StoreAdminSection({ header = 'חנות' }: { header?: string | n
 export function StoreRow() {
   const { data } = useApi<Resp>('/api/admin/podium');
   const r = data?.round ?? null;
-  const pending = (data?.orders ?? []).filter((o) => o.submittedAt && o.approval === 'pending').length;
+  const pending = r ? (data?.orders ?? []).filter((o) => o.submittedAt && orderTotal(o.items, data?.products ?? []) > r.budget).length : 0;
   const open = r && r.state !== 'sent' ? 1 : 0;
   const sub = !data ? 'פודיום · חנות המועדון'
-    : pending ? `פודיום: ${pending} מחכים לאישור`
+    : pending ? `פודיום: ${pending} מעל התקציב`
     : r ? `פודיום ${STATE[r.state].label}${open ? ` · ${audienceLine(r, data.people).replace(/^פתוח /, '')}` : ''}`
     : 'אין הזמנה פתוחה';
   return <InsetRow icon={ShoppingBag} iconBg="bg-[#FF5A1F]" label="חנות" sublabel={sub} href="/dashboard/manage/store" />;

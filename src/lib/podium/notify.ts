@@ -55,12 +55,12 @@ export async function runPodiumPushes(db: Db, now = new Date()): Promise<string[
       const sent = orders.filter((o) => o.submittedAt);
       const items = sent.reduce((s, o) => s + itemCount(o.items), 0);
       const total = sent.reduce((s, o) => s + orderTotal(o.items, products), 0);
-      const pending = sent.filter((o) => o.approval === 'pending').length;
+      const over = sent.filter((o) => orderTotal(o.items, products) > round.budget).length;
       await notifyStaff({
         kind: 'podium_locked', url: PODIUM_ADMIN_URL, tag: `podium-lock-${round.id}`, category: 'management',
         copy: () => ({
           title: `🔒 ${round.title} נסגרה`,
-          body: `${sent.length} הזמנות · ${items} פריטים · ≈${shekel(total)}.${pending ? ` ${pending} מחכות לאישור חריגה.` : ''} הקובץ לפודיום מוכן.`,
+          body: `${sent.length} הזמנות · ${items} פריטים · ≈${shekel(total)}.${over ? ` ${over} מעל התקציב.` : ''} הקובץ לפודיום מוכן.`,
         }),
       });
       fired.push(`podiumLocked → ${sent.length}`);

@@ -4,7 +4,6 @@ import { isCoreRunner } from '@/lib/core-runner';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { cleanItems, orderTotal, orderable, overBy, roundState } from '@/lib/podium/model';
 import { currentRound, loadOrder, loadProducts, saveOrder } from '@/lib/podium/server';
-import { askApproval } from '@/lib/podium/notify';
 import { receiveView } from '@/lib/podium/receive-server';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +11,7 @@ export const dynamic = 'force-dynamic';
 /**
  * הזמנת פודיום, the runner's side (lib/podium). GET: the current round, the catalog a runner
  * may order from, and their own order. PUT: save the cart ({ items }) or send it
- * ({ items, submit: true, acceptOverage }). Only rounds whose audience includes the caller
+ * ({ items, submit: true }). Over the budget is allowed (the runner is warned). Only rounds whose audience includes the caller
  * ('me' / admins / chosen people / the core / everyone).
  * Nothing changes once the round locks.
  */
@@ -59,20 +58,8 @@ export async function PUT(request: Request) {
   if (!round || roundState(round) !== 'open') return NextResponse.json({ error: 'closed', message: 'ההזמנה סגורה לשינויים' }, { status: 409 });
   const products = await loadProducts(db);
   const total = orderTotal(cleanItems(body.items, products), products);
-  if (body.submit && overBy(total, round.budget) > 0 && !body.acceptOverage) {
-    return NextResponse.json({ error: 'over', over: overBy(total, round.budget) }, { status: 409 });
-  }
-  const prev = await loadOrder(db, round.id, g.athleteId);
-  // A sent order that a later tap pushes over the budget (beyond what was approved) goes back to
-  // a draft: going over needs the runner's "the difference is on me" again, on the send.
-  const newlyOver = !body.submit && !!prev?.submittedAt && overBy(total, round.budget) > 0
-    && !(prev.approval === 'approved' && total <= (prev.approvedTotal ?? 0))
-    && !(prev.approval === 'pending' && total <= orderTotal(prev.items, products));
-  const saved = await saveOrder(db, { round, athleteId: g.athleteId, items: body.items, products, by: g.athleteId, submit: !!body.submit, unsubmit: newlyOver });
-  // Ask the staff the moment a sent order needs a yes — once per "needs it" (not on every tap).
-  if (saved.submittedAt && saved.approval === 'pending' && (prev?.approval !== 'pending' || !prev?.submittedAt)) {
-    const { data: a } = await db.from('athletes').select('name').eq('id', g.athleteId).maybeSingle();
-    await askApproval({ round, athleteId: g.athleteId, name: (a as { name?: string } | null)?.name ?? 'רץ', total: orderTotal(saved.items, products), orderId: saved.id });
-  }
+  // Over the budget is the runner's to know, not the club's to approve (Ofer 10-28): no block, no
+  // "approve?" push — the cart warns them, and the admin's summary shows who's over and by how much.
+  const saved = await saveOrder(db, { round, athleteId: g.athleteId, items: body.items, products, by: g.athleteId, submit: !!body.submit });
   return NextResponse.json({ order: { id: saved.id, items: saved.items, submittedAt: saved.submittedAt, approval: saved.approval, updatedAt: saved.updatedAt, editedByClub: false } });
 }

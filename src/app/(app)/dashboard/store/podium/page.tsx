@@ -19,7 +19,8 @@ interface Resp { staff: boolean; round: (PodiumRound & { state: RoundState }) | 
 
 /**
  * הזמנת פודיום — the club's order from Podium (lib/podium/model), for whoever the round is open to. The cart saves itself as you tap;
- * "שליחה" sends it to the club. Above the budget the runner confirms they'll transfer the
+ * "שליחה" sends it to the club. Above the budget the runner is warned (a toast when the cart crosses
+ * it, a note by the send button) and may still send — they transfer the difference; no approval. Was: the
  * difference and the club approves. After the lock everything is read-only.
  */
 export default function PodiumOrderPage() {
@@ -43,7 +44,6 @@ export default function PodiumOrderPage() {
   const [open, setOpen] = useState<PodiumProduct | null>(null);
   // A sent order opens on its 'done' summary; ✏️ עריכה goes to the cart (Ofer 10-26).
   const [view, setView] = useState<'done' | 'shop' | 'cart'>('shop');
-  const [accept, setAccept] = useState(false);
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [sending, setSending] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -59,17 +59,21 @@ export default function PodiumOrderPage() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const save = useCallback(async (next: Record<string, number>, submit = false) => {
     setSaving('saving');
-    const res = await fetch('/api/podium', { method: 'PUT', headers: await apiHeaders(true), body: JSON.stringify({ items: next, submit, acceptOverage: submit ? accept : undefined }) });
+    const res = await fetch('/api/podium', { method: 'PUT', headers: await apiHeaders(true), body: JSON.stringify({ items: next, submit }) });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) { setSaving('error'); setMsg(j.message ?? (j.error === 'over' ? 'מעל התקציב: צריך לאשר שההפרש עליך' : 'לא נשמר. נסו שוב.')); return false; }
     setMine(j.order); setSaving('saved'); setMsg(null);
     void mutate((d) => (d ? { ...d, order: j.order } : d), { revalidate: false });
     return true;
-  }, [accept, mutate]);
+  }, [mutate]);
+  const [crossed, setCrossed] = useState<number | null>(null);
   const setQty = (id: string, qn: number) => {
     if (!editable) return;
     const next = { ...items };
     if (qn > 0) next[id] = qn; else delete next[id];
+    // The moment this tap takes the cart over the budget: say so (Ofer 10-28) — a warning, not a block.
+    const after = orderTotal(next, byId);
+    if (after > budget && total <= budget) { setCrossed(after - budget); setTimeout(() => setCrossed(null), 4500); }
     setItems(next);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => void save(next), 700);
@@ -179,13 +183,13 @@ export default function PodiumOrderPage() {
             {editable && (
               <div className="space-y-2">
                 {over > 0 && (
-                  <label className="flex items-start gap-2.5 rounded-2xl bg-[#FFF1EA] p-3 text-13 text-[#9A3412]">
-                    <input type="checkbox" className="mt-0.5 h-5 w-5 accent-[#FF5A1F]" checked={accept} onChange={(e) => setAccept(e.target.checked)} />
-                    <span><b>מעל התקציב ב-<bdi dir="ltr">{shekelRound(over)}</bdi>.</b> אני מעביר/ה את ההפרש למועדון. ההזמנה תחכה לאישור.</span>
-                  </label>
+                  <div className="flex items-start gap-2.5 rounded-2xl bg-[#FFF1EA] p-3.5 text-13 text-[#9A3412]">
+                    <span className="text-lg leading-none">⚠️</span>
+                    <span><b>עברת את התקציב ב-<bdi dir="ltr">{shekelRound(over)}</bdi>.</b> אפשר לשלוח כך. ההפרש עליך, ומעבירים אותו למועדון.</span>
+                  </div>
                 )}
                 {msg && <p className="text-center text-xs font-bold text-red-600">{msg}</p>}
-                <button type="button" disabled={sending || (over > 0 && !accept)} onClick={() => void send()}
+                <button type="button" disabled={sending} onClick={() => void send()}
                   className="w-full rounded-2xl bg-brand-600 py-4 text-base font-extrabold text-white disabled:opacity-50">
                   {sending ? 'שולח…' : mine?.submittedAt ? 'עדכון ההזמנה' : '✓ שליחת ההזמנה'}
                 </button>
@@ -202,7 +206,7 @@ export default function PodiumOrderPage() {
           <div className="text-center">
             <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[#16A34A] text-2xl font-black text-white">✓</span>
             <p className="mt-3 text-xl font-black text-ink-900">ההזמנה בוצעה</p>
-            <p className="mt-1 text-13 text-ink-500"><bdi>{count}</bdi> פריטים · <bdi dir="ltr">{shekelRound(total)}</bdi>{mine.approval === 'pending' ? ' · מחכה לאישור חריגה' : ''}</p>
+            <p className="mt-1 text-13 text-ink-500"><bdi>{count}</bdi> פריטים · <bdi dir="ltr">{shekelRound(total)}</bdi>{over > 0 ? <span className="text-[#C2410C]"> · מעל התקציב ב-<bdi dir="ltr">{shekelRound(over)}</bdi></span> : ''}</p>
           </div>
           <div className="mt-4 rounded-2xl bg-[#ECFDF5] px-4 py-3 text-center text-[#065F46]">
             <b className="block text-sm">אפשר לערוך עד {whenIL(round.locksAt)}</b>
@@ -212,6 +216,12 @@ export default function PodiumOrderPage() {
             {lines.map(([id, n]) => <ProductLine key={id} p={byId.get(id)!} qty={n} right={<b className="min-w-[48px] text-left text-13 tabular-nums"><bdi dir="ltr">{shekelRound((byId.get(id)!.price ?? 0) * n)}</bdi></b>} />)}
           </div>
           <button type="button" onClick={() => { setView('cart'); window.scrollTo({ top: 0 }); }} className="mt-4 w-full rounded-2xl bg-ink-900 py-3.5 text-base font-extrabold text-white">✏️ עריכת ההזמנה</button>
+        </div>
+      )}
+
+      {crossed != null && (
+        <div role="status" className="fixed inset-x-4 top-[calc(env(safe-area-inset-top)+64px)] z-40 mx-auto max-w-md rounded-2xl bg-[#FF5A1F] px-4 py-3 text-sm font-bold text-white shadow-[0_12px_30px_-8px_rgb(0_0_0/0.45)]">
+          ⚠️ עברת את התקציב של <bdi dir="ltr">{shekelRound(budget)}</bdi> · ההפרש עליך
         </div>
       )}
 
@@ -281,7 +291,7 @@ function Budget({ total, budget }: { total: number; budget: number }) {
         <span className="tabular-nums"><b className={cn('text-base font-black', over ? 'text-[#C2410C]' : 'text-ink-900')}><bdi>{shekelRound(total)}</bdi></b><span className="text-ink-400"> / <bdi>{shekelRound(budget)}</bdi></span></span>
       </div>
       <div className="mt-2 h-2 overflow-hidden rounded-pill bg-page"><div className={cn('h-full rounded-pill transition-all', over ? 'bg-[#FF5A1F]' : 'bg-brand-600')} style={{ width: `${over ? 100 : pct}%` }} /></div>
-      <p className="mt-1.5 text-2xs text-ink-400">{over ? `מעל התקציב ב-${shekelRound(total - budget)}: את ההפרש מעבירים למועדון, ואחרי שליחה ההזמנה מחכה לאישור.` : `נשארו ${shekelRound(budget - total)}`}</p>
+      <p className="mt-1.5 text-2xs text-ink-400">{over ? `עברת את התקציב ב-${shekelRound(total - budget)}. אפשר להזמין, וההפרש עליך: מעבירים אותו למועדון.` : `נשארו ${shekelRound(budget - total)}`}</p>
     </div>
   );
 }
@@ -297,7 +307,6 @@ function statusLine(round: { state: RoundState; locksAt: string }, mine: Mine | 
       ? { text: round.state === 'sent' ? 'ההזמנה נשלחה לפודיום. נעדכן כשהיא אצלך.' : 'ההזמנה נסגרה. אי אפשר לשנות.', tone: 'bg-page text-ink-700', icon: <Lock className="h-4 w-4" /> }
       : { text: 'ההזמנה נסגרה.', tone: 'bg-page text-ink-500', icon: <Lock className="h-4 w-4" /> };
   }
-  if (mine?.approval === 'pending' && mine.submittedAt) return { text: 'נשלח · מעל התקציב, מחכה לאישור המועדון', tone: 'bg-[#FFF1EA] text-[#9A3412]', icon: '⏳' };
   if (mine?.approval === 'rejected') return { text: 'המועדון לא אישר את החריגה. צריך להוריד לתקציב.', tone: 'bg-red-50 text-red-700', icon: '✋' };
   if (mine?.editedByClub && mine.submittedAt) return { text: 'המועדון עדכן את ההזמנה שלך', tone: 'bg-brand-600/10 text-brand-700', icon: '✏️' };
   if (mine?.approval === 'approved' && mine.submittedAt) return { text: 'ההזמנה אושרה. נשאר להעביר את ההפרש.', tone: 'bg-accent-600/10 text-accent-900', icon: '✅' };

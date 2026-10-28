@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  approvalAfter, audienceAllows, cleanItems, orderTotal,
+  audienceAllows, cleanItems, orderTotal,
   type Approval, type Audience, type PodiumOrder, type PodiumProduct, type PodiumRound, type Viewer,
 } from '@/lib/podium/model';
 import { isCoreRunner } from '@/lib/core-runner';
@@ -93,14 +93,12 @@ export async function saveOrder(db: Db, opts: {
   const items = cleanItems(opts.items, opts.products, { allowUnorderable: opts.admin });
   const total = orderTotal(items, opts.products);
   const prev = await loadOrder(db, opts.round.id, opts.athleteId);
-  const prevTotal = prev ? orderTotal(prev.items, opts.products) : 0;
-  // An admin's change keeps a yes it already gave; a runner's bigger total asks again.
-  const approval = opts.admin && prev?.approval === 'approved' ? 'approved' : approvalAfter(total, opts.round.budget, prev?.approval ?? 'none', prev?.approvedTotal ?? prevTotal);
+  // No approval step any more (Ofer 10-28): over the budget is shown to the admin, not approved.
+  const approval: Approval = 'none';
   const now = new Date().toISOString();
   const row = {
     round_id: opts.round.id, athlete_id: opts.athleteId, approval, updated_at: now, updated_by: opts.by,
     submitted_at: opts.submit ? now : opts.unsubmit ? null : prev?.submittedAt ?? null,
-    ...(approval === 'approved' && opts.admin ? { approved_total: total } : {}),
   };
   const { data, error } = prev
     ? await db.from('podium_orders').update(row).eq('id', prev.id).select('id').single()
