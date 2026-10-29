@@ -4,6 +4,7 @@ import { requireStaffCaller } from '@/lib/auth/self-or-staff';
 import { AUDIENCES, DEFAULT_BUDGET, audienceAllows, roundState, type Audience } from '@/lib/podium/model';
 import { createGroupOrder, listRounds, loadOrderById, loadOrders, loadProducts, loadRound, members, toRound } from '@/lib/podium/server';
 import { openCopy, sendOpenPush } from '@/lib/podium/notify';
+import { readGrants } from '@/lib/access/grants';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
   if (denied) return denied;
   const db = createServerClient();
   try {
-    const [rounds, products, all] = await Promise.all([listRounds(db), loadProducts(db), members(db)]);
+    const [rounds, products, all, grants] = await Promise.all([listRounds(db), loadProducts(db), members(db), readGrants(db).catch(() => ({}))]);
     const want = new URL(request.url).searchParams.get('round');
     const round = rounds.find((r) => r.id === want) ?? rounds.find((r) => !r.sentAt) ?? rounds[0] ?? null;
     const orders = round ? await loadOrders(db, round.id) : [];
@@ -28,6 +29,8 @@ export async function GET(request: Request) {
       products, orders, core: audience,
       // Credit is the admin's alone (Ofer, 10-29).
       canCredit: caller.isSuperUser || caller.role === 'admin' || !!caller.roles?.includes('admin'),
+      // Who may fill others' orders by grant (admins always may) — managed right here too (Ofer 10-29).
+      fillers: Object.entries(grants as Record<string, { podium?: { forOthers?: boolean } }>).filter(([, g]) => g.podium?.forOthers).map(([id]) => id),
       people: Object.fromEntries(all.map((m) => [m.id, { name: m.name, avatarUrl: m.avatarUrl, isCore: m.isCore, isStaff: m.isStaff }])),
     });
   } catch (err) {

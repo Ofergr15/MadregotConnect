@@ -18,7 +18,7 @@ import { DistributePanel, ReceivePanel } from '@/components/podium/ReceivePanels
 type Round = PodiumRound & { state: RoundState };
 /** athleteId null = a group order ("אקסטרות", migration 175), named by its label. */
 interface Order { id: string; athleteId: string | null; label?: string | null; budget?: number | null; items: Record<string, number>; submittedAt: string | null; approval: Approval; updatedAt: string; updatedBy?: string | null }
-interface Resp { rounds: Round[]; round: Round | null; products: PodiumProduct[]; orders: Order[]; core: string[]; people: Record<string, { name: string; avatarUrl: string | null; isCore?: boolean; isStaff?: boolean }>; canCredit?: boolean; error?: string; message?: string }
+interface Resp { rounds: Round[]; round: Round | null; products: PodiumProduct[]; orders: Order[]; core: string[]; people: Record<string, { name: string; avatarUrl: string | null; isCore?: boolean; isStaff?: boolean }>; canCredit?: boolean; fillers?: string[]; error?: string; message?: string }
 
 const STATE: Record<RoundState, { label: string; tone: string }> = {
   upcoming: { label: '⏳ עוד לא נפתח', tone: 'bg-page text-ink-500' },
@@ -158,7 +158,8 @@ function PodiumAdmin() {
             onExpected={(n) => act('expected', () => post('/api/admin/podium', { action: 'expected', id: round.id, expectedCount: n }))}
             onCredit={(id, amount) => act('credit', () => post('/api/admin/podium', { action: 'budgets', id: round.id, budgets: { [id]: amount } }))}
             onGroup={(g) => setGroupForm(g ? { id: g.id, label: g.label ?? '', budget: g.budget != null ? String(g.budget) : '' } : { label: '', budget: '' })}
-            onOpen={(id) => setEdit(id)} />
+            onOpen={(id) => setEdit(id)}
+            onFiller={(athleteId, on) => act('filler', () => post('/api/admin/access', { athleteId, podiumForOthers: on }, 'PUT'))} />
 
           {overList.length > 0 && (
             <div className="rounded-card bg-[#FFF1EA] p-3.5">
@@ -383,11 +384,12 @@ function Reach({ round, people, audience, busy, onWiden }: {
  * The round's orders beyond "each core runner orders for themself" (Ofer, 10-29): how many there
  * should be in all, personal credit (the admin's alone), and the group orders ("אקסטרות").
  */
-function OrdersSetup({ round, data, groups, sentCount, expected, busy, byId, onExpected, onCredit, onGroup, onOpen }: {
+function OrdersSetup({ round, data, groups, sentCount, expected, busy, byId, onExpected, onCredit, onGroup, onOpen, onFiller }: {
   round: Round; data: Resp; groups: Order[]; sentCount: number; expected: number; busy: boolean; byId: Map<string, PodiumProduct>;
   onExpected: (n: number | null) => void; onCredit: (athleteId: string, amount: number | null) => void;
-  onGroup: (g: Order | null) => void; onOpen: (orderId: string) => void;
+  onGroup: (g: Order | null) => void; onOpen: (orderId: string) => void; onFiller: (athleteId: string, on: boolean) => void;
 }) {
+  const [filler, setFiller] = useState('');
   const [count, setCount] = useState(round.expectedCount != null ? String(round.expectedCount) : '');
   const [who, setWho] = useState('');
   const [amount, setAmount] = useState('');
@@ -428,6 +430,26 @@ function OrdersSetup({ round, data, groups, sentCount, expected, busy, byId, onE
           );
         })}
       </div>
+
+      {data.canCredit && (
+        <div className="border-t border-page pt-3">
+          <b className="text-13 text-ink-900">🛒 ממלאים עגלה עבור אחרים</b>
+          <p className="text-2xs text-ink-400">ממלאים ושולחים הזמנה בשם כל מי שהסבב פתוח לו, וגם את הזמנות הקבוצה. מנהלים — תמיד. אותה הרשאה כמו במסך ההרשאות.</p>
+          {(data.fillers ?? []).map((id) => (
+            <div key={id} className="flex items-center gap-2 border-b border-page py-2 last:border-0">
+              <span className="min-w-0 flex-1 truncate text-sm font-bold text-ink-900">{data.people[id]?.name ?? 'רץ'}</span>
+              <button type="button" disabled={busy} onClick={() => onFiller(id, false)} className="text-xs font-bold text-red-600">להסיר</button>
+            </div>
+          ))}
+          <div className="mt-2 flex items-center gap-2">
+            <select value={filler} onChange={(e) => setFiller(e.target.value)} className="min-w-0 flex-1 rounded-xl bg-page px-2 py-2 text-sm">
+              <option value="">להוסיף מישהו…</option>
+              {Object.entries(data.people).filter(([id]) => !(data.fillers ?? []).includes(id)).sort((a, b) => a[1].name.localeCompare(b[1].name, 'he')).map(([id, p]) => <option key={id} value={id}>{p.name}</option>)}
+            </select>
+            <button type="button" disabled={busy || !filler} onClick={() => { onFiller(filler, true); setFiller(''); }} className="rounded-xl bg-ink-900 px-3 py-2 text-xs font-extrabold text-white disabled:opacity-30">להוסיף</button>
+          </div>
+        </div>
+      )}
 
       {data.canCredit && (
         <div className="border-t border-page pt-3">
