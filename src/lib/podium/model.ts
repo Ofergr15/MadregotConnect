@@ -78,6 +78,10 @@ export interface PodiumRound {
   notifiedCount?: number;
   /** Who has had "it's open" (the per-person ledger). */
   notifiedIds?: string[];
+  /** This round's own budget for these people, in place of `budget` (migration 175; the admin's "קרדיט"). */
+  budgets?: Record<string, number>;
+  /** How many orders the round should end with — the core's and the group ones (migration 175); null = its audience. */
+  expectedCount?: number | null;
 }
 
 export type RoundState = 'upcoming' | 'open' | 'locked' | 'sent';
@@ -86,7 +90,12 @@ export type Approval = 'none' | 'pending' | 'approved' | 'rejected';
 export interface PodiumOrder {
   id: string;
   roundId: string;
-  athleteId: string;
+  /** Null on a GROUP order ("אקסטרות", migration 175): it belongs to no runner. */
+  athleteId: string | null;
+  /** A group order's name; null on a runner's own. */
+  label?: string | null;
+  /** A group order's own budget; null = the round's. */
+  budget?: number | null;
   /** Null while a draft; the moment the runner pressed "send". */
   submittedAt: string | null;
   approval: Approval;
@@ -131,6 +140,17 @@ export function orderRegularTotal(items: Record<string, number>, products: Podiu
 
 export function itemCount(items: Record<string, number>): number {
   return Object.values(items).reduce((s, q) => s + (q > 0 ? q : 0), 0);
+}
+
+/**
+ * One order's budget (Ofer, 10-29: "I can edit the default and give someone a specific amount"):
+ * a group order's own, else this person's in the round, else the round's default.
+ */
+export function budgetOf(round: Pick<PodiumRound, 'budget' | 'budgets'>, o: { athleteId?: string | null; budget?: number | null } | null | undefined, athleteId?: string | null): number {
+  if (o?.budget != null && Number.isFinite(o.budget)) return o.budget;
+  const id = o?.athleteId ?? athleteId ?? null;
+  const own = id ? round.budgets?.[id] : undefined;
+  return own != null && Number.isFinite(Number(own)) && Number(own) >= 0 ? Number(own) : round.budget;
 }
 
 /** Over the budget by this much (0 when within it). */

@@ -17,7 +17,11 @@ export type ContentKind = (typeof CONTENT_KINDS)[number];
 export type Level = 0 | 1 | 2 | 3;
 export type ContentLevels = Record<ContentKind, Level>;
 
-export interface Grant { content?: Partial<Record<ContentKind, Level>> }
+export interface Grant {
+  content?: Partial<Record<ContentKind, Level>>;
+  /** Podium (Ofer, 10-29: "let Asaf order for other members"): may fill and send others' orders. */
+  podium?: { forOthers?: boolean };
+}
 export type Grants = Record<string, Grant>;
 export interface LogEntry {
   at: string; by: string | null; byName?: string | null; athleteId: string; name?: string | null;
@@ -89,6 +93,26 @@ export async function appendLog(supabase: Db, entry: Omit<LogEntry, 'at'>): Prom
 }
 
 /** Set one person's level for one part, and write it to the log. */
+/** Who may order Podium for other members: the super user, an admin, and whoever was given it. */
+export function canOrderForOthers(u: { athleteId: string | null; isSuperUser?: boolean; role?: string; roles?: string[] }, grants: Grants): boolean {
+  if (u.isSuperUser || u.role === 'admin' || u.roles?.includes('admin')) return true;
+  return !!(u.athleteId && grants[u.athleteId]?.podium?.forOthers);
+}
+
+/** Give or take "order Podium for others" (the permissions screen's group, 10-29). */
+export async function setPodiumForOthers(supabase: Db, input: { athleteId: string; on: boolean }): Promise<Grants> {
+  cache = null;
+  const grants = await readGrants(supabase);
+  const next: Grants = { ...grants };
+  const { podium: _p, ...rest } = next[input.athleteId] ?? {};
+  const kept: Grant = input.on ? { ...rest, podium: { forOthers: true } } : rest;
+  if (Object.keys(kept).length) next[input.athleteId] = kept; else delete next[input.athleteId];
+  const { error } = await supabase.from('app_settings').upsert({ key: GRANTS_KEY, value: JSON.stringify(next), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+  if (error) throw error;
+  cache = { at: Date.now(), grants: next };
+  return next;
+}
+
 export async function setContentLevel(supabase: Db, input: {
   athleteId: string; kind: ContentKind; level: Level; by: string | null; byName?: string | null; name?: string | null;
 }): Promise<Grants> {
@@ -98,7 +122,10 @@ export async function setContentLevel(supabase: Db, input: {
   const content = { ...(grants[input.athleteId]?.content ?? {}) };
   if (input.level === 0) delete content[input.kind]; else content[input.kind] = input.level;
   const next: Grants = { ...grants };
-  if (Object.keys(content).length) next[input.athleteId] = { ...next[input.athleteId], content }; else delete next[input.athleteId];
+  // The other grants this person holds (podium) stay when the last content part goes.
+  const { content: _old, ...rest } = next[input.athleteId] ?? {};
+  const kept: Grant = Object.keys(content).length ? { ...rest, content } : rest;
+  if (Object.keys(kept).length) next[input.athleteId] = kept; else delete next[input.athleteId];
   const now = new Date().toISOString();
   const { error } = await supabase.from('app_settings').upsert({ key: GRANTS_KEY, value: JSON.stringify(next), updated_at: now }, { onConflict: 'key' });
   if (error) throw error;

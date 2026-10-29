@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ChevronRight, ExternalLink, Search, ShoppingBag, Lock, Settings2, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ExternalLink, Search, ShoppingBag, Lock, Settings2, Trash2, Users } from 'lucide-react';
 import { useApi, apiHeaders } from '@/lib/api';
 import { textMatches } from '@/lib/search/match';
 import { cn } from '@/lib/utils';
@@ -15,7 +15,17 @@ import { Price, ProductCard, ProductImage, ProductLine, Stepper, shekel, shekelR
 
 interface Mine { id: string; items: Record<string, number>; submittedAt: string | null; approval: Approval; updatedAt: string; editedByClub: boolean }
 interface Delivered { at: string; got: Record<string, number>; missing: Record<string, number>; gotValue: number; missingValue: number; owes: number }
-interface Resp { staff: boolean; round: (PodiumRound & { state: RoundState }) | null; products?: PodiumProduct[]; order?: Mine | null; delivered?: Delivered | null; error?: string }
+interface Person { id: string; name: string; submitted: boolean; total: number; budget: number }
+interface GroupOrder { id: string; label: string; submitted: boolean; total: number; budget: number }
+interface Resp {
+  staff: boolean; round: (PodiumRound & { state: RoundState }) | null; products?: PodiumProduct[]; order?: Mine | null; delivered?: Delivered | null; error?: string;
+  /** This order's budget (the person's own, a group order's own, else the round's). */
+  budget?: number;
+  /** May order for other members (Ofer, 10-29): then who, and the round's people and group orders. */
+  forOthers?: boolean;
+  target?: { kind: 'me' | 'person' | 'group' | 'none'; id: string | null; name: string | null };
+  people?: Person[]; groups?: GroupOrder[]; expected?: number | null;
+}
 
 /**
  * הזמנת פודיום — the club's order from Podium (lib/podium/model), for whoever the round is open to. The cart saves itself as you tap;
@@ -24,20 +34,35 @@ interface Resp { staff: boolean; round: (PodiumRound & { state: RoundState }) | 
  * difference and the club approves. After the lock everything is read-only.
  */
 export default function PodiumOrderPage() {
-  const { data, mutate, isLoading } = useApi<Resp>('/api/podium');
+  // Whose order is on screen: '' mine, an athlete id, or 'g:<orderId>' a group order (ordering for others, 10-29).
+  const [forId, setForId] = useState('');
+  const { data, mutate, isLoading } = useApi<Resp>(`/api/podium${forId ? `?for=${encodeURIComponent(forId)}` : ''}`);
   const round = data?.round ?? null;
   const products = useMemo(() => data?.products ?? [], [data]);
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const [items, setItems] = useState<Record<string, number>>({});
   const [mine, setMine] = useState<Mine | null>(null);
-  const loaded = useRef(false);
+  const [picking, setPicking] = useState(false);
+  // Loaded once per order: switching whom you order for loads that cart afresh.
+  const loaded = useRef<string | null>(null);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   useEffect(() => {
-    if (!data || loaded.current) return;
-    loaded.current = true;
+    if (!data || loaded.current === forId) return;
+    // useApi keeps the last response while the next loads: wait for the one that is this person's.
+    const t = data.target;
+    const isThis = !forId ? !t || t.kind === 'me' || t.kind === 'none' : forId.startsWith('g:') ? t?.kind === 'group' && `g:${t.id}` === forId : t?.id === forId;
+    if (!isThis) return;
+    loaded.current = forId;
+    setLoadedFor(forId);
     setItems(data.order?.items ?? {});
     setMine(data.order ?? null);
-    if (data.order?.submittedAt && data.round?.state === 'open') setView('done');
-  }, [data]);
+    setView(data.order?.submittedAt && data.round?.state === 'open' ? 'done' : 'shop');
+    if (data.target?.kind === 'none') setPicking(true);
+  }, [data, forId]);
+  const target = data?.target;
+  const others = target && target.kind !== 'me' && target.kind !== 'none';
+  const whoName = target?.kind === 'group' ? `👥 ${target.name ?? ''}` : (target?.name ?? '').split(' ')[0];
+  const choose = (id: string) => { if (timer.current) { clearTimeout(timer.current); timer.current = null; void save(items); } setPicking(false); setMsg(null); setSaving('idle'); setForId(id); window.scrollTo({ top: 0 }); };
 
   const [group, setGroup] = useState<string>('all');
   const [q, setQ] = useState('');
@@ -48,10 +73,12 @@ export default function PodiumOrderPage() {
   const [sending, setSending] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const editable = round?.state === 'open';
+  // Not while the switched-to cart is still loading: a tap would land on the last person's.
+  const editable = round?.state === 'open' && loadedFor === forId;
   const total = orderTotal(items, byId);
   const count = itemCount(items);
-  const budget = round?.budget ?? 600;
+  const budget = data?.budget ?? round?.budget ?? 600;
+  const credit = round ? budget - round.budget : 0;
   const over = overBy(total, budget);
   const lines = Object.entries(items).filter(([id]) => byId.has(id));
 
@@ -59,13 +86,13 @@ export default function PodiumOrderPage() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const save = useCallback(async (next: Record<string, number>, submit = false) => {
     setSaving('saving');
-    const res = await fetch('/api/podium', { method: 'PUT', headers: await apiHeaders(true), body: JSON.stringify({ items: next, submit }) });
+    const res = await fetch('/api/podium', { method: 'PUT', headers: await apiHeaders(true), body: JSON.stringify({ items: next, submit, ...(forId ? { for: forId } : {}) }) });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) { setSaving('error'); setMsg(j.message ?? (j.error === 'over' ? 'מעל התקציב: צריך לאשר שההפרש עליך' : 'לא נשמר. נסו שוב.')); return false; }
     setMine(j.order); setSaving('saved'); setMsg(null);
-    void mutate((d) => (d ? { ...d, order: j.order } : d), { revalidate: false });
+    void mutate((d) => (d ? { ...d, order: j.order } : d), { revalidate: !!forId });
     return true;
-  }, [mutate]);
+  }, [mutate, forId]);
   const [crossed, setCrossed] = useState<number | null>(null);
   const setQty = (id: string, qn: number) => {
     if (!editable) return;
@@ -76,7 +103,7 @@ export default function PodiumOrderPage() {
     if (after > budget && total <= budget) { setCrossed(after - budget); setTimeout(() => setCrossed(null), 4500); }
     setItems(next);
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => void save(next), 700);
+    timer.current = setTimeout(() => { timer.current = null; void save(next); }, 700);
   };
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
@@ -106,13 +133,33 @@ export default function PodiumOrderPage() {
     <div className="space-y-3 pb-28">
       <Header staff={!!data?.staff} title={round.title} tag={AUDIENCE_TAG[round.audience]} sub={round.state === 'upcoming' ? `נפתחת ${whenIL(round.opensAt)}` : round.state === 'open' ? `אפשר להזמין עד ${whenIL(round.locksAt)}` : 'ההזמנה נסגרה'} />
 
-      {status && view !== 'done' && <div className={cn('flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-13 font-bold', status.tone)}>{status.icon}<span className="flex-1">{status.text}</span></div>}
+      {data?.forOthers && (
+        <ForBar target={target} name={whoName} onOpen={() => setPicking(true)} />
+      )}
+      {others && (
+        <p className="rounded-2xl bg-brand-600/10 px-3.5 py-2.5 text-13 font-bold leading-relaxed text-brand-700">
+          {target?.kind === 'group'
+            ? <>את/ה ממלא/ת את הזמנת הקבוצה „{target.name}”. היא נכנסת לסיכום ולקובץ לפודיום כמו כל הזמנה.</>
+            : <>את/ה ממלא/ת את ההזמנה של {whoName}. כשתשלח/י, {whoName} יקבל/תקבל התראה ויוכל/תוכל לראות ולשנות עד הסגירה.</>}
+        </p>
+      )}
 
-      {data?.delivered ? <Got d={data.delivered} byId={byId} /> : <Budget total={total} budget={budget} />}
+      {target?.kind === 'none' && (
+        <div className="rounded-card bg-card px-6 py-10 text-center ring-1 ring-black/[0.04]">
+          <Users className="mx-auto h-10 w-10 text-ink-300" />
+          <p className="mt-3 text-base font-extrabold text-ink-900">הסבב לא פתוח לך</p>
+          <p className="mt-1 text-13 text-ink-500">אפשר להזמין עבור מי שהסבב פתוח לו</p>
+          <button type="button" onClick={() => setPicking(true)} className="mt-4 rounded-2xl bg-brand-600 px-5 py-3 text-sm font-extrabold text-white">לבחור עבור מי</button>
+        </div>
+      )}
 
-      {round.state !== 'upcoming' && !data?.delivered && view !== 'done' && (
+      {target?.kind !== 'none' && status && view !== 'done' && <div className={cn('flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-13 font-bold', status.tone)}>{status.icon}<span className="flex-1">{status.text}</span></div>}
+
+      {target?.kind !== 'none' && (data?.delivered ? <Got d={data.delivered} byId={byId} /> : <Budget total={total} budget={budget} credit={credit} who={others ? whoName : null} />)}
+
+      {target?.kind !== 'none' && round.state !== 'upcoming' && !data?.delivered && view !== 'done' && (
         <div className="flex rounded-2xl bg-[#E3E5EB] p-1">
-          {([['shop', 'מוצרים'], ['cart', 'העגלה שלי']] as const).map(([k, l]) => (
+          {([['shop', 'מוצרים'], ['cart', others ? `העגלה של ${whoName}` : 'העגלה שלי']] as const).map(([k, l]) => (
             <button key={k} type="button" onClick={() => { setView(k); window.scrollTo({ top: 0 }); }}
               className={cn('flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-extrabold transition-colors', view === k ? 'bg-card text-ink-900 shadow-sm' : 'text-ink-500')}>
               {l}{k === 'cart' && count > 0 && <bdi className={cn('min-w-[22px] rounded-pill px-1.5 text-xs leading-5 text-white', over > 0 ? 'bg-[#FF5A1F]' : 'bg-brand-600')}>{count}</bdi>}
@@ -121,7 +168,7 @@ export default function PodiumOrderPage() {
         </div>
       )}
 
-      {round.state !== 'upcoming' && !data?.delivered && view === 'shop' && (
+      {target?.kind !== 'none' && round.state !== 'upcoming' && !data?.delivered && view === 'shop' && (
         <>
           <div className="flex items-center gap-2 rounded-xl bg-card px-3 py-2.5 ring-1 ring-black/[0.04]">
             <Search className="h-4 w-4 text-ink-400" />
@@ -175,8 +222,8 @@ export default function PodiumOrderPage() {
             <div className="space-y-1.5 rounded-card bg-card p-4 text-sm ring-1 ring-black/[0.04]">
               <Row k="פריטים" v={String(count)} />
               <Row k="סה״כ משוער" v={shekelRound(total)} big />
-              <Row k="התקציב שלך" v={shekelRound(budget)} />
-              {over > 0 ? <Row k="ההפרש שעליך" v={shekelRound(over)} tone="text-[#C2410C] font-extrabold" /> : <Row k="נשאר בתקציב" v={shekelRound(budget - total)} tone="text-ink-500" />}
+              <Row k={others ? 'התקציב' : 'התקציב שלך'} v={shekelRound(budget)} />
+              {over > 0 ? <Row k={others ? 'ההפרש' : 'ההפרש שעליך'} v={shekelRound(over)} tone="text-[#C2410C] font-extrabold" /> : <Row k="נשאר בתקציב" v={shekelRound(budget - total)} tone="text-ink-500" />}
               <p className="pt-1 text-2xs leading-relaxed text-ink-400">המחירים מהאתר של פודיום, במחיר רגיל (בלי מבצעים). המחיר הסופי נקבע בחנות.</p>
             </div>
 
@@ -185,13 +232,13 @@ export default function PodiumOrderPage() {
                 {over > 0 && (
                   <div className="flex items-start gap-2.5 rounded-2xl bg-[#FFF1EA] p-3.5 text-13 text-[#9A3412]">
                     <span className="text-lg leading-none">⚠️</span>
-                    <span><b>עברת את התקציב ב-<bdi dir="ltr">{shekelRound(over)}</bdi>.</b> אפשר לשלוח כך. ההפרש עליך, ומעבירים אותו למועדון.</span>
+                    <span><b>{others ? 'מעל התקציב' : 'עברת את התקציב'} ב-<bdi dir="ltr">{shekelRound(over)}</bdi>.</b> אפשר לשלוח כך. {others ? (target?.kind === 'group' ? 'ההפרש על המועדון.' : `ההפרש על ${whoName}, ומעבירים אותו למועדון.`) : 'ההפרש עליך, ומעבירים אותו למועדון.'}</span>
                   </div>
                 )}
                 {msg && <p className="text-center text-xs font-bold text-red-600">{msg}</p>}
                 <button type="button" disabled={sending} onClick={() => void send()}
                   className="w-full rounded-2xl bg-brand-600 py-4 text-base font-extrabold text-white disabled:opacity-50">
-                  {sending ? 'שולח…' : mine?.submittedAt ? 'עדכון ההזמנה' : '✓ שליחת ההזמנה'}
+                  {sending ? 'שולח…' : mine?.submittedAt ? (others ? `עדכון ההזמנה של ${whoName}` : 'עדכון ההזמנה') : others ? `✓ לשלוח את ההזמנה של ${whoName}` : '✓ שליחת ההזמנה'}
                 </button>
                 <p className="text-center text-2xs text-ink-400">{saving === 'saving' ? 'שומר…' : 'כל שינוי נשמר לבד'} · אפשר לשנות עד {whenIL(round.locksAt)}</p>
               </div>
@@ -205,7 +252,7 @@ export default function PodiumOrderPage() {
         <div className="rounded-card bg-card p-5 ring-1 ring-black/[0.04]">
           <div className="text-center">
             <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[#16A34A] text-2xl font-black text-white">✓</span>
-            <p className="mt-3 text-xl font-black text-ink-900">ההזמנה בוצעה</p>
+            <p className="mt-3 text-xl font-black text-ink-900">{others ? `ההזמנה של ${whoName} בוצעה` : 'ההזמנה בוצעה'}</p>
             <p className="mt-1 text-13 text-ink-500"><bdi>{count}</bdi> פריטים · <bdi dir="ltr">{shekelRound(total)}</bdi>{over > 0 ? <span className="text-[#C2410C]"> · מעל התקציב ב-<bdi dir="ltr">{shekelRound(over)}</bdi></span> : ''}</p>
           </div>
           <div className="mt-4 rounded-2xl bg-[#ECFDF5] px-4 py-3 text-center text-[#065F46]">
@@ -221,7 +268,7 @@ export default function PodiumOrderPage() {
 
       {crossed != null && (
         <div role="status" className="fixed inset-x-4 top-[calc(env(safe-area-inset-top)+64px)] z-40 mx-auto max-w-md rounded-2xl bg-[#FF5A1F] px-4 py-3 text-sm font-bold text-white shadow-[0_12px_30px_-8px_rgb(0_0_0/0.45)]">
-          ⚠️ עברת את התקציב של <bdi dir="ltr">{shekelRound(budget)}</bdi> · ההפרש עליך
+          ⚠️ {others ? 'מעל התקציב' : 'עברת את התקציב'} של <bdi dir="ltr">{shekelRound(budget)}</bdi>{others ? '' : ' · ההפרש עליך'}
         </div>
       )}
 
@@ -231,6 +278,12 @@ export default function PodiumOrderPage() {
           <span className="text-start"><b className="block text-sm"><bdi>{count}</bdi> פריטים</b><small className="text-2xs opacity-70">{saving === 'saving' ? 'שומר…' : saving === 'error' ? 'לא נשמר' : mine?.submittedAt ? 'נשלח · השינויים נשמרים' : 'טיוטה · נשמר אוטומטית'}</small></span>
           <span className={cn('rounded-xl px-3.5 py-2 text-sm font-extrabold', over > 0 ? 'bg-[#FF5A1F]' : 'bg-brand-600')}><bdi dir="ltr">{shekelRound(total)}</bdi> · לעגלה ›</span>
         </button>
+      )}
+
+      {data?.forOthers && (
+        <Sheet open={picking} onOpenChange={setPicking} title="מזמין עבור">
+          <Picker data={data} current={forId} onPick={choose} />
+        </Sheet>
       )}
 
       <Sheet open={!!open} onOpenChange={(o) => { if (!o) setOpen(null); }} title="">
@@ -281,17 +334,76 @@ function Got({ d, byId }: { d: Delivered; byId: Map<string, PodiumProduct> }) {
   );
 }
 
-function Budget({ total, budget }: { total: number; budget: number }) {
+/** "מזמין עבור: …" — whose order this is, and the way to switch (only for who may order for others). */
+function ForBar({ target, name, onOpen }: { target: Resp['target']; name: string; onOpen: () => void }) {
+  const me = !target || target.kind === 'me';
+  return (
+    <button type="button" onClick={onOpen}
+      className={cn('flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-start ring-1', me ? 'bg-card ring-black/[0.04]' : 'bg-ink-900 text-white ring-ink-900')}>
+      <span className={cn('grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-black', me ? 'bg-page text-ink-500' : 'bg-white/15')}>{target?.kind === 'group' ? '👥' : <Users className="h-4 w-4" />}</span>
+      <span className="min-w-0 flex-1">
+        <small className={cn('block text-2xs font-bold', me ? 'text-ink-400' : 'text-white/60')}>מזמין עבור</small>
+        <b className="block truncate text-sm">{target?.kind === 'none' ? 'לבחור…' : me ? 'אני' : name}</b>
+      </span>
+      <span className={cn('flex items-center text-13 font-bold', me ? 'text-brand-600' : 'text-white/80')}>להחליף<ChevronLeft className="h-4 w-4 ltr:rotate-180" /></span>
+    </button>
+  );
+}
+
+/** Everyone the round is open to, who sent and for how much, and the round's group orders. */
+function Picker({ data, current, onPick }: { data: Resp; current: string; onPick: (id: string) => void }) {
+  const [q, setQ] = useState('');
+  const people = (data.people ?? []).filter((p) => !q.trim() || textMatches(q, p.name));
+  const groups = (data.groups ?? []).filter((g) => !q.trim() || textMatches(q, g.label));
+  const sent = (data.people ?? []).filter((p) => p.submitted).length + (data.groups ?? []).filter((g) => g.submitted).length;
+  const expected = data.expected ?? (data.people ?? []).length + (data.groups ?? []).length;
+  const row = (key: string, label: React.ReactNode, sub: React.ReactNode, on: boolean, done: boolean) => (
+    <button key={key} type="button" onClick={() => onPick(key)}
+      className={cn('flex w-full items-center gap-3 border-b border-page py-3 text-start last:border-0', on && 'font-black')}>
+      <span className="min-w-0 flex-1"><b className="block truncate text-sm text-ink-900">{label}</b><small className="text-2xs text-ink-400">{sub}</small></span>
+      <span className={cn('shrink-0 rounded-pill px-2.5 py-1 text-3xs font-extrabold', done ? 'bg-[#16A34A]/10 text-[#15803D]' : 'bg-page text-ink-500')}>{done ? 'הזמין' : 'עוד לא'}</span>
+      {on && <span className="text-brand-600">✓</span>}
+    </button>
+  );
+  return (
+    <div className="space-y-3 pb-2">
+      <p className="text-13 text-ink-500">נשלחו <bdi>{sent}</bdi> מתוך <bdi>{expected}</bdi></p>
+      <div className="flex items-center gap-2 rounded-xl bg-page px-3 py-2.5">
+        <Search className="h-4 w-4 text-ink-400" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="חיפוש לפי שם" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-400" />
+      </div>
+      <div>
+        {data.target?.kind !== 'none' && !q.trim() && (
+          <button type="button" onClick={() => onPick('')} className="flex w-full items-center gap-3 border-b border-page py-3 text-start">
+            <b className="flex-1 text-sm text-ink-900">אני</b>{current === '' && <span className="text-brand-600">✓</span>}
+          </button>
+        )}
+        {people.map((p) => row(p.id, p.name, p.submitted || p.total > 0 ? <><bdi dir="ltr">{shekelRound(p.total)}</bdi> מתוך <bdi dir="ltr">{shekelRound(p.budget)}</bdi></> : `תקציב ${shekelRound(p.budget)}`, current === p.id, p.submitted))}
+      </div>
+      {groups.length > 0 && (
+        <div>
+          <p className="pt-1 text-xs font-extrabold text-ink-500">👥 הזמנות קבוצה</p>
+          {groups.map((g) => row(`g:${g.id}`, g.label, <><bdi dir="ltr">{shekelRound(g.total)}</bdi> מתוך <bdi dir="ltr">{shekelRound(g.budget)}</bdi></>, current === `g:${g.id}`, g.submitted))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Budget({ total, budget, credit = 0, who = null }: { total: number; budget: number; credit?: number; who?: string | null }) {
   const pct = Math.min(100, (total / budget) * 100);
   const over = total > budget;
   return (
     <div className="rounded-2xl bg-card px-4 py-3 ring-1 ring-black/[0.04]">
       <div className="flex items-baseline justify-between text-13">
-        <span className="font-bold text-ink-700">התקציב שלך</span>
+        <span className="font-bold text-ink-700">{who ? `התקציב של ${who}` : 'התקציב שלך'}</span>
         <span className="tabular-nums"><b className={cn('text-base font-black', over ? 'text-[#C2410C]' : 'text-ink-900')}><bdi>{shekelRound(total)}</bdi></b><span className="text-ink-400"> / <bdi>{shekelRound(budget)}</bdi></span></span>
       </div>
       <div className="mt-2 h-2 overflow-hidden rounded-pill bg-page"><div className={cn('h-full rounded-pill transition-all', over ? 'bg-[#FF5A1F]' : 'bg-brand-600')} style={{ width: `${over ? 100 : pct}%` }} /></div>
-      <p className="mt-1.5 text-2xs text-ink-400">{over ? `עברת את התקציב ב-${shekelRound(total - budget)}. אפשר להזמין, וההפרש עליך: מעבירים אותו למועדון.` : `נשארו ${shekelRound(budget - total)}`}</p>
+      <p className="mt-1.5 text-2xs text-ink-400">
+        {over ? (who ? `מעל התקציב ב-${shekelRound(total - budget)}. אפשר להזמין, וההפרש משולם למועדון.` : `עברת את התקציב ב-${shekelRound(total - budget)}. אפשר להזמין, וההפרש עליך: מעבירים אותו למועדון.`) : `נשארו ${shekelRound(budget - total)}`}
+        {credit > 0 && <> · כולל קרדיט <bdi dir="ltr">{shekelRound(credit)}</bdi></>}
+      </p>
     </div>
   );
 }

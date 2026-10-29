@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { notifyAthlete } from '@/lib/push';
 import { notifyStaff } from '@/lib/notifications/staff';
-import { REMIND_HOURS, itemCount, orderTotal, roundState, type PodiumProduct, type PodiumRound } from '@/lib/podium/model';
+import { REMIND_HOURS, itemCount, orderTotal, roundState, type PodiumProduct, type PodiumRound, budgetOf } from '@/lib/podium/model';
 import { audienceOf, loadOrders, loadProducts, toRound } from '@/lib/podium/server';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -55,7 +55,7 @@ export async function runPodiumPushes(db: Db, now = new Date()): Promise<string[
       const sent = orders.filter((o) => o.submittedAt);
       const items = sent.reduce((s, o) => s + itemCount(o.items), 0);
       const total = sent.reduce((s, o) => s + orderTotal(o.items, products), 0);
-      const over = sent.filter((o) => orderTotal(o.items, products) > round.budget).length;
+      const over = sent.filter((o) => orderTotal(o.items, products) > budgetOf(round, o)).length;
       await notifyStaff({
         kind: 'podium_locked', url: PODIUM_ADMIN_URL, tag: `podium-lock-${round.id}`, category: 'management',
         copy: () => ({
@@ -115,12 +115,15 @@ export async function askApproval(opts: { round: PodiumRound; athleteId: string;
 }
 
 /** The answer to the runner, and an admin's edit of their order. */
-export async function tellRunner(opts: { athleteId: string; kind: 'approved' | 'rejected' | 'edited'; round: PodiumRound; total: number; actorId: string | null }) {
-  const over = Math.max(0, opts.total - opts.round.budget);
+export async function tellRunner(opts: { athleteId: string; kind: 'approved' | 'rejected' | 'edited' | 'orderedFor'; round: PodiumRound; total: number; actorId: string | null; actorName?: string }) {
+  const budget = budgetOf(opts.round, null, opts.athleteId);
+  const over = Math.max(0, opts.total - budget);
   const copy = {
     approved: { title: '✅ ההזמנה שלך מפודיום אושרה', body: over > 0 ? `סה״כ ${shekel(opts.total)}. נשאר להעביר את ההפרש: ${shekel(over)}.` : `סה״כ ${shekel(opts.total)}.` },
-    rejected: { title: 'ההזמנה שלך מפודיום מעל התקציב', body: `צריך להוריד ל-${shekel(opts.round.budget)} או לדבר עם המועדון.` },
+    rejected: { title: 'ההזמנה שלך מפודיום מעל התקציב', body: `צריך להוריד ל-${shekel(budget)} או לדבר עם המועדון.` },
     edited: { title: '✏️ ההזמנה שלך מפודיום עודכנה', body: `המועדון עדכן את ההזמנה. סה״כ עכשיו ${shekel(opts.total)}.` },
+    // Someone allowed to order for others filled it (Ofer, 10-29): who, and what it comes to.
+    orderedFor: { title: `🛒 ${opts.actorName || 'המועדון'} הזמין/ה עבורך מפודיום`, body: `סה״כ ${shekel(opts.total)} מתוך ${shekel(budget)}. אפשר לראות ולשנות עד הסגירה.` },
   }[opts.kind];
   await notifyAthlete({ athleteId: opts.athleteId, kind: 'podium_update', url: PODIUM_URL, tag: `podium-${opts.kind}-${opts.round.id}`, category: 'news', actorAthleteId: opts.actorId, ...copy });
 }

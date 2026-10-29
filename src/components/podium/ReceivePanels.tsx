@@ -5,7 +5,7 @@ import { ChevronRight, Download, RotateCcw } from 'lucide-react';
 import { useApi, apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Sheet, SegmentedControl } from '@/components/ui';
-import { englishName, type PodiumProduct, type PodiumRound } from '@/lib/podium/model';
+import { budgetOf, englishName, type PodiumProduct, type PodiumRound } from '@/lib/podium/model';
 import { sumQty, type Share } from '@/lib/podium/receive';
 import { ProductImage, Stepper, shekelRound } from '@/components/podium/parts';
 
@@ -15,7 +15,7 @@ interface View {
   shares: Record<string, Share & { manual: boolean; deliveredAt: string | null }>;
   error?: string; message?: string;
 }
-interface Order { id: string; athleteId: string; items: Qty }
+interface Order { id: string; athleteId: string | null; label?: string | null; budget?: number | null; items: Qty }
 
 const post = async (url: string, body: unknown, method = 'POST') => {
   const r = await fetch(url, { method, headers: await apiHeaders(true), body: JSON.stringify(body) });
@@ -91,7 +91,8 @@ export function ReceivePanel({ round, products, onDone }: { round: PodiumRound; 
  * Short products go first-to-send first. A runner's share can be set by hand; "נמסר" tells them.
  */
 export function DistributePanel({ round, products, orders, names }: {
-  round: PodiumRound; products: PodiumProduct[]; orders: Order[]; names: (athleteId: string) => string;
+  round: PodiumRound; products: PodiumProduct[]; orders: Order[]; /** The runner's name, or a group order's (migration 175). */
+  names: (o: { athleteId: string | null; label?: string | null }) => string;
 }) {
   const { data, mutate } = useApi<View>(`/api/admin/podium/receive?round=${round.id}`);
   const [open, setOpen] = useState<string | null>(null);
@@ -100,7 +101,7 @@ export function DistributePanel({ round, products, orders, names }: {
   if (!data) return <div className="h-40 animate-pulse rounded-card bg-card" />;
   if (data.error) return <p className="rounded-card bg-card p-4 text-center text-sm text-ink-500">{data.message}</p>;
   const rows = orders.filter((o) => data.shares[o.id]).map((o) => ({ o, s: data.shares[o.id] }))
-    .sort((a, b) => Number(!!a.s.deliveredAt) - Number(!!b.s.deliveredAt) || b.s.missingValue - a.s.missingValue || names(a.o.athleteId).localeCompare(names(b.o.athleteId), 'he'));
+    .sort((a, b) => Number(!!a.s.deliveredAt) - Number(!!b.s.deliveredAt) || b.s.missingValue - a.s.missingValue || names(a.o).localeCompare(names(b.o), 'he'));
   const missItems = rows.reduce((t, r) => t + sumQty(r.s.missing), 0);
   const missValue = rows.reduce((t, r) => t + r.s.missingValue, 0);
   const delivered = rows.filter((r) => r.s.deliveredAt).length;
@@ -123,7 +124,7 @@ export function DistributePanel({ round, products, orders, names }: {
           return (
             <button key={o.id} type="button" onClick={() => setOpen(o.id)} className={cn('flex w-full items-center gap-3 border-t border-page py-3 text-start', s.deliveredAt && 'opacity-60')}>
               <span className="min-w-0 flex-1">
-                <b className="block truncate text-sm text-ink-900">{names(o.athleteId)}{s.manual && <span className="ms-1 text-3xs text-brand-600">✎ ידני</span>}</b>
+                <b className="block truncate text-sm text-ink-900">{names(o)}{s.manual && <span className="ms-1 text-3xs text-brand-600">✎ ידני</span>}</b>
                 <span className="text-2xs text-ink-400"><bdi>{got}</bdi> מתוך <bdi>{want}</bdi> פריטים{s.missingValue > 0 ? <b className="text-[#C2410C]"> · חסר <bdi>{want - got}</bdi> · <bdi dir="ltr">{shekelRound(s.missingValue)}</bdi></b> : ' · ✓ מלא'}{s.owes > 0 ? <> · להעביר <bdi dir="ltr">{shekelRound(s.owes)}</bdi></> : ''}</span>
               </span>
               <span className={cn('rounded-pill px-2 py-0.5 text-3xs font-extrabold', s.deliveredAt ? 'bg-page text-ink-500' : s.missingValue > 0 ? 'bg-[#FFF1EA] text-[#9A3412]' : 'bg-accent-600/10 text-accent-900')}>{s.deliveredAt ? 'נמסר' : s.missingValue > 0 ? 'חלקי' : 'מוכן'}</span>
@@ -135,8 +136,8 @@ export function DistributePanel({ round, products, orders, names }: {
       {note && <p className="text-center text-xs font-bold text-red-600">{note}</p>}
       <a href={`/api/admin/podium/csv?round=${round.id}&kind=packing`} className="flex items-center justify-center gap-1.5 rounded-2xl bg-ink-900 py-3 text-sm font-extrabold text-white"><Download className="h-4 w-4" />רשימת אריזה (CSV)</a>
 
-      <Sheet open={!!cur} onOpenChange={(v) => { if (!v) setOpen(null); }} title={cur ? names(cur.o.athleteId) : ''}>
-        {cur && <ShareEditor key={cur.o.id + (cur.s.manual ? 'm' : 'a')} order={cur.o} share={cur.s} products={products} budget={round.budget} busy={busy}
+      <Sheet open={!!cur} onOpenChange={(v) => { if (!v) setOpen(null); }} title={cur ? names(cur.o) : ''}>
+        {cur && <ShareEditor key={cur.o.id + (cur.s.manual ? 'm' : 'a')} order={cur.o} share={cur.s} products={products} budget={budgetOf(round, cur.o)} busy={busy}
           onSave={(alloc) => act(() => post(`/api/admin/podium/orders/${cur.o.id}`, { allocation: alloc }, 'PATCH'))}
           onDeliver={(v) => act(() => post(`/api/admin/podium/orders/${cur.o.id}`, { delivered: v }, 'PATCH')).then(() => { if (v) setOpen(null); })} />}
       </Sheet>

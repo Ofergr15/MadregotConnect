@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  approvalAfter, buyNGetOne, cleanItems, dealNudge, orderTotal, overBy, podiumCsv, roundState, roundTotals,
+  approvalAfter, budgetOf, buyNGetOne, cleanItems, dealNudge, orderTotal, overBy, podiumCsv, roundState, roundTotals,
   englishName, hebrewName, type PodiumProduct,
 } from '@/lib/podium/model';
 import { isPodiumItemUrl, parseTile } from '@/lib/podium/site';
+import { canOrderForOthers } from '@/lib/access/grants';
 
 const P = (id: string, over: Partial<PodiumProduct> = {}): PodiumProduct => ({
   id, sku: Number(id.replace(/\D/g, '')) || 1, barcode: `b${id}`, name: `ג'ל אנרגיה GU Gel ${id}`, dept: "ג'ל אנרגיה",
@@ -155,5 +156,31 @@ describe('podium time left (Hebrew)', () => {
     expect(timeLeft(at(2), now)).toBe('עוד שעתיים');
     expect(timeLeft(at(0.5), now)).toBe('עוד 30 דקות');
     expect(timeLeft(at(-1), now)).toBeNull();
+  });
+});
+
+describe('podium budgets: default, personal credit, group orders (migration 175)', () => {
+  const round = { budget: 600, budgets: { a: 800 } };
+  it("a person's own budget in the round wins over the default", () => {
+    expect(budgetOf(round, { athleteId: 'a' })).toBe(800);
+    expect(budgetOf(round, null, 'a')).toBe(800);
+    expect(budgetOf(round, { athleteId: 'b' })).toBe(600);
+  });
+  it("a group order's own budget wins; without one it is the default", () => {
+    expect(budgetOf(round, { athleteId: null, budget: 1500 })).toBe(1500);
+    expect(budgetOf(round, { athleteId: null, budget: null })).toBe(600);
+  });
+  it('a round from before the migration (no budgets) is the default for everyone', () => {
+    expect(budgetOf({ budget: 600 }, { athleteId: 'a' })).toBe(600);
+  });
+});
+
+describe('who may order Podium for others', () => {
+  it('admins and the super user always; anyone else only with the grant', () => {
+    expect(canOrderForOthers({ athleteId: 'x', role: 'admin' }, {})).toBe(true);
+    expect(canOrderForOthers({ athleteId: 'x', isSuperUser: true }, {})).toBe(true);
+    expect(canOrderForOthers({ athleteId: 'x', role: 'runner', roles: ['coach'] }, {})).toBe(false);
+    expect(canOrderForOthers({ athleteId: 'x', role: 'runner' }, { x: { podium: { forOthers: true } } })).toBe(true);
+    expect(canOrderForOthers({ athleteId: 'x', role: 'runner' }, { x: { content: {} } })).toBe(false);
   });
 });

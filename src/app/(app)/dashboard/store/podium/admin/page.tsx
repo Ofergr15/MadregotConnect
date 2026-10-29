@@ -9,15 +9,16 @@ import { textMatches } from '@/lib/search/match';
 import { cn } from '@/lib/utils';
 import { Sheet, SkeletonCard, SegmentedControl } from '@/components/ui';
 import {
-  AUDIENCES, AUDIENCE_TAG, DEFAULT_BUDGET, englishName, hebrewName, itemCount, orderTotal, overBy, roundTotals,
+  AUDIENCES, AUDIENCE_TAG, DEFAULT_BUDGET, budgetOf, englishName, hebrewName, itemCount, orderTotal, overBy, roundTotals,
   type Approval, type Audience, type PodiumProduct, type PodiumRound, type RoundState,
 } from '@/lib/podium/model';
 import { ProductImage, ProductLine, shekelRound, whenIL } from '@/components/podium/parts';
 import { DistributePanel, ReceivePanel } from '@/components/podium/ReceivePanels';
 
 type Round = PodiumRound & { state: RoundState };
-interface Order { id: string; athleteId: string; items: Record<string, number>; submittedAt: string | null; approval: Approval; updatedAt: string }
-interface Resp { rounds: Round[]; round: Round | null; products: PodiumProduct[]; orders: Order[]; core: string[]; people: Record<string, { name: string; avatarUrl: string | null; isCore?: boolean; isStaff?: boolean }>; error?: string; message?: string }
+/** athleteId null = a group order ("אקסטרות", migration 175), named by its label. */
+interface Order { id: string; athleteId: string | null; label?: string | null; budget?: number | null; items: Record<string, number>; submittedAt: string | null; approval: Approval; updatedAt: string; updatedBy?: string | null }
+interface Resp { rounds: Round[]; round: Round | null; products: PodiumProduct[]; orders: Order[]; core: string[]; people: Record<string, { name: string; avatarUrl: string | null; isCore?: boolean; isStaff?: boolean }>; canCredit?: boolean; error?: string; message?: string }
 
 const STATE: Record<RoundState, { label: string; tone: string }> = {
   upcoming: { label: '⏳ עוד לא נפתח', tone: 'bg-page text-ink-500' },
@@ -41,6 +42,7 @@ function PodiumAdmin() {
   const [roundForm, setRoundForm] = useState<Partial<Round> | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [groupForm, setGroupForm] = useState<{ id?: string; label: string; budget: string } | null>(null);
 
   const products = useMemo(() => data?.products ?? [], [data]);
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
@@ -50,11 +52,17 @@ function PodiumAdmin() {
   const totals = useMemo(() => roundTotals(orders), [orders]);
   const sum = sent.reduce((s, o) => s + orderTotal(o.items, byId), 0);
   // Over the budget: no approval any more (Ofer 10-28) — shown, clearly, so the admin knows before ordering.
-  const overList = round ? sent.map((o) => ({ o, t: orderTotal(o.items, byId) })).filter((x) => x.t > round.budget).sort((a, b) => b.t - a.t) : [];
-  const overSum = overList.reduce((a, x) => a + (x.t - (round?.budget ?? 0)), 0);
+  // Each against its own budget: a person's credit, a group order's own, else the round's (migration 175).
+  const budgetFor = (o: Order) => (round ? budgetOf(round, o) : DEFAULT_BUDGET);
+  const overList = round ? sent.map((o) => ({ o, t: orderTotal(o.items, byId), b: budgetFor(o) })).filter((x) => x.t > x.b).sort((a, b) => b.t - b.b - (a.t - a.b)) : [];
+  const overSum = overList.reduce((a, x) => a + (x.t - x.b), 0);
   const ordered = new Set(orders.map((o) => o.athleteId));
   const notOrdered = (data?.core ?? []).filter((id) => !ordered.has(id));
   const name = (id: string) => data?.people[id]?.name ?? 'רץ';
+  const orderName = (o: { athleteId: string | null; label?: string | null }) => (o.athleteId ? name(o.athleteId) : `👥 ${o.label || 'הזמנת קבוצה'}`);
+  const groups = orders.filter((o) => !o.athleteId);
+  // How many orders the round should end with (Ofer, 10-29: "17 — the core's and the group ones").
+  const expected = round?.expectedCount ?? (data?.core.length ?? 0) + groups.length;
   // Once sent, the screen opens on receiving (or the split, when receiving is done).
   const view = tab ?? (round?.state === 'sent' ? (round.receivedAt ? 'split' : 'receive') : 'people');
 
@@ -114,7 +122,7 @@ function PodiumAdmin() {
                 })} />
             )}
             <div className="mt-3 grid grid-cols-4 gap-2 text-center">
-              <Kpi n={`${sent.length}/${data?.core.length ?? 0}`} l="שלחו" />
+              <Kpi n={`${sent.length}/${expected}`} l="שלחו" warn={round.state !== 'open' && round.state !== 'upcoming' && sent.length < expected} />
               <Kpi n={String([...totals.values()].reduce((a, b) => a + b, 0))} l="פריטים" />
               <Kpi n={shekelRound(sum)} l="משוער" />
               <Kpi n={String(overList.length)} l="מעל התקציב" warn={overList.length > 0} />
@@ -146,6 +154,12 @@ function PodiumAdmin() {
             {round.state === 'open' && <p className="mt-2 text-2xs text-ink-400">אחרי הסגירה רצים לא יכולים לשנות. אדמין עדיין יכול לערוך עד שמסמנים &quot;נשלח&quot;.</p>}
           </div>
 
+          <OrdersSetup round={round} data={data!} groups={groups} sentCount={sent.length} expected={expected} busy={!!busy} byId={byId}
+            onExpected={(n) => act('expected', () => post('/api/admin/podium', { action: 'expected', id: round.id, expectedCount: n }))}
+            onCredit={(id, amount) => act('credit', () => post('/api/admin/podium', { action: 'budgets', id: round.id, budgets: { [id]: amount } }))}
+            onGroup={(g) => setGroupForm(g ? { id: g.id, label: g.label ?? '', budget: g.budget != null ? String(g.budget) : '' } : { label: '', budget: '' })}
+            onOpen={(id) => setEdit(id)} />
+
           {overList.length > 0 && (
             <div className="rounded-card bg-[#FFF1EA] p-3.5">
               <div className="flex items-baseline justify-between">
@@ -155,9 +169,9 @@ function PodiumAdmin() {
               <p className="mb-1.5 text-2xs text-[#9A3412]/80">בלי אישור: כל אחד מהם הוזהר וההפרש עליו. כדאי לבדוק לפני שמזמינים.</p>
               {overList.map(({ o, t }) => (
                 <button key={o.id} type="button" onClick={() => setEdit(o.id)} className="flex w-full items-center gap-2 border-t border-white/70 py-2 text-start">
-                  <span className="min-w-0 flex-1 truncate text-13 text-ink-900"><b>{name(o.athleteId)}</b></span>
+                  <span className="min-w-0 flex-1 truncate text-13 text-ink-900"><b>{orderName(o)}</b></span>
                   <span className="text-13 tabular-nums"><bdi dir="ltr">{shekelRound(t)}</bdi></span>
-                  <span className="rounded-pill bg-[#FF5A1F] px-2 py-0.5 text-3xs font-extrabold text-white">+<bdi dir="ltr">{shekelRound(t - round!.budget)}</bdi></span>
+                  <span className="rounded-pill bg-[#FF5A1F] px-2 py-0.5 text-3xs font-extrabold text-white">+<bdi dir="ltr">{shekelRound(t - budgetFor(o))}</bdi></span>
                 </button>
               ))}
             </div>
@@ -173,21 +187,24 @@ function PodiumAdmin() {
           options={[{ value: 'receive', label: '📦 קבלה' }, { value: 'split', label: '🎁 חלוקה' }]} />
       )}
       {round?.state === 'sent' && view === 'receive' && <ReceivePanel round={round} products={products} onDone={() => setTab('split')} />}
-      {round?.state === 'sent' && view === 'split' && <DistributePanel round={round} products={products} orders={orders} names={name} />}
+      {round?.state === 'sent' && view === 'split' && <DistributePanel round={round} products={products} orders={orders} names={orderName} />}
 
       <SegmentedControl<'people' | 'products' | 'catalog'> value={view === 'people' || view === 'products' || view === 'catalog' ? view : ('' as 'people')} onChange={setTab}
         options={[{ value: 'people', label: 'לפי רץ' }, { value: 'products', label: 'לפי מוצר' }, { value: 'catalog', label: 'קטלוג' }]} />
 
       {view === 'people' && round && (
         <div className="rounded-card bg-card px-4 py-1 ring-1 ring-black/[0.04]">
-          {[...orders].sort((a, b) => Number(!!b.submittedAt) - Number(!!a.submittedAt) || name(a.athleteId).localeCompare(name(b.athleteId), 'he')).map((o) => (
+          {round.state === 'open' && (
+            <Link href="/dashboard/store/podium" className="flex items-center justify-center gap-1.5 border-b border-page py-3 text-13 font-extrabold text-brand-600">🛒 להזמין עבור מישהו</Link>
+          )}
+          {[...orders].sort((a, b) => Number(!!b.submittedAt) - Number(!!a.submittedAt) || orderName(a).localeCompare(orderName(b), 'he')).map((o) => (
             <button key={o.id} type="button" onClick={() => setEdit(o.id)} className="flex w-full items-center gap-3 border-b border-page py-3 text-start last:border-0">
-              <Avatar url={data?.people[o.athleteId]?.avatarUrl} name={name(o.athleteId)} />
+              {o.athleteId ? <Avatar url={data?.people[o.athleteId]?.avatarUrl} name={name(o.athleteId)} /> : <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-page text-base">👥</span>}
               <span className="min-w-0 flex-1">
-                <b className="block truncate text-sm text-ink-900">{name(o.athleteId)}</b>
-                <span className="text-2xs text-ink-400"><bdi>{itemCount(o.items)}</bdi> פריטים · <bdi>{shekelRound(orderTotal(o.items, byId))}</bdi></span>
+                <b className="block truncate text-sm text-ink-900">{orderName(o)}</b>
+                <span className="text-2xs text-ink-400"><bdi>{itemCount(o.items)}</bdi> פריטים · <bdi>{shekelRound(orderTotal(o.items, byId))}</bdi>{budgetFor(o) !== round.budget ? <> · תקציב <bdi>{shekelRound(budgetFor(o))}</bdi></> : null}{o.updatedBy && o.athleteId && o.updatedBy !== o.athleteId ? <> · מולא ע״י {name(o.updatedBy).split(' ')[0]}</> : null}</span>
               </span>
-              <Chip o={o} over={round ? orderTotal(o.items, byId) - round.budget : 0} />
+              <Chip o={o} over={orderTotal(o.items, byId) - budgetFor(o)} />
               <ChevronRight className="h-4 w-4 rotate-180 text-ink-300" />
             </button>
           ))}
@@ -205,7 +222,7 @@ function PodiumAdmin() {
         <div className="rounded-card bg-card px-4 py-1 ring-1 ring-black/[0.04]">
           {[...totals.entries()].sort((a, b) => b[1] - a[1]).map(([id, n]) => {
             const p = byId.get(id); if (!p) return null;
-            const who = sent.filter((o) => o.items[id] && o.approval !== 'rejected').map((o) => `${name(o.athleteId).split(' ')[0]} ${o.items[id]}`);
+            const who = sent.filter((o) => o.items[id] && o.approval !== 'rejected').map((o) => `${o.athleteId ? name(o.athleteId).split(' ')[0] : orderName(o)} ${o.items[id]}`);
             return (
               <details key={id} className="border-b border-page last:border-0">
                 <summary className="list-none"><ProductLine p={p} qty={n} /></summary>
@@ -219,12 +236,39 @@ function PodiumAdmin() {
 
       {view === 'catalog' && <Catalog products={products} busy={busy} act={act} post={post} />}
 
-      <Sheet open={!!edit} onOpenChange={(o) => { if (!o) setEdit(null); }} title={edit ? name(orders.find((o) => o.id === edit)?.athleteId ?? '') : ''}>
+      <Sheet open={!!edit} onOpenChange={(o) => { if (!o) setEdit(null); }} title={edit ? orderName(orders.find((o) => o.id === edit) ?? { athleteId: '' }) : ''}>
         {edit && round && orders.find((o) => o.id === edit) && (
-          <OrderEditor key={edit} order={orders.find((o) => o.id === edit)!} round={round} products={products}
+          <OrderEditor key={edit} order={orders.find((o) => o.id === edit)!} round={round} budget={budgetFor(orders.find((o) => o.id === edit)!)} products={products}
             onSave={(items) => act('save', () => post(`/api/admin/podium/orders/${edit}`, { items }, 'PATCH')).then(() => setEdit(null))}
             onDelete={() => { if (confirm('למחוק את ההזמנה?')) void act('del', () => post(`/api/admin/podium/orders/${edit}`, {}, 'DELETE')).then(() => setEdit(null)); }}
             busy={!!busy} />
+        )}
+      </Sheet>
+
+      <Sheet open={!!groupForm} onOpenChange={(o) => { if (!o) setGroupForm(null); }} title={groupForm?.id ? 'הזמנת קבוצה' : 'הזמנת קבוצה חדשה'}>
+        {groupForm && round && (
+          <div className="space-y-3 pb-2">
+            <label className="block text-13 font-bold text-ink-700">שם
+              <input value={groupForm.label} onChange={(e) => setGroupForm({ ...groupForm, label: e.target.value })} placeholder="לדוגמה: אקסטרות — מלאי מועדון" className="mt-1 w-full rounded-xl bg-page px-3 py-2.5 text-sm font-normal outline-none" />
+            </label>
+            {data?.canCredit && (
+              <label className="block text-13 font-bold text-ink-700">תקציב
+                <input value={groupForm.budget} onChange={(e) => setGroupForm({ ...groupForm, budget: e.target.value.replace(/[^\d.]/g, '') })} inputMode="decimal" placeholder={`${round.budget} (כמו כולם)`} className="mt-1 w-full rounded-xl bg-page px-3 py-2.5 text-sm font-normal outline-none" />
+              </label>
+            )}
+            <div className="flex gap-2">
+              <button type="button" disabled={!!busy || !groupForm.label.trim()} className="flex-1 rounded-2xl bg-brand-600 py-3.5 font-extrabold text-white disabled:opacity-50"
+                onClick={() => void act('group', () => post('/api/admin/podium', groupForm.id
+                  ? { action: 'groupUpdate', orderId: groupForm.id, label: groupForm.label, ...(data?.canCredit ? { groupBudget: groupForm.budget || null } : {}) }
+                  : { action: 'group', id: round.id, label: groupForm.label, groupBudget: groupForm.budget || null })).then(() => setGroupForm(null))}>
+                {groupForm.id ? 'שמירה' : 'להוסיף'}
+              </button>
+              {groupForm.id && (
+                <button type="button" disabled={!!busy} className="rounded-2xl bg-page px-4 font-extrabold text-red-600"
+                  onClick={() => { if (confirm('למחוק את הזמנת הקבוצה?')) void act('delg', () => post(`/api/admin/podium/orders/${groupForm.id}`, {}, 'DELETE')).then(() => setGroupForm(null)); }}>מחיקה</button>
+              )}
+            </div>
+          </div>
         )}
       </Sheet>
 
@@ -335,6 +379,81 @@ function Reach({ round, people, audience, busy, onWiden }: {
   );
 }
 
+/**
+ * The round's orders beyond "each core runner orders for themself" (Ofer, 10-29): how many there
+ * should be in all, personal credit (the admin's alone), and the group orders ("אקסטרות").
+ */
+function OrdersSetup({ round, data, groups, sentCount, expected, busy, byId, onExpected, onCredit, onGroup, onOpen }: {
+  round: Round; data: Resp; groups: Order[]; sentCount: number; expected: number; busy: boolean; byId: Map<string, PodiumProduct>;
+  onExpected: (n: number | null) => void; onCredit: (athleteId: string, amount: number | null) => void;
+  onGroup: (g: Order | null) => void; onOpen: (orderId: string) => void;
+}) {
+  const [count, setCount] = useState(round.expectedCount != null ? String(round.expectedCount) : '');
+  const [who, setWho] = useState('');
+  const [amount, setAmount] = useState('');
+  const credits = Object.entries(round.budgets ?? {}).sort((a, b) => b[1] - a[1]);
+  const people = data.core.filter((id) => !(round.budgets ?? {})[id]).map((id) => ({ id, name: data.people[id]?.name ?? 'רץ' })).sort((a, b) => a.name.localeCompare(b.name, 'he'));
+  const core = data.core.length;
+  const missing = Math.max(0, expected - sentCount);
+  return (
+    <div className="space-y-3 rounded-card bg-card p-4 ring-1 ring-black/[0.04]">
+      <div>
+        <div className="flex items-center justify-between gap-2">
+          <b className="text-13 text-ink-900"># כמה הזמנות בסבב</b>
+          <span className={cn('rounded-pill px-2 py-0.5 text-3xs font-extrabold', missing ? 'bg-[#FFF1EA] text-[#9A3412]' : 'bg-accent-600/10 text-accent-900')}>נשלחו <bdi>{sentCount}</bdi> מתוך <bdi>{expected}</bdi>{missing ? ` · חסרות ${missing}` : ''}</span>
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <input value={count} onChange={(e) => setCount(e.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder={String(core + groups.length)} className="w-20 rounded-xl bg-page px-3 py-2 text-center text-base font-black outline-none" />
+          <span className="flex-1 text-2xs text-ink-500">= <bdi>{core}</bdi> מ{round.audience === 'core' ? 'הגרעין' : 'הסבב'} + <bdi>{Math.max(0, (Number(count) || core + groups.length) - core)}</bdi> הזמנות קבוצה</span>
+          <button type="button" disabled={busy || count === (round.expectedCount != null ? String(round.expectedCount) : '')} onClick={() => onExpected(count ? Number(count) : null)} className="rounded-xl bg-ink-900 px-3 py-2 text-xs font-extrabold text-white disabled:opacity-30">שמירה</button>
+        </div>
+      </div>
+
+      <div className="border-t border-page pt-3">
+        <div className="flex items-center justify-between gap-2">
+          <b className="text-13 text-ink-900">👥 הזמנות קבוצה (אקסטרות)</b>
+          <button type="button" disabled={busy} onClick={() => onGroup(null)} className="flex items-center gap-0.5 text-13 font-bold text-brand-600"><Plus className="h-4 w-4" />להוסיף</button>
+        </div>
+        <p className="text-2xs text-ink-400">הזמנה בלי חשבון של רץ — למלאי, לאורחים, לאירוע. נכנסת לסיכום ולקובץ כמו כל הזמנה.</p>
+        {groups.map((g) => {
+          const t = orderTotal(g.items, byId); const b = budgetOf(round, g);
+          return (
+            <div key={g.id} className="flex items-center gap-2 border-b border-page py-2.5 last:border-0">
+              <button type="button" onClick={() => onOpen(g.id)} className="min-w-0 flex-1 text-start">
+                <b className="block truncate text-sm text-ink-900">{g.label}</b>
+                <span className="text-2xs text-ink-400">{g.submittedAt ? 'נשלח' : itemCount(g.items) ? 'טיוטה' : 'עוד לא'} · <bdi dir="ltr">{shekelRound(t)}</bdi> מתוך <bdi dir="ltr">{shekelRound(b)}</bdi></span>
+              </button>
+              <button type="button" onClick={() => onGroup(g)} className="text-13 font-bold text-brand-600">עריכה</button>
+            </div>
+          );
+        })}
+      </div>
+
+      {data.canCredit && (
+        <div className="border-t border-page pt-3">
+          <b className="text-13 text-ink-900">₪ קרדיט אישי</b>
+          <p className="text-2xs text-ink-400">תקציב משלו בסבב הזה, במקום <bdi dir="ltr">{shekelRound(round.budget)}</bdi>. רק אדמין נותן.</p>
+          {credits.map(([id, v]) => (
+            <div key={id} className="flex items-center gap-2 border-b border-page py-2 last:border-0">
+              <span className="min-w-0 flex-1 truncate text-sm font-bold text-ink-900">{data.people[id]?.name ?? 'רץ'}</span>
+              <span className="text-13 tabular-nums text-ink-700"><bdi dir="ltr">{shekelRound(v)}</bdi>{v > round.budget ? <span className="text-accent-900"> (+<bdi dir="ltr">{shekelRound(v - round.budget)}</bdi>)</span> : null}</span>
+              <button type="button" disabled={busy} onClick={() => onCredit(id, null)} className="text-xs font-bold text-red-600">להסיר</button>
+            </div>
+          ))}
+          <div className="mt-2 flex items-center gap-2">
+            <select value={who} onChange={(e) => setWho(e.target.value)} className="min-w-0 flex-1 rounded-xl bg-page px-2 py-2 text-sm">
+              <option value="">למי…</option>
+              {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" placeholder="סכום" className="w-20 rounded-xl bg-page px-2 py-2 text-center text-sm font-bold outline-none" />
+            <button type="button" disabled={busy || !who || !amount} onClick={() => { onCredit(who, Number(amount)); setWho(''); setAmount(''); }} className="rounded-xl bg-ink-900 px-3 py-2 text-xs font-extrabold text-white disabled:opacity-30">לתת</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Kpi({ n, l, warn }: { n: string; l: string; warn?: boolean }) {
   return <div className={cn('rounded-xl py-2', warn ? 'bg-[#FFF1EA] text-[#9A3412]' : 'bg-page')}><b className="block text-base font-black tabular-nums"><bdi>{n}</bdi></b><small className="text-3xs text-ink-500">{l}</small></div>;
 }
@@ -353,8 +472,8 @@ function Chip({ o, over }: { o: Order; over?: number }) {
   return <span className={cn('rounded-pill px-2 py-0.5 text-3xs font-extrabold', c[1])}>{c[0]}</span>;
 }
 
-function OrderEditor({ order, round, products, onSave, onDelete, busy }: {
-  order: Order; round: Round; products: PodiumProduct[]; onSave: (items: Record<string, number>) => void; onDelete: () => void; busy: boolean;
+function OrderEditor({ order, round, budget, products, onSave, onDelete, busy }: {
+  order: Order; round: Round; budget: number; products: PodiumProduct[]; onSave: (items: Record<string, number>) => void; onDelete: () => void; busy: boolean;
 }) {
   const [items, setItems] = useState<Record<string, number>>(order.items);
   const [q, setQ] = useState('');
@@ -374,10 +493,10 @@ function OrderEditor({ order, round, products, onSave, onDelete, busy }: {
           {found.map((p) => <button key={p.id} type="button" onClick={() => { set(p.id, 1); setQ(''); }} className="block w-full text-start"><ProductLine p={p} qty={0} right={<Plus className="h-5 w-5 text-brand-600" />} /></button>)}
         </div>
       )}
-      <div className="flex justify-between rounded-2xl bg-page p-3 text-sm font-black"><span>סה״כ משוער</span><span><bdi>{shekelRound(total)}</bdi>{total > round.budget && <span className="text-[#C2410C]"> · מעל ב-<bdi>{shekelRound(total - round.budget)}</bdi></span>}</span></div>
+      <div className="flex justify-between rounded-2xl bg-page p-3 text-sm font-black"><span>סה״כ משוער</span><span><bdi>{shekelRound(total)}</bdi>{total > budget && <span className="text-[#C2410C]"> · מעל ב-<bdi>{shekelRound(total - budget)}</bdi></span>}</span></div>
       {!locked && (
         <div className="flex gap-2">
-          <button type="button" disabled={busy} onClick={() => onSave(items)} className="flex-1 rounded-2xl bg-brand-600 py-3.5 font-extrabold text-white disabled:opacity-50">שמירה · הרץ יקבל התראה</button>
+          <button type="button" disabled={busy} onClick={() => onSave(items)} className="flex-1 rounded-2xl bg-brand-600 py-3.5 font-extrabold text-white disabled:opacity-50">{order.athleteId ? 'שמירה · הרץ יקבל התראה' : 'שמירה'}</button>
           <button type="button" disabled={busy} onClick={onDelete} className="rounded-2xl bg-page px-4 font-extrabold text-red-600">מחיקה</button>
         </div>
       )}

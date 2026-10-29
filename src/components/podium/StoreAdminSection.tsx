@@ -6,13 +6,13 @@ import { useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { InsetSection, InsetRow } from '@/components/ui';
 import { STORE_OPEN } from '@/lib/nav-items';
-import { itemCount, orderTotal, type Approval, type PodiumProduct, type PodiumRound, type RoundState } from '@/lib/podium/model';
+import { budgetOf, itemCount, orderTotal, type Approval, type PodiumProduct, type PodiumRound, type RoundState } from '@/lib/podium/model';
 import { shekelRound, timeLeft, whenIL } from '@/components/podium/parts';
 
 type Round = PodiumRound & { state: RoundState };
 interface Resp {
   round: Round | null; products: PodiumProduct[]; core: string[];
-  orders: Array<{ items: Record<string, number>; submittedAt: string | null; approval: Approval }>;
+  orders: Array<{ athleteId: string | null; budget?: number | null; items: Record<string, number>; submittedAt: string | null; approval: Approval }>;
   people: Record<string, { name: string }>; error?: string;
 }
 
@@ -55,7 +55,7 @@ export function StoreAdminSection({ header = 'חנות' }: { header?: string | n
   const r = data?.round ?? null;
   const sent = (data?.orders ?? []).filter((o) => o.submittedAt);
   // Over the budget (no approval any more, Ofer 10-28): how many, shown so it's seen before ordering.
-  const pending = r ? sent.filter((o) => orderTotal(o.items, data?.products ?? []) > r.budget).length : 0;
+  const pending = r ? sent.filter((o) => orderTotal(o.items, data?.products ?? []) > budgetOf(r, o)).length : 0;
   const items = sent.reduce((s, o) => s + itemCount(o.items), 0);
   const total = sent.reduce((s, o) => s + orderTotal(o.items, data?.products ?? []), 0);
   const unmatched = (data?.products ?? []).filter((p) => p.price == null && !p.hidden).length;
@@ -159,7 +159,7 @@ export function StoreAdminSection({ header = 'חנות' }: { header?: string | n
 export function StoreRow() {
   const { data } = useApi<Resp>('/api/admin/podium');
   const r = data?.round ?? null;
-  const pending = r ? (data?.orders ?? []).filter((o) => o.submittedAt && orderTotal(o.items, data?.products ?? []) > r.budget).length : 0;
+  const pending = r ? (data?.orders ?? []).filter((o) => o.submittedAt && orderTotal(o.items, data?.products ?? []) > budgetOf(r, o)).length : 0;
   const open = r && r.state !== 'sent' ? 1 : 0;
   const sub = !data ? 'פודיום · חנות המועדון'
     : pending ? `פודיום: ${pending} מעל התקציב`

@@ -22,10 +22,11 @@ export async function GET(request: Request) {
   let csv: string;
   if (packing) {
     const view = await receiveView(db, round, { orders, products });
-    const ids = orders.filter((o) => view.shares[o.id]).map((o) => o.athleteId);
+    const ids = orders.filter((o) => view.shares[o.id] && o.athleteId).map((o) => o.athleteId as string);
     const { data: ppl } = ids.length ? await db.from('athletes').select('id, name').in('id', ids) : { data: [] };
     const nm = new Map(((ppl ?? []) as Array<{ id: string; name: string }>).map((p) => [p.id, p.name]));
-    const rows = orders.filter((o) => view.shares[o.id]).map((o) => ({ name: nm.get(o.athleteId) ?? '', items: o.items, got: view.shares[o.id].got }))
+    // A group order is packed under its own name (migration 175).
+    const rows = orders.filter((o) => view.shares[o.id]).map((o) => ({ name: o.athleteId ? nm.get(o.athleteId) ?? '' : `👥 ${o.label ?? ''}`, items: o.items, got: view.shares[o.id].got }))
       .sort((a, b) => a.name.localeCompare(b.name, 'he'));
     csv = packingCsv(rows, products);
   } else {

@@ -26,6 +26,8 @@ const toProduct = (r: any): PodiumProduct => ({
 export const toRound = (r: any): PodiumRound => ({
   id: r.id, title: r.title, audience: (r.audience ?? 'core') as Audience, audienceIds: r.audience_ids ?? [], createdBy: r.created_by ?? null, opensAt: r.opens_at, locksAt: r.locks_at, budget: Number(r.budget), sentAt: r.sent_at ?? null, receivedAt: r.received_at ?? null,
   autoNotify: r.auto_notify !== false, notifyTitle: r.notify_title ?? null, notifyBody: r.notify_body ?? null, notifiedCount: (r.notified_open_ids ?? []).length, notifiedIds: r.notified_open_ids ?? [],
+  budgets: r.budgets && typeof r.budgets === 'object' ? Object.fromEntries(Object.entries(r.budgets).map(([k, v]) => [k, Number(v)]).filter(([, v]) => Number.isFinite(v as number))) : {},
+  expectedCount: r.expected_count == null ? null : Number(r.expected_count),
 });
 
 export async function loadProducts(db: Db): Promise<PodiumProduct[]> {
@@ -60,7 +62,8 @@ export interface OrderRow extends PodiumOrder {
 }
 
 const toOrder = (r: any): OrderRow => ({
-  id: r.id, roundId: r.round_id, athleteId: r.athlete_id, submittedAt: r.submitted_at ?? null, approval: r.approval as Approval,
+  id: r.id, roundId: r.round_id, athleteId: r.athlete_id ?? null, label: r.label ?? null, budget: r.budget == null ? null : Number(r.budget),
+  submittedAt: r.submitted_at ?? null, approval: r.approval as Approval,
   updatedAt: r.updated_at, approvedTotal: r.approved_total == null ? null : Number(r.approved_total), updatedBy: r.updated_by ?? null,
   allocation: r.allocation ?? null, deliveredAt: r.delivered_at ?? null,
   items: Object.fromEntries(((r.podium_order_items ?? []) as Array<{ product_id: string; quantity: number }>).map((i) => [i.product_id, i.quantity])),
@@ -87,17 +90,20 @@ export async function loadOrderById(db: Db, id: string): Promise<OrderRow | null
  * the send; an edit after the send keeps it sent. Returns the saved row.
  */
 export async function saveOrder(db: Db, opts: {
-  round: PodiumRound; athleteId: string; items: unknown; products: PodiumProduct[]; by: string | null;
+  round: PodiumRound; athleteId: string | null; items: unknown; products: PodiumProduct[]; by: string | null;
   submit?: boolean; admin?: boolean; unsubmit?: boolean;
+  /** A group order (no runner): saved by its id (lib/podium, migration 175). */
+  orderId?: string;
 }): Promise<OrderRow> {
   const items = cleanItems(opts.items, opts.products, { allowUnorderable: opts.admin });
   const total = orderTotal(items, opts.products);
-  const prev = await loadOrder(db, opts.round.id, opts.athleteId);
+  const prev = opts.orderId ? await loadOrderById(db, opts.orderId) : opts.athleteId ? await loadOrder(db, opts.round.id, opts.athleteId) : null;
+  if (!prev && !opts.athleteId) throw new Error('no order');
   // No approval step any more (Ofer 10-28): over the budget is shown to the admin, not approved.
   const approval: Approval = 'none';
   const now = new Date().toISOString();
   const row = {
-    round_id: opts.round.id, athlete_id: opts.athleteId, approval, updated_at: now, updated_by: opts.by,
+    round_id: opts.round.id, athlete_id: prev ? prev.athleteId : opts.athleteId, approval, updated_at: now, updated_by: opts.by,
     submitted_at: opts.submit ? now : opts.unsubmit ? null : prev?.submittedAt ?? null,
   };
   const { data, error } = prev
@@ -113,6 +119,19 @@ export async function saveOrder(db: Db, opts: {
     if (insErr) throw insErr;
   }
   return (await loadOrderById(db, id))!;
+}
+
+/**
+ * A group order ("אקסטרות", Ofer 10-29: "I have orders for 17 people — 15 of the core, and group
+ * ones"): a named order that belongs to no runner, filled by the admin or whoever may order for
+ * others. Needs migration 175 (athlete_id nullable, label, budget).
+ */
+export async function createGroupOrder(db: Db, round: PodiumRound, label: string, budget: number | null, by: string | null): Promise<OrderRow> {
+  const { data, error } = await db.from('podium_orders')
+    .insert({ round_id: round.id, athlete_id: null, label: label.trim().slice(0, 80), budget, approval: 'none', updated_by: by, updated_at: new Date().toISOString() })
+    .select('id').single();
+  if (error) throw error;
+  return (await loadOrderById(db, (data as { id: string }).id))!;
 }
 
 export interface Member { id: string; name: string; avatarUrl: string | null; isCore: boolean; isStaff: boolean }

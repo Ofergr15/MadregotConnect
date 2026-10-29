@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaffCaller } from '@/lib/auth/self-or-staff';
 import { AUDIENCES, DEFAULT_BUDGET, audienceAllows, roundState, type Audience } from '@/lib/podium/model';
-import { listRounds, loadOrders, loadProducts, loadRound, members, toRound } from '@/lib/podium/server';
+import { createGroupOrder, listRounds, loadOrderById, loadOrders, loadProducts, loadRound, members, toRound } from '@/lib/podium/server';
 import { openCopy, sendOpenPush } from '@/lib/podium/notify';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
  * every member (for the "specific people" picker) and who the chosen round is for. POST: { action: 'create' | 'update' | 'sent' | 'unsent' | 'delete' }.
  */
 export async function GET(request: Request) {
-  const { denied } = await requireStaffCaller(request);
+  const { denied, caller } = await requireStaffCaller(request);
   if (denied) return denied;
   const db = createServerClient();
   try {
@@ -26,6 +26,8 @@ export async function GET(request: Request) {
       rounds: rounds.map((r) => ({ ...r, state: roundState(r) })),
       round: round && { ...round, state: roundState(round) },
       products, orders, core: audience,
+      // Credit is the admin's alone (Ofer, 10-29).
+      canCredit: caller.isSuperUser || caller.role === 'admin' || !!caller.roles?.includes('admin'),
       people: Object.fromEntries(all.map((m) => [m.id, { name: m.name, avatarUrl: m.avatarUrl, isCore: m.isCore, isStaff: m.isStaff }])),
     });
   } catch (err) {
@@ -37,7 +39,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const { denied, caller } = await requireStaffCaller(request);
   if (denied) return denied;
-  const b = await request.json().catch(() => ({})) as { action?: string; id?: string; title?: string; opensAt?: string; locksAt?: string; budget?: number; audience?: string; audienceIds?: string[]; autoNotify?: boolean; notifyTitle?: string; notifyBody?: string; again?: boolean; athleteIds?: string[] };
+  const b = await request.json().catch(() => ({})) as { action?: string; id?: string; title?: string; opensAt?: string; locksAt?: string; budget?: number; audience?: string; audienceIds?: string[]; autoNotify?: boolean; notifyTitle?: string; notifyBody?: string; again?: boolean; athleteIds?: string[];
+    budgets?: Record<string, number | null>; expectedCount?: number | null; label?: string; orderId?: string; groupBudget?: number | null };
   const db = createServerClient();
   const valid = (s?: string) => !!s && !Number.isNaN(Date.parse(s));
   if (b.action === 'create' || b.action === 'update') {
@@ -68,6 +71,69 @@ export async function POST(request: Request) {
     if (missingCol(error)) ({ error } = await db.from('podium_rounds').update({ ...lean(row), ...rearm }).eq('id', prev.id));
     if (error) return NextResponse.json({ error: 'failed' }, { status: 500 });
     return NextResponse.json({ id: prev.id });
+  }
+  // Migration 175's columns: without them, say so instead of a bare 500.
+  const need175 = (e: { code?: string } | null) => (e?.code === 'PGRST204' || e?.code === '42703' || e?.code === '23502')
+    ? NextResponse.json({ error: 'not set up', message: 'צריך להריץ את מיגרציה 175' }, { status: 503 }) : null;
+  const amount = (v: unknown) => (v == null || v === '' ? null : Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.round(Number(v) * 100) / 100 : undefined);
+  // Credit (Ofer, 10-29: "only an admin"): a person's own budget in this round; null puts them back on the default.
+  if (b.action === 'budgets' && b.id && b.budgets && typeof b.budgets === 'object') {
+    if (!caller.isSuperUser && caller.role !== 'admin' && !caller.roles?.includes('admin')) return NextResponse.json({ error: 'admin only', message: 'רק אדמין נותן קרדיט' }, { status: 403 });
+    const round = await loadRound(db, b.id);
+    if (!round) return NextResponse.json({ error: 'no round' }, { status: 404 });
+    const next: Record<string, number> = { ...(round.budgets ?? {}) };
+    for (const [k, v] of Object.entries(b.budgets).slice(0, 200)) {
+      if (!/^[0-9a-f-]{36}$/i.test(k)) continue;
+      const a = amount(v);
+      if (a === undefined) return NextResponse.json({ error: 'bad amount', message: 'סכום לא תקין' }, { status: 400 });
+      if (a === null || a === round.budget) delete next[k]; else next[k] = a;
+    }
+    const { error } = await db.from('podium_rounds').update({ budgets: next }).eq('id', round.id);
+    if (error) return need175(error) ?? NextResponse.json({ error: 'failed' }, { status: 500 });
+    return NextResponse.json({ budgets: next });
+  }
+  // How many orders the round should end with (the core plus the group ones); null = its audience.
+  if (b.action === 'expected' && b.id) {
+    const n = b.expectedCount == null ? null : Math.round(Number(b.expectedCount));
+    if (n !== null && !(n >= 0 && n <= 500)) return NextResponse.json({ error: 'bad count', message: 'מספר לא תקין' }, { status: 400 });
+    const { error } = await db.from('podium_rounds').update({ expected_count: n }).eq('id', b.id);
+    if (error) return need175(error) ?? NextResponse.json({ error: 'failed' }, { status: 500 });
+    return NextResponse.json({ expectedCount: n });
+  }
+  // A group order ("אקסטרות"): a name, and its own budget only if an admin gives one.
+  const isAdmin = caller.isSuperUser || caller.role === 'admin' || !!caller.roles?.includes('admin');
+  if (b.action === 'group' && b.id) {
+    const round = await loadRound(db, b.id);
+    if (!round) return NextResponse.json({ error: 'no round' }, { status: 404 });
+    if (!b.label?.trim()) return NextResponse.json({ error: 'bad label', message: 'צריך שם להזמנה' }, { status: 400 });
+    const a = isAdmin ? amount(b.groupBudget) : null;
+    if (a === undefined) return NextResponse.json({ error: 'bad amount', message: 'סכום לא תקין' }, { status: 400 });
+    try {
+      const o = await createGroupOrder(db, round, b.label, a, caller.athleteId);
+      return NextResponse.json({ order: o });
+    } catch (err) {
+      const e = err as { code?: string };
+      console.error('[admin/podium] group order failed', err);
+      return need175(e) ?? NextResponse.json({ error: 'failed' }, { status: 500 });
+    }
+  }
+  if (b.action === 'groupUpdate' && b.orderId) {
+    const o = await loadOrderById(db, b.orderId);
+    if (!o || o.athleteId) return NextResponse.json({ error: 'no such group order' }, { status: 404 });
+    const patch: Record<string, unknown> = {};
+    if (typeof b.label === 'string') {
+      if (!b.label.trim()) return NextResponse.json({ error: 'bad label', message: 'צריך שם להזמנה' }, { status: 400 });
+      patch.label = b.label.trim().slice(0, 80);
+    }
+    if ('groupBudget' in b) {
+      if (!isAdmin) return NextResponse.json({ error: 'admin only', message: 'רק אדמין נותן קרדיט' }, { status: 403 });
+      const a = amount(b.groupBudget);
+      if (a === undefined) return NextResponse.json({ error: 'bad amount', message: 'סכום לא תקין' }, { status: 400 });
+      patch.budget = a;
+    }
+    const { error } = await db.from('podium_orders').update(patch).eq('id', o.id);
+    if (error) return need175(error) ?? NextResponse.json({ error: 'failed' }, { status: 500 });
+    return NextResponse.json({ ok: true });
   }
   // "🔔 לשלוח התראה עכשיו": to whoever hasn't had it, or ({ again: true }) to everyone in the audience.
   if (b.action === 'notify' && b.id) {

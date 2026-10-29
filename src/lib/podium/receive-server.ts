@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { roundTotals, type PodiumProduct, type PodiumRound } from '@/lib/podium/model';
+import { roundTotals, type PodiumProduct, type PodiumRound, budgetOf } from '@/lib/podium/model';
 import { allocate, counted, overAllocated, shareOf, sumQty, type Share } from '@/lib/podium/receive';
 import { loadOrders, loadProducts, loadReceived, type OrderRow } from '@/lib/podium/server';
 
@@ -24,7 +24,8 @@ export async function receiveView(db: Db, round: PodiumRound, pre?: { orders?: O
   const alloc = allocate(orders, received);
   const shares: ReceiveView['shares'] = {};
   for (const o of orders.filter(counted)) {
-    shares[o.id] = { ...shareOf(o.items, alloc.get(o.id) ?? {}, products, round.budget), manual: !!o.allocation, deliveredAt: o.deliveredAt };
+    // Each order against its own budget: a person's in the round, a group order's own (migration 175).
+    shares[o.id] = { ...shareOf(o.items, alloc.get(o.id) ?? {}, products, budgetOf(round, o)), manual: !!o.allocation, deliveredAt: o.deliveredAt };
   }
   const byId = new Map(products.map((p) => [p.id, p]));
   let missingItems = 0; let missingValue = 0;

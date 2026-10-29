@@ -40,7 +40,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (error) return NextResponse.json({ error: 'failed', message: 'צריך להריץ את מיגרציה 173' }, { status: 500 });
       if (b.delivered && !order.deliveredAt) {
         const share = (await receiveView(db, round, { products })).shares[id];
-        if (share) await tellDelivered({ athleteId: order.athleteId, round, share, actorId: caller.athleteId });
+        // A group order has no runner to tell.
+        if (share && order.athleteId) await tellDelivered({ athleteId: order.athleteId, round, share, actorId: caller.athleteId });
       }
     }
     return NextResponse.json({ ok: true });
@@ -52,11 +53,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       approval: b.approval, approved_by: caller.athleteId, approved_at: new Date().toISOString(), approved_total: b.approval === 'approved' ? total : null,
     }).eq('id', id);
     if (error) return NextResponse.json({ error: 'failed' }, { status: 500 });
-    await tellRunner({ athleteId: order.athleteId, kind: b.approval, round, total, actorId: caller.athleteId });
+    if (order.athleteId) await tellRunner({ athleteId: order.athleteId, kind: b.approval, round, total, actorId: caller.athleteId });
     return NextResponse.json({ ok: true });
   }
-  const saved = await saveOrder(db, { round, athleteId: order.athleteId, items: b.items, products, by: caller.athleteId, admin: true, submit: b.submit || !!order.submittedAt });
-  if (saved.athleteId !== caller.athleteId) {
+  const saved = await saveOrder(db, { round, athleteId: order.athleteId, orderId: order.id, items: b.items, products, by: caller.athleteId, admin: true, submit: b.submit || !!order.submittedAt });
+  if (saved.athleteId && saved.athleteId !== caller.athleteId) {
     await tellRunner({ athleteId: saved.athleteId, kind: 'edited', round, total: orderTotal(saved.items, products), actorId: caller.athleteId });
   }
   return NextResponse.json({ order: saved });

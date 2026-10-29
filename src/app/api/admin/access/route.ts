@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { hasRole } from '@/lib/auth/roles';
 import { SUPER_USER_EMAIL } from '@/lib/constants';
-import { CONTENT_KINDS, DRAFTABLE, readGrants, readLog, setContentLevel, type ContentKind, type Level } from '@/lib/access/grants';
+import { CONTENT_KINDS, DRAFTABLE, readGrants, readLog, setContentLevel, setPodiumForOthers, type ContentKind, type Level } from '@/lib/access/grants';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,8 +37,17 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   const g = await gate(request);
   if ('denied' in g) return g.denied;
-  const b = (await request.json().catch(() => null)) as { athleteId?: unknown; kind?: unknown; level?: unknown } | null;
+  const b = (await request.json().catch(() => null)) as { athleteId?: unknown; kind?: unknown; level?: unknown; podiumForOthers?: unknown } | null;
   const athleteId = typeof b?.athleteId === 'string' ? b.athleteId : '';
+  // "מזמינים בפודיום עבור אחרים" (10-29): a flag, not a content level.
+  if (athleteId && typeof b?.podiumForOthers === 'boolean') {
+    try {
+      return NextResponse.json({ grants: await setPodiumForOthers(createServerClient(), { athleteId, on: b.podiumForOthers }) });
+    } catch (err) {
+      console.error('[admin/access] podium grant failed:', err);
+      return NextResponse.json({ error: 'Save failed' }, { status: 500 });
+    }
+  }
   const kind = CONTENT_KINDS.includes(b?.kind as ContentKind) ? (b!.kind as ContentKind) : null;
   const level = b?.level === 0 || b?.level === 1 || b?.level === 3 || (b?.level === 2 && DRAFTABLE.includes(b?.kind as ContentKind)) ? (b.level as Level) : null;
   if (!athleteId || !kind || level === null) return NextResponse.json({ error: 'athleteId, kind, level' }, { status: 400 });

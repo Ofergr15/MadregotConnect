@@ -64,9 +64,10 @@ export function sentence(p: RolePerson, g: G): string {
   if (p.clubManager) parts.push('רואה מספרים');
   if (p.coreRunner) parts.push('גרעין');
   if (p.academy) parts.push('מתאמן אקדמיה');
+  if ((g as Grants)[p.id]?.podium?.forOthers) parts.push('מזמין בפודיום עבור אחרים');
   return parts.join(' · ') || 'מה שכל רץ רואה';
 }
-const special = (p: RolePerson, g: G) => isStaff(p, g) || !!p.storyEditor || !!p.coreRunner || !!p.clubManager || !!p.academy || !!(g as Grants)[p.id]?.content;
+const special = (p: RolePerson, g: G) => isStaff(p, g) || !!p.storyEditor || !!p.coreRunner || !!p.clubManager || !!p.academy || !!(g as Grants)[p.id]?.content || !!(g as Grants)[p.id]?.podium?.forOthers;
 
 // ── the save, for role and switches: the whole state, through the roles route ──
 export type Flags = { roles: GrantableRole[]; academy: boolean; storyEditor: boolean; coreRunner: boolean; clubManager: boolean };
@@ -78,13 +79,20 @@ export async function saveFlags(athleteId: string, f: Flags): Promise<string | n
   return out.error === 'You cannot remove your own admin role.' ? 'אי אפשר להוריד לעצמך את תפקיד המנהל.' : res.status === 403 ? 'רק מי שמורשה לתת "מנהל" יכול לשנות את זה.' : 'לא נשמר. אפשר לנסות שוב.';
 }
 
-type GroupKey = 'admin' | 'coach' | 'academy_manager' | 'academy_coach' | 'share' | 'content' | 'numbers' | 'core' | 'trainee';
-const GROUPS: Array<{ key: GroupKey; title: string; sub: string; color: string; has: (p: RolePerson, g: G) => boolean; add?: (f: Flags) => Flags }> = [
+/** "Order Podium for others" (10-29) is a grant, not a role flag: its own call. */
+export async function savePodiumForOthers(athleteId: string, on: boolean): Promise<string | null> {
+  const res = await fetch('/api/admin/access', { method: 'PUT', headers: await apiHeaders(true), body: JSON.stringify({ athleteId, podiumForOthers: on }) });
+  return res.ok ? null : 'לא נשמר. נסו שוב.';
+}
+
+type GroupKey = 'admin' | 'coach' | 'academy_manager' | 'academy_coach' | 'share' | 'podium' | 'content' | 'numbers' | 'core' | 'trainee';
+const GROUPS: Array<{ key: GroupKey; title: string; sub: string; color: string; has: (p: RolePerson, g: G) => boolean; add?: (f: Flags) => Flags; addGrant?: (p: RolePerson) => Promise<string | null> }> = [
   { key: 'admin', title: 'מנהלים', sub: 'רואים ועושים הכל, כולל ההרשאות', color: '#5B2DB8', has: (p, g) => p.roles.includes('admin') || isSuper(p, g), add: (f) => ({ ...f, roles: [...f.roles, 'admin'] }) },
   { key: 'coach', title: 'מאמנים', sub: 'עמודי המאמנים, משוב ונוכחות, מפרסמים בתוכן', color: '#174EA6', has: (p) => p.roles.includes('coach'), add: (f) => ({ ...f, roles: [...f.roles, 'coach'] }) },
   { key: 'academy_manager', title: 'מנהלי אקדמיה', sub: 'כל האקדמיה: כל המתאמנים, המועמדים, השיבוץ והלוח', color: '#0B6B35', has: (p) => p.roles.includes('academy_manager'), add: (f) => ({ ...f, roles: [...f.roles, 'academy_manager'] }) },
   { key: 'academy_coach', title: 'מאמני אקדמיה', sub: 'רק המתאמנים שלהם: התוכנית, המשוב, הטסטים', color: '#34a853', has: (p) => p.roles.includes('academy_coach'), add: (f) => ({ ...f, roles: [...f.roles, 'academy_coach'] }) },
   { key: 'share', title: 'משתפי האימון', sub: 'בוחרים רץ מכל דבוקה ומשתפים, מקבלים את ההתראה של הבוקר', color: '#B0186F', has: (p) => !!p.storyEditor, add: (f) => ({ ...f, storyEditor: true }) },
+  { key: 'podium', title: 'מזמינים בפודיום עבור אחרים', sub: 'ממלאים ושולחים הזמנת פודיום בשם חבר, כשהסבב פתוח. מנהלים — תמיד', color: '#FF5A1F', has: (p, g) => !!(g as Grants)[p.id]?.podium?.forOthers, addGrant: (p) => savePodiumForOthers(p.id, true) },
   { key: 'content', title: 'מפרסמים בתוכן', sub: 'מי שאינו בצוות ויש לו חלק בתוכן — בדף של כל אחד', color: '#6d3fd6', has: (p, g) => !isStaff(p, g) && !!(g as Grants)[p.id]?.content },
   { key: 'numbers', title: 'רואים מספרים', sub: 'עמוד "מדרגות במספרים", בלי תפקיד', color: '#ff9500', has: (p) => !!p.clubManager, add: (f) => ({ ...f, clubManager: true }) },
   { key: 'core', title: 'גרעין', sub: 'נספרים כרצי גרעין במספרים ובטבלאות', color: '#8A4A0B', has: (p) => !!p.coreRunner, add: (f) => ({ ...f, coreRunner: true }) },
@@ -162,7 +170,7 @@ export function PeopleTab({ people, grants, onOpen, onChanged }: { people: RoleP
                   <span dir="auto" className="block max-w-[52px] truncate text-[11px] text-ink-700">{p.name.split(' ')[0]}</span>
                 </button>
               ))}
-              {gr.add && (
+              {(gr.add || gr.addGrant) && (
                 <button type="button" onClick={() => setAdding(gr)} className="flex w-[52px] shrink-0 flex-col items-center gap-1" aria-label={`הוספה ל${gr.title}`}>
                   <span className="grid h-10 w-10 place-items-center rounded-full border-[1.5px] border-dashed border-[#d1d5db] text-[18px] font-bold text-ink-400">+</span>
                   <span className="text-[11px] text-ink-400">הוספה</span>
@@ -178,7 +186,7 @@ export function PeopleTab({ people, grants, onOpen, onChanged }: { people: RoleP
           <div className="max-h-[75vh] w-full overflow-y-auto rounded-t-[22px] bg-white px-4 pb-8 pt-3" onClick={(e) => e.stopPropagation()}>
             <p className="mb-2 text-center text-[16px] font-extrabold text-ink-900">הוספה ל{adding.title}</p>
             <PickPerson people={people.filter((p) => !adding.has(p, grants))} onPick={async (p) => {
-              const err = await saveFlags(p.id, adding.add!(flagsOf(p)));
+              const err = adding.addGrant ? await adding.addGrant(p) : await saveFlags(p.id, adding.add!(flagsOf(p)));
               setMsg(err ?? `✓ ${p.name} נוסף ל${adding.title}`);
               setAdding(null);
               onChanged();
@@ -257,6 +265,13 @@ export function PersonPage({ p, grants, log, onBack, onChanged, onSetLevel, busy
         <SwitchRow label="שיתוף האימון (אינסטגרם)" sub="בוחר רץ מכל דבוקה ומשתף, מקבל את ההתראה של הבוקר" on={f.storyEditor} disabled={saving} onToggle={() => void save({ ...f, storyEditor: !f.storyEditor })} />
         <SwitchRow label="גרעין" sub="נספר כרץ גרעין במספרים ובטבלאות" on={f.coreRunner} disabled={saving} onToggle={() => void save({ ...f, coreRunner: !f.coreRunner })} />
         <SwitchRow label="מתאמן אקדמיה" sub="רץ באקדמיה" on={f.academy} disabled={saving} onToggle={() => void save({ ...f, academy: !f.academy })} />
+        {!(sup || p.roles.includes('admin')) && (
+          <SwitchRow label="מזמין בפודיום עבור אחרים" sub="ממלא ושולח הזמנת פודיום בשם חבר, כשהסבב פתוח" on={!!(grants as Grants)[p.id]?.podium?.forOthers} disabled={saving}
+            onToggle={() => void (async () => {
+              setSaving(true); setErr(null);
+              try { setErr(await savePodiumForOthers(p.id, !(grants as Grants)[p.id]?.podium?.forOthers)); onChanged(); } finally { setSaving(false); }
+            })()} />
+        )}
       </div>
 
       <Q>אילו עמודים נוספים הוא רואה? <span className="font-semibold text-ink-400">— מעבר לתפקיד</span></Q>

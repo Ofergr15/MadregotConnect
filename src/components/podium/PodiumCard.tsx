@@ -10,7 +10,7 @@ import { shekelRound, timeLeft, whenIL } from '@/components/podium/parts';
 
 const HIDE_KEY = 'mc:podium-card-hidden';
 
-interface Resp { round: (PodiumRound & { state: RoundState }) | null; products?: PodiumProduct[]; order?: { items: Record<string, number>; submittedAt: string | null; approval: Approval } | null }
+interface Resp { round: (PodiumRound & { state: RoundState }) | null; products?: PodiumProduct[]; budget?: number; order?: { items: Record<string, number>; submittedAt: string | null; approval: Approval } | null }
 
 /**
  * "🌰 הזמנת פודיום" — the door into the core squad's order, on the feed and atop the store.
@@ -34,11 +34,13 @@ export function PodiumCard({ where = 'feed' }: { where?: 'feed' | 'store' }) {
   const pics = (data?.products ?? []).filter((p) => p.imageUrl).filter((_, i, a) => i === 0 || i === Math.floor(a.length / 2) || i === a.length - 1).slice(0, 3);
   const total = mine ? orderTotal(mine.items, data?.products ?? []) : 0;
   const left = timeLeft(round.locksAt);
+  // Their own budget in this round when the admin gave credit (migration 175).
+  const budget = data?.budget ?? round.budget;
   // The three moments Ofer named (10-26): in progress → done, with the time left to edit → closed.
   const stage = round.state === 'upcoming' ? { tag: '⏳ בקרוב', line: `נפתחת ${whenIL(round.opensAt)}`, tone: 'bg-white/15' }
     : round.state === 'sent' ? { tag: '📦 נשלחה לפודיום', line: 'ההזמנה בדרך. נעדכן כשהיא אצלך.', tone: 'bg-white/15' }
     : round.state === 'locked' ? { tag: '🔒 נסגרה', line: mine?.submittedAt ? 'ההזמנה נסגרה ונשלחת לפודיום. אי אפשר לשנות.' : 'ההזמנה נסגרה. הסל לא נשלח.', tone: 'bg-white/15' }
-    : mine?.submittedAt ? { tag: '✓ בוצע', line: `${total > round.budget ? `מעל התקציב ב-₪${Math.round(total - round.budget)} · ` : ''}אפשר לערוך עד ${whenIL(round.locksAt)}${left ? ` (${left})` : ''}`, tone: 'bg-[#16A34A]' }
+    : mine?.submittedAt ? { tag: '✓ בוצע', line: `${total > budget ? `מעל התקציב ב-₪${Math.round(total - budget)} · ` : ''}אפשר לערוך עד ${whenIL(round.locksAt)}${left ? ` (${left})` : ''}`, tone: 'bg-[#16A34A]' }
     : n > 0 ? { tag: '🛒 ההזמנה בתהליך', line: `עוד לא נשלחה · נסגרת ${whenIL(round.locksAt)}${left ? ` (${left})` : ''}`, tone: 'bg-[#FF5A1F]' }
     : { tag: AUDIENCE_TAG[round.audience] ?? AUDIENCE_TAG.core, line: `אפשר להזמין עד ${whenIL(round.locksAt)}${left ? ` (${left})` : ''}`, tone: 'bg-white/15' };
   const done = !!mine?.submittedAt || round.state === 'locked' || round.state === 'sent';
