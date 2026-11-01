@@ -26,8 +26,18 @@ export async function ownPlanRowsCount(athleteId: string | null | undefined): Pr
   }
 }
 
-/** Drop the reader's own rows when they no longer count. */
-export function withoutOwnRows<T extends { athlete_id?: string | null }>(rows: T[] | null | undefined, ownCount: boolean): T[] {
+/**
+ * A personal week written by hand for one athlete (`add_personal_workout`, migration 176):
+ * the club's week with that athlete's own day(s) swapped in, flagged `manual: true` on the
+ * blob. It is theirs whether or not they are in the academy (2026-11-01).
+ */
+export function isManualPlan(row: { parsed_workouts?: unknown } | null | undefined): boolean {
+  const blob = row?.parsed_workouts as { manual?: unknown } | null | undefined;
+  return !!blob && typeof blob === 'object' && blob.manual === true;
+}
+
+/** Drop the reader's own rows when they no longer count. A manual week always counts. */
+export function withoutOwnRows<T extends { athlete_id?: string | null; parsed_workouts?: unknown }>(rows: T[] | null | undefined, ownCount: boolean): T[] {
   const list = rows || [];
-  return ownCount ? list : list.filter((r) => !r.athlete_id);
+  return ownCount ? list : list.filter((r) => !r.athlete_id || isManualPlan(r));
 }

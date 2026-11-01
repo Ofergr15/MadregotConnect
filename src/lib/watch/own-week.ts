@@ -5,6 +5,7 @@ import { normalizeWorkoutParts } from '@/lib/plans/normalize-plan';
 import { withGroupPaces } from '@/lib/plans/watch-paces';
 import { paceGroupKeyFor } from '@/lib/plans/pace-group';
 import { pushWeekToAthlete } from '@/lib/garmin/push-week';
+import { isManualPlan } from '@/lib/plans/scope-server';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import { appleCandidates, deliverWeek, resolveWatchProvider, type WatchProvider } from './index';
 
@@ -18,7 +19,7 @@ type Db = ReturnType<typeof createServerClient>;
 export async function loadOwnWeek(athleteId: string, weekStartDate = getDisplayWeekStart(new Date())) {
   const supabase = createServerClient();
   // The row and the plan don't depend on each other: asked together, one round trip.
-  const [{ data: athlete }, { data: plan }] = await Promise.all([supabase
+  const [{ data: athlete }, { data: plan }, { data: manualRows }] = await Promise.all([supabase
     .from('athletes')
     .select('id, name, garmin_auth, is_academy, group_id, groups!group_id(pace_profile)')
     .eq('id', athleteId)
@@ -34,8 +35,18 @@ export async function loadOwnWeek(athleteId: string, weekStartDate = getDisplayW
     // A week can hold a draft and a pushed plan; 'pushed' sorts after 'draft' and 'partial'.
     .order('status', { ascending: false })
     .limit(1)
-    .maybeSingle()]);
-  return { supabase, weekStartDate, athlete, plan };
+    .maybeSingle(),
+  // A week written by hand for this runner (add_personal_workout) replaces the club's:
+  // it already carries the club's other days, with theirs swapped in.
+  supabase
+    .from('weekly_plans')
+    .select('id, parsed_workouts, status')
+    .eq('coach_id', COACH_ID)
+    .eq('week_start_date', weekStartDate)
+    .eq('athlete_id', athleteId)
+    .order('created_at', { ascending: false })]);
+  const manual = ((manualRows || []) as { id: string; parsed_workouts: unknown; status: string }[]).find(isManualPlan);
+  return { supabase, weekStartDate, athlete, plan: manual || plan };
 }
 
 /** Garmin when the row says so — decided without a query. Otherwise the Apple lookup. */
