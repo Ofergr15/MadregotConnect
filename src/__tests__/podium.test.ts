@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  approvalAfter, budgetOf, buyNGetOne, cleanItems, dealNudge, orderTotal, overBy, podiumCsv, roundState, roundTotals,
+  approvalAfter, budgetOf, buyNGetOne, cleanItems, dealNudge, orderTotal, overBy, podiumCsv, podiumName, roundState, roundTotals,
   englishName, hebrewName, type PodiumProduct,
 } from '@/lib/podium/model';
 import { isPodiumItemUrl, parseTile } from '@/lib/podium/site';
@@ -62,10 +62,15 @@ describe('podium file', () => {
       { items: { a1: 1 }, submittedAt: 'x', approval: 'approved' },
     ]);
     const csv = podiumCsv(totals, ps, 'מדרגות');
-    expect(csv.startsWith('﻿מדרגות\r\nפריט,ברקוד,שם,שם מחלקה,כמות\r\n')).toBe(true);
+    expect(csv.startsWith('﻿פריט,ברקוד,שם,שם מחלקה,כמות\r\n')).toBe(true);
     const lines = csv.trim().split('\r\n');
-    expect(lines[2]).toBe(`2,769493100023,"וופל ""GU"", Stroopwafel",ג'ל אנרגיה,1`);
-    expect(lines[3]).toBe(`1,769493100016,ג'ל אנרגיה GU Gel a1,ג'ל אנרגיה,3`);
+    expect(lines[1]).toBe(`2,769493100023,"GU"", Stroopwafel וופל """,ג'ל אנרגיה,1`);
+    expect(lines[2]).toBe(`1,769493100016,GU Gel a1 ג'ל אנרגיה,ג'ל אנרגיה,3`);
+  });
+  it('writes names English first, like Podium', () => {
+    expect(podiumName("ג'ל אנרגיה GU Gel Vanilla")).toBe("GU Gel Vanilla ג'ל אנרגיה");
+    expect(podiumName('שוט סלק 70 מ"ל Beet It Sport Shot')).toBe('Beet It Sport Shot שוט סלק 70 מ"ל');
+    expect(podiumName('PowerBar Shaker Black בקבוק שייקר')).toBe('PowerBar Shaker Black בקבוק שייקר');
   });
   it('splits names', () => {
     expect(englishName("ג'ל אנרגיה GU Gel Vanilla")).toBe('GU Gel Vanilla');

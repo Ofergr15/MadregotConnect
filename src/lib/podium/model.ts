@@ -221,12 +221,21 @@ const csvCell = (v: string | number) => {
  * Excel opens the Hebrew correctly.
  */
 export function podiumCsv(totals: Map<string, number>, products: PodiumProduct[], title = 'מדרגות'): string {
-  const lines = [csvCell(title), ['פריט', 'ברקוד', 'שם', 'שם מחלקה', 'כמות'].join(',')];
+  // Podium's own sheet (the 12.08 order): header in row 1, no title above it, and the name
+  // English first ("GU Gel Vanilla ג'ל אנרגיה") — our catalog stores it Hebrew first.
+  void title;
+  const lines = [['פריט', 'ברקוד', 'שם', 'שם מחלקה', 'כמות'].join(',')];
   for (const p of [...products].sort((a, b) => a.sort - b.sort)) {
     const q = totals.get(p.id);
-    if (q) lines.push([p.sku, p.barcode, p.name, p.dept, q].map(csvCell).join(','));
+    if (q) lines.push([p.sku, p.barcode, podiumName(p.name), p.dept, q].map(csvCell).join(','));
   }
   return '﻿' + lines.join('\r\n') + '\r\n';
+}
+
+/** The name the way Podium writes it: English, then Hebrew. English-only / already-English-first names stay as they are. */
+export function podiumName(name: string): string {
+  const he = hebrewName(name);
+  return he ? `${englishName(name)} ${he}` : name;
 }
 
 /** The English half of a catalog name ("ג'ל אנרגיה GU Gel Vanilla" → "GU Gel Vanilla"). */
