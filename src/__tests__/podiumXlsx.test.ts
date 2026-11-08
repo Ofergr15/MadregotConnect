@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { writeFileSync } from 'node:fs';
-import { podiumWorkbookSheets, type PodiumProduct } from '@/lib/podium/model';
+import { podiumWorkbookSheets, type PodiumOrder, type PodiumProduct } from '@/lib/podium/model';
 import { writeXlsx, safeSheetNames } from '@/lib/xlsx/write';
 import { readWorkbook } from '@/lib/xlsx/read';
 
@@ -11,11 +11,11 @@ const P = (id: string, sku: number, name: string, sort: number): PodiumProduct =
 const ps = [P('a', 2, "ג'ל אנרגיה GU Gel Vanilla", 0), P('b', 11, "ג'ל אנרגיה GU Gel Salted Caramel", 1)];
 
 describe('podium xlsx', () => {
-  const orders = [
-    { tab: 'yaya', items: { a: 3, b: 1 }, submittedAt: 'x', approval: 'none' as const },
-    { tab: 'shalev', items: { a: 2 }, submittedAt: 'x', approval: 'none' as const },
-    { tab: 'draft', items: { a: 9 }, submittedAt: null, approval: 'none' as const },
-    { tab: 'no', items: { b: 9 }, submittedAt: 'x', approval: 'rejected' as const },
+  const orders: Array<Pick<PodiumOrder, 'items' | 'submittedAt' | 'approval'> & { tab: string }> = [
+    { tab: 'yaya', items: { a: 3, b: 1 }, submittedAt: 'x', approval: 'none' },
+    { tab: 'shalev', items: { a: 2 }, submittedAt: 'x', approval: 'none' },
+    { tab: 'draft', items: { a: 9 }, submittedAt: null, approval: 'none' },
+    { tab: 'no', items: { b: 9 }, submittedAt: 'x', approval: 'rejected' },
   ];
   it('builds Summary + a tab per sent runner, English-first names, numbers as numbers', () => {
     const bytes = writeXlsx(podiumWorkbookSheets(orders, ps));
