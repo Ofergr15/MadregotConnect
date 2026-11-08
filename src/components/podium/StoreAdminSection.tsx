@@ -134,7 +134,7 @@ export function StoreAdminSection({ header = 'חנות' }: { header?: string | n
             ? <Link href={admin} className="rounded-2xl bg-ink-900 py-3 text-center text-13 font-extrabold text-white">ניהול הסבב</Link>
             : <Link href={admin} className="flex items-center justify-center gap-1 rounded-2xl bg-brand-600 py-3 text-13 font-extrabold text-white">{r ? '📦 קבלה וחלוקה' : <><Plus className="h-4 w-4" />סבב חדש</>}</Link>}
           {r && (r.state === 'locked' || r.state === 'sent')
-            ? <CsvDownload url={`/api/admin/podium/csv?round=${r.id}`} className="flex items-center justify-center gap-1 rounded-2xl bg-page py-3 text-13 font-extrabold text-ink-700"><Download className="h-4 w-4" />קובץ לפודיום</CsvDownload>
+            ? <CsvDownload url={`/api/admin/podium/csv?round=${r.id}&format=xlsx`} className="flex items-center justify-center gap-1 rounded-2xl bg-page py-3 text-13 font-extrabold text-ink-700"><Download className="h-4 w-4" />קובץ לפודיום</CsvDownload>
             : <Link href={`${admin}?tab=catalog`} className="rounded-2xl bg-page py-3 text-center text-13 font-extrabold text-ink-700">קטלוג ומחירים</Link>}
         </div>
       </div>

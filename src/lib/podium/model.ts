@@ -265,3 +265,25 @@ export const GROUPS: Array<{ key: string; label: string; depts: string[] }> = [
 export function groupOf(dept: string): string {
   return GROUPS.find((g) => g.depts.includes(dept))?.key ?? 'other';
 }
+
+const PODIUM_HEADER = ['פריט', 'ברקוד', 'שם', 'שם מחלקה', 'כמות'];
+const asNum = (s: string | number) => (typeof s === 'number' ? s : /^\d{1,15}$/.test(s) ? Number(s) : s);
+
+/** The Podium order as Excel tabs, the way the 12.08 file was built by hand: "Summary" (what
+ *  Podium ships), then one tab per runner (and per group order) — the same five columns,
+ *  catalog order, rejected and unsent orders out. */
+export function podiumWorkbookSheets(
+  orders: Array<Pick<PodiumOrder, 'items' | 'submittedAt' | 'approval'> & { tab: string }>,
+  products: PodiumProduct[],
+): Array<{ name: string; rows: Array<Array<string | number>>; widths: number[]; boldHeader: true }> {
+  const sorted = [...products].sort((a, b) => a.sort - b.sort);
+  const rowsFor = (q: (id: string) => number) => [PODIUM_HEADER, ...sorted.filter((p) => q(p.id) > 0)
+    .map((p) => [asNum(p.sku), asNum(p.barcode), podiumName(p.name), p.dept, q(p.id)])];
+  const sheet = (name: string, rows: Array<Array<string | number>>) => ({
+    name, rows, boldHeader: true as const,
+    widths: [8, 15, Math.min(75, Math.max(30, ...rows.map((r) => String(r[2]).length + 4))), 18, 7],
+  });
+  const totals = roundTotals(orders);
+  const live = orders.filter((o) => o.submittedAt && o.approval !== 'rejected' && Object.values(o.items).some((n) => n > 0));
+  return [sheet('Summary', rowsFor((id) => totals.get(id) ?? 0)), ...live.map((o) => sheet(o.tab, rowsFor((id) => o.items[id] ?? 0)))];
+}

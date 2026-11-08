@@ -131,7 +131,7 @@ function PodiumAdmin() {
             </div>
             <button type="button" onClick={() => setShowOrder(true)} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl bg-page py-3 text-sm font-extrabold text-ink-700"><Eye className="h-4 w-4" />צפייה בהזמנה</button>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <CsvDownload url={`/api/admin/podium/csv?round=${round.id}`} className="flex items-center justify-center gap-1.5 rounded-2xl bg-ink-900 py-3 text-sm font-extrabold text-white"><Download className="h-4 w-4" />קובץ לפודיום</CsvDownload>
+              <CsvDownload url={`/api/admin/podium/csv?round=${round.id}&format=xlsx`} className="flex items-center justify-center gap-1.5 rounded-2xl bg-ink-900 py-3 text-sm font-extrabold text-white"><Download className="h-4 w-4" />קובץ לפודיום</CsvDownload>
               {round.state === 'sent'
                 ? <button type="button" disabled={!!busy} onClick={() => void act('unsent', () => post('/api/admin/podium', { action: 'unsent', id: round.id }))} className="rounded-2xl bg-page py-3 text-sm font-extrabold text-ink-700">ביטול &quot;נשלח&quot;</button>
                 : <button type="button" disabled={!!busy || round.state !== 'locked'} onClick={() => { if (confirm('לסמן שההזמנה נשלחה לפודיום? אחרי זה אי אפשר לערוך.')) void act('sent', () => post('/api/admin/podium', { action: 'sent', id: round.id })); }} className="rounded-2xl bg-page py-3 text-sm font-extrabold text-ink-700 disabled:opacity-40">📦 נשלח לפודיום</button>}
@@ -510,7 +510,7 @@ function OrderSummary({ roundId, totals, products, orders, onClose }: { roundId:
           ))}
         </div>
       )}
-      <CsvDownload url={`/api/admin/podium/csv?round=${roundId}`} className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-ink-900 py-3 text-sm font-extrabold text-white"><Download className="h-4 w-4" />הורדת הקובץ (CSV)</CsvDownload>
+      <CsvDownload url={`/api/admin/podium/csv?round=${roundId}&format=xlsx`} className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-ink-900 py-3 text-sm font-extrabold text-white"><Download className="h-4 w-4" />הורדת הקובץ (Excel)</CsvDownload>
       <button type="button" onClick={onClose} className="w-full rounded-2xl bg-page py-3 text-sm font-extrabold text-ink-700">סגירה</button>
     </div>
   );
