@@ -43,6 +43,7 @@ function PodiumAdmin() {
   const [roundForm, setRoundForm] = useState<Partial<Round> | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [showOrder, setShowOrder] = useState(false);
   const [groupForm, setGroupForm] = useState<{ id?: string; label: string; budget: string } | null>(null);
 
   const products = useMemo(() => data?.products ?? [], [data]);
@@ -128,7 +129,8 @@ function PodiumAdmin() {
               <Kpi n={shekelRound(sum)} l="משוער" />
               <Kpi n={String(overList.length)} l="מעל התקציב" warn={overList.length > 0} />
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => setShowOrder(true)} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl bg-page py-3 text-sm font-extrabold text-ink-700"><Eye className="h-4 w-4" />צפייה בהזמנה</button>
+            <div className="mt-2 grid grid-cols-2 gap-2">
               <CsvDownload url={`/api/admin/podium/csv?round=${round.id}`} className="flex items-center justify-center gap-1.5 rounded-2xl bg-ink-900 py-3 text-sm font-extrabold text-white"><Download className="h-4 w-4" />קובץ לפודיום</CsvDownload>
               {round.state === 'sent'
                 ? <button type="button" disabled={!!busy} onClick={() => void act('unsent', () => post('/api/admin/podium', { action: 'unsent', id: round.id }))} className="rounded-2xl bg-page py-3 text-sm font-extrabold text-ink-700">ביטול &quot;נשלח&quot;</button>
@@ -245,6 +247,10 @@ function PodiumAdmin() {
             onDelete={() => { if (confirm('למחוק את ההזמנה?')) void act('del', () => post(`/api/admin/podium/orders/${edit}`, {}, 'DELETE')).then(() => setEdit(null)); }}
             busy={!!busy} />
         )}
+      </Sheet>
+
+      <Sheet open={showOrder} onOpenChange={setShowOrder} title={round ? `ההזמנה לפודיום · ${round.title}` : ''}>
+        {showOrder && round && <OrderSummary roundId={round.id} totals={totals} products={products} orders={sent.length} onClose={() => setShowOrder(false)} />}
       </Sheet>
 
       <Sheet open={!!groupForm} onOpenChange={(o) => { if (!o) setGroupForm(null); }} title={groupForm?.id ? 'הזמנת קבוצה' : 'הזמנת קבוצה חדשה'}>
@@ -473,6 +479,39 @@ function OrdersSetup({ round, data, groups, sentCount, expected, busy, byId, onE
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** What goes into the Podium file (roundTotals, rejected out), by department — the same rows as podiumCsv. */
+function OrderSummary({ roundId, totals, products, orders, onClose }: { roundId: string; totals: Map<string, number>; products: PodiumProduct[]; orders: number; onClose: () => void }) {
+  const rows = [...products].sort((a, b) => a.sort - b.sort).filter((p) => totals.get(p.id));
+  const depts = [...new Set(rows.map((p) => p.dept))];
+  const units = rows.reduce((a, p) => a + (totals.get(p.id) ?? 0), 0);
+  const money = rows.reduce((a, p) => a + (p.price ?? 0) * (totals.get(p.id) ?? 0), 0);
+  return (
+    <div className="space-y-3 pb-2">
+      <p className="text-xs text-ink-500">{orders} הזמנות · נדחו לא נכללות</p>
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <Kpi n={String(rows.length)} l="פריטים" /><Kpi n={String(units)} l="יחידות" /><Kpi n={shekelRound(money)} l="משוער" />
+      </div>
+      {rows.length === 0 ? <p className="py-6 text-center text-sm text-ink-500">עדיין אין פריטים בהזמנה</p> : (
+        <div className="max-h-[50vh] overflow-y-auto">
+          {depts.map((d) => (
+            <div key={d}>
+              <div className="mb-1 mt-3 text-3xs font-extrabold text-ink-400">{d}</div>
+              {rows.filter((p) => p.dept === d).map((p) => (
+                <div key={p.id} className="flex items-center justify-between gap-2 border-b border-black/5 py-2">
+                  <div className="min-w-0"><div className="truncate text-sm font-bold text-ink-900">{p.name}</div><small className="text-3xs text-ink-400"><bdi dir="ltr">{p.sku} · {p.barcode}</bdi></small></div>
+                  <span className="rounded-lg bg-brand-600/10 px-2.5 py-0.5 text-sm font-extrabold tabular-nums text-brand-600">{totals.get(p.id)}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+      <CsvDownload url={`/api/admin/podium/csv?round=${roundId}`} className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-ink-900 py-3 text-sm font-extrabold text-white"><Download className="h-4 w-4" />הורדת הקובץ (CSV)</CsvDownload>
+      <button type="button" onClick={onClose} className="w-full rounded-2xl bg-page py-3 text-sm font-extrabold text-ink-700">סגירה</button>
     </div>
   );
 }
