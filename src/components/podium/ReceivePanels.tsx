@@ -8,6 +8,7 @@ import { Sheet, SegmentedControl } from '@/components/ui';
 import { budgetOf, englishName, type PodiumProduct, type PodiumRound } from '@/lib/podium/model';
 import { sumQty, type Share } from '@/lib/podium/receive';
 import { ProductImage, Stepper, shekelRound } from '@/components/podium/parts';
+import { CsvDownload } from '@/components/podium/CsvDownload';
 
 type Qty = Record<string, number>;
 interface View {
@@ -134,7 +135,7 @@ export function DistributePanel({ round, products, orders, names }: {
         })}
       </div>
       {note && <p className="text-center text-xs font-bold text-red-600">{note}</p>}
-      <a href={`/api/admin/podium/csv?round=${round.id}&kind=packing`} className="flex items-center justify-center gap-1.5 rounded-2xl bg-ink-900 py-3 text-sm font-extrabold text-white"><Download className="h-4 w-4" />רשימת אריזה (CSV)</a>
+      <CsvDownload url={`/api/admin/podium/csv?round=${round.id}&kind=packing`} className="flex items-center justify-center gap-1.5 rounded-2xl bg-ink-900 py-3 text-sm font-extrabold text-white"><Download className="h-4 w-4" />רשימת אריזה (CSV)</CsvDownload>
 
       <Sheet open={!!cur} onOpenChange={(v) => { if (!v) setOpen(null); }} title={cur ? names(cur.o) : ''}>
         {cur && <ShareEditor key={cur.o.id + (cur.s.manual ? 'm' : 'a')} order={cur.o} share={cur.s} products={products} budget={budgetOf(round, cur.o)} busy={busy}

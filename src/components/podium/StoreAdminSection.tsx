@@ -8,6 +8,7 @@ import { InsetSection, InsetRow } from '@/components/ui';
 import { STORE_OPEN } from '@/lib/nav-items';
 import { budgetOf, itemCount, orderTotal, type Approval, type PodiumProduct, type PodiumRound, type RoundState } from '@/lib/podium/model';
 import { shekelRound, timeLeft, whenIL } from '@/components/podium/parts';
+import { CsvDownload } from '@/components/podium/CsvDownload';
 
 type Round = PodiumRound & { state: RoundState };
 interface Resp {
@@ -133,7 +134,7 @@ export function StoreAdminSection({ header = 'חנות' }: { header?: string | n
             ? <Link href={admin} className="rounded-2xl bg-ink-900 py-3 text-center text-13 font-extrabold text-white">ניהול הסבב</Link>
             : <Link href={admin} className="flex items-center justify-center gap-1 rounded-2xl bg-brand-600 py-3 text-13 font-extrabold text-white">{r ? '📦 קבלה וחלוקה' : <><Plus className="h-4 w-4" />סבב חדש</>}</Link>}
           {r && (r.state === 'locked' || r.state === 'sent')
-            ? <a href={`/api/admin/podium/csv?round=${r.id}`} className="flex items-center justify-center gap-1 rounded-2xl bg-page py-3 text-13 font-extrabold text-ink-700"><Download className="h-4 w-4" />קובץ לפודיום</a>
+            ? <CsvDownload url={`/api/admin/podium/csv?round=${r.id}`} className="flex items-center justify-center gap-1 rounded-2xl bg-page py-3 text-13 font-extrabold text-ink-700"><Download className="h-4 w-4" />קובץ לפודיום</CsvDownload>
             : <Link href={`${admin}?tab=catalog`} className="rounded-2xl bg-page py-3 text-center text-13 font-extrabold text-ink-700">קטלוג ומחירים</Link>}
         </div>
       </div>

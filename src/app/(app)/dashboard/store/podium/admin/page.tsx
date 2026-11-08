@@ -14,6 +14,7 @@ import {
 } from '@/lib/podium/model';
 import { ProductImage, ProductLine, shekelRound, whenIL } from '@/components/podium/parts';
 import { DistributePanel, ReceivePanel } from '@/components/podium/ReceivePanels';
+import { CsvDownload } from '@/components/podium/CsvDownload';
 
 type Round = PodiumRound & { state: RoundState };
 /** athleteId null = a group order ("אקסטרות", migration 175), named by its label. */
@@ -128,7 +129,7 @@ function PodiumAdmin() {
               <Kpi n={String(overList.length)} l="מעל התקציב" warn={overList.length > 0} />
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <a href={`/api/admin/podium/csv?round=${round.id}`} className="flex items-center justify-center gap-1.5 rounded-2xl bg-ink-900 py-3 text-sm font-extrabold text-white"><Download className="h-4 w-4" />קובץ לפודיום</a>
+              <CsvDownload url={`/api/admin/podium/csv?round=${round.id}`} className="flex items-center justify-center gap-1.5 rounded-2xl bg-ink-900 py-3 text-sm font-extrabold text-white"><Download className="h-4 w-4" />קובץ לפודיום</CsvDownload>
               {round.state === 'sent'
                 ? <button type="button" disabled={!!busy} onClick={() => void act('unsent', () => post('/api/admin/podium', { action: 'unsent', id: round.id }))} className="rounded-2xl bg-page py-3 text-sm font-extrabold text-ink-700">ביטול &quot;נשלח&quot;</button>
                 : <button type="button" disabled={!!busy || round.state !== 'locked'} onClick={() => { if (confirm('לסמן שההזמנה נשלחה לפודיום? אחרי זה אי אפשר לערוך.')) void act('sent', () => post('/api/admin/podium', { action: 'sent', id: round.id })); }} className="rounded-2xl bg-page py-3 text-sm font-extrabold text-ink-700 disabled:opacity-40">📦 נשלח לפודיום</button>}
