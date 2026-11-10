@@ -165,6 +165,7 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
           </p>
           <h2 className="text-28 font-black leading-tight text-ink-900">{v2 ? <StructureText text={workout.name} /> : <bdi>{workout.name}</bdi>}</h2>
           {v2 && !T && <NeedsTest test={board.test} className="mt-1.5" />}
+          {isCoach && done && <div className="mt-2"><TraineeReport athleteId={board.athlete.id} date={workout.date} /></div>}
           {v2 && board.test?.kind === 'ok' && board.test.old && (
             <p className="mt-1.5 text-[13px] font-bold leading-snug text-[#A8510A]">{tw.rich('oldTest', { ...RICH, months: Math.round(board.test.ageDays / 30) })}</p>
           )}
