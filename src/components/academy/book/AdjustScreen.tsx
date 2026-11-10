@@ -33,7 +33,7 @@ import { renamedForStructure } from '@/lib/academy/draft-name';
 // send screen — an accidental + on a canon entry must not rewrite what everybody pushes.
 
 export function AdjustScreen({
-  draft, thresholdSec, paceAdjust, traineeName, dayLabel, sending, sendError, onCancel, onChange, onSend,
+  draft, thresholdSec, paceAdjust, traineeName, dayLabel, sending, sendError, onCancel, onChange, onSend, hasGarmin = true,
 }: {
   draft: Draft;
   thresholdSec: number | null;
@@ -41,6 +41,8 @@ export function AdjustScreen({
   paceAdjust?: PaceAdjust | null;
   traineeName: string;
   dayLabel: string;
+  /** No Garmin = the day is saved to their plan in the app only; the button must not promise a watch (E2E F7). */
+  hasGarmin?: boolean;
   sending: boolean;
   sendError: string | null;
   onCancel: () => void;
@@ -98,7 +100,8 @@ export function AdjustScreen({
             )}
             {blocked && <p className="text-center text-sm font-bold text-[#8A4308]">{t('noTestBlock', { name: traineeName })}</p>}
             {sendError && <p className="text-center text-sm font-bold text-accent-red-ink">{sendError}</p>}
-            <div data-tour="day-send"><PrimaryButton onClick={() => onSend(draft)} disabled={blocked} busy={sending}>{t('putOn', { day: dayLabel, name: traineeName.split(' ')[0] || traineeName })}</PrimaryButton></div>
+            {!hasGarmin && <p className="text-center text-sm text-ink-500">{t('noGarminSave', { name: traineeName.split(' ')[0] || traineeName })}</p>}
+            <div data-tour="day-send"><PrimaryButton onClick={() => onSend(draft)} disabled={blocked} busy={sending}>{t(hasGarmin ? 'putOn' : 'putOnPlan', { day: dayLabel, name: traineeName.split(' ')[0] || traineeName })}</PrimaryButton></div>
           </>
         }
       >

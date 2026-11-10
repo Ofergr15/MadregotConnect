@@ -72,7 +72,7 @@ export function BodyScreen({ athleteId, coachName }: { athleteId: string; coachN
         {panelRow('rhr')}
         {panelRow('sleep')}
         {data.feel ? (
-          <Row emoji="🙂"
+          <Row emoji={['😣', '😕', '😐', '🙂', '😄'][Math.round(data.feel.face)] ?? '🙂'}
             title={t('feel', { word: tt(`trainee.feel.faces.${data.feel.face}` as never) })}
             sub={<>{t.rich('feelSub', { ...RICH, n: data.feel.n })}{data.feel.effort != null && t.rich('effort', { ...RICH, v: String(data.feel.effort) })}</>}
             tag={data.feel.face <= 1 ? <Tag tone="w">{t('feelLow')}</Tag> : <Tag tone="g">✓</Tag>} />

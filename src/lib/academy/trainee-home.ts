@@ -109,7 +109,7 @@ export interface TraineeHome {
   /** What the tests allow (test-state.ts): 7ג's "ממתין לאישור", "צריך טסט של 30 דקות", "טסט ישן". */
   test?: TestState;
   athlete?: {
-    athleteId: string; name: string; avatarUrl: string | null; hasWatch: boolean;
+    athleteId: string; name: string; avatarUrl: string | null; hasWatch: boolean; hasGarmin?: boolean;
     /** For the gendered copy of the progress screens (migration 057); null when unsaid. */
     gender?: 'female' | 'male' | null;
     /** Only when a coach is looking (the header's call / WhatsApp); never on the trainee's own home. */

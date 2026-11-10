@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { ChevronRight } from 'lucide-react';
 import { useApi, apiHeaders } from '@/lib/api';
+import { openTraineeSetup } from '@/components/academy/TraineeSetup';
 import { cn } from '@/lib/utils';
 import { academyTestUrl } from '@/lib/academy/deep-links';
 import {
@@ -214,6 +215,7 @@ export function DayPlanner({ athleteId, date, onClose, onDone, fromGroup = false
           paceAdjust={data.trainee.paceAdjust}
           traineeName={data.trainee.name}
           dayLabel={day}
+          hasGarmin={data.trainee.hasGarmin !== false}
           sending={sending}
           sendError={sendError}
           onCancel={() => { setSendError(null); setScreen(back === 'adjust' ? 'choose' : back); }}
@@ -289,6 +291,8 @@ function ChooseScreen({
       {!T && (
         <div className="rounded-[14px] bg-[#FDF0E2] px-3 py-2.5 text-sm font-bold leading-snug text-[#8A4308]">
           {t('noTest', { name })}{' '}
+          <button type="button" className="underline" onClick={() => { onClose(); openTraineeSetup(data.trainee.id); }}>{t('setBaseline')}</button>
+          {' · '}
           <Link href={academyTestUrl({ recipientIsStaff: true })} className="underline">{t('setTest')}</Link>
         </div>
       )}

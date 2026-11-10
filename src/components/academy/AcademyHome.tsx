@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { bandMeaning } from '@/lib/academy/bands';
+import { BandPaces } from './BandPaces';
 import {
   ArrowLeftRight, CalendarX, ChevronLeft, ClipboardList, Copy, Gauge, MessageSquare, PauseCircle, Plus, Sparkles, Timer, Trophy, TrendingUp, UserPlus, Users, Watch,
 } from 'lucide-react';
@@ -48,7 +49,7 @@ const MAX_CARDS = 2;
 export function AcademyHome({
   data, isLoading, prev, home, waiting, suggestion, suggestionBusy, capacity, isManager,
   onSquare, onSuggestion, onSuggestionMore, onQuick, onWaiting, strips, onStrip, readinessAlert, readinessHeld, onReadiness,
-  approvalCards, onApprovalDecided, onApprovalCorrect, onTrainee, threadsUnread, threadsCount, onThreads,
+  approvalCards, onApprovalDecided, onApprovalCorrect, onTrainee, threadsUnread, threadsCount, onThreads, onBandsChanged,
 }: {
   data: AcademyMembersResponse | undefined;
   isLoading: boolean;
@@ -86,6 +87,8 @@ export function AcademyHome({
   threadsUnread?: number;
   threadsCount?: number;
   onThreads?: () => void;
+  /** Reload after a band's pace changes (BandPaces). */
+  onBandsChanged?: () => void | Promise<void>;
 }) {
   const [allWaiting, setAllWaiting] = useState(false);
   const members = useMemo(() => data?.members ?? [], [data]);
@@ -265,6 +268,13 @@ export function AcademyHome({
 
       {/* The coaches: whose weeks are written. */}
       {isManager && coachRows.length > 0 && <CoachPlansRow members={approved} coaches={coachRows} />}
+
+      {/* The bands' paces — the one setting the planner prices everyone by. It lived on the old
+          overview and was lost when the five-area shell replaced it (academy E2E F1, 2026-11-10).
+          Collapsed to one line once every band is set; wears a warning while some are missing. */}
+      {isManager && (data.bands?.length ?? 0) > 0 && onBandsChanged && (
+        <BandPaces bands={data.bands} canEdit={data.scope === 'academy'} onChanged={onBandsChanged} />
+      )}
     </div>
   );
 }

@@ -40,6 +40,16 @@ interface Setup {
 }
 
 /** The banner on the trainee's card; nothing for anybody who is not their coach. */
+/**
+ * Open this trainee's "טופס התאמה" from anywhere on the week page — the composer's "no paces"
+ * refusal points here, because a coach pace basis is the one unblock that needs no test
+ * (academy E2E F2/F3, 2026-11-10).
+ */
+export const OPEN_TRAINEE_SETUP_EVENT = 'mc:open-trainee-setup';
+export function openTraineeSetup(athleteId: string) {
+  window.dispatchEvent(new CustomEvent(OPEN_TRAINEE_SETUP_EVENT, { detail: { athleteId } }));
+}
+
 export function TraineeSetupBanner({ athleteId }: { athleteId: string }) {
   const { data, mutate } = useApi<Setup>(`/api/academy/trainee-setup?athleteId=${encodeURIComponent(athleteId)}`, { shouldRetryOnError: false });
   const [open, setOpen] = useState(false);
@@ -47,6 +57,11 @@ export function TraineeSetupBanner({ athleteId }: { athleteId: string }) {
   useEffect(() => {
     if (data && new URLSearchParams(window.location.search).get('setup') === '1') setOpen(true);
   }, [data]);
+  useEffect(() => {
+    const on = (e: Event) => { if ((e as CustomEvent<{ athleteId?: string }>).detail?.athleteId === athleteId) setOpen(true); };
+    window.addEventListener(OPEN_TRAINEE_SETUP_EVENT, on);
+    return () => window.removeEventListener(OPEN_TRAINEE_SETUP_EVENT, on);
+  }, [athleteId]);
   if (!data || !Array.isArray(data.missing)) return null;
   const left = data.missing.length;
   return (

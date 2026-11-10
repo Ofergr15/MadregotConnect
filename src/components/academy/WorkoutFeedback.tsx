@@ -91,6 +91,8 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<SavedFeedback | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Saved but not in the conversation yet (chat service down) — the route says so (E2E F11). */
+  const [notice, setNotice] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   // What the data already says, pre-selected. This is the minute the screen saves:
@@ -161,6 +163,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
     if (problems.length || saving) return;
     setSaving(true);
     setError(null);
+    setNotice(null);
     try {
       const res = await fetch('/api/academy/feedback', {
         method: 'POST',
@@ -175,6 +178,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'שמירת הפידבק נכשלה'); return; }
       setSaved(data.feedback);
+      setNotice(data.delivered === false ? (data.message || 'המשוב נשמר, אבל עוד לא הגיע לשיחה.') : null);
     } catch {
       setError('שמירת הפידבק נכשלה');
     } finally {
@@ -327,6 +331,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
           </div>
 
           {error && <p className="text-[11px] text-accent-red">{error}</p>}
+          {notice && <p className="rounded-xl bg-[#FDF0E2] px-3 py-2 text-[12.5px] font-bold text-[#8A4308]">{notice}</p>}
           {problems.length > 0 && <p className="text-[11px] text-ink-400">{problems[0].message}</p>}
 
           <div className="flex items-center gap-2">

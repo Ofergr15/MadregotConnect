@@ -331,6 +331,12 @@ export function projectBandsToBins(bands: PlannedBand[], binMeters: number[]): (
 
 export interface EffortRequirement {
   label: string;
+  /**
+   * The planned step type this requirement came from. A warmup/cooldown with an
+   * easy band IS checked here (it is part of the session), but it is never "the
+   * reps": anything that reads a requirement as the work must skip these (F10).
+   */
+  stepType?: WorkoutStep['type'];
   /** Target length of one rep in meters (time-based reps converted via target pace). */
   distanceM: number;
   /** Set when the plan wrote this rep as a duration. */
@@ -449,6 +455,7 @@ export function effortRequirements(planned: PlannedSegment[]): EffortRequirement
     }
     const requirement: EffortRequirement = {
       label: seg.label,
+      stepType: seg.type,
       distanceM: meters,
       ...(timed ? { durationSec: seg.durationSec! } : {}),
       matchBy: timed ? 'duration' : 'distance',
@@ -613,6 +620,30 @@ export interface MatchOptions {
   hrAnchorBpm?: number | null;
 }
 
+const isRestType = (t: string) => t === 'rest' || t === 'recovery';
+
+/**
+ * Positional lap index per planned step, or null when the laps can't be aligned.
+ * Exact count → identity. One/more laps short → skip only rest steps that close a
+ * repeat block (next step is a different kind than the step before the rest, or
+ * the plan ends), and only if that accounts for the gap exactly.
+ */
+function alignLaps(planned: PlannedSegment[], laps: Lap[]): number[] | null {
+  if (planned.length === 0) return null;
+  if (laps.length === planned.length) return planned.map((_, i) => i);
+  if (laps.length === 0 || laps.length > planned.length) return null;
+  const skip = planned.map((p, i) => {
+    if (!isRestType(p.type) || i === 0) return false;
+    const prev = planned[i - 1];
+    const next = planned[i + 1];
+    return !next || next.type !== prev.type;
+  });
+  const skipped = skip.filter(Boolean).length;
+  if (planned.length - skipped !== laps.length) return null;
+  let li = 0;
+  return planned.map((_, i) => (skip[i] ? -1 : li++));
+}
+
 export function matchLapsToSteps(
   planned: PlannedSegment[],
   laps: Lap[],
@@ -624,10 +655,17 @@ export function matchLapsToSteps(
   const paceSec = opts.paceSec ?? DEFAULT_TOLERANCES.paceSec;
   const hrBpm = opts.hrBpm ?? DEFAULT_HR_TOLERANCE_BPM;
 
-  const aligned = laps.length === planned.length && planned.length > 0;
+  // Which lap ran which planned step (-1 = none). Exact count lines up 1:1. A watch
+  // running a repeat block does not record the rest after the LAST rep — it goes
+  // straight to the next step — so 6×(800 + rest) between a warmup and cooldown is
+  // 13 laps against 14 steps (F10). When dropping exactly those block-closing
+  // rests makes the counts equal, align with them unmatched (shown, never scored),
+  // rather than giving up on the whole session. Anything else still refuses to guess.
+  const lapFor = alignLaps(planned, laps);
+  const aligned = lapFor != null;
 
   const segments: SegmentVerdict[] = planned.map((p, i) => {
-    const lap = aligned ? laps[i] : undefined;
+    const lap = lapFor && lapFor[i] >= 0 ? laps[lapFor[i]] : undefined;
     const actualPace = lap ? lapPace(lap) : null;
     const actualHr = lap?.averageHR ?? null;
     const hrBand = resolveHrBand(p.hrTarget, opts.hrAnchorBpm);
@@ -637,9 +675,9 @@ export function matchLapsToSteps(
     // makes the step right or wrong.
     let status: PaceStatus = 'unknown';
     let hrUngradedReason: SegmentVerdict['hrUngradedReason'];
-    if (aligned && p.metric === 'pace') {
+    if (lap && p.metric === 'pace') {
       status = assessPace(actualPace, p.paceMin, p.paceMax, paceSec);
-    } else if (aligned && p.metric === 'hr') {
+    } else if (lap && p.metric === 'hr') {
       if (!hrBand) hrUngradedReason = 'no_anchor';
       else if (actualHr == null) hrUngradedReason = 'no_hr_data';
       else status = assessHr(actualHr, hrBand.min, hrBand.max, hrBpm);

@@ -1,3 +1,4 @@
+import { EXISTING_SOURCE } from '@/lib/academy/funnel';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
@@ -80,7 +81,18 @@ export async function GET(request: Request) {
   ]);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const row = a as { name: string | null; academy_intake: Record<string, unknown> | null; academy_band_id: string | null };
-  const candidateId = (card as { id: string } | null)?.id ?? null;
+  let candidateId = (card as { id: string } | null)?.id ?? null;
+  // A trainee who joined before the candidate funnel has no card, and the characterization
+  // (goal, days, km, limits) is keyed on one — so the coach's form could not save it ("אין
+  // למתאמן כרטיס במשפך", academy E2E F4). Give them the same 'existing' card the trainee's own
+  // form (characterization/self) and the manager's add (manage-server) already create.
+  if (!candidateId) {
+    const ins = await db.from('academy_candidates')
+      .insert({ name: row.name || '—', source: EXISTING_SOURCE, athlete_id: athleteId, accepted_at: new Date().toISOString() })
+      .select('id').single();
+    if (!ins.error) candidateId = (ins.data as { id: string }).id;
+    else console.warn('[academy/trainee-setup] existing card not created:', ins.error.message);
+  }
   let goalType: string | null = null;
   let availableDays: number[] = [];
   if (candidateId) {

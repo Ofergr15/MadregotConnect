@@ -24,7 +24,7 @@ export function workPaceOf(
       max: (reps[0].plannedPaceMax ?? reps[0].plannedPaceMin) as number,
     };
   }
-  const requirement = (efforts?.requirements ?? []).find((q) => q.verifiable && q.paces.length > 0);
+  const requirement = (efforts?.requirements ?? []).find((q) => q.verifiable && q.paces.length > 0 && q.stepType !== 'warmup' && q.stepType !== 'cooldown');
   if (!requirement) return null;
   const mean = requirement.paces.reduce((sum, p) => sum + p, 0) / requirement.paces.length;
   return { actual: Math.round(mean), min: requirement.paceMin, max: requirement.paceMax };

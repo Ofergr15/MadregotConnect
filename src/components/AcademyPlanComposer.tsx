@@ -101,8 +101,15 @@ function bookSummary(entry: Pick<LibraryEntry, 'steps'>): string {
 }
 
 function stepSummary(step: WorkoutStep): string {
+  // A repeat carries its length in its children ("6 × 800 מ׳ @ 4:45-4:57"); summarising the
+  // container itself printed "6× 0.0 ק״מ" with no pace (academy E2E F5).
+  if (step.repeatCount && step.repeatSteps?.length) {
+    const work = step.repeatSteps.find((c) => c.type !== 'rest' && c.type !== 'recovery') ?? step.repeatSteps[0];
+    return `${step.repeatCount}× ${stepSummary({ ...work, repeatCount: undefined, repeatSteps: undefined })}`;
+  }
+  const m = step.durationValue || 0;
   const dur = step.durationType === 'distance'
-    ? `${((step.durationValue || 0) / 1000).toFixed(1)} ק"מ`
+    ? (m > 0 && m < 1000 ? `${Math.round(m)} מ׳` : `${(m / 1000).toFixed(1)} ק"מ`)
     : step.durationType === 'time'
       ? `${Math.round((step.durationValue || 0) / 60)} דק'`
       : 'הקפה';

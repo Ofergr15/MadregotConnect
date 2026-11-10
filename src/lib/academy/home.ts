@@ -391,7 +391,7 @@ export function buildWaiting(input: WaitingInput): WaitingItem[] {
   };
   group('no_plan', tr.filter((t) => t.hasPersonalPlan === false),
     // "Personal": the club week some of them run is a plan too, and "השבוע באקדמיה" counts it.
-    (n) => `${n} · אין תוכנית אישית`, (c) => `${c} בלי תוכנית אישית לשבוע`, 'המאמן עוד לא כתב את השבוע', 'לפתוח');
+    (n) => `${n} · אין תוכנית אישית`, (c) => `${c} בלי תוכנית אישית לשבוע`, 'עוד לא נכתב שבוע אישי', 'לפתוח');
   const quiet = tr.filter((t) => { const h = hoursSince(t.lastSeenAt, now); return h !== null && h >= QUIET_DAYS * 24; });
   group('quiet', quiet,
     // Short enough for 390px next to the age chip, which already says how long.

@@ -56,9 +56,17 @@ export function TraineeHeader({ athleteId }: { athleteId: string }) {
               {journey?.monthsWithUs != null && <span className="rounded-full bg-page/60 px-2.5 py-0.5 text-ink-700">{t('months', { n: journey.monthsWithUs })}</span>}
             </div>
             {data.bandMeaning && <p className="mt-1 truncate text-xs text-ink-500">{data.bandMeaning}</p>}
-            <p className={cn('mt-1.5 flex items-center gap-1 text-xs', athlete.hasWatch ? 'text-ink-500' : 'text-accent-red-ink font-semibold')}>
-              <Watch className="h-3.5 w-3.5" />{athlete.hasWatch ? t('watchOn') : t('watchOff')}
-            </p>
+            {(() => {
+              // Workouts reach a watch through Garmin only. Strava alone reads the runs but the
+              // week can't be sent anywhere — say so, rather than "connected" (E2E F7).
+              const garmin = athlete.hasGarmin ?? athlete.hasWatch;
+              const stravaOnly = !garmin && athlete.hasWatch;
+              return (
+                <p className={cn('mt-1.5 flex items-center gap-1 text-xs', garmin ? 'text-ink-500' : 'text-accent-red-ink font-semibold')}>
+                  <Watch className="h-3.5 w-3.5" />{garmin ? t('watchOn') : stravaOnly ? t('watchStravaOnly') : t('watchOff')}
+                </p>
+              );
+            })()}
           </div>
         </div>
         <div className="mt-3 flex gap-2">

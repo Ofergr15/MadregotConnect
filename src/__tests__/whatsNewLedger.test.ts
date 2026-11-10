@@ -167,8 +167,9 @@ describe('the sheet component', () => {
     expect(sheet).toMatch(/\{ ready \}: \{ ready: boolean \}/);
     expect(sheet).toMatch(/if \(!ready \|\| !all \|\| entries\) return;/);
     const feed = read('app/(app)/feed/page.tsx');
-    // …and never for the required setup's members (everything is new to them).
-    expect(feed).toMatch(/<WhatsNewAutoSheet ready=\{!loading && !error && items\.length > 0 && setupCohort === false\} \/>/);
+    // …and never for the required setup's members (everything is new to them), nor for an
+    // academy-only trainee — the tour is the club's (academy E2E F8).
+    expect(feed).toMatch(/<WhatsNewAutoSheet ready=\{!loading && !error && items\.length > 0 && setupCohort === false && meAcademy\?\.academyOnly === false\} \/>/);
   });
 
   it('spends the slugs when it opens, not when it closes', () => {

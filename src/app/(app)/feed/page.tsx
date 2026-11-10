@@ -212,6 +212,7 @@ export default function FeedPage() {
   const [photosItem, setPhotosItem] = useState<FeedItem | null>(null);
   // "נעוץ בראש הפיד" (160): the club's pinned posts sit above the list and out of it.
   const { data: pinnedData } = useApi<{ items: Array<FeedItem & { pinnedUntil: string }> }>('/api/feed/pinned');
+  const { data: meAcademy } = useApi<{ academyOnly?: boolean }>('/api/auth/me');
   const pinned = useMemo(() => pinnedData?.items ?? [], [pinnedData]);
   const pinnedKey = pinned.map((p) => p.id).join(',');
   useEffect(() => {
@@ -640,7 +641,9 @@ export default function FeedPage() {
           lib/whats-new/ledger.ts. */}
       {/* Not for the required setup's members: for somebody who just joined, all of it is
           new, and the sheet opened on top of the setup itself (sign-up E2E, 2026-10-27). */}
-      <WhatsNewAutoSheet ready={!loading && !error && items.length > 0 && setupCohort === false} />
+      {/* The club's release tour is about the club: its feed, packs and stories. An academy-only
+          trainee lands here without any of that, so it is not theirs (academy E2E F8). */}
+      <WhatsNewAutoSheet ready={!loading && !error && items.length > 0 && setupCohort === false && meAcademy?.academyOnly === false} />
       <OnboardingTestReset />
 
       {/* ═══ WHAT'S NEXT ═══

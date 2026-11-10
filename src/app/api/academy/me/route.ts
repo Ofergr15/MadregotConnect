@@ -332,6 +332,8 @@ export async function GET(request: Request) {
       test: testStateOf((((tests as { data: any[] | null }).data) || []) as TestRow[], today),
       athlete: {
         athleteId: me.id, name: me.name, avatarUrl: me.avatar_url || null, hasWatch,
+        // A workout reaches a watch through Garmin only; Strava reads runs but cannot receive one (E2E F7).
+        hasGarmin: !!(watch.data as { garmin_auth?: unknown } | null)?.garmin_auth,
         gender: me.gender === 'female' || me.gender === 'male' ? me.gender : null,
         ...(phone !== undefined ? { phone } : {}),
       },

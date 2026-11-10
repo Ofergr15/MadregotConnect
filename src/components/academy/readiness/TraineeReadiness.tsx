@@ -19,6 +19,9 @@ import { CARD, Tag, dm } from '@/components/trainee/ui';
 import { missingText } from '@/components/trainee/BodyChips';
 import { GateSentence, M, MB, useReasonsText } from './shared';
 
+/** feel is stored 0..4 — the form's faces (lib/feedback-scales.ts). */
+const FACES = ['😣', '😕', '😐', '🙂', '😄'];
+
 // ── מתאמן אחד (trainee-experience-v2 C2, TP Coach: PMC + future) ────────────────────────
 //
 // "Does the week I planned suit them": the trainee's own three numbers (the progress
@@ -144,7 +147,8 @@ function FeelRow({ data }: { data: ReadinessDetailResponse }) {
   const bad = f.pain || (f.face != null && f.face <= 1);
   return (
     <div className="flex min-h-[56px] items-center gap-[11px] border-b border-[#EFEFF4] px-3.5">
-      <span aria-hidden className="w-6 shrink-0 text-center text-[19px]">🙂</span>
+      {/* The face they chose, not a fixed smile next to "חלש" (E2E m6). */}
+      <span aria-hidden className="w-6 shrink-0 text-center text-[19px]">{f.face != null ? (FACES[Math.round(f.face)] ?? '🙂') : '🙂'}</span>
       <span className="min-w-0 flex-1 py-[9px]">
         {f.face != null ? (
           <>

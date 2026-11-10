@@ -541,6 +541,7 @@ export function AcademyShell({
         )}
         {section === 'overview' ? (
           <AcademyHome
+            onBandsChanged={reload}
             data={members}
             isLoading={membersLoading}
             prev={prev}

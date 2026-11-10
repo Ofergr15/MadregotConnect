@@ -183,7 +183,9 @@ export function buildWorkoutSheet(input: {
       const reps = (verdict?.reps ?? []).filter((r) => r.graded && (r.type === 'interval' || r.type === 'active') && r.actualPace != null);
       const paces = reps.length
         ? reps.map((r) => r.actualPace as number)
-        : ((detail.efforts?.requirements ?? []).find((q) => q.verifiable && q.paces.length)?.paces ?? []);
+        // A warmup/cooldown requirement is checked, but it is not the reps (F10).
+        : ((detail.efforts?.requirements ?? []).find((q) => q.verifiable && q.paces.length
+          && q.stepType !== 'warmup' && q.stepType !== 'cooldown')?.paces ?? []);
       points = paces.map((p, i) => ({ label: String(i + 1), pace: Math.round(p), kind: judge(p) }));
     } else {
       const laps = detail.laps.filter((l) => l.distance >= MIN_KM_LAP_M);

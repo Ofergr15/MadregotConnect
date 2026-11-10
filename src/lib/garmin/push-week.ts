@@ -301,6 +301,27 @@ export async function pushWeekToAthlete({
       }
     }
 
+    // An earlier attempt at this plan that failed left a week-level summary row (workout_data
+    // {}, no Garmin id, dated the week's start — the catch below). It carries nothing the
+    // cleanup needs, and once a push of the same plan has gone through it is not true any
+    // more: left behind, it kept "נשלחה, לא הגיעה לשעון" and the watches screen's "לשלוח שוב"
+    // on a trainee whose week IS on the watch (academy E2E F6, 2026-11-10).
+    if (planId) {
+      try {
+        await supabase
+          .from('workout_deliveries')
+          .delete()
+          .eq('plan_id', planId)
+          .eq('athlete_id', athlete.id)
+          .eq('status', 'failed')
+          .is('garmin_workout_id', null)
+          .eq('workout_date', weekStartDate)
+          .eq('workout_data', '{}');
+      } catch {
+        // best-effort: a stale failure line is a display problem, never a delivery one
+      }
+    }
+
     // The copies this push replaced are gone from the watch (deleted above), so their rows
     // go too: left at 'success' they were a second "on the watch" for the same plan and day
     // — a coach's corrected resend counted twice (2026-10-19, edit-and-resend). A failed
