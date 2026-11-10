@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CalendarClock, ChevronDown } from 'lucide-react';
 import { formatPace } from '@/components/activity/format';
 import { apiHeaders, useApi } from '@/lib/api';
+import { TESTS_CHANGED_EVENT } from './TestBoard';
 import { cn } from '@/lib/utils';
 import { initialsOf } from './types';
 import { RecordTest } from './RecordTest';
@@ -423,7 +424,7 @@ export function TestRegistry({
         onOpenChange={setRoundOpen}
         candidates={registry.rows}
         protocol={protocol}
-        onDone={() => { void load(); }}
+        onDone={() => { void load(); window.dispatchEvent(new Event(TESTS_CHANGED_EVENT)); }}
       />
     </div>
   );

@@ -28,6 +28,7 @@ const first = (name: string | null | undefined) => (name || '').trim().split(/\s
 export const LOOP_KINDS = {
   testInvite: 'academy_test_invite',
   testConfirmed: 'academy_test_confirmed',
+  testOtherTime: 'academy_test_other_time',
   testSubmitted: 'academy_test_submitted',
   testApproved: 'academy_test_approved',
   testAnalysis: 'academy_test_analysis',
@@ -54,6 +55,14 @@ export function testConfirmedCopy(locale: NotificationLocale, p: { trainee?: str
   return locale === 'he'
     ? { title: `🎯 ${who} אישר/ה מועד לטסט`, body: slot ? `${slot}. לחיצה פותחת את הטסטים.` : 'לחיצה פותחת את הטסטים.' }
     : { title: `🎯 ${who} confirmed a test time`, body: slot ? `${slot}. Tap to open the tests.` : 'Tap to open the tests.' };
+}
+
+export function testOtherTimeCopy(locale: NotificationLocale, p: { trainee?: string | null; note?: string | null }): PushCopy {
+  const who = (p.trainee || '').trim() || (locale === 'he' ? 'מתאמן' : 'A trainee');
+  const note = (p.note || '').trim().slice(0, 120);
+  return locale === 'he'
+    ? { title: `🎯 ${who} ביקש/ה זמן אחר לטסט`, body: note ? `״${note}״ · לחיצה פותחת את הטסטים.` : 'אף אחד מהזמנים לא מסתדר. לחיצה פותחת את הטסטים.' }
+    : { title: `🎯 ${who} asked for another test time`, body: note ? `"${note}" · Tap to open the tests.` : 'None of the times work. Tap to open the tests.' };
 }
 
 export function testSubmittedCopy(locale: NotificationLocale, p: { trainee?: string | null }): PushCopy {
@@ -249,6 +258,18 @@ export function notifyTestConfirmed(supabase: Db, p: { athleteId: string; slot?:
       copy: (l) => testConfirmedCopy(l, { trainee, slot: p.slot ?? null }),
     }).catch(() => {})));
   })(), 'test confirmed');
+}
+
+/** The trainee answered "none of these times work" — until now nobody heard it (academy E2E). */
+export function notifyTestOtherTime(supabase: Db, p: { athleteId: string; note?: string | null }): Promise<void> {
+  return quiet((async () => {
+    const [to, trainee] = await Promise.all([coachesOrManagers(supabase, p.athleteId), nameOf(supabase, p.athleteId)]);
+    await Promise.all(to.map((id) => notifyAthlete({
+      athleteId: id, kind: LOOP_KINDS.testOtherTime, actorAthleteId: p.athleteId,
+      url: academyTestUrl({ recipientIsStaff: true }), tag: `academy-test-${p.athleteId}`, category: 'coach',
+      copy: (l) => testOtherTimeCopy(l, { trainee, note: p.note ?? null }),
+    }).catch(() => {})));
+  })(), 'test other time');
 }
 
 export function notifyTestSubmitted(supabase: Db, p: { athleteId: string }): Promise<void> {

@@ -1,6 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+
+/** Fired when invitations change elsewhere on the tests screen (TestRoundSheet). */
+export const TESTS_CHANGED_EVENT = 'mc:academy-tests-changed';
 import { CalendarCheck2, CalendarPlus, Inbox, MessageSquareQuote } from 'lucide-react';
 import { apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -346,6 +349,14 @@ export function TestBoard({ onSelectAthlete }: { onSelectAthlete?: (athleteId: s
       setState('error');
     }
   }, []);
+
+  // A round sent from the registry beside this board changes who is invited; the board holds
+  // its own data, so it listens rather than staying stale until a reload (academy E2E).
+  useEffect(() => {
+    const on = () => { void load(); };
+    window.addEventListener(TESTS_CHANGED_EVENT, on);
+    return () => window.removeEventListener(TESTS_CHANGED_EVENT, on);
+  }, [load]);
 
   useEffect(() => {
     setState('loading');

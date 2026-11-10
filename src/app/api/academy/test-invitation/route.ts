@@ -14,7 +14,7 @@ import {
 import type { TestInvitation } from '@/lib/academy/testInvite';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
 import { coachIdsOf } from '@/lib/academy/trainee-coaches';
-import { notifyTestConfirmed, notifyTestInvited } from '@/lib/academy/loop-notify';
+import { notifyTestConfirmed, notifyTestInvited, notifyTestOtherTime } from '@/lib/academy/loop-notify';
 
 export const dynamic = 'force-dynamic';
 
@@ -455,6 +455,8 @@ export async function PATCH(request: Request) {
     const bySelf = invite.athleteId === caller.athleteId;
     if (action === 'confirm' && bySelf) {
       await notifyTestConfirmed(supabase, { athleteId: invite.athleteId, slot: slotText(String(patch.confirmed_slot)) });
+    } else if (action === 'other' && bySelf) {
+      await notifyTestOtherTime(supabase, { athleteId: invite.athleteId, note: (patch as { requested_note?: string | null }).requested_note ?? null });
     } else if (action === 'offer' && !bySelf) {
       await notifyTestInvited(supabase, { athleteId: invite.athleteId, actorId: caller.athleteId || null });
     }

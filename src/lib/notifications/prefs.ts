@@ -146,6 +146,7 @@ export const KIND_CATEGORY: Record<string, Category> = {
   academy_missed_week: 'program',
   // To the coach: the trainee confirmed a test slot / submitted a result.
   academy_test_confirmed: 'coach',
+  academy_test_other_time: 'coach',
   academy_test_submitted: 'coach',
   // Club-wide announcements and surveys.
   custom: 'news',
