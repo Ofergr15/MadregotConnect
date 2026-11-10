@@ -204,7 +204,9 @@ export type WaitingKind =
   // and a pace-up suggestion the readiness gate holds (lib/academy/readiness-board.ts).
   | 'pace' | 'missed' | 'copy' | 'paused'
   // The trainee checks (academy-dash.html): no personal week yet, quiet in the app, no test.
-  | 'no_plan' | 'quiet' | 'no_test';
+  | 'no_plan' | 'quiet' | 'no_test'
+  // A run reported with pain (the readiness board's highlight): a person, so near the top.
+  | 'pain';
 
 export interface WaitingTarget {
   section: AcademySection;
@@ -235,7 +237,7 @@ export interface WaitingItem {
  * the paperwork is. Inside a band, the oldest first.
  */
 const BAND: Record<WaitingKind, number> = {
-  threads: 6, form: 5, dispatch: 4,
+  threads: 6, pain: 5.5, form: 5, dispatch: 4,
   // A decision about a trainee's training, below a watch that missed a workout and above
   // paperwork — in the mockup's order: the pace, the missed week, then the empty week.
   // A held suggestion sits right under the live ones: there is nothing to approve, but the
@@ -270,6 +272,8 @@ export interface WaitingInput {
    * "could not read" and raises nothing.
    */
   trainees?: Array<{ athleteId: string; name: string; hasPersonalPlan?: boolean; hasTest?: boolean; lastSeenAt?: string | null }>;
+  /** Pain reported in the last days (readiness highlight 'pain'): one row per trainee (E2E m4). */
+  pain?: Array<{ athleteId: string; name: string; when: 'today' | 'yesterday' | 'days'; days: number }>;
 }
 
 /** A trainee is "quiet" after this many days without opening the app. */
@@ -370,6 +374,18 @@ export function buildWaiting(input: WaitingInput): WaitingItem[] {
       ageHours: null,
       action: 'לאשר',
       target: { section: 'results' },
+    });
+  }
+
+  for (const p of input.pain ?? []) {
+    const first = p.name.trim().split(/\s+/)[0] || p.name;
+    out.push({
+      key: `pain:${p.athleteId}`, kind: 'pain',
+      title: `${first} · דיווח על כאב`,
+      sub: p.when === 'today' ? 'היום, אחרי ריצה' : p.when === 'yesterday' ? 'אתמול, אחרי ריצה' : `לפני ${p.days} ימים, אחרי ריצה`,
+      ageHours: p.when === 'today' ? 0 : p.days * 24,
+      action: 'לפתוח',
+      target: { section: 'members', athleteId: p.athleteId },
     });
   }
 

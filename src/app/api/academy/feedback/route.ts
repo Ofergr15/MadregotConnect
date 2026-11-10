@@ -88,7 +88,34 @@ export async function GET(request: Request) {
     }
 
     const rows = (data ?? []).map((r: any) => ({ ...toApi(r), mentorName: names.get(r.author_id) ?? null }));
-    return NextResponse.json(date ? { feedback: rows[0] ?? null } : { feedback: rows });
+    if (!date) return NextResponse.json({ feedback: rows });
+
+    // What the trainee said about that day's run — feel, 1–10, pain, comment — so the coach
+    // writes the review with it in view rather than from memory (academy E2E S6.2 / m5).
+    // Best-effort: a missing report is just no block on the form.
+    let traineeReport: { feel: number | null; difficulty: number | null; pain: boolean; painDetail: string | null; comment: string | null } | null = null;
+    try {
+      const { data: acts } = await supabase
+        .from('athlete_activities')
+        .select('garmin_activity_id, start_time')
+        .eq('athlete_id', athleteId)
+        .gte('start_time', `${date}T00:00:00+02:00`)
+        .lt('start_time', `${date}T23:59:59+02:00`)
+        .not('garmin_activity_id', 'is', null);
+      const ids = (acts ?? []).map((a: { garmin_activity_id: number | null }) => a.garmin_activity_id).filter((x): x is number => x != null);
+      if (ids.length) {
+        const { data: fb } = await supabase
+          .from('workout_feedback')
+          .select('feel, difficulty, pain, pain_detail, comment, created_at')
+          .eq('athlete_id', athleteId)
+          .in('garmin_activity_id', ids)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        const f = (fb ?? [])[0] as { feel: number | null; difficulty: number | null; pain: boolean | null; pain_detail: string | null; comment: string | null } | undefined;
+        if (f) traineeReport = { feel: f.feel, difficulty: f.difficulty, pain: !!f.pain, painDetail: f.pain_detail, comment: f.comment };
+      }
+    } catch { /* no block */ }
+    return NextResponse.json({ feedback: rows[0] ?? null, traineeReport });
   } catch (error: any) {
     console.error('Academy feedback GET error:', error);
     return NextResponse.json({ error: error.message || 'Failed to read feedback' }, { status: 500 });

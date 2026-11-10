@@ -6028,6 +6028,7 @@
     "pace_threshold": "Threshold",
     "pace_interval": "Intervals",
     "thresholdFromTest": "Threshold from the last test",
+    "thresholdFromBaseline": "Threshold from the coach's pace basis",
     "thresholdFromBand": "Threshold from the pack",
     "kmWeek": "km per week, average",
     "planDone": "of the plan done",

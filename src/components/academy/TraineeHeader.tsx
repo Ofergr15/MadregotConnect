@@ -127,7 +127,7 @@ export function TraineeHeader({ athleteId }: { athleteId: string }) {
         <div className="rounded-xl border border-page bg-card p-2.5">
           <b className="block text-lg font-black text-ink-700 tabular-nums">{paces ? <Num>{formatPace(paces.threshold)}</Num> : '–'}</b>
           <span className="text-2xs leading-snug text-ink-400">
-            {paces?.source === 'test' ? t('thresholdFromTest') : t('thresholdFromBand')}
+            {paces?.source === 'test' ? (data.test?.kind === 'baseline' ? t('thresholdFromBaseline') : t('thresholdFromTest')) : t('thresholdFromBand')}
             {data.test?.kind === 'ok' && <><br /><Num>{data.test.date.slice(8, 10)}.{data.test.date.slice(5, 7)}</Num></>}
           </span>
         </div>

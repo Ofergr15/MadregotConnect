@@ -377,7 +377,8 @@ export function AcademyShell({
     trainees: roster.filter((m) => m.approved).map((m) => ({
       athleteId: m.athleteId, name: m.name, hasPersonalPlan: m.hasPersonalPlan, hasTest: m.hasTest, lastSeenAt: m.lastSeenAt,
     })),
-  }), [now, awaiting, resendRows, manager, home, members, toolRows, roster]);
+    pain: (readiness?.rows ?? []).flatMap((r) => r.highlight?.kind === 'pain' ? [{ athleteId: r.athleteId, name: r.name, when: r.highlight.when, days: r.highlight.days }] : []),
+  }), [now, awaiting, resendRows, manager, home, members, toolRows, roster, readiness]);
 
   const suggestions = useMemo(() => buildSuggestions({
     members: roster, coaches, capacity, isManager: manager,

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { bandMeaning } from '@/lib/academy/bands';
 import { BandPaces } from './BandPaces';
 import {
-  ArrowLeftRight, CalendarX, ChevronLeft, ClipboardList, Copy, Gauge, MessageSquare, PauseCircle, Plus, Sparkles, Timer, Trophy, TrendingUp, UserPlus, Users, Watch,
+  ArrowLeftRight, CalendarX, ChevronLeft, ClipboardList, Copy, Gauge, MessageSquare, PauseCircle, Plus, Sparkles, Timer, Trophy, TrendingUp, UserPlus, Users, Watch, HeartPulse,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { COMPLIANCE_HEX } from '@/lib/academy/compliance';
@@ -467,6 +467,7 @@ const WAITING_ICON: Record<WaitingKind, { icon: React.ComponentType<{ className?
   no_plan: { icon: CalendarX, cls: 'bg-[#F1EAFE] text-[#7C3AED]' },
   quiet: { icon: Timer, cls: 'bg-[#FDF0E2] text-[#8A4308]' },
   no_test: { icon: Gauge, cls: 'bg-band-3/15 text-band-3-ink' },
+  pain: { icon: HeartPulse, cls: 'bg-accent-red/10 text-accent-red-ink' },
 };
 
 const TOOL_KINDS = new Set<WaitingKind>(['pace', 'missed', 'copy', 'paused']);

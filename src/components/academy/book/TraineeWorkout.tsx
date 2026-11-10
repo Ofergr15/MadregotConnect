@@ -1,5 +1,6 @@
 'use client';
 
+import { TraineeReport } from '@/components/academy/WorkoutFeedback';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -120,6 +121,7 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
           footer={isCoach || !data ? askCoach : <PrimaryButton onClick={() => setFeeling(true)}>{tw('feelButton')}</PrimaryButton>}
         >
           <DoneTabs value={doneTab} activityId={data?.activity?.id ?? workout.activityId} onChange={setDoneTab} returnDate={workout.date} />
+          {isCoach && <TraineeReport athleteId={board.athlete.id} date={workout.date} />}
           {data ? (doneTab === 'laps' ? <DoneLapsTable data={data} /> : <WorkoutDone data={data} onLoad={() => setLoadOpen(true)} />) : (
             <p className={cn(CARD, 'px-4 py-6 text-center text-sm text-ink-400')}>{t('loading')}</p>
           )}

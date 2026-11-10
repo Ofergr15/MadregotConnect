@@ -6028,6 +6028,7 @@
     "pace_threshold": "סף",
     "pace_interval": "אינטרוולים",
     "thresholdFromTest": "סף מהטסט האחרון",
+    "thresholdFromBaseline": "סף מבסיס הקצב של המאמן",
     "thresholdFromBand": "סף לפי הדבוקה",
     "kmWeek": "ק״מ בשבוע, ממוצע",
     "planDone": "מהתוכנית בוצע",

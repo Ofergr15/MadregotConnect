@@ -23,6 +23,15 @@ import {
 } from '@/lib/academy/feedback';
 import type { SegmentReport, SegmentVerdict } from '@/lib/academy/segments';
 
+/** The segment engine labels in English ("Interval 800m"); this screen is Hebrew (E2E m7). */
+const STEP_HE: Record<string, string> = { Warmup: 'חימום', Cooldown: 'שחרור', Interval: 'חזרה', Run: 'ריצה', Rest: 'מנוחה', Recovery: 'התאוששות' };
+function heLabel(label: string): string {
+  return label
+    .replace(/^(Warmup|Cooldown|Interval|Run|Rest|Recovery)\b/, (w) => STEP_HE[w] ?? w)
+    .replace(/(\d+(?:\.\d+)?)km\b/g, '$1 ק״מ').replace(/(\d+)m\b/g, '$1 מ׳')
+    .replace(/(\d+)min\b/g, "$1 דק׳").replace(/(\d+)s\b/g, '$1 שנ׳');
+}
+
 // ── The mentor's weekly review, as one screen ───────────────────────────────
 //
 // The pain this replaces, in the coach's own description: open the plan, open the
@@ -94,6 +103,8 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
   /** Saved but not in the conversation yet (chat service down) — the route says so (E2E F11). */
   const [notice, setNotice] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  /** The trainee's own report on the run (feel · 1–10 · pain · words), shown before the coach writes (E2E S6.2). */
+  const [traineeReport, setTraineeReport] = useState<TraineeReportData | null>(null);
 
   // What the data already says, pre-selected. This is the minute the screen saves:
   // the mentor confirms or corrects "opened too fast and faded" instead of reading
@@ -111,6 +122,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
         );
         const data = await res.json();
         if (cancelled) return;
+        setTraineeReport(data.traineeReport ?? null);
         if (data.feedback) {
           const f = data.feedback as SavedFeedback;
           setSaved(f);
@@ -188,6 +200,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
 
   return (
     <div className="mt-2 space-y-3">
+      {traineeReport && <TraineeReportBlock report={traineeReport} />}
       {/* ── plan vs execution, commentable in place ── */}
       <div className="space-y-1">
         <div className="flex items-center gap-1.5 px-2.5 text-3xs font-semibold text-ink-400">
@@ -205,7 +218,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
             <div key={s.index}>
               <div className={cn('flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs',
                 gradable ? 'bg-page/50' : 'bg-page/20')}>
-                <span className="text-ink-400 flex-1 min-w-0 truncate" dir="auto">{s.label}</span>
+                <span className="text-ink-400 flex-1 min-w-0 truncate" dir="auto">{heLabel(s.label)}</span>
                 <span className="w-[68px] text-center text-ink-400 tabular-nums" dir="ltr">
                   {isHr ? hrBandLabel(s) : paceBandLabel(s.plannedPaceMin, s.plannedPaceMax)}
                 </span>
@@ -227,7 +240,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
                 <button
                   type="button"
                   onClick={() => setOpenLap(openLap === s.index ? null : s.index)}
-                  aria-label={`הערה על ${s.label}`}
+                  aria-label={`הערה על ${heLabel(s.label)}`}
                   // 36px box + a 4px pseudo-element halo = a 44px target, which is what iOS
                   // wants for the row's primary action. A bigger halo on a smaller box was
                   // the first attempt and it measured WORSE: the halos of adjacent rows
@@ -247,7 +260,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
                     onChange={e => setComment(s.index, e.target.value.slice(0, LAP_COMMENT_MAX))}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setOpenLap(null); }}
                     placeholder="הערה על המקטע הזה"
-                    aria-label={`הערה על ${s.label}`}
+                    aria-label={`הערה על ${heLabel(s.label)}`}
                     dir="auto"
                     // 16px, not the table's 12px: Safari on iOS ZOOMS the whole page when a
                     // field under 16px takes focus, so a mentor typing a lap comment gets the
@@ -457,4 +470,44 @@ function bandDelta(s: SegmentVerdict): number | null {
   if (s.actualPace < s.plannedPaceMin) return s.actualPace - s.plannedPaceMin;
   if (s.actualPace > s.plannedPaceMax) return s.actualPace - s.plannedPaceMax;
   return 0;
+}
+
+export type TraineeReportData = { feel: number | null; difficulty: number | null; pain: boolean; painDetail: string | null; comment: string | null };
+
+const FEEL_FACE = ['😣', '😕', '😐', '🙂', '😄'];
+const FEEL_WORD = ['חלש מאוד', 'חלש', 'רגיל', 'חזק', 'חזק מאוד'];
+
+/** "מה המתאמן דיווח": the trainee's own report on the run, for the coach (E2E S6.2 / m5). */
+export function TraineeReportBlock({ report }: { report: TraineeReportData }) {
+  const parts = [
+    report.feel != null ? `${FEEL_FACE[Math.round(report.feel)] ?? ''} ${FEEL_WORD[Math.round(report.feel)] ?? ''}`.trim() : null,
+    report.difficulty != null ? `קושי ${report.difficulty}/10` : null,
+    report.pain ? `🩹 כאב${report.painDetail ? `: ${report.painDetail}` : ''}` : null,
+  ].filter(Boolean);
+  if (!parts.length && !report.comment) return null;
+  return (
+    <div className={cn('rounded-xl px-3 py-2.5 text-[13px] leading-snug', report.pain ? 'bg-accent-red/10 text-accent-red-ink' : 'bg-page text-ink-700')} dir="rtl">
+      <b className="block text-[11px] font-bold text-ink-400">מה המתאמן דיווח</b>
+      <span>{parts.join(' · ')}</span>
+      {report.comment && <span className="mt-1 block text-ink-700" dir="auto">״{report.comment}״</span>}
+    </div>
+  );
+}
+
+/** The same report, fetched on its own — the coach's day view of a done workout. Staff only (the route refuses others → nothing). */
+export function TraineeReport({ athleteId, date }: { athleteId: string; date: string }) {
+  const [report, setReport] = useState<TraineeReportData | null>(null);
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/academy/feedback?athleteId=${encodeURIComponent(athleteId)}&date=${date}`, { headers: await apiHeaders() });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (live) setReport(data.traineeReport ?? null);
+      } catch { /* nothing to show */ }
+    })();
+    return () => { live = false; };
+  }, [athleteId, date]);
+  return report ? <TraineeReportBlock report={report} /> : null;
 }
