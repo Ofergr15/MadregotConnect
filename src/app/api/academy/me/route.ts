@@ -1,3 +1,4 @@
+import { mayCoach } from '@/lib/academy/pairing-server';
 import { NextResponse } from 'next/server';
 import { pricingRows } from '@/lib/academy/coach-baseline';
 import { createServerClient } from '@/lib/supabase/server';
@@ -140,6 +141,12 @@ export async function GET(request: Request) {
     // WhatsApp buttons. Staff can already read it (athletes/me is self-or-staff);
     // the trainee's own home never needs it.
     const viewerIsOther = caller.athleteId !== athleteId;
+    // …but within the academy a trainee is their own coaches' and the manager's — the same
+    // line week-board, trainee-setup and zones draw (mayCoach). Any staff account used to get
+    // the whole view, phone included, for a trainee who isn't theirs (academy E2E sweep).
+    if (viewerIsOther && !(await mayCoach(caller, athleteId))) {
+      return NextResponse.json({ error: 'Not your trainee' }, { status: 403 });
+    }
 
     // The PLAN week (Sunday) — what the ← → arrows step through and what the coach
     // published against. Never later than this week: there is nothing to grade yet.

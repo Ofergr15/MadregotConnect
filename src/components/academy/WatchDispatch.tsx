@@ -147,6 +147,18 @@ export function DispatchList({
       </div>
     </div>
   ) : null;
+  // A plan with nowhere to go: their week is saved, and no watch will ever get it — Strava
+  // reads runs but carries no workout. Not a dispatch row (nothing was pushed), so without
+  // this box the watches screen just left them out (academy E2E S9.5).
+  const noGarmin = (report.roster ?? []).filter(r => !r.hasGarmin && (r.planWorkouts ?? 0) > 0);
+  const noGarminBox = noGarmin.length > 0 ? (
+    <div className="rounded-card bg-card px-3.5 py-2.5">
+      <p className="text-xs font-bold text-ink-700">
+        {noGarmin.length === 1 ? 'מתאמן אחד בלי Garmin — התוכנית רק באפליקציה' : <><bdi dir="ltr">{noGarmin.length}</bdi> מתאמנים בלי Garmin — התוכנית רק באפליקציה</>}
+      </p>
+      <p className="mt-0.5 text-xs text-ink-500" dir="auto">{noGarmin.map(r => r.name).join(', ')}</p>
+    </div>
+  ) : null;
   // The two boxes below split `needsAttention` by whose problem it is: `broken` is
   // ours to fix by re-pushing, `blind` is the athlete's to fix by reconnecting.
   // Both come out of the same pre-ordered list, so the boxes and the table can
@@ -162,6 +174,7 @@ export function DispatchList({
       <div className="space-y-3" dir="rtl">
         <p className="py-6 text-center text-xs text-ink-400">לא נדחפו אימונים בשבוע הזה.</p>
         {missingBox}
+        {noGarminBox}
       </div>
     );
   }
@@ -234,6 +247,7 @@ export function DispatchList({
       )}
 
       {missingBox}
+      {noGarminBox}
 
       {blind.length > 0 && (
         // Its own box, in the setup-gap colour rather than the failure one. Said out

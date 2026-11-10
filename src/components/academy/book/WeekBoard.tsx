@@ -106,7 +106,9 @@ export function WeekBoard({ athleteId, initialWeek, openDate, onView, onClosed, 
   };
 
   if (!data) {
-    return <p className="py-10 text-center text-sm text-ink-400">{error ? t('error.load') : t('loading')}</p>;
+    // 403 is "not your trainee", not a glitch to retry (academy E2E sweep).
+    const forbidden = (error as { status?: number } | undefined)?.status === 403;
+    return <p className="py-10 text-center text-sm text-ink-400">{error ? (forbidden ? t('error.notYours') : t('error.load')) : t('loading')}</p>;
   }
 
   const weekStart = data.weekStart;
