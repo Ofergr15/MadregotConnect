@@ -1,3 +1,5 @@
+import { israelDayOf } from '@/lib/academy/home';
+import { shiftDate } from '@/lib/academy/load';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
@@ -99,10 +101,14 @@ export async function GET(request: Request) {
         .from('athlete_activities')
         .select('garmin_activity_id, start_time')
         .eq('athlete_id', athleteId)
-        .gte('start_time', `${date}T00:00:00+02:00`)
-        .lt('start_time', `${date}T23:59:59+02:00`)
+        // A day wide on both sides, then the Israel calendar day decides: a fixed +02:00
+        // was an hour off all summer (+03:00).
+        .gte('start_time', `${shiftDate(date, -1)}T12:00:00Z`)
+        .lt('start_time', `${shiftDate(date, 1)}T12:00:00Z`)
         .not('garmin_activity_id', 'is', null);
-      const ids = (acts ?? []).map((a: { garmin_activity_id: number | null }) => a.garmin_activity_id).filter((x): x is number => x != null);
+      const ids = ((acts ?? []) as Array<{ garmin_activity_id: number | null; start_time: string }>)
+        .filter((a) => israelDayOf(a.start_time) === date)
+        .map((a) => a.garmin_activity_id).filter((x): x is number => x != null);
       if (ids.length) {
         const { data: fb } = await supabase
           .from('workout_feedback')

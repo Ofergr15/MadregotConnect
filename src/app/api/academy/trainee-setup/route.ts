@@ -91,7 +91,12 @@ export async function GET(request: Request) {
       .insert({ name: row.name || '—', source: EXISTING_SOURCE, athlete_id: athleteId, accepted_at: new Date().toISOString() })
       .select('id').single();
     if (!ins.error) candidateId = (ins.data as { id: string }).id;
-    else console.warn('[academy/trainee-setup] existing card not created:', ins.error.message);
+    else {
+      // Two opens at once: the other one's insert won the unique (athlete_id) index — use its card.
+      const { data: again } = await db.from('academy_candidates').select('id').eq('athlete_id', athleteId).limit(1).maybeSingle();
+      candidateId = (again as { id: string } | null)?.id ?? null;
+      if (!candidateId) console.warn('[academy/trainee-setup] existing card not created:', ins.error.message);
+    }
   }
   let goalType: string | null = null;
   let availableDays: number[] = [];
