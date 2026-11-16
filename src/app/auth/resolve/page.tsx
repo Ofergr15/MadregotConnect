@@ -150,7 +150,7 @@ export default function AuthResolvePage() {
         }
 
         authLog(debugId, 'resolve:role_start');
-        await resolveRole(session.user, debugId, authLog);
+        await resolveRole(session.user, session.access_token, debugId, authLog);
       } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
         authLog(debugId, 'resolve:exception', {
@@ -176,6 +176,7 @@ export default function AuthResolvePage() {
 
   async function resolveRole(
     user: { email?: string | null; user_metadata?: Record<string, unknown> },
+    accessToken: string,
     debugId: string,
     authLog: (
       debugId: string,
@@ -195,7 +196,8 @@ export default function AuthResolvePage() {
     const name = (meta.full_name || meta.name || '') as string;
     const res = await fetch('/api/auth/resolve-role', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // The route answers for the email inside this token, not the body's.
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({ email, name, avatarUrl }),
     });
 

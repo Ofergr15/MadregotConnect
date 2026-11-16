@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
 import { pickAthleteRow, stravaIdFromAuthEmail } from '@/lib/auth/athlete-identity';
 import { isRemoved } from '@/lib/admin/entry-queue';
@@ -35,16 +36,40 @@ function publicProfile(row: AthleteRow) {
   };
 }
 
+/**
+ * The email of the verified Supabase session on this request, or null.
+ *
+ * This route used to take the email from the request body with no session at
+ * all, so anyone could POST any address and get back that member's id, name,
+ * group, role and Garmin/Strava status — and, as side effects, create a member
+ * row for it or reactivate a non-active one. Not requireSession: that 403s a
+ * session with no athletes row, and creating that row is this route's job.
+ */
+async function verifiedEmail(req: NextRequest): Promise<string | null> {
+  const header = req.headers.get('authorization') || '';
+  if (!/^bearer\s+/i.test(header)) return null;
+  const token = header.replace(/^bearer\s+/i, '').trim();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!token || !url || !anonKey) return null;
+  const { data, error } = await createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  }).auth.getUser(token);
+  if (error || !data.user?.email) return null;
+  return data.user.email.toLowerCase().trim();
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { email, name, avatarUrl } = await req.json();
-
-    if (!email) {
-      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+    const sessionEmail = await verifiedEmail(req);
+    if (!sessionEmail) {
+      return NextResponse.json({ error: 'Invalid or missing session' }, { status: 401 });
     }
+    // The body's email is ignored: identity comes from the token only.
+    const { name, avatarUrl } = await req.json();
 
     const supabase = createServerClient();
-    const lowerEmail = email.toLowerCase().trim();
+    const lowerEmail = sessionEmail;
 
     // Backfill the Google profile photo for any athlete row that doesn't have one
     // yet (a manual upload always wins because it's set explicitly elsewhere).

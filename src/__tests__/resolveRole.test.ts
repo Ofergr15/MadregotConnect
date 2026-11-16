@@ -42,6 +42,22 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }));
 
+// The route verifies the bearer token with Supabase Auth and answers for THAT
+// email; 'good-token' stands for a valid session whose email is sessionEmail.
+let sessionEmail: string | null = null;
+vi.mock('@supabase/supabase-js', () => ({
+  createClient: () => ({
+    auth: {
+      getUser: async (token: string) =>
+        token === 'good-token' && sessionEmail
+          ? { data: { user: { email: sessionEmail } }, error: null }
+          : { data: { user: null }, error: { message: 'invalid' } },
+    },
+  }),
+}));
+process.env.NEXT_PUBLIC_SUPABASE_URL ||= 'http://supabase.test';
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||= 'anon';
+
 const { POST } = await import('@/app/api/auth/resolve-role/route');
 
 function athlete(over: Record<string, unknown> = {}) {
@@ -60,8 +76,15 @@ function athlete(over: Record<string, unknown> = {}) {
   };
 }
 
-async function resolve(body: Record<string, unknown> = { email: 'Runner@Example.com ' }) {
-  const req = { json: async () => body } as unknown as Parameters<typeof POST>[0];
+async function resolve(
+  body: Record<string, unknown> = { email: 'Runner@Example.com ' },
+  token: string | null = 'good-token',
+) {
+  // Callers still send the email in the body; the session carries the same
+  // address, and the session is what the route actually reads.
+  if (typeof body.email === 'string') sessionEmail = body.email;
+  const headers = new Headers(token ? { authorization: `Bearer ${token}` } : {});
+  const req = { json: async () => body, headers } as unknown as Parameters<typeof POST>[0];
   const res = await POST(req);
   return { status: res.status, body: await res.json() };
 }
@@ -69,6 +92,7 @@ async function resolve(body: Record<string, unknown> = { email: 'Runner@Example.
 const athleteSelects = () => ops.filter(o => o.table === 'athletes' && o.op === 'select');
 
 beforeEach(() => {
+  sessionEmail = null;
   ops = [];
   coachRow = null;
   athleteRows = [athlete()];
@@ -189,9 +213,32 @@ describe('resolve-role — one read, in-memory branching', () => {
     expect(athleteSelects()).toHaveLength(1);
   });
 
-  it('rejects a request with no email', async () => {
+  it('rejects a request with no session', async () => {
     const { status } = await resolve({});
-    expect(status).toBe(400);
+    expect(status).toBe(401);
     expect(ops).toHaveLength(0);
+  });
+});
+
+describe('resolve-role — identity comes from the session only', () => {
+  it('401s with no bearer token and touches no table', async () => {
+    const res = await resolve({ email: 'runner@example.com' }, null);
+    expect(res.status).toBe(401);
+    expect(ops).toHaveLength(0);
+  });
+
+  it('401s on an invalid token', async () => {
+    const res = await resolve({ email: 'runner@example.com' }, 'forged');
+    expect(res.status).toBe(401);
+    expect(ops).toHaveLength(0);
+  });
+
+  it('answers for the session email, not a different one in the body', async () => {
+    sessionEmail = 'me@example.com';
+    const headers = new Headers({ authorization: 'Bearer good-token' });
+    const req = { json: async () => ({ email: 'victim@example.com' }), headers } as unknown as Parameters<typeof POST>[0];
+    await POST(req);
+    const emailFilters = athleteSelects().flatMap(o => o.filters).filter(f => f.fn === 'eq' && f.args[0] === 'email');
+    expect(emailFilters.map(f => f.args[1])).toEqual(['me@example.com']);
   });
 });
