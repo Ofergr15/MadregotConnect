@@ -8,7 +8,7 @@ import { getSupabase } from '@/lib/supabase/client';
 import { apiHeaders, useApi } from '@/lib/api';
 import { useTranslations } from 'next-intl';
 import { announceReadOnly, isViewingPerson } from '@/lib/view-as-person';
-import { useConnectedStreamClient, useStreamToken, type StreamTokenData } from '@/lib/stream/client';
+import { useConnectedStreamClient, useStreamTokenState, type StreamTokenData } from '@/lib/stream/client';
 // From `stream/constants`, not `stream/server`: that module holds the service-role
 // client and pulling it into a client component drags the secret side of Stream into
 // the browser bundle.
@@ -135,13 +135,33 @@ function LiveAcademyThreadPanel({
   const [supabaseToken, setSupabaseToken] = useState<string | null>(null);
   const [thread, setThread] = useState<OpenedThread | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const tokenData = useStreamToken(supabaseToken);
+  /** Bumped by "נסה שוב": re-reads the session, re-opens the thread, re-mints the token. */
+  const [attempt, setAttempt] = useState(0);
+  const token = useStreamTokenState(supabaseToken, attempt);
+  const tokenData = token.data;
+  const retry = useCallback(() => {
+    setError(null);
+    setThread(null);
+    setAttempt((n) => n + 1);
+  }, []);
 
   useEffect(() => {
-    getSupabase().auth.getSession().then(({ data }) => {
-      setSupabaseToken(data.session?.access_token ?? null);
-    });
-  }, []);
+    let cancelled = false;
+    // No session (or a throw reading it) used to leave the token null and the
+    // spinner up forever: nothing downstream ever ran.
+    getSupabase().auth.getSession()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const access = data.session?.access_token ?? null;
+        setSupabaseToken(access);
+        if (!access) setError(THREAD_ERROR_FALLBACK);
+      })
+      .catch((e: unknown) => {
+        console.error('academy thread session', e);
+        if (!cancelled) setError(THREAD_ERROR_FALLBACK);
+      });
+    return () => { cancelled = true; };
+  }, [attempt]);
 
   useEffect(() => {
     if (!supabaseToken) return;
@@ -170,9 +190,12 @@ function LiveAcademyThreadPanel({
         }
       });
     return () => { cancelled = true; };
-  }, [supabaseToken, athleteId]);
+  }, [supabaseToken, athleteId, attempt]);
 
-  if (error) {
+  // The Stream token mint failing was invisible (useStreamToken returns null for
+  // both "not yet" and "never") — the endless spinner of the bug report.
+  const shownError = error ?? (token.failed ? THREAD_ERROR_FALLBACK : null);
+  if (shownError) {
     return (
       <div dir="rtl">
         {/* The thread has no other exit on the chat screen, so a failed open keeps the way back. */}
@@ -183,8 +206,9 @@ function LiveAcademyThreadPanel({
         )}
         <div className="flex items-center gap-2 py-6 text-xs text-ink-400">
           <MessageCircleOff className="h-3.5 w-3.5" />
-          {error}
+          {shownError}
         </div>
+        <RetryButton onRetry={retry} />
       </div>
     );
   }
@@ -200,8 +224,9 @@ function LiveAcademyThreadPanel({
     <ConnectedAcademyThread
       // Remounted per identity: the connection is keyed to the user, and reusing a
       // client across a switch is what the dev identity switcher trips over.
-      key={tokenData.userId}
+      key={`${tokenData.userId}:${attempt}`}
       tokenData={tokenData}
+      onRetry={retry}
       thread={thread}
       segments={segments}
       className={className}
@@ -221,8 +246,10 @@ function ConnectedAcademyThread({
   className,
   layout,
   onBack,
+  onRetry,
 }: {
   onBack?: () => void;
+  onRetry: () => void;
   tokenData: StreamTokenData;
   thread: OpenedThread;
   segments?: SegmentVerdict[];
@@ -317,6 +344,19 @@ function ConnectedAcademyThread({
     }
   };
 
+  // A failed `watch()` sets `error` but leaves `channel` null — checked first, or the
+  // failure hides behind the spinner forever.
+  if (!channel && error) {
+    return (
+      <div dir="rtl">
+        <div className="flex items-center gap-2 py-6 text-xs text-ink-400">
+          <MessageCircleOff className="h-3.5 w-3.5" />
+          {error}
+        </div>
+        <RetryButton onRetry={onRetry} />
+      </div>
+    );
+  }
   if (!client || !channel) {
     return (
       <div className="flex justify-center py-8">
@@ -365,5 +405,18 @@ function ThreadHeader({ name, athleteId, onBack }: { name: string; athleteId: st
         <small className="block text-[12px] text-ink-400">מתאמן/ת · עם המאמן והמנהל</small>
       </span>
     </div>
+  );
+}
+
+/** The way out of a failed open: start the whole open over. */
+function RetryButton({ onRetry }: { onRetry: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onRetry}
+      className="flex min-h-[44px] items-center px-2 text-sm font-semibold text-brand-600"
+    >
+      נסה שוב
+    </button>
   );
 }
