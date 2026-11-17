@@ -1193,6 +1193,7 @@
     "groupName": "Group Name",
     "marathonGoal": "Marathon Goal",
     "paceOffsetLabel": "Pace Offset (s/km)",
+    "secPerKm": "s/km",
     "cancel": "Cancel",
     "save": "Save",
     "kmTotal": "km total",

@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
 import { Users, Trophy, Edit3, ChevronDown, ChevronUp, Medal, Watch, Flame, User } from 'lucide-react';
 import { formatPace } from '@/lib/garmin/pace';
-import { cn, getGroupPanel } from '@/lib/utils';
+import { cn, getGroupPanel, memberPackName } from '@/lib/utils';
 import {
   SegmentedControl, Sheet, Button, Card, EmptyState,
   Skeleton, SkeletonCard, SkeletonList, InsetSection, InsetRow,
@@ -152,7 +152,7 @@ export default function GroupsPage() {
                 className={cn('transition-all hover:scale-[1.02] active:scale-[0.98]', colors.bg, colors.border)}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className={cn("text-lg font-bold", colors.text)}>{group.name}</span>
+                  <span className={cn("text-lg font-bold", colors.text)}>{memberPackName(group.name)}</span>
                   <span className={cn("text-xs px-2 py-1 rounded-full font-medium", colors.badge, colors.text)}>
                     {group.athleteCount} {t('runners')}
                   </span>
@@ -168,7 +168,7 @@ export default function GroupsPage() {
                     darker than either surface ink-400 is derived against and
                     left it at 4.32-4.40:1. */}
                 <div className="text-xs text-ink-500 mt-1">
-                  {t('paceOffset')}: {group.paceOffsetSeconds > 0 ? '+' : ''}{group.paceOffsetSeconds}s/km
+                  {t('paceOffset')}: <bdi dir="ltr">{group.paceOffsetSeconds > 0 ? '+' : ''}{group.paceOffsetSeconds}</bdi> {t('secPerKm')}
                 </div>
               </Card>
             </button>
@@ -211,7 +211,7 @@ export default function GroupsPage() {
                 <button
                   type="button"
                   aria-expanded={isExpanded}
-                  aria-label={group.name}
+                  aria-label={memberPackName(group.name)}
                   className="absolute inset-0 w-full"
                   onClick={() => setExpandedGroup(isExpanded ? null : group.id)}
                 />
@@ -219,7 +219,7 @@ export default function GroupsPage() {
                   <div className="flex items-center gap-3">
                     <div className={cn("w-3 h-3 rounded-full", colors.dot)} />
                     <div className="text-left">
-                      <h3 className="text-lg font-semibold">{group.name}</h3>
+                      <h3 className="text-lg font-semibold">{memberPackName(group.name)}</h3>
                       <span className="text-sm text-ink-400">
                         {group.athleteCount} {t('athletes')}
                         {group.marathonGoal && ` · ${t('goal')}: ${group.marathonGoal}`}
@@ -418,7 +418,7 @@ export default function GroupsPage() {
                   <div className={cn("px-4 py-3 flex items-center justify-between", colors.bg)}>
                     <div className="flex items-center gap-2">
                       <div className={cn("w-2.5 h-2.5 rounded-full", colors.dot)} />
-                      <span className={cn("font-semibold", colors.text)}>{group.name}</span>
+                      <span className={cn("font-semibold", colors.text)}>{memberPackName(group.name)}</span>
                     </div>
                     <span className="text-sm text-ink-500 font-mono">
                       {Math.round(groupTotal * 10) / 10} {t('kmTotal')}
@@ -485,7 +485,7 @@ function EditGroupModal({ group, onSave, onClose }: {
   };
 
   return (
-    <Sheet open onOpenChange={(o) => { if (!o) onClose(); }} title={`${t('edit')} ${group.name}`}>
+    <Sheet open onOpenChange={(o) => { if (!o) onClose(); }} title={`${t('edit')} ${memberPackName(group.name)}`}>
       <form onSubmit={handleSubmit} className="space-y-4 px-1 pb-2">
         <div>
           <label className="block text-sm font-medium text-ink-500 mb-2">{t('groupName')}</label>

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { addDaysToDateStr, israelToday } from '@/lib/utils';
+import { addDaysToDateStr, israelToday, memberPackName } from '@/lib/utils';
 import { filterQualifyingRuns } from '@/lib/prs/pr-buckets';
 
 export const dynamic = 'force-dynamic';
@@ -83,7 +83,7 @@ export async function GET(request: Request) {
       const firstKm = thisWeek.get(now[0]) ?? 0;
       const rowIds = now.slice(0, 3).includes(me.id) ? now.slice(0, 3) : [...now.slice(0, 2), me.id];
       pack = {
-        name: (groups || []).find((g: { id: string; name: string | null }) => g.id === me.group_id)?.name || '',
+        name: memberPackName((groups || []).find((g: { id: string; name: string | null }) => g.id === me.group_id)?.name),
         rank,
         size: now.length,
         lastRank: (lastWeek.get(me.id) ?? 0) > 0 ? before.indexOf(me.id) + 1 : null,

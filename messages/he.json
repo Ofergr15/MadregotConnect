@@ -1193,6 +1193,7 @@
     "groupName": "שם קבוצה",
     "marathonGoal": "יעד מרתון",
     "paceOffsetLabel": "הפרש קצב (שנ/ק\"מ)",
+    "secPerKm": "שנ'/ק\"מ",
     "cancel": "ביטול",
     "save": "שמירה",
     "kmTotal": "ק\"מ סה\"כ",

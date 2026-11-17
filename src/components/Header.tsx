@@ -6,7 +6,7 @@ import { FeedScopeButton } from '@/components/feed/FeedScopeButton';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { User, LogOut, X, Bug, Bell, Eye, Search as SearchIcon } from 'lucide-react';
-import { cn, resolveGroup } from '@/lib/utils';
+import { cn, memberPackName, resolveGroup } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
 import { signOutEverywhere } from '@/lib/auth/sign-out';
@@ -90,7 +90,7 @@ export function Header() {
   // reason the client needed table access at all.
   const myGroup = availableGroups.find(g => g.id === groupId);
   const resolvedGroup = myGroup ? resolveGroup(myGroup.name) : null;
-  const groupName = resolvedGroup?.displayName || null;
+  const groupName = myGroup ? memberPackName(myGroup.name) || null : null;
   const groupColor = resolvedGroup?.hex || '#159AFF';
 
   // The bell needs a COUNT to render, not the history. It used to pull the whole
