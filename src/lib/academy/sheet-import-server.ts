@@ -233,6 +233,9 @@ export async function inviteImported(supabase: Db, caller: VerifiedCaller, cardI
     if (card.invited_at) { out.push({ cardId: id, ok: false, error: 'already_invited' }); continue; }
     const imp = card.intake._import as Record<string, any>;
     const coachIds = Array.isArray(imp.coachIds) ? imp.coachIds as string[] : [];
+    // The band the file asked for (resolved to an id when the board was built). It used to be
+    // dropped here, so an imported trainee joined with no band at all (QA 11-17).
+    const bandId = typeof imp.requestedBandId === 'string' && imp.requestedBandId ? imp.requestedBandId as string : null;
     const intake = { ...card.intake, _import: { ...imp, invitedBy: { athleteId: caller.athleteId, email: caller.email } } };
 
     if (card.athlete_id) {
@@ -242,6 +245,8 @@ export async function inviteImported(supabase: Db, caller: VerifiedCaller, cardI
       const json = await res.json().catch(() => ({})) as { results?: Array<{ ok: boolean; error?: string }> };
       const r = json.results?.[0];
       if (!res.ok || !r?.ok) { out.push({ cardId: id, ok: false, error: r?.error || 'move_failed' }); continue; }
+      // An existing account keeps a band it already has; one without gets the file's.
+      if (bandId) await supabase.from('athletes').update({ academy_band_id: bandId }).eq('id', card.athlete_id).is('academy_band_id', null);
       const now = new Date().toISOString();
       await supabase.from('academy_candidates').update({ source: 'existing', invited_at: now, accepted_at: now, updated_at: now, intake }).eq('id', id);
       if (intake.sheet_results) {
@@ -258,7 +263,7 @@ export async function inviteImported(supabase: Db, caller: VerifiedCaller, cardI
     const stamp = await supabase.from('academy_candidates').update({ intake }).eq('id', id);
     if (stamp.error && !isMissingColumn(stamp.error)) console.error('academy import: intake stamp failed:', stamp.error.message);
     const result = await createMoveInInvite(caller, {
-      name: card.name, email: card.email, phone: card.phone || '', coachIds, cardId: id,
+      name: card.name, email: card.email, phone: card.phone || '', coachIds, cardId: id, bandId,
       athleteExtras: athleteExtrasFromIntake(card.intake),
     });
     if (result.status !== 200) {
