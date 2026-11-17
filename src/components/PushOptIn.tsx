@@ -34,7 +34,12 @@ export function requestPushOptInPrompt() {
   window.dispatchEvent(new Event(RECHECK_EVENT));
 }
 
-export function PushOptIn({ title, description }: { title?: string; description?: string } = {}) {
+/**
+ * `inline` draws the offer as a row inside the page (a card row: icon, title,
+ * line, pill button) instead of the floating bubble, for screens where the bubble
+ * would cover content: the pending-approval screen has nothing to scroll past it.
+ */
+export function PushOptIn({ title, description, inline = false }: { title?: string; description?: string; inline?: boolean } = {}) {
   const t = useTranslations('push');
   const { answered: installAnswered } = useInstallStep();
   const [show, setShow] = useState(false);
@@ -120,6 +125,27 @@ export function PushOptIn({ title, description }: { title?: string; description?
   // notifications for good, which is the whole reason install comes first.
   if (!show || !installAnswered) return null;
 
+  if (inline) {
+    return (
+      <div className="flex items-center gap-3 py-2" dir="rtl">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand-600/10" aria-hidden>
+          <Bell className="h-5 w-5 text-brand-600" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-bold text-ink-900">{title || t('title')}</span>
+          <span className="block text-[13.5px] leading-snug text-ink-400">{description || t('description')}</span>
+        </span>
+        <button
+          onClick={enable}
+          disabled={busy}
+          className="shrink-0 rounded-full bg-brand-600 px-4 py-2 text-[14px] font-bold text-white active:opacity-90 disabled:opacity-50"
+        >
+          {busy ? t('enabling') : t('enable')}
+        </button>
+      </div>
+    );
+  }
+
   return (
     // z-50 so it sits ABOVE the bottom tab bar (which is fixed bottom-0 z-40),
     // and lifted clear of the ~72px tab bar on mobile so the Enable button is
@@ -154,8 +180,8 @@ export function PushOptIn({ title, description }: { title?: string; description?
  * inline done state). Triggers on its own mount, so each screen just renders
  * this instead of wiring up requestPushOptInPrompt() + the copy itself.
  */
-export function ApprovalPushOptIn() {
+export function ApprovalPushOptIn({ inline = false }: { inline?: boolean } = {}) {
   const t = useTranslations('push');
   useEffect(() => { requestPushOptInPrompt(); }, []);
-  return <PushOptIn title={t('approvalTitle')} description={t('approvalDescription')} />;
+  return <PushOptIn title={t('approvalTitle')} description={t('approvalDescription')} inline={inline} />;
 }

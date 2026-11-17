@@ -1650,13 +1650,15 @@
     "resolveStalledBody": "אנחנו ממשיכים לנסות. אם זה לא מסתדר, אפשר להתחיל את ההתחברות מחדש.",
     "resolveRetry": "התחברות מחדש",
     "pendingEyebrow": "מועדון הריצה של מדרגות",
-    "pendingTitle": "הבקשה בבדיקה 🙌",
+    "pendingTitle": "המאמן יאשר בקרוב 🙌",
     "pendingSubtitle": "הצעד הראשון מאחוריכם",
     "pendingNextLabel": "הבא בתור",
     "pendingNextTitle": "אישור מהמאמן",
     "pendingNextBody": "בדרך כלל תוך יום. ברגע שההרשמה תאושר, המסך הזה ייכנס לאפליקציה לבד.",
     "pendingWatchTitle": "יש שעון ריצה או Strava?",
     "pendingWatchSub": "מחברים אחרי האישור, בלחיצה",
+    "pendingNotYou": "לא החשבון שלך?",
+    "pendingSignOutLink": "יציאה",
     "pendingSignOut": "יציאה מהחשבון"
   },
   "join": {

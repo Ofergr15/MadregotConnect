@@ -1650,13 +1650,15 @@
     "resolveStalledBody": "We are still trying. If it does not come through, you can start signing in again.",
     "resolveRetry": "Sign in again",
     "pendingEyebrow": "Madregot running club",
-    "pendingTitle": "Your request is being reviewed 🙌",
+    "pendingTitle": "Your coach will approve you soon 🙌",
     "pendingSubtitle": "The first step is behind you",
     "pendingNextLabel": "Up next",
     "pendingNextTitle": "The coach approves",
     "pendingNextBody": "Usually within a day. The moment you are approved, this screen takes you in by itself.",
     "pendingWatchTitle": "Have a running watch or Strava?",
     "pendingWatchSub": "Connect it after approval, in one tap",
+    "pendingNotYou": "Not your account?",
+    "pendingSignOutLink": "Sign out",
     "pendingSignOut": "Sign out"
   },
   "join": {

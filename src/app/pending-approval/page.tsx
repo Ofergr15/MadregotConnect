@@ -10,7 +10,7 @@ import ClaimExistingAccount from '@/components/ClaimExistingAccount';
 import { InstallStepProvider } from '@/components/onboarding/InstallStepProvider';
 import { useIsComputer } from '@/lib/install/use-computer';
 import {
-  JOURNEY, JourneyCard, JourneyHero, JourneyRow, JourneyScreen, JourneyTracker, NextCard, SecondaryButton,
+  JOURNEY, JourneyCard, JourneyHero, JourneyRow, JourneyScreen, JourneyTracker,
 } from '@/components/onboarding/journey-ui';
 import { ApprovalEmailSent, ApprovalEmailStep, useApprovalContact } from '@/components/onboarding/ApprovalEmailStep';
 import { ViewAsBanner } from '@/components/ViewAsBanner';
@@ -122,7 +122,15 @@ function PendingApproval() {
       </JourneyCard>
       {/* Nothing to press while waiting. The one way out says what it does: it
           signs out (it used to read "back to the home page"). */}
-      {!viewing && <SecondaryButton onClick={handleBackHome}>{t('pendingSignOut')}</SecondaryButton>}
+      {/* A quiet way out, not a step: most people here just wait. */}
+      {!viewing && (
+        <p className="pt-1 text-center text-[13.5px]" style={{ color: JOURNEY.soft }} dir="rtl">
+          {t('pendingNotYou')}{' '}
+          <button type="button" onClick={handleBackHome} className="font-bold underline underline-offset-2">
+            {t('pendingSignOutLink')}
+          </button>
+        </p>
+      )}
     </>
   );
 
@@ -157,15 +165,13 @@ function PendingApproval() {
     <>
       <JourneyScreen
         testId="pending-approval"
-        hero={<JourneyHero eyebrow={t('pendingEyebrow')} title={t('pendingTitle')} subtitle={t('pendingSubtitle')} />}
+        hero={<JourneyHero eyebrow={t('pendingEyebrow')} title={t('pendingTitle')} subtitle={t('pendingNextBody')} />}
       >
         <JourneyTracker done={1} computer={computer} />
 
         {known?.needed && known.email && (
           <ApprovalEmailSent email={known.email} justSaved={justSaved} onFix={() => setEditingEmail(true)} />
         )}
-
-        <NextCard label={t('pendingNextLabel')} title={t('pendingNextTitle')}>{t('pendingNextBody')}</NextCard>
 
         {/* The promise the screen can actually keep, in place of the email it
             couldn't send. Swaps to "letting you in" for the moment between the
@@ -182,13 +188,15 @@ function PendingApproval() {
           )}
         </p>
 
+        {/* The push offer lives in the page, above the watch row, so it covers
+            nothing; it renders nothing once this device is subscribed. */}
         <JourneyCard>
+          <ApprovalPushOptIn inline />
           <JourneyRow icon="⌚" title={t('pendingWatchTitle')} sub={t('pendingWatchSub')} />
         </JourneyCard>
 
         {footer}
       </JourneyScreen>
-      <ApprovalPushOptIn />
     </>
   );
 }
