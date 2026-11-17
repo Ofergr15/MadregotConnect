@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
+import { localizePractice, localizeDuration } from '@/lib/practice/seed-i18n';
 import { Dumbbell, Play, X, Pencil, Loader2, Check, Plus, Trash2 } from 'lucide-react';
 import { Sheet, SegmentedControl, Button } from '@/components/ui';
 import { apiHeaders } from '@/lib/api';
@@ -34,6 +35,9 @@ const isPlaceholder = (driveId: string) => !driveId || driveId.startsWith('PLACE
 
 export default function PracticePage() {
   const t = useTranslations('practice');
+  const locale = useLocale();
+  // Display-only: stored text stays as saved; the seed entries read in Hebrew for `he`.
+  const shown = (v: Video) => localizePractice(v, locale);
   const [videos, setVideos] = useState<Video[]>(SEED);
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [filter, setFilter] = useState('All');
@@ -127,7 +131,7 @@ export default function PracticePage() {
                 </>
               )}
               <span className="absolute bottom-2 start-2 text-xs font-bold px-2 py-1 rounded bg-black/60 text-white">
-                {video.duration}
+                <bdi>{localizeDuration(video.duration, locale)}</bdi>
               </span>
               <span className="absolute top-2 end-2 text-xs font-medium px-2 py-1 rounded bg-brand-600/80 text-white">
                 {categoryLabel(video.category)}
@@ -137,10 +141,10 @@ export default function PracticePage() {
             {/* Content */}
             <div className="p-4">
               <h3 className="text-sm font-bold text-ink-700 group-hover:text-brand-700 transition-colors line-clamp-2">
-                {video.title}
+                <bdi>{shown(video).title}</bdi>
               </h3>
               <p className="text-xs text-ink-400 mt-2 line-clamp-2">
-                {video.description}
+                <bdi>{shown(video).description}</bdi>
               </p>
             </div>
           </div>
@@ -151,7 +155,7 @@ export default function PracticePage() {
       <Sheet
         open={!!selectedVideo}
         onOpenChange={(o) => { if (!o) setSelectedVideo(null); }}
-        title={selectedVideo ? `${selectedVideo.title} · ${selectedVideo.duration}` : undefined}
+        title={selectedVideo ? `${shown(selectedVideo).title} · ${localizeDuration(selectedVideo.duration, locale)}` : undefined}
         bodyClassName="px-0 pb-0"
       >
         {selectedVideo && (
@@ -174,7 +178,7 @@ export default function PracticePage() {
               )}
             </div>
             <div className="p-4">
-              <p className="text-sm text-ink-500">{selectedVideo.description}</p>
+              <p className="text-sm text-ink-500"><bdi>{shown(selectedVideo).description}</bdi></p>
             </div>
           </>
         )}
