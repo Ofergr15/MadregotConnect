@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useNavIdentity } from '@/lib/nav-items';
+import { useApi } from '@/lib/api';
+import { mayOpenControlRoom, type StaffGateMe } from '@/lib/auth/staff-pages';
 import { ControlRoomScreen } from '@/components/admin/ControlRoomScreen';
 
 /**
@@ -23,19 +23,16 @@ import { ControlRoomScreen } from '@/components/admin/ControlRoomScreen';
  * URL gets a page with nothing on it rather than a rejection they cannot act on.
  */
 export default function ControlRoomPage() {
-  const { effectiveRole, ready } = useNavIdentity();
-  // The role resolves through SWR, which the nav chromes on this page have already
-  // asked for — but `ready` can be true on the first render from that cache, and a
-  // frame of the control room for an account that may not have it is worse than a
-  // frame of nothing.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  // The layout already loaded /api/auth/me (it gates every page on it), so SWR answers
+  // from cache. Not useNavIdentity's effectiveRole: see mayOpenControlRoom.
+  const { data: me, error } = useApi<StaffGateMe>('/api/auth/me');
+  const allowed = mayOpenControlRoom(me);
 
-  if (!ready || !mounted) {
+  if (allowed === undefined && !error) {
     return (
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mx-auto mt-20" />
     );
   }
-  if (effectiveRole !== 'admin') return null;
+  if (!allowed) return null;
   return <ControlRoomScreen />;
 }

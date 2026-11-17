@@ -46,3 +46,15 @@ export function mayOpenStaffPage(me: StaffGateMe | null | undefined, pathname: s
     && Object.values(me.contentLevels ?? {}).some((v) => v >= 1)) return true;
   return false;
 }
+
+/**
+ * Whether the control room draws for this account: the ACCOUNT holds admin (or is the
+ * super-user), whatever view its top-bar chip is in. Not the nav's `effectiveRole`:
+ * every admin here is also a coach and a runner, so an admin in the runner or coach
+ * view got `null` (an empty grey page), and when useNavIdentity never learned an
+ * email it never fetched /api/auth/me and spun forever. `undefined` = not answered yet.
+ */
+export function mayOpenControlRoom(me: StaffGateMe | null | undefined): boolean | undefined {
+  if (!me) return undefined;
+  return !!me.isSuper || me.role === 'admin' || !!me.roles?.includes('admin');
+}
