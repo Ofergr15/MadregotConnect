@@ -1509,6 +1509,8 @@
     "ticketShareText": "דיווח {ticket} במדרגות"
   },
   "setup": {
+    "confirmPrefilled": "מילאנו מה שכבר ידוע לנו — רק תוודא/י שהכל נכון",
+    "confirmAllRight": "הכל נכון, ממשיכים",
     "title": "השלמת הפרופיל",
     "progressCount": "{done} מתוך {total} הושלמו",
     "nextUp": "הבא:",

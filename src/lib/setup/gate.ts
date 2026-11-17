@@ -21,6 +21,11 @@ export interface SetupFacts {
   birthDate: string | null;
   heightCm: number | null;
   sizes: Array<string | null>;
+  /**
+   * The member said "הכל נכון" on the details step (notification_prefs.setup.detailsConfirmedAt).
+   * Absent = treated as confirmed, so a caller that does not know keeps today's behaviour.
+   */
+  detailsConfirmed?: boolean;
 }
 
 /** The details still missing — birth date, height, the five kit sizes. Weight is never required. */
@@ -28,8 +33,18 @@ export function missingDetails(f: Pick<SetupFacts, 'birthDate' | 'heightCm' | 's
   return { birthDate: !f.birthDate, height: !f.heightCm, sizes: f.sizes.some((s) => !s) };
 }
 
-export function remainingSteps(f: SetupFacts): SetupStep[] {
+/**
+ * How the details step shows, or null when it is not needed: 'required' while something is
+ * missing; 'confirm' when everything is known (import file, form, registration) but the member
+ * has not yet confirmed it — prefilled, one "הכל נכון" tap. Once confirmed it never asks again.
+ */
+export function detailsMode(f: Pick<SetupFacts, 'birthDate' | 'heightCm' | 'sizes' | 'detailsConfirmed'>): 'required' | 'confirm' | null {
   const d = missingDetails(f);
+  if (d.birthDate || d.height || d.sizes) return 'required';
+  return f.detailsConfirmed === false ? 'confirm' : null;
+}
+
+export function remainingSteps(f: SetupFacts): SetupStep[] {
   return SETUP_ORDER.filter((s) => {
     if (s === 'install') return f.phone && !f.installed;
     // The step is Garmin: it is the one that can push workouts to the watch, and Strava
@@ -37,6 +52,6 @@ export function remainingSteps(f: SetupFacts): SetupStep[] {
     if (s === 'watch') return !f.garmin && !f.noWatch;
     // On iPhone a push needs the installed app: asked once installed (or on Android).
     if (s === 'push') return f.phone && !f.push;
-    return d.birthDate || d.height || d.sizes;
+    return detailsMode(f) !== null;
   });
 }

@@ -1509,6 +1509,8 @@
     "ticketShareText": "Madregot report {ticket}"
   },
   "setup": {
+    "confirmPrefilled": "We filled in what we already know — just make sure it's all correct",
+    "confirmAllRight": "All correct, continue",
     "title": "Finish your profile",
     "progressCount": "{done} of {total} done",
     "nextUp": "Next:",

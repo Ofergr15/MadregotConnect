@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSWRConfig } from 'swr';
+import { useTranslations } from 'next-intl';
 import { Bell, CalendarClock, Check, ChevronLeft, MapPin, Watch } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { isIosDevice, isStandalone, subscribeToPush } from '@/lib/pwa';
@@ -38,6 +39,8 @@ interface SetupFacts {
   heightCm?: number | null;
   weightKg?: number | null;
   sizes?: Record<SizeKey, string | null>;
+  /** "הכל נכון" was said once (notification_prefs.setup.detailsConfirmedAt). */
+  detailsConfirmed?: boolean;
 }
 
 const PREVIEW_KEY = 'mc:setup-preview';
@@ -296,6 +299,11 @@ function DetailsStep({ facts, onSaved }: { facts: SetupFacts; onSaved: () => voi
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const left = (birthDate ? 0 : 1) + (height ? 0 : 1) + Object.values(sizes).filter((v) => !v).length;
+  const t = useTranslations('setup');
+  // Something came in already (the academy file, the form, the registration) and the member
+  // has not said it is right yet: prefilled, they only confirm or fix (Ofer 2026-11-17).
+  const known = !!facts.birthDate || !!facts.heightCm || Object.values(start).some(Boolean);
+  const confirming = known && facts.detailsConfirmed === false;
 
   const save = async () => {
     setSaving(true); setError(null);
@@ -305,6 +313,8 @@ function DetailsStep({ facts, onSaved }: { facts: SetupFacts; onSaved: () => voi
         body: JSON.stringify({ id: localStorage.getItem('athlete_id'), birthDate, heightCm: Number(height), ...(weight ? { weightKg: Number(weight) } : {}), ...sizes }),
       });
       if (!res.ok) throw new Error(String(res.status));
+      // Saved means confirmed: the step never asks again (best effort — the save is what counts).
+      await fetch(KEY, { method: 'PATCH', headers: await apiHeaders(true), body: JSON.stringify({ detailsConfirmed: true }) }).catch(() => null);
       onSaved();
     } catch {
       setError('השמירה לא הצליחה. נסו שוב בעוד רגע.');
@@ -335,10 +345,10 @@ function DetailsStep({ facts, onSaved }: { facts: SetupFacts; onSaved: () => voi
   ].filter(Boolean);
 
   return (
-    <Shell step={4} title={left > 0 ? `עוד ${left} ${left === 1 ? 'פרט' : 'פרטים'}` : 'הכל מולא'} sub="בודקים שהכל נכון. מה שמילאת בהרשמה כבר כאן — אפשר לתקן כל שורה."
+    <Shell step={4} title={left > 0 ? `עוד ${left} ${left === 1 ? 'פרט' : 'פרטים'}` : 'הכל מולא'} sub={confirming ? t('confirmPrefilled') : 'בודקים שהכל נכון. מה שמילאת בהרשמה כבר כאן — אפשר לתקן כל שורה.'}
       foot={<>
         {error && <p role="alert" className="mb-1 text-center text-[14px] font-bold text-[#AD3838]">{error}</p>}
-        <Primary onClick={save} disabled={left > 0 || saving}>{saving ? 'שומרים…' : left > 0 ? `${left === 1 ? 'נשאר 1' : `נשארו ${left}`} · שמירה` : 'שמירה'}</Primary>
+        <Primary onClick={save} disabled={left > 0 || saving}>{saving ? 'שומרים…' : left > 0 ? `${left === 1 ? 'נשאר 1' : `נשארו ${left}`} · שמירה` : confirming ? t('confirmAllRight') : 'שמירה'}</Primary>
       </>}>
       {rows.length > 0 && (
         <div className={`${CARD} mb-3.5 px-3.5 [&>*+*]:border-t [&>*+*]:border-[#EFEFF3]`}>{rows}</div>
@@ -468,6 +478,7 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
       // can): somebody who chose "continue in the browser" is not stuck on a step that fails.
       push: !!data.push || (iosTab && !standalone),
       birthDate: data.birthDate ?? null, heightCm: data.heightCm ?? null, sizes: Object.values(data.sizes || {}),
+      detailsConfirmed: data.detailsConfirmed,
     });
   }, [data, computer, standalone, installLater, iosTab]);
   useEffect(() => { if (steps.length) setWalked(true); }, [steps.length]);

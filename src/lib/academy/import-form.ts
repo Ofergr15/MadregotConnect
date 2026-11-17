@@ -30,8 +30,13 @@ const numberIn = (v: unknown, lo: number, hi: number): number | null => {
  * The athlete columns the imported form fills (migrations 057/061/155), from its answers —
  * only values the columns' CHECKs accept, so one odd answer never fails the whole save.
  */
-export function importProfileColumns(intake: Record<string, unknown> | null): Record<string, unknown> {
-  if (!intake) return {};
+export function importProfileColumns(raw: Record<string, unknown> | null): Record<string, unknown> {
+  if (!raw) return {};
+  // An imported card keeps the file's answers nested at intake.imported (sheet-import
+  // importIntake); the trainee's own form answers sit at the top and win over the file.
+  const nested = raw.imported && typeof raw.imported === 'object' ? (raw.imported as Record<string, unknown>) : {};
+  const intake: Record<string, unknown> = { ...nested };
+  for (const [k, v] of Object.entries(raw)) if (v != null && v !== '') intake[k] = v;
   const out: Record<string, unknown> = {};
   const birth = wholeDate(intake.birthDate);
   if (birth) out.birth_date = birth;

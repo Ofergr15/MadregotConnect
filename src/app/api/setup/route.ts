@@ -35,13 +35,14 @@ export async function GET(request: Request) {
   const fresh = SETUP_GATE_FOR_ALL && String(row.created_at || '') >= SETUP_GATE_SINCE;
   if (!fresh && !preview) return NextResponse.json({ applicable: false });
 
-  const setup = ((row.notification_prefs as Record<string, unknown> | null)?.setup || {}) as { noWatch?: boolean };
+  const setup = ((row.notification_prefs as Record<string, unknown> | null)?.setup || {}) as { noWatch?: boolean; detailsConfirmedAt?: string };
   return NextResponse.json({
     applicable: true,
     preview,
     garmin: !!row.garmin_auth,
     strava: !!row.strava_auth,
     noWatch: setup.noWatch === true,
+    detailsConfirmed: typeof setup.detailsConfirmedAt === 'string' && !!setup.detailsConfirmedAt,
     push: (count ?? 0) > 0,
     birthDate: (row.birth_date as string) || null,
     heightCm: row.height_cm == null ? null : Number(row.height_cm),
@@ -54,21 +55,25 @@ export async function GET(request: Request) {
 }
 
 /**
- * PATCH /api/setup  { noWatch: boolean } — "I have no Garmin" passes the watch step. Kept
- * in notification_prefs.setup, merged so every other key there stays as it was.
+ * PATCH /api/setup  { noWatch?: boolean, detailsConfirmed?: true } — "I have no Garmin" passes
+ * the watch step; detailsConfirmed stamps detailsConfirmedAt ("הכל נכון" on the details step,
+ * so it never asks again). Kept in notification_prefs.setup, merged so every other key stays.
  */
 export async function PATCH(request: Request) {
   const { denied, caller } = await resolveVerifiedCaller(request);
   if (denied) return denied;
   if (!caller.athleteId) return NextResponse.json({ error: 'no athlete' }, { status: 400 });
-  const body = (await request.json().catch(() => ({}))) as { noWatch?: unknown };
-  if (typeof body.noWatch !== 'boolean') return NextResponse.json({ error: 'noWatch must be true or false' }, { status: 400 });
+  const body = (await request.json().catch(() => ({}))) as { noWatch?: unknown; detailsConfirmed?: unknown };
+  const confirm = body.detailsConfirmed === true;
+  if (typeof body.noWatch !== 'boolean' && !confirm) return NextResponse.json({ error: 'noWatch must be true or false' }, { status: 400 });
   const db = createServerClient();
   const { data, error } = await db.from('athletes').select('notification_prefs').eq('id', caller.athleteId).maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const prefs = ((data?.notification_prefs as Record<string, unknown> | null) || {});
-  const setup = { ...((prefs.setup as Record<string, unknown>) || {}), noWatch: body.noWatch };
+  const setup: Record<string, unknown> = { ...((prefs.setup as Record<string, unknown>) || {}) };
+  if (typeof body.noWatch === 'boolean') setup.noWatch = body.noWatch;
+  if (confirm) setup.detailsConfirmedAt = new Date().toISOString();
   const { error: upErr } = await db.from('athletes').update({ notification_prefs: { ...prefs, setup } }).eq('id', caller.athleteId);
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
-  return NextResponse.json({ ok: true, noWatch: body.noWatch });
+  return NextResponse.json({ ok: true, noWatch: setup.noWatch === true, detailsConfirmed: !!setup.detailsConfirmedAt });
 }
