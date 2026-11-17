@@ -46,6 +46,7 @@ vi.mock('@/lib/photos/drive-browse', () => ({
   listPhotoFolders: async () => [
     { id: 'p0', name: 'מרוץ הסרגל 2026', title: 'מרוץ הסרגל 2026', date: '2026-10-09', count: 14, covers: ['c0'], pinned: true },
     { id: 'p1', name: 'יום שישי 16.10', title: 'שישי 16.10', date: '2026-10-16', count: 19, covers: ['c1'], pinned: false },
+    { id: 'p2', name: '13.11', title: '13.11', date: '2026-11-13', count: 0, videos: 3, covers: [], pinned: false },
   ],
 }));
 vi.mock('@/lib/photos/mirror', () => ({ mirroredUrls: async () => ({ thumb: {}, full: {}, lqip: {} }) }));
@@ -63,6 +64,10 @@ describe('typing', () => {
   it('an album is found by its title', async () => {
     const r = await get(`q=${encodeURIComponent('סרגל')}`);
     expect(r.albums).toEqual([{ id: 'p0', title: 'מרוץ הסרגל 2026', date: '2026-10-09', count: 14, cover: '/img/c0' }]);
+  });
+  it('an album with no photos is not a result', async () => {
+    const r = await get(`q=${encodeURIComponent('13.11')}`);
+    expect(r.albums).toEqual([]);
   });
   it('the hidden store is not asked for products', async () => {
     await get('q=shirt');

@@ -68,7 +68,7 @@ export async function GET(request: Request) {
     // Everything at once: the photo folders (Drive, up to 2.5s cold), the runs and the
     // packs don't wait for the roster, and the roster doesn't wait for them.
     const albumsP = foldersInTime().then((list) => albumRows(list
-      .filter((f) => textMatches(q, f.title, f.name))
+      .filter((f) => f.count > 0 && textMatches(q, f.title, f.name))
       .slice(0, RESULT_LIMIT)));
     const runsP = searchRuns(supabase, q, caller);
     const groupsP = supabase.from('groups').select('id, name');
@@ -172,6 +172,11 @@ async function foldersInTime(ms = 2500): Promise<PhotoFolder[]> {
   return (await Promise.race([list, late])) ?? [];
 }
 
+/*
+ * Both album lists keep photo albums only (feedback #28, "13.11" with 0 photos): the
+ * library keeps video-only folders (drive-browse assemble), and a search row reads
+ * "0 photos" for them, since it shows the photo count alone.
+ */
 async function albumRows(folders: PhotoFolder[]) {
   const m = await mirroredUrls(folders.map((f) => f.covers[0]).filter(Boolean)).catch(() => null);
   return folders.map((f) => ({
@@ -203,7 +208,7 @@ async function startOf(supabase: Db, athleteId: string | null | undefined) {
     packName: (groupRes.data as { name?: string } | null)?.name ?? null,
     races: ((racesRes.error ? [] : racesRes.data) || []) as Array<{ id: string; name: string; kind: string; date: string; location: string }>,
     // The pinned folder leads the photos home; here it is the newest that matter.
-    albums: await albumRows(folders.filter((f) => !f.pinned).slice(0, 3)),
+    albums: await albumRows(folders.filter((f) => !f.pinned && f.count > 0).slice(0, 3)),
     today,
   };
 }
