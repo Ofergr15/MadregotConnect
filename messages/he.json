@@ -1089,7 +1089,11 @@
     "createBadge": "צור תג",
     "creating": "יוצר...",
     "createError": "יצירת התג נכשלה",
-    "uploadError": "העלאת התמונה נכשלה"
+    "uploadError": "העלאת התמונה נכשלה",
+    "metricKm": "{value} ק״מ",
+    "metricHours": "{value} שעות",
+    "metricMeters": "{value} מ׳",
+    "metricWorkoutsCount": "{value} אימונים"
   },
   "challengeManager": {
     "existingChallenges": "אתגרים קיימים",
@@ -1125,7 +1129,11 @@
     "creating": "יוצר...",
     "createError": "יצירת האתגר נכשלה",
     "loadError": "טעינת האתגרים נכשלה",
-    "setupRequired": "טבלת האתגרים עדיין לא קיימת במסד הנתונים. יש להריץ את supabase/migrations/062_challenges.sql בעורך ה-SQL של Supabase, ואז לרענן."
+    "setupRequired": "טבלת האתגרים עדיין לא קיימת במסד הנתונים. יש להריץ את supabase/migrations/062_challenges.sql בעורך ה-SQL של Supabase, ואז לרענן.",
+    "metricKm": "{value} ק״מ",
+    "metricHours": "{value} שעות",
+    "metricMeters": "{value} מ׳",
+    "metricWorkoutsCount": "{value} אימונים"
   },
   "storeManager": {
     "productsTab": "מוצרים",

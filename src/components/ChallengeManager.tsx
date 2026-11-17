@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Trophy, Loader2, Plus, Pencil, Trash2 } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
+import { pickLocalized } from '@/lib/badges/localize';
 import { cn } from '@/lib/utils';
 import { Sheet, SegmentedControl, Button, LoadingBlock, EmptyState, ConfirmSheet, Switch } from '@/components/ui';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
@@ -27,9 +28,9 @@ interface Challenge {
 type Metric = 'distance_km' | 'workout_count' | 'elevation_m';
 type Scope = 'individual' | 'group';
 
-function metricLabel(c: Challenge, t: (key: string) => string): string {
-  const unit = c.metric === 'distance_km' ? 'km' : c.metric === 'elevation_m' ? 'm' : t('metricWorkouts');
-  return `${c.targetValue} ${unit}`;
+function metricLabel(c: Challenge, t: (key: string, v?: Record<string, number>) => string): string {
+  const key = c.metric === 'distance_km' ? 'metricKm' : c.metric === 'elevation_m' ? 'metricMeters' : 'metricWorkoutsCount';
+  return t(key, { value: c.targetValue });
 }
 
 /**
@@ -43,6 +44,7 @@ function metricLabel(c: Challenge, t: (key: string) => string): string {
  */
 export function ChallengeManager() {
   const t = useTranslations('challengeManager');
+  const locale = useLocale();
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [loading, setLoading] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -225,9 +227,9 @@ export function ChallengeManager() {
           {challenges.map((c) => (
             <InsetRow
               key={c.id}
-              label={c.nameHe}
+              label={pickLocalized(c.nameHe, c.nameEn, locale)}
               labelClamp
-              sublabel={`${c.nameEn} · ${metricLabel(c, t)} · ${c.startDate} → ${c.endDate}`}
+              sublabel={`${metricLabel(c, t as (key: string, v?: Record<string, number>) => string)} · ${c.startDate} → ${c.endDate}`}
               sublabelClamp
               onClick={() => setActionsTarget(c)}
               meta={
@@ -250,7 +252,7 @@ export function ChallengeManager() {
         </InsetSection>
       )}
 
-      <Sheet open={!!actionsTarget} onOpenChange={(o) => !o && setActionsTarget(null)} title={actionsTarget?.nameHe || ''}>
+      <Sheet open={!!actionsTarget} onOpenChange={(o) => !o && setActionsTarget(null)} title={actionsTarget ? pickLocalized(actionsTarget.nameHe, actionsTarget.nameEn, locale) : ''}>
         {actionsTarget && (
           <InsetSection>
             <InsetRow icon={Pencil} iconBg="bg-brand-600/15" label={t('edit')} onClick={() => { const target = actionsTarget; setActionsTarget(null); openEdit(target); }} />

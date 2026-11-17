@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Award, Loader2, Plus, ImagePlus, X, Trash2, Pencil } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
+import { pickLocalized } from '@/lib/badges/localize';
 import { cn } from '@/lib/utils';
 import { Sheet, SegmentedControl, Button, LoadingBlock, EmptyState, ConfirmSheet, Switch } from '@/components/ui';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
@@ -28,12 +29,12 @@ type MetricType = 'distance' | 'duration';
 // A human-readable "100 km" / "50h" chip for the existing-badges list, for the
 // two admin-creatable rule_types only — other rule_types (pr_bucket etc.,
 // seed-only) render no chip.
-function metricLabel(badge: Badge): string | null {
+function metricLabel(badge: Badge, t: (key: string, v?: Record<string, number>) => string): string | null {
   if (badge.rule_type === 'cumulative_distance' && typeof badge.rule_params?.km === 'number') {
-    return `${badge.rule_params.km} km`;
+    return t('metricKm', { value: badge.rule_params.km });
   }
   if (badge.rule_type === 'cumulative_duration' && typeof badge.rule_params?.hours === 'number') {
-    return `${badge.rule_params.hours}h`;
+    return t('metricHours', { value: badge.rule_params.hours });
   }
   return null;
 }
@@ -50,6 +51,7 @@ function metricLabel(badge: Badge): string | null {
  */
 export function BadgeManager() {
   const t = useTranslations('badgeManager');
+  const locale = useLocale();
   const [badges, setBadges] = useState<Badge[]>([]);
   const [loading, setLoading] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -215,13 +217,18 @@ export function BadgeManager() {
                 inline icon buttons were 36px, and with the status chip beside them they
                 left the title 117-133px on a 375 phone, so every name was cut. */}
           {badges.map(b => {
-            const label = metricLabel(b);
+            const label = metricLabel(b, t as (key: string, v?: Record<string, number>) => string);
+            // One language per row: the name and description in the reader's locale
+            // (stored bilingually), not the English name under the Hebrew one.
+            const name = pickLocalized(b.name_he, b.name_en, locale);
+            const desc = pickLocalized(b.description_he, b.description_en, locale);
+            const sub = [desc, label].filter(Boolean).join(' · ');
             return (
               <InsetRow
                 key={b.id}
-                label={b.name_he}
+                label={name}
                 labelClamp
-                sublabel={label ? `${b.name_en} · ${label}` : b.name_en}
+                sublabel={sub || undefined}
                 sublabelClamp
                 onClick={() => setActionsTarget(b)}
                 meta={
@@ -245,7 +252,7 @@ export function BadgeManager() {
         </InsetSection>
       )}
 
-      <Sheet open={!!actionsTarget} onOpenChange={(o) => !o && setActionsTarget(null)} title={actionsTarget?.name_he || ''}>
+      <Sheet open={!!actionsTarget} onOpenChange={(o) => !o && setActionsTarget(null)} title={actionsTarget ? pickLocalized(actionsTarget.name_he, actionsTarget.name_en, locale) : ''}>
         {actionsTarget && (
           <InsetSection>
             <InsetRow icon={Pencil} iconBg="bg-brand-600/15" label={t('edit')} onClick={() => { const target = actionsTarget; setActionsTarget(null); openEdit(target); }} />
