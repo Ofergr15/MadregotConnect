@@ -53,8 +53,9 @@ export function ChatList({ data, onOpen }: { data: ChatPayload; onOpen?: (athlet
 
   return (
     <div dir="rtl" className="space-y-2">
-      <div className="flex items-center justify-between px-1">
-        <h2 className="text-[28px] font-black text-ink-900">שיחות</h2>
+      {/* No "שיחות" heading here: AcademyShell already titles the area with
+          AREA_TITLE.threads, so a second one read as the word twice in a row. */}
+      <div className="flex items-center justify-end px-1">
         <button type="button" onClick={() => setPicking(true)} aria-label="שיחה חדשה"
           className="grid h-11 w-11 place-items-center rounded-full bg-card text-brand-600">
           <SquarePen className="h-5 w-5" />
