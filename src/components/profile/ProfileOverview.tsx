@@ -14,6 +14,7 @@ import { PhotoLightbox } from '@/components/PhotoLightbox';
 import { HeroChip, ProfileHero } from '@/components/profile/ProfileHero';
 import { MyWeekCard } from '@/components/profile/MyWeekCard';
 import { profilePackChip } from '@/lib/utils';
+import { announceReadOnly, useViewAsReadOnly } from '@/lib/view-as-person';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The owner's profile in two halves the page places apart: the header (hero,
@@ -62,6 +63,10 @@ export function ProfileOverview({
   part: 'header' | 'week';
 }) {
   const t = useTranslations('profile');
+  // Viewing as somebody (lib/view-as-person.ts): the edit affordances stay in
+  // place but draw greyed and answer a tap with the banner's read-only toast.
+  const readOnly = useViewAsReadOnly();
+  const photoTap = readOnly ? announceReadOnly : onPhotoClick;
 
   // הגרעין — a flag, not a role (migration 091), so it has to be asked for; it
   // cannot be derived from anything already on this screen. Shares the SWR key
@@ -100,7 +105,7 @@ export function ProfileOverview({
                       )}
                       <button
                         type="button"
-                        onClick={avatarUrl ? () => setPhotoOpen(true) : onPhotoClick}
+                        onClick={avatarUrl ? () => setPhotoOpen(true) : photoTap}
                         className="block h-full w-full overflow-hidden rounded-full"
                         aria-label={avatarUrl ? t('viewPhoto') : t('changePhoto')}
                       >
@@ -124,11 +129,12 @@ export function ProfileOverview({
                           leaves the circle behind it tappable. */}
                       <button
                         type="button"
-                        onClick={onPhotoClick}
+                        onClick={photoTap}
                         aria-label={t('changePhoto')}
+                        aria-disabled={readOnly || undefined}
                         className="absolute bottom-0.5 end-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-card shadow ring-2 ring-page"
                       >
-                        {uploadingPhoto ? <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-600" /> : <Camera className="h-3.5 w-3.5 text-ink-500" />}
+                        {uploadingPhoto ? <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-600" /> : <Camera className={`h-3.5 w-3.5 ${readOnly ? 'text-ink-300' : 'text-ink-500'}`} />}
                       </button>
                     </div>
             }
@@ -167,8 +173,9 @@ export function ProfileOverview({
               onEditProfile ? (
                 <button
                   type="button"
-                  onClick={onEditProfile}
-                  className="min-h-[44px] flex-1 rounded-xl bg-page/70 text-sm font-extrabold text-ink-900 active:bg-page"
+                  onClick={readOnly ? announceReadOnly : onEditProfile}
+                  aria-disabled={readOnly || undefined}
+                  className={`min-h-[44px] flex-1 rounded-xl bg-page/70 text-sm font-extrabold ${readOnly ? 'text-ink-300' : 'text-ink-900 active:bg-page'}`}
                 >
                   {t('editProfile')}
                 </button>
