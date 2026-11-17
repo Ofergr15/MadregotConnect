@@ -21,7 +21,7 @@ export const clubPrice = (r: { price?: unknown; regular_price?: unknown }): numb
 const toProduct = (r: any): PodiumProduct => ({
   id: r.id, sku: r.sku, barcode: r.barcode, name: r.name, dept: r.dept, url: r.url ?? null, imageUrl: r.image_url ?? null,
   price: clubPrice(r), regularPrice: null,
-  deal: null, hidden: !!r.hidden, checkedAt: r.checked_at ?? null, sort: r.sort ?? 0,
+  deal: null, hidden: !!r.hidden, unavailable: !!r.unavailable, checkedAt: r.checked_at ?? null, sort: r.sort ?? 0,
 });
 export const toRound = (r: any): PodiumRound => ({
   id: r.id, title: r.title, audience: (r.audience ?? 'core') as Audience, audienceIds: r.audience_ids ?? [], createdBy: r.created_by ?? null, opensAt: r.opens_at, locksAt: r.locks_at, budget: Number(r.budget), sentAt: r.sent_at ?? null, receivedAt: r.received_at ?? null,

@@ -26,6 +26,8 @@ export interface PodiumProduct {
   regularPrice: number | null;
   deal: string | null;
   hidden: boolean;
+  /** Shown greyed as "זמנית לא זמין" and not orderable (migration 177), unlike `hidden`, which takes it off the list. */
+  unavailable?: boolean;
   checkedAt: string | null;
   sort: number;
 }
@@ -113,7 +115,12 @@ export function roundState(r: Pick<PodiumRound, 'opensAt' | 'locksAt' | 'sentAt'
 
 /** Products a runner may order: on the site with a price, and not hidden by the admin. */
 export function orderable(p: PodiumProduct): boolean {
-  return !p.hidden && p.price != null && p.price > 0;
+  return !p.hidden && !p.unavailable && p.price != null && p.price > 0;
+}
+
+/** On the runners' list: what they can order, plus what is temporarily unavailable (drawn greyed). */
+export function listed(p: PodiumProduct): boolean {
+  return orderable(p) || (!p.hidden && !!p.unavailable);
 }
 
 export function orderTotal(items: Record<string, number>, products: Map<string, PodiumProduct> | PodiumProduct[]): number {

@@ -15,7 +15,7 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   const { denied } = await requireStaffCaller(request);
   if (denied) return denied;
-  const b = await request.json().catch(() => ({})) as { action?: string; id?: string; url?: string; hidden?: boolean };
+  const b = await request.json().catch(() => ({})) as { action?: string; id?: string; url?: string; hidden?: boolean; unavailable?: boolean };
   const db = createServerClient();
   if (b.action === 'check') {
     const r = await checkPrices(db, await loadProducts(db));
@@ -31,6 +31,11 @@ export async function POST(request: Request) {
   }
   if (b.action === 'hide' && b.id) {
     const { error } = await db.from('podium_products').update({ hidden: !!b.hidden }).eq('id', b.id);
+    if (error) return NextResponse.json({ error: 'failed' }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+  if (b.action === 'unavailable' && b.id) {
+    const { error } = await db.from('podium_products').update({ unavailable: !!b.unavailable }).eq('id', b.id);
     if (error) return NextResponse.json({ error: 'failed' }, { status: 500 });
     return NextResponse.json({ ok: true });
   }

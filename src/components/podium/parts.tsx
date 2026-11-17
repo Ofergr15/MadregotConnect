@@ -77,14 +77,18 @@ export function ProductCard({ p, qty, onQty, onOpen, locked }: {
     <div role="button" tabIndex={0} onClick={onOpen} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
       className={cn('overflow-hidden rounded-[20px] bg-card text-start transition-shadow', qty > 0 ? 'ring-2 ring-brand-600' : 'ring-1 ring-black/[0.04]')}>
       <div className="relative aspect-square bg-white p-3">
-        <ProductImage p={p} />
-        <div className="absolute bottom-2 start-2">
-          <Stepper qty={qty} onChange={onQty} disabled={locked} floating />
-        </div>
+        <ProductImage p={p} className={p.unavailable ? 'opacity-40 grayscale' : undefined} />
+        {p.unavailable ? (
+          <span className="absolute bottom-2 start-2 rounded-pill bg-ink-900/80 px-2.5 py-1 text-2xs font-bold text-white">זמנית לא זמין</span>
+        ) : (
+          <div className="absolute bottom-2 start-2">
+            <Stepper qty={qty} onChange={onQty} disabled={locked} floating />
+          </div>
+        )}
       </div>
       <div className="px-3 pb-3 pt-2">
         <span dir="ltr" className="block h-[32px] overflow-hidden text-left text-[12.5px] font-bold leading-tight text-ink-700">{englishName(p.name)}</span>
-        <div className="mt-1.5"><Price p={p} /></div>
+        <div className={cn('mt-1.5', p.unavailable && 'opacity-40')}><Price p={p} /></div>
       </div>
     </div>
   );
@@ -98,7 +102,7 @@ export function ProductLine({ p, qty, onQty, locked, right }: {
       <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-white p-1 ring-1 ring-black/5"><ProductImage p={p} /></div>
       <div className="min-w-0 flex-1">
         <span dir="ltr" className="block truncate text-left text-13 font-bold text-ink-900">{englishName(p.name)}</span>
-        <span className="block truncate text-2xs text-ink-400">{p.price != null ? `${shekel(p.price)} ליחידה` : 'אין מחיר'}{hebrewName(p.name) ? ` · ${hebrewName(p.name)}` : ''}</span>
+        <span className="block truncate text-2xs text-ink-400">{p.unavailable ? 'זמנית לא זמין · ' : ''}{p.price != null ? `${shekel(p.price)} ליחידה` : 'אין מחיר'}{hebrewName(p.name) ? ` · ${hebrewName(p.name)}` : ''}</span>
       </div>
       {onQty ? <Stepper qty={qty} onChange={onQty} disabled={locked} size="sm" /> : <bdi className="text-base font-black tabular-nums">×{qty}</bdi>}
       {right}

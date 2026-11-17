@@ -697,12 +697,16 @@ function Catalog({ products, busy, act, post }: {
 
       <div className="rounded-card bg-card px-4 py-1 ring-1 ring-black/[0.04]">
         {rest.map((p) => (
-          <div key={p.id} className={cn('flex items-center gap-3 border-b border-page py-2.5 last:border-0', p.hidden && 'opacity-45')}>
+          <div key={p.id} className={cn('flex items-center gap-3 border-b border-page py-2.5 last:border-0', (p.hidden || p.unavailable) && 'opacity-45')}>
             <div className="h-11 w-11 shrink-0 rounded-xl bg-white p-1 ring-1 ring-black/5"><ProductImage p={p} /></div>
             <div className="min-w-0 flex-1">
               <span dir="ltr" className="block truncate text-left text-13 font-bold">{englishName(p.name)}</span>
               <span className="block truncate text-2xs text-ink-400"><bdi dir="ltr">{shekelRound(p.price!)}</bdi>{hebrewName(p.name) ? ` · ${hebrewName(p.name)}` : ''}</span>
             </div>
+            <button type="button" disabled={!!busy} onClick={() => void act('u', () => post('/api/admin/podium/products', { action: 'unavailable', id: p.id, unavailable: !p.unavailable }))}
+              className={cn('rounded-xl px-2 py-1 text-2xs font-bold', p.unavailable ? 'bg-ink-900 text-white' : 'text-ink-400')}>
+              {p.unavailable ? 'זמנית לא זמין' : 'לא זמין?'}
+            </button>
             <button type="button" aria-label={p.hidden ? 'להציג' : 'להסתיר'} disabled={!!busy} onClick={() => void act('h', () => post('/api/admin/podium/products', { action: 'hide', id: p.id, hidden: !p.hidden }))} className="p-2 text-ink-400">
               {p.hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>

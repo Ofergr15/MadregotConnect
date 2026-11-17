@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { isCoreRunner } from '@/lib/core-runner';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { budgetOf, cleanItems, orderTotal, orderable, overBy, roundState, type PodiumRound } from '@/lib/podium/model';
+import { budgetOf, cleanItems, listed, orderTotal, overBy, roundState, type PodiumRound } from '@/lib/podium/model';
 import { audienceOf, currentRound, listRounds, loadOrder, loadOrderById, loadOrders, loadProducts, saveOrder, type OrderRow } from '@/lib/podium/server';
 import { canOrderForOthers, readGrants } from '@/lib/access/grants';
 import { tellRunner } from '@/lib/podium/notify';
@@ -85,7 +85,7 @@ export async function GET(request: Request) {
     // Ordering for others in a round that isn't theirs: no own order, straight to "for whom".
     if ((round as { notMine?: boolean }).notMine && !forParam) {
       return NextResponse.json({
-        staff: g.staff, round: { ...round, state: roundState(round) }, products: allProducts.filter(orderable), order: null, delivered: null,
+        staff: g.staff, round: { ...round, state: roundState(round) }, products: allProducts.filter(listed), order: null, delivered: null,
         budget: round.budget, forOthers: true, target: { kind: 'none', id: null, name: null }, ...(await peopleOf(db, round, allProducts)),
       });
     }
@@ -94,7 +94,7 @@ export async function GET(request: Request) {
     const order = target.order;
     // Handed over: what they got and what didn't arrive (lib/podium/receive) — told only after "נמסר".
     const delivered = order?.deliveredAt ? (await receiveView(db, round, { products: allProducts })).shares[order.id] ?? null : null;
-    const products = allProducts.filter((p) => orderable(p) || !!order?.items[p.id]);
+    const products = allProducts.filter((p) => listed(p) || !!order?.items[p.id]);
     return NextResponse.json({
       staff: g.staff,
       round: { ...round, state: roundState(round) },

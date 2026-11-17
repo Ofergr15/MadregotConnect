@@ -8,7 +8,7 @@ import { textMatches } from '@/lib/search/match';
 import { cn } from '@/lib/utils';
 import { Sheet, SkeletonCard, EmptyState } from '@/components/ui';
 import {
-  AUDIENCE_TAG, GROUPS, orderable, englishName, groupOf, hebrewName, itemCount, orderTotal, overBy,
+  AUDIENCE_TAG, GROUPS, listed, englishName, groupOf, hebrewName, itemCount, orderTotal, overBy,
   type Approval, type PodiumProduct, type PodiumRound, type RoundState,
 } from '@/lib/podium/model';
 import { Price, ProductCard, ProductImage, ProductLine, Stepper, shekel, shekelRound, timeLeft, whenIL } from '@/components/podium/parts';
@@ -115,7 +115,10 @@ export default function PodiumOrderPage() {
     if (ok) { setView('done'); window.scrollTo({ top: 0 }); }
   };
 
-  const shown = products.filter((p) => orderable(p) && (group === 'all' || groupOf(p.dept) === group) && (!q.trim() || textMatches(q, p.name)));
+  const shown = products
+    .filter((p) => listed(p) && (group === 'all' || groupOf(p.dept) === group) && (!q.trim() || textMatches(q, p.name)))
+    // Temporarily unavailable ones stay visible, greyed, at the end of the list.
+    .sort((a, b) => Number(!!a.unavailable) - Number(!!b.unavailable));
   const groups = GROUPS.filter((g) => products.some((p) => groupOf(p.dept) === g.key));
 
   if (isLoading && !data) return <div className="grid grid-cols-2 gap-3 pt-16">{Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} className="h-60" />)}</div>;
@@ -287,7 +290,7 @@ export default function PodiumOrderPage() {
       )}
 
       <Sheet open={!!open} onOpenChange={(o) => { if (!o) setOpen(null); }} title="">
-        {open && <ProductSheet p={open} qty={items[open.id] ?? 0} onQty={(n) => setQty(open.id, n)} locked={!editable} />}
+        {open && <ProductSheet p={open} qty={items[open.id] ?? 0} onQty={(n) => setQty(open.id, n)} locked={!editable || !!open.unavailable} />}
       </Sheet>
     </div>
   );

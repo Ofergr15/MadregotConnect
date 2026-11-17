@@ -189,3 +189,16 @@ describe('who may order Podium for others', () => {
     expect(canOrderForOthers({ athleteId: 'x', role: 'runner' }, { x: { content: {} } })).toBe(false);
   });
 });
+
+describe('temporarily unavailable products', () => {
+  it('are listed but not orderable, and cleanItems drops them', async () => {
+    const { orderable, listed, cleanItems } = await import('@/lib/podium/model');
+    const base = { sku: 1, barcode: '', name: 'Powerbar Gel', dept: '', url: null, imageUrl: null, price: 12, regularPrice: null, deal: null, hidden: false, checkedAt: null, sort: 0 };
+    const off = { ...base, id: 'u1', unavailable: true };
+    const gone = { ...base, id: 'h1', hidden: true, unavailable: true };
+    expect(orderable(off)).toBe(false);
+    expect(listed(off)).toBe(true);
+    expect(listed(gone)).toBe(false);
+    expect(cleanItems({ u1: 2 }, [off])).toEqual({});
+  });
+});
