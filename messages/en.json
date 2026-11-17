@@ -6657,5 +6657,11 @@
     "morning": "Morning",
     "evening": "Evening",
     "outOf": "of {km} km required"
+  },
+  "notFoundPage": {
+    "title": "Page not found",
+    "subtitle": "The link is broken or the page was removed",
+    "body": "The address may be mistyped, or the page no longer exists.",
+    "back": "Back to the feed"
   }
 }
