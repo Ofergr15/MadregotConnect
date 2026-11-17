@@ -2,12 +2,13 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { loginRedirectTarget } from '@/lib/auth/login-link';
 
 export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/');
+    router.replace(loginRedirectTarget(window.location.search));
   }, [router]);
 
   return (

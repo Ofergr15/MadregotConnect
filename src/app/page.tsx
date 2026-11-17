@@ -10,6 +10,7 @@ import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { Figure } from '@/components/Figure';
 import { Sheet, Button, LoadingBlock, BigStat } from '@/components/ui';
 import { EmailCodeSheet } from '@/components/auth/EmailCodeSheet';
+import { consumeSigninFlag } from '@/lib/auth/login-link';
 import { InstallGuide } from '@/components/install/InstallGuide';
 import { usePreviewOnboardingV2 } from '@/lib/install/v2';
 import { detectInstallPlatform } from '@/lib/install/platform';
@@ -126,6 +127,13 @@ export default function HomePage() {
   // a stranger used to find only sign-in buttons). Members sign in from this
   // sheet, which holds both ways in: Strava and the code by email.
   const [showSignIn, setShowSignIn] = useState(false);
+  // /login forwards here with ?signin=1 (lib/auth/login-link) so direct sign-in links open the sheet.
+  useEffect(() => {
+    const { open, rest } = consumeSigninFlag(window.location.search);
+    if (!open) return;
+    setShowSignIn(true);
+    window.history.replaceState({}, '', rest);
+  }, []);
   const v2 = usePreviewOnboardingV2();
   const [installFirst, setInstallFirst] = useState(false);
   const [browserEscape, setBrowserEscape] = useState(false);
