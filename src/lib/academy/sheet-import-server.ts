@@ -11,6 +11,7 @@ import { createMoveInInvite } from './move-in-invite';
 import { parseBulk } from './manage';
 import { runBulk } from './manage-server';
 import { inviteUrl } from './intake';
+import { currentMail, loadMailStates, type MailState } from './invite-email';
 import { EU_SHOE_SIZES } from '@/lib/shoe-catalog';
 import {
   coachForNick, importIntake, importStage, isImportedIntake, isStuck,
@@ -158,6 +159,8 @@ export interface BoardRow {
   hasResults: boolean;
   /** Staff-only: the call notes from the file. */
   staffNote: string | null;
+  /** The latest send of the mail that matters now (form before acceptance, install after), from email_log. */
+  mail: MailState | null;
 }
 
 /** Every card the file opened, and where each person is: not invited → invited → confirmed → in the app. */
@@ -177,6 +180,7 @@ export async function loadImportBoard(supabase: Db, now = Date.now()): Promise<B
       : Promise.resolve({ data: [] as unknown[] }),
     loadCoachesAndBands(supabase),
   ]);
+  const mails = await loadMailStates(supabase, cards.map((c) => c.id));
   const athleteBy = new Map(((ath || []) as Array<{ id: string; first_seen_at: string | null }>).map((a) => [a.id, a]));
   const formDone = new Set(((events || []) as Array<{ candidate_id: string }>).map((e) => e.candidate_id));
   const coachName = new Map(coaches.map((c) => [c.id, c.name]));
@@ -193,6 +197,7 @@ export async function loadImportBoard(supabase: Db, now = Date.now()): Promise<B
       marked: imp.marked === true, linked,
       stage, stuck: isStuck(stage, c.invited_at ?? null, now), invitedAt: c.invited_at ?? null,
       hasResults: !!c.intake?.sheet_results, staffNote: typeof imp.staffNote === 'string' ? imp.staffNote : null,
+      mail: stage === 'not_invited' || stage === 'in_app' ? null : currentMail(mails.get(c.id), !!c.accepted_at),
     };
   });
   const order: Record<ImportStage, number> = { invited: 0, not_invited: 1, confirmed: 2, in_app: 3 };
@@ -216,7 +221,7 @@ export function athleteExtrasFromIntake(intake: Record<string, any>): Record<str
   return out;
 }
 
-export interface InviteOutcome { cardId: string; ok: boolean; error?: string; emailed?: boolean; moved?: boolean }
+export interface InviteOutcome { cardId: string; ok: boolean; error?: string; emailed?: boolean; emailError?: string | null; moved?: boolean }
 
 /**
  * The chosen cards, invited. Somebody new gets the move-in invitation (createMoveInInvite) on
@@ -272,7 +277,8 @@ export async function inviteImported(supabase: Db, caller: VerifiedCaller, cardI
       out.push({ cardId: id, ok: false, error: String(result.body.error || 'invite_failed') });
       continue;
     }
-    out.push({ cardId: id, ok: true, emailed: result.body.emailed === true });
+    const emailed = result.body.emailed === true;
+    out.push({ cardId: id, ok: true, emailed, ...(emailed ? {} : { emailError: (result.body.emailError as string | null) ?? 'send_failed' }) });
   }
   return out;
 }

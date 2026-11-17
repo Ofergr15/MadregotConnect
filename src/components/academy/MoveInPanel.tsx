@@ -13,6 +13,7 @@ import { groupDisplayName } from '@/lib/utils';
 import type { AcademyBand, AcademyCoachSummary } from './types';
 import { CoachesPicker } from './CoachesPicker';
 import { personMatches } from '@/lib/search/match';
+import { InviteMailFailed } from './InviteMailFailed';
 
 // "כבר מתאמנים אצלנו" — the migration path (academy-existing-add/migration-plan.html, screens
 // 1–2): people who ALREADY train in the academy, moved into the app in one go. No form, no
@@ -81,7 +82,7 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
   const [mode, setMode] = useState<'club' | 'invite'>('club');
   const [inv, setInv] = useState({ name: '', email: '', phone: '' });
   const [groupId, setGroupId] = useState<string | null>(null);
-  const [invited, setInvited] = useState<{ url: string; name: string; phone: string; email: string; emailed: boolean } | null>(null);
+  const [invited, setInvited] = useState<{ url: string; name: string; phone: string; email: string; emailed: boolean; candidateId: string | null; emailError: string | null } | null>(null);
   const [copied, setCopied] = useState(false);
   const { data: groupsData } = useApi<{ groups?: Array<{ id: string; name: string }> }>(mode === 'invite' ? '/api/groups' : null);
   const groups = groupsData?.groups ?? [];
@@ -116,7 +117,7 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
       const json = await res.json().catch(() => ({}));
       if (res.status === 409 && json.error === 'already_in_app') { setError(`${json.name || 'הוא'} כבר באפליקציה — מעבירים מהלשונית "מהמועדון".`); return; }
       if (!res.ok || !json.url) { setError(json.error || 'ההזמנה לא נוצרה'); return; }
-      setInvited({ url: json.url, name: inv.name.trim(), phone: inv.phone.trim(), email: inv.email.trim().toLowerCase(), emailed: json.emailed === true });
+      setInvited({ url: json.url, name: inv.name.trim(), phone: inv.phone.trim(), email: inv.email.trim().toLowerCase(), emailed: json.emailed === true, candidateId: json.candidateId ?? null, emailError: json.emailError ?? null });
       await onDone();
     } catch {
       setError('ההזמנה לא נוצרה');
@@ -184,15 +185,21 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
     return (
       <div>
         <div className="rounded-card bg-card p-4">
-          <p className="text-[15px] font-bold text-ink-700">טופס הפרטים של {firstName(invited.name)} נשלח</p>
-          <p className={invited.emailed ? 'mt-1 text-[13px] font-semibold text-accent-600' : 'mt-1 text-[13px] font-semibold text-[#8A5A00]'}>
-            {invited.emailed
-              ? <>📧 נשלח מייל ל־<bdi dir="ltr">{invited.email}</bdi> עם הקישור לטופס.</>
-              : <>המייל לא נשלח — אפשר לשלוח את הקישור בוואטסאפ.</>}
+          <p className="text-[15px] font-bold text-ink-700">
+            {invited.emailed ? <>טופס הפרטים של <bdi dir="auto">{firstName(invited.name)}</bdi> נשלח</> : <>ההזמנה של <bdi dir="auto">{firstName(invited.name)}</bdi> נוצרה — המייל לא נשלח</>}
           </p>
+          {invited.emailed
+            ? <p className="mt-1 text-[13px] font-semibold text-accent-600">📧 נשלח מייל ל־<bdi dir="ltr">{invited.email}</bdi> עם הקישור לטופס.</p>
+            : <p className="mt-1 text-[13px] font-semibold text-[#B91C1C]">אפשר לשלוח שוב, או את הקישור בוואטסאפ.</p>}
           <p className="mt-0.5 text-xs leading-relaxed text-ink-400">כשימלא — תקבל התראה, והכרטיס יחכה לאישור במשפך (המאמן כבר נבחר). אחרי האישור יוצא אליו מייל ההתקנה.</p>
           <p className="mt-2.5 select-all break-all rounded-xl bg-page px-3 py-2 text-xs text-ink-700"><bdi dir="ltr">{invited.url}</bdi></p>
         </div>
+        {!invited.emailed && invited.candidateId && (
+          <div className="mt-2.5 -mx-4">
+            <InviteMailFailed cardId={invited.candidateId} kind="form" error={invited.emailError}
+              onResent={() => setInvited((v) => (v ? { ...v, emailed: true, emailError: null } : v))} />
+          </div>
+        )}
         <div className="mt-2.5 grid grid-cols-2 gap-2">
           <a href={waShareUrl(invited.phone, text)} target="_blank" rel="noopener noreferrer"
             className="flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-2xl bg-[#1FA55B] text-xs font-extrabold text-white">

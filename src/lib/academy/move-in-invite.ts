@@ -108,11 +108,15 @@ export async function createMoveInInvite(caller: VerifiedCaller, input: MoveInIn
   // The details form, by email, unless the manager asked for the link only. The coaches hear
   // nothing yet: at the approval, and when the trainee signs in.
   const url = inviteUrl(formToken);
+  // The invitation exists either way; whether its mail went out is reported apart
+  // (`emailed`, `emailError`), so a failed send is never shown as a sent one.
   let emailed = false;
+  let emailError: string | null = null;
   if (input.sendEmail !== false && candidateId) {
     const sent = await notifyAcademyExistingForm({ email, name, url, candidateId, athleteId })
       .catch((err: unknown) => { console.error('academy invite: form email failed:', err); return null; });
     emailed = !!sent && sent.ok;
+    if (!emailed) emailError = (sent && !sent.ok ? sent.reason : null) || 'send_failed';
   }
-  return { status: 200, body: { athleteId, candidateId, url, invitedBy: caller.athleteId, emailed } };
+  return { status: 200, body: { athleteId, candidateId, url, invitedBy: caller.athleteId, emailed, emailError } };
 }

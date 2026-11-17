@@ -9,6 +9,7 @@ import { coachForNick, coachNicks, parseAcademyWorkbook, type ParsedImport } fro
 import type { BoardRow, ImportBand, ImportCoach, PreviewNeed } from '@/lib/academy/sheet-import-server';
 import { BarButton, CARD, FlowOverlay, FlowScreen, PrimaryButton, SectionLabel, initials } from './book/ui';
 import { Avatar, sendJson } from './completion/shared';
+import { InviteMailFailed } from './InviteMailFailed';
 
 // "מעבר לאפליקציה" (mockups/roles-1019/academy-import.html): the academy's own spreadsheet into
 // the app, with nobody told anything until the manager chooses. Three screens:
@@ -296,7 +297,9 @@ function BoardScreen({ board, onClose, onUpload, reload }: { board: Board; onClo
   const rows = board.rows;
   const waiting = rows.filter((r) => r.stage === 'not_invited');
   const invitable = waiting.filter((r) => r.email || r.linked);
-  const stuck = rows.filter((r) => r.stuck);
+  // A mail that did not go out is its own section, not "invited" (Ofer, 11-17).
+  const mailFailed = rows.filter((r) => r.mail?.failed);
+  const stuck = rows.filter((r) => r.stuck && !r.mail?.failed);
   const count = (s: BoardRow['stage']) => rows.filter((r) => r.stage === s).length;
   const toggle = (id: string) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const pickAll = (pred: (r: BoardRow) => boolean) => setPicked(new Set(invitable.filter(pred).map((r) => r.cardId)));
@@ -306,10 +309,11 @@ function BoardScreen({ board, onClose, onUpload, reload }: { board: Board; onClo
   const send = async () => {
     setBusy(true); setNote(null);
     try {
-      const r = await sendJson<{ results: Array<{ ok: boolean; error?: string; moved?: boolean }> }>('POST', '/api/academy/import', { action: 'invite', cardIds: [...picked] });
+      const r = await sendJson<{ results: Array<{ ok: boolean; error?: string; moved?: boolean; emailed?: boolean }> }>('POST', '/api/academy/import', { action: 'invite', cardIds: [...picked] });
       const ok = r.results.filter((x) => x.ok).length;
       const failed = r.results.length - ok;
-      setNote(failed ? `${ok} הוזמנו · ${failed} לא (כבר באפליקציה או בלי מייל)` : `${ok} הוזמנו`);
+      const noMail = r.results.filter((x) => x.ok && !x.moved && x.emailed === false).length;
+      setNote([`${ok} הוזמנו`, failed ? `${failed} לא (כבר באפליקציה או בלי מייל)` : null, noMail ? `ל־${noMail} המייל לא נשלח — מסומנים באדום למעלה` : null].filter(Boolean).join(' · '));
       setPicked(new Set());
       setConfirm(false);
       await reload();
@@ -356,6 +360,27 @@ function BoardScreen({ board, onClose, onUpload, reload }: { board: Board; onClo
         ))}
       </div>
       {note && <p className="px-1 text-[14px] font-bold text-[#16A34A]" role="status">{note}</p>}
+
+      {mailFailed.length > 0 && (
+        <>
+          <SectionLabel>המייל לא נשלח · <bdi dir="ltr">{mailFailed.length}</bdi></SectionLabel>
+          <div className={cn(CARD, 'divide-y divide-[#EFEFF4] overflow-hidden ring-1 ring-[#FCA5A5]')}>
+            {mailFailed.map((r) => (
+              <div key={r.cardId} data-testid="mail-failed-row">
+                <Row>
+                  <Avatar text={initials(r.name)} />
+                  <span className="min-w-0 flex-1">
+                    <b className="block truncate text-[16px] font-bold text-ink-900" dir="auto">{r.name}</b>
+                    <span className="block truncate text-[13.5px] text-ink-500">{r.email ? <bdi dir="ltr">{r.email}</bdi> : line(r)}</span>
+                  </span>
+                  <span className="shrink-0 text-[13px] font-extrabold text-[#B91C1C]">{STAGE_TEXT[r.stage]}</span>
+                </Row>
+                <InviteMailFailed cardId={r.cardId} kind={r.mail!.kind} error={r.mail!.error} onResent={reload} />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {stuck.length > 0 && (
         <>
@@ -425,7 +450,7 @@ function BoardScreen({ board, onClose, onUpload, reload }: { board: Board; onClo
       )}
 
       {(['invited', 'confirmed', 'in_app'] as const).map((stage) => {
-        const list = rows.filter((r) => r.stage === stage && !r.stuck);
+        const list = rows.filter((r) => r.stage === stage && !r.stuck && !r.mail?.failed);
         if (!list.length) return null;
         return (
           <Fragment key={stage}>
