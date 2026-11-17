@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { apiHeaders, useApi } from '@/lib/api';
 import { EmptyState, SkeletonList, Button } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
-import { cn } from '@/lib/utils';
+import { cn, memberPackName } from '@/lib/utils';
 import { AthleteLink } from '@/components/AthleteLink';
 import { personMatches } from '@/lib/search/match';
 
@@ -97,7 +97,7 @@ export function MemberDiscovery({ viewerId }: { viewerId: string }) {
                 <FeedAvatar name={a.name} url={a.avatarUrl} className="w-10 h-10 shrink-0" />
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-ink-700 truncate" dir="auto">{a.name}</p>
-                  {a.groupName && <p className="text-2xs text-ink-400 truncate">{a.groupName}</p>}
+                  {a.groupName && <p className="text-2xs text-ink-400 truncate"><bdi>{memberPackName(a.groupName)}</bdi></p>}
                 </div>
               </AthleteLink>
               <Button

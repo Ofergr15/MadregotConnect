@@ -13,7 +13,8 @@ import { AthleteLink } from '@/components/AthleteLink';
 import { findPlaces, type PlaceViewer } from '@/lib/search/places';
 import type { RunResults } from '@/lib/search/runs';
 import type { WeekSession } from '@/lib/plans/workout-parsing';
-import { getPlanWeekStart } from '@/lib/utils';
+import { getPlanWeekStart, memberPackName } from '@/lib/utils';
+import { albumMedia } from '@/lib/search/album-media';
 import {
   matchSessions, PersonActions, PlacesSection, PlanSection, RecentSearches, recordBuckets, RecordsSection, rememberSearch, RunsSection, SearchTabs, type SearchTab,
 } from '@/components/search/SearchExtras';
@@ -89,6 +90,7 @@ interface SearchAlbum {
   title: string;
   date: string;
   count: number;
+  videos?: number;
   cover: string | null;
 }
 interface SearchData {
@@ -284,7 +286,7 @@ export default function SearchPage() {
                 <FeedAvatar name={m.name} url={m.avatarUrl} className="w-9 h-9 shrink-0" />
                 <span className="min-w-0">
                   <span className="block text-[15px] font-extrabold text-ink-900 truncate"><bdi>{m.name}</bdi></span>
-                  {m.pack && <span className="block text-xs text-ink-400 truncate"><bdi>{m.pack}</bdi></span>}
+                  {m.pack && <span className="block text-xs text-ink-400 truncate"><bdi>{memberPackName(m.pack)}</bdi></span>}
                 </span>
               </AthleteLink>
             ))}
@@ -313,7 +315,7 @@ export default function SearchPage() {
                   : <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-page"><Images className="h-4 w-4 text-ink-400" /></span>}
                 <div className="min-w-0 flex-1">
                   <span className="block truncate text-[15px] font-extrabold text-ink-900"><bdi>{a.title}</bdi></span>
-                  <span className="block text-xs text-ink-400">{fmtDate(a.date)} · {t('photoCount', { count: a.count })}</span>
+                  <span className="block text-xs text-ink-400">{fmtDate(a.date)} · {albumMedia(t, a)}</span>
                 </div>
                 <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300 rtl:rotate-0 ltr:rotate-180" />
               </Link>
@@ -422,7 +424,7 @@ function StartView({ start }: { start: StartData }) {
     <div className="space-y-5">
       {start.pack.length > 0 && (
         <section>
-          <p className={head}>{t('yourPack')}{start.packName ? <> · <bdi>{start.packName}</bdi></> : null}</p>
+          <p className={head}>{t('yourPack')}{start.packName ? <> · <bdi>{memberPackName(start.packName)}</bdi></> : null}</p>
           <div className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1">
             {start.pack.map((m) => (
               <AthleteLink key={m.id} athleteId={m.id} name={m.name} className="w-[62px] shrink-0 text-center">
@@ -464,7 +466,7 @@ function StartView({ start }: { start: StartData }) {
                   : <span className="flex h-[74px] items-center justify-center bg-page"><Images className="h-5 w-5 text-ink-300" /></span>}
                 <span className="block px-2 pb-2 pt-1.5">
                   <b className="block truncate text-xs font-extrabold text-ink-900"><bdi>{a.title}</bdi></b>
-                  <small className="text-[11px] text-ink-400">{t('photoCount', { count: a.count })}</small>
+                  <small className="text-[11px] text-ink-400">{albumMedia(t, a)}</small>
                 </span>
               </Link>
             ))}

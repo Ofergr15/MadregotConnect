@@ -8,7 +8,7 @@ import { signOutEverywhere } from '@/lib/auth/sign-out';
 import { InsetSection, InsetRow, EmptyState, LoadingBlock, SegmentedControl } from '@/components/ui';
 import { ApprovalPushOptIn } from '@/components/PushOptIn';
 import { WhatsNewOnboardingCard } from '@/components/whats-new/WhatsNewOnboarding';
-import { cn, MONDAY_WEEK, SUNDAY_WEEK, type WeekStartDay } from '@/lib/utils';
+import { cn, MONDAY_WEEK, SUNDAY_WEEK, type WeekStartDay, memberPackName } from '@/lib/utils';
 
 // Local input primitive — see src/app/admin/login/page.tsx for why this is
 // duplicated locally instead of promoted to the shared ui/index.tsx.
@@ -349,7 +349,7 @@ function OnboardContent() {
                     return (
                       <InsetRow
                         key={g.id}
-                        label={g.name}
+                        label={memberPackName(g.name)}
                         sublabel={g.marathonGoal ? `${t('marathonGoal')} ${g.marathonGoal}` : undefined}
                         onClick={() => setSelectedGroup(isSelected ? '' : g.id)}
                         trailing={isSelected ? <Check className="h-4 w-4 text-brand-600 shrink-0" /> : undefined}

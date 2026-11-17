@@ -10,7 +10,7 @@ import {
   UserPlus, Mail, Smartphone, AlertTriangle, HelpCircle,
   UserMinus, RotateCcw, Trash2, ShieldAlert, FileClock, GraduationCap,
 } from 'lucide-react';
-import { cn, getGroupChip, groupDisplayName } from '@/lib/utils';
+import { cn, getGroupChip, groupDisplayName, memberPackName } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { approvalWhatsAppText } from '@/lib/install/flag';
@@ -907,7 +907,7 @@ export default function EntryQueuePage() {
                       m.groupName ? cn(groupStyle?.bg, groupStyle?.text) : 'bg-page text-ink-400',
                     )}
                   >
-                    {m.groupName || t('noGroup')}
+                    {m.groupName ? memberPackName(m.groupName) : t('noGroup')}
                   </span>
                 </div>
 

@@ -8,7 +8,7 @@ import { ChevronRight, ImagePlus, Loader2, Plus, Search, X } from 'lucide-react'
 import { useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { COACH_ID } from '@/lib/constants';
-import { cn, GROUP_HEX } from '@/lib/utils';
+import { cn, GROUP_HEX, memberPackName } from '@/lib/utils';
 import { sortByPaceGroup } from '@/lib/plans/pace-group';
 import { Switch } from '@/components/ui';
 import { Avatar } from '@/components/day-session/WatchSend';
@@ -115,7 +115,7 @@ function AudiencePicker({ value, onChange, groups, people, singleGroup }: {
               <button key={g.id} type="button" aria-pressed={on}
                 onClick={() => onChange({ ...value, groupIds: singleGroup ? [g.id] : toggle(value.groupIds, g.id) })}
                 className={cn('inline-flex min-h-[44px] items-center gap-2 rounded-full border-[1.5px] px-3.5 text-sm font-bold', on ? 'border-brand-600 bg-brand-600/10 text-brand-600' : 'border-[#E5E5EB] bg-white text-ink-500')}>
-                <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: GROUP_HEX[Math.min(i, 2)] }} />{g.name}
+                <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: GROUP_HEX[Math.min(i, 2)] }} />{memberPackName(g.name)}
               </button>
             );
           })}

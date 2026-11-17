@@ -8,7 +8,7 @@ import {
   Send, CheckCircle2, Bug, Lightbulb, Dumbbell, MessageCircle, Camera, Images, X,
   ChevronDown, ChevronLeft, ChevronRight, Info, MapPin, RotateCcw, Inbox, Copy, Check, Share2,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, memberPackName } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { Button, Spinner, Sheet, InsetSection, InsetRow } from '@/components/ui';
 import { useNavItems } from '@/lib/nav-items';
@@ -617,7 +617,7 @@ export default function ReviewPage() {
             </Button>
             <p className="text-center text-2xs text-ink-400">
               <span className="font-medium text-ink-500">{athleteName || t('anonymous')}</span>
-              {groupName && <span> · {groupName}</span>}
+              {groupName && <span> · <bdi>{memberPackName(groupName)}</bdi></span>}
             </p>
             {error && <p className="text-center text-sm leading-relaxed text-accent-red">{t('submitError')}</p>}
           </div>

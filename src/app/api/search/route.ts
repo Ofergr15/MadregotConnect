@@ -68,7 +68,7 @@ export async function GET(request: Request) {
     // Everything at once: the photo folders (Drive, up to 2.5s cold), the runs and the
     // packs don't wait for the roster, and the roster doesn't wait for them.
     const albumsP = foldersInTime().then((list) => albumRows(list
-      .filter((f) => f.count > 0 && textMatches(q, f.title, f.name))
+      .filter((f) => hasMedia(f) && textMatches(q, f.title, f.name))
       .slice(0, RESULT_LIMIT)));
     const runsP = searchRuns(supabase, q, caller);
     const groupsP = supabase.from('groups').select('id, name');
@@ -173,10 +173,12 @@ async function foldersInTime(ms = 2500): Promise<PhotoFolder[]> {
 }
 
 /*
- * Both album lists keep photo albums only (feedback #28, "13.11" with 0 photos): the
- * library keeps video-only folders (drive-browse assemble), and a search row reads
- * "0 photos" for them, since it shows the photo count alone.
+ * QA #6 ("13.11" read "0 תמונות"): that folder holds 60 videos and no photos. The library
+ * keeps video-only folders (drive-browse assemble), so search keeps them too, as the
+ * photos screen does, and sends `videos` so the row says "60 סרטונים", never "0 photos".
+ * A folder with neither is left out.
  */
+const hasMedia = (f: Pick<PhotoFolder, 'count' | 'videos'>) => f.count > 0 || (f.videos ?? 0) > 0;
 async function albumRows(folders: PhotoFolder[]) {
   const m = await mirroredUrls(folders.map((f) => f.covers[0]).filter(Boolean)).catch(() => null);
   return folders.map((f) => ({
@@ -184,6 +186,7 @@ async function albumRows(folders: PhotoFolder[]) {
     title: f.title || f.name,
     date: f.date,
     count: f.count,
+    videos: f.videos ?? 0,
     cover: f.covers[0] ? m?.thumb[f.covers[0]] ?? signedImageUrl(f.covers[0], THUMB) : null,
   }));
 }
@@ -208,7 +211,7 @@ async function startOf(supabase: Db, athleteId: string | null | undefined) {
     packName: (groupRes.data as { name?: string } | null)?.name ?? null,
     races: ((racesRes.error ? [] : racesRes.data) || []) as Array<{ id: string; name: string; kind: string; date: string; location: string }>,
     // The pinned folder leads the photos home; here it is the newest that matter.
-    albums: await albumRows(folders.filter((f) => !f.pinned && f.count > 0).slice(0, 3)),
+    albums: await albumRows(folders.filter((f) => !f.pinned && hasMedia(f)).slice(0, 3)),
     today,
   };
 }

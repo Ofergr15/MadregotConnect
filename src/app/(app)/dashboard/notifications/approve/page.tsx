@@ -11,7 +11,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiHeaders, useApi } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { cn, memberPackName } from '@/lib/utils';
 import { Button, Card, SegmentedControl, Spinner } from '@/components/ui';
 import type { ApprovalDay, ApprovalMode, ApprovalPush, GateState } from '@/lib/notifications/approval';
 
@@ -188,7 +188,7 @@ function PushRow({ p, groups, onSaved }: { p: ApprovalPush; groups: Array<{ id: 
           <div className="flex flex-wrap gap-1.5">
             {[{ id: null as string | null, name: p.key === 'eveningBefore' ? 'כל מי שלא ענה' : 'כולם' }, ...groups].map((g) => (
               <button key={g.id ?? 'all'} type="button" onClick={() => setAud(g.id)}
-                className={cn('min-h-[32px] rounded-full px-2.5 text-xs font-bold', aud === g.id ? 'bg-ink-900 text-white' : 'bg-white text-ink-700')}>{g.name}</button>
+                className={cn('min-h-[32px] rounded-full px-2.5 text-xs font-bold', aud === g.id ? 'bg-ink-900 text-white' : 'bg-white text-ink-700')}>{memberPackName(g.name)}</button>
             ))}
           </div>
           {failed && <p className="text-xs text-accent-red">לא נשמר. לנסות שוב.</p>}

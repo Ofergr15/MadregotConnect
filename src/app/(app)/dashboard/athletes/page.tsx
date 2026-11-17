@@ -8,7 +8,7 @@ import {
   PauseCircle, PlayCircle, ArrowRightLeft, MessageCircle, UserMinus,
   Wrench, Search, Lock, Unlock, DoorOpen, User as UserIcon
 } from 'lucide-react';
-import { cn, getGroupChip } from '@/lib/utils';
+import { cn, getGroupChip, memberPackName } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { isProtectedEmail } from '@/lib/constants';
 import { Skeleton, SkeletonCard, Sheet, ConfirmSheet, SegmentedControl, InsetSection, InsetRow, Card, Button, EmptyState, BigStat } from '@/components/ui';
@@ -527,7 +527,7 @@ ${inviteLink}`;
             <InsetRow
               key={g.id}
               icon={UsersIcon}
-              label={g.name}
+              label={memberPackName(g.name)}
               trailing={inviteGroup === g.id ? <Check className="h-4 w-4 text-brand-600" /> : undefined}
               onClick={() => { setInviteGroup(g.id); setGroupPickerOpen(false); }}
             />
@@ -598,7 +598,7 @@ ${inviteLink}`;
                       <span className="flex flex-wrap items-center gap-1 mt-1">
                         {athlete.groupName && (
                           <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded text-2xs font-medium', groupStyle?.bg, groupStyle?.text)}>
-                            {athlete.groupName}
+                            {memberPackName(athlete.groupName)}
                           </span>
                         )}
                         {athlete.hasGarmin && <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-accent-600/15 text-accent-900">Garmin</span>}

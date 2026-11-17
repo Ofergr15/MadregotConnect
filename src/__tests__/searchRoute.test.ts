@@ -47,6 +47,7 @@ vi.mock('@/lib/photos/drive-browse', () => ({
     { id: 'p0', name: 'מרוץ הסרגל 2026', title: 'מרוץ הסרגל 2026', date: '2026-10-09', count: 14, covers: ['c0'], pinned: true },
     { id: 'p1', name: 'יום שישי 16.10', title: 'שישי 16.10', date: '2026-10-16', count: 19, covers: ['c1'], pinned: false },
     { id: 'p2', name: '13.11', title: '13.11', date: '2026-11-13', count: 0, videos: 3, covers: [], pinned: false },
+    { id: 'p3', name: 'ריק 13.11', title: 'ריק 13.11', date: '2026-11-14', count: 0, videos: 0, covers: [], pinned: false },
   ],
 }));
 vi.mock('@/lib/photos/mirror', () => ({ mirroredUrls: async () => ({ thumb: {}, full: {}, lqip: {} }) }));
@@ -63,11 +64,11 @@ describe('typing', () => {
   });
   it('an album is found by its title', async () => {
     const r = await get(`q=${encodeURIComponent('סרגל')}`);
-    expect(r.albums).toEqual([{ id: 'p0', title: 'מרוץ הסרגל 2026', date: '2026-10-09', count: 14, cover: '/img/c0' }]);
+    expect(r.albums).toEqual([{ id: 'p0', title: 'מרוץ הסרגל 2026', date: '2026-10-09', count: 14, videos: 0, cover: '/img/c0' }]);
   });
-  it('an album with no photos is not a result', async () => {
+  it('a video-only album is a result with its video count; an empty one is not (QA #6)', async () => {
     const r = await get(`q=${encodeURIComponent('13.11')}`);
-    expect(r.albums).toEqual([]);
+    expect(r.albums).toEqual([{ id: 'p2', title: '13.11', date: '2026-11-13', count: 0, videos: 3, cover: null }]);
   });
   it('the hidden store is not asked for products', async () => {
     await get('q=shirt');
@@ -81,6 +82,6 @@ describe('before typing (?start=1)', () => {
     expect(r.pack.map((m: { id: string }) => m.id)).toEqual(['a1', 'a2']);
     expect(r.packName).toBe('Group B');
     expect(r.races).toHaveLength(1);
-    expect(r.albums.map((a: { id: string }) => a.id)).toEqual(['p1']);
+    expect(r.albums.map((a: { id: string }) => a.id)).toEqual(['p1', 'p2']);
   });
 });

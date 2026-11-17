@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Search } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, memberPackName } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { Card } from '@/components/ui';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -45,7 +45,7 @@ export function ViewAsPersonPicker({ open }: { open: boolean }) {
   const recent = q ? [] : readRecentPeople().map((r) => byId.get(r.id)).filter((p): p is ViewAsPerson => !!p);
 
   const sub = (p: ViewAsPerson) => {
-    const parts = [p.groupName];
+    const parts = [p.groupName ? memberPackName(p.groupName) : null];
     if (p.coachName) parts.push(t('withCoach', { coach: p.coachName.split(' ')[0] }));
     if ((p.tag === 'academy_coach' || p.tag === 'coach') && p.trainees > 0) parts.push(t('trainees', { count: p.trainees }));
     return parts.filter(Boolean).join(' · ');
