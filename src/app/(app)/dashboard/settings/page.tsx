@@ -363,7 +363,7 @@ const allTabs = [
   { key: 'team-volume', label: 'Team Volume' },
   { key: 'activities', label: 'Activities' },
   { key: 'program', label: 'Program' },
-  { key: 'review', label: 'Review' },
+  { key: 'review', label: 'Feedback' },
   { key: 'history', label: 'History' },
   { key: 'photos', label: 'Photos' },
   // Member-facing, and listed here so it can be granted per role without a

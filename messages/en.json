@@ -48,7 +48,7 @@
   },
   "nav": {
     "dashboard": "Today",
-    "review": "Review",
+    "review": "Feedback",
     "planner": "Planner",
     "athletes": "Athletes",
     "academy": "Academy",
@@ -974,7 +974,7 @@
     "notifPrefsSignIn": "Sign in as an athlete to manage your own notification preferences.",
     "personalInfoSignIn": "Sign in as an athlete to edit your personal details.",
     "feedbackInbox": "All reports",
-    "feedbackInboxSubtitle": "Everything filed from Review — read it, prioritise it, mark it done.",
+    "feedbackInboxSubtitle": "Everything filed from Feedback — read it, prioritise it, mark it done.",
     "feedbackSearch": "Search reports, names or groups",
     "feedbackCount": "{count} reports",
     "feedbackNewCount": "{count} new",
@@ -1422,7 +1422,7 @@
     "km": "km"
   },
   "review": {
-    "title": "Review",
+    "title": "Feedback",
     "subtitle": "Something not working? Tell us and we'll fix it. Ideas and improvements are just as welcome.",
     "back": "Back",
     "backTo": "Back to {screen}",

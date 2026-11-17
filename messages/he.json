@@ -48,7 +48,7 @@
   },
   "nav": {
     "dashboard": "היום",
-    "review": "סקירה",
+    "review": "משוב",
     "planner": "מתכנן",
     "athletes": "ספורטאים",
     "academy": "אקדמיה",
@@ -974,7 +974,7 @@
     "notifPrefsSignIn": "התחברו כספורטאי כדי לנהל העדפות התראות אישיות.",
     "personalInfoSignIn": "התחברו כספורטאי כדי לערוך פרטים אישיים.",
     "feedbackInbox": "כל הדיווחים",
-    "feedbackInboxSubtitle": "כל מה שנשלח מהסקירה — קריאה, תיעדוף וסימון כטופל.",
+    "feedbackInboxSubtitle": "כל מה שנשלח מהמשוב — קריאה, תיעדוף וסימון כטופל.",
     "feedbackSearch": "חיפוש בדיווחים, בשם או בדבוקה",
     "feedbackCount": "{count} דיווחים",
     "feedbackNewCount": "{count} חדשים",
@@ -1422,7 +1422,7 @@
     "km": "ק\"מ"
   },
   "review": {
-    "title": "סקירה",
+    "title": "משוב",
     "subtitle": "משהו לא עובד? ספרו לנו ונתקן. גם רעיונות ושיפורים מתקבלים בברכה.",
     "back": "חזרה למסך הקודם",
     "backTo": "חזרה ל{screen}",
