@@ -42,6 +42,19 @@ export function createBackGate(win: BackWindow, timeoutMs = 400) {
       if (pending) void pending.then(fn);
       else fn();
     },
+    /**
+     * `whenSettled`, but a macrotask later. Effects in one commit run in tree
+     * order, so an opening sheet rendered ABOVE the closing one (the landing
+     * page's EmailCodeSheet above the sign-in sheet) ran its push before the
+     * closer had started its back(); that back() then popped the new entry and
+     * the new sheet dismissed itself. Waiting a tick lets every close in the
+     * commit start its back() first, whatever the JSX order. Returns a cancel.
+     */
+    afterCommit(fn: () => void): () => void {
+      let live = true;
+      const t = setTimeout(() => this.whenSettled(() => { if (live) fn(); }), 0);
+      return () => { live = false; clearTimeout(t); };
+    },
     get busy() { return pending !== null; },
   };
 }
@@ -126,7 +139,7 @@ export function useBackDismiss(open: boolean, onDismiss: () => void) {
     // run would strand an entry that no close path ever pops. Deferred while
     // another overlay's back() is still landing (createBackGate above).
     let cancelled = false;
-    backGate().whenSettled(() => {
+    const cancelPush = backGate().afterCommit(() => {
       if (cancelled || entry.current) return;
       const depth = ((history.state?.[DEPTH] as number | undefined) ?? 0) + 1;
       history.pushState({ ...history.state, [DEPTH]: depth }, '');
@@ -162,6 +175,7 @@ export function useBackDismiss(open: boolean, onDismiss: () => void) {
     // re-run of this effect.
     return () => {
       cancelled = true;
+      cancelPush();
       window.removeEventListener('popstate', onPop);
       document.removeEventListener('click', onClick, true);
     };

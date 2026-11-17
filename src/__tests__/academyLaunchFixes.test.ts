@@ -69,6 +69,28 @@ describe('BL2 / N2 — "close A, open B": the new overlay waits for A\'s back() 
     expect(fn).toHaveBeenCalledTimes(1);
     expect(gate.busy).toBe(false);
   });
+  it('an opener whose effect runs BEFORE the closer still pushes after the back() lands', async () => {
+    // Landing page: EmailCodeSheet sits above the sign-in sheet in the JSX, so its
+    // open effect ran first and pushed before the sign-in sheet's back() started.
+    const win = fakeWindow();
+    const gate = createBackGate(win as never);
+    const fn = vi.fn();
+    gate.afterCommit(fn); // opener, same commit
+    gate.back();          // closer, same commit, later in tree order
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fn).not.toHaveBeenCalled();
+    win.pop();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+  it('afterCommit can be cancelled before it runs', async () => {
+    const win = fakeWindow();
+    const gate = createBackGate(win as never);
+    const fn = vi.fn();
+    gate.afterCommit(fn)();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fn).not.toHaveBeenCalled();
+  });
   it('gives up waiting after the timeout, for a browser that never fires popstate', async () => {
     const win = fakeWindow();
     const gate = createBackGate(win as never, 10);
