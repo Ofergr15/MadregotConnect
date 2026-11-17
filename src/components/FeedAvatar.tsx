@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { PhotoLightbox } from '@/components/PhotoLightbox';
+import { usableAvatarUrl } from '@/lib/avatar-url';
 
 /** "Tal Borenstein" -> "TA". Used whenever there's no usable photo. */
 export function initialsOf(name: string, maxChars = 2): string {
@@ -38,12 +39,13 @@ interface Props {
 /** Profile photo with an initials fallback. */
 export function FeedAvatar({
   name,
-  url,
+  url: rawUrl,
   className,
   textClassName,
   maxChars = 2,
   enlargeable = false,
 }: Props) {
+  const url = usableAvatarUrl(rawUrl);
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const [enlarged, setEnlarged] = useState(false);
   const showImage = !!url && failedUrl !== url;

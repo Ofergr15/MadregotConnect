@@ -6,6 +6,7 @@ import { formatTime } from '@/lib/academy/benchmark';
 import { useApi } from '@/lib/api';
 import { Card, SkeletonCard } from '@/components/ui';
 import { AthleteLink } from '@/components/AthleteLink';
+import { usableAvatarUrl } from '@/lib/avatar-url';
 
 interface Attn {
   athleteId: string; name: string; avatarUrl: string | null; squad: string | null; squadColor: string | null;
@@ -26,7 +27,8 @@ const initials = (n: string) => (n.split(' ').map((x) => x[0]).join('').toUpperC
 // every render, so React remounted each <img> and every face reloaded — the "flicker" on
 // each background refresh (Ofer 10-23). Same rule in src/__tests__/noInnerComponents.test.ts.
 function Avatar({ url, name }: { url: string | null; name: string }) {
-  return url ? <img src={url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+  const src = usableAvatarUrl(url);
+  return src ? <img src={src} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
     : <span className="w-8 h-8 rounded-full bg-page flex items-center justify-center text-2xs font-bold text-ink-700 shrink-0">{initials(name)}</span>;
 }
 

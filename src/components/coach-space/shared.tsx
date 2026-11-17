@@ -16,6 +16,7 @@ import { EmptyState } from '@/components/ui';
 import { Sheet } from '@/components/ui';
 import { RunnerCard } from './RunnerCard';
 import { CoachSpaceSwitchRow } from './CoachSpaceSwitchRow';
+import { usableAvatarUrl } from '@/lib/avatar-url';
 
 export const B = ({ children }: { children: React.ReactNode }) => <bdi dir="ltr">{children}</bdi>;
 
@@ -56,9 +57,9 @@ export function Avatar({ person, size = 40 }: { person: { name: string; avatarUr
       aria-hidden
     >
       {initials(person.name)}
-      {person.avatarUrl && (
+      {usableAvatarUrl(person.avatarUrl) && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={person.avatarUrl} alt="" onError={(e) => e.currentTarget.remove()} className="absolute inset-0 h-full w-full object-cover" />
+        <img src={usableAvatarUrl(person.avatarUrl) ?? undefined} alt="" onError={(e) => e.currentTarget.remove()} className="absolute inset-0 h-full w-full object-cover" />
       )}
     </span>
   );

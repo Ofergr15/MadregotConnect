@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { chatCounts, chatPreview, chatSections, chatTimeLabel, hasThread, type ChatFilter, type ChatRow } from '@/lib/academy/chat-list';
 import { seatInitials } from '@/lib/academy/seat-style';
 import { personMatches } from '@/lib/search/match';
+import { usableAvatarUrl } from '@/lib/avatar-url';
 
 // ── The academy chat, Messenger-shaped (mockup academy-chat/chat.html, Ofer 10-20) ──
 //
@@ -30,9 +31,9 @@ const colorOf = (id: string) => {
 };
 
 export function ChatAvatar({ row, size = 54 }: { row: Pick<ChatRow, 'athleteId' | 'name' | 'avatarUrl'>; size?: number }) {
-  return row.avatarUrl ? (
+  return usableAvatarUrl(row.avatarUrl) ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={row.avatarUrl} alt="" width={size} height={size} className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />
+    <img src={usableAvatarUrl(row.avatarUrl) ?? undefined} alt="" width={size} height={size} className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />
   ) : (
     <span className="grid shrink-0 place-items-center rounded-full font-extrabold text-white"
       style={{ width: size, height: size, background: colorOf(row.athleteId), fontSize: size * 0.36 }}>

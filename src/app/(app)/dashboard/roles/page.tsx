@@ -10,6 +10,7 @@ import { ViewChipFace } from '@/components/RoleSwitcher';
 import { rolesToColumns, type GrantableRole, type RolePerson } from '@/lib/auth/roles';
 import { defaultViewFor, newlyGranted, rolePreview } from '@/lib/role-views';
 import { personMatches } from '@/lib/search/match';
+import { usableAvatarUrl } from '@/lib/avatar-url';
 
 /** Roles that may hold academy trainees — dropping all of them releases the trainees. */
 const COACHING: readonly GrantableRole[] = ['academy_coach', 'academy_manager', 'admin'];
@@ -69,8 +70,8 @@ function initials(name: string, email: string) {
 }
 
 function PersonAvatar({ person, size = 40 }: { person: RolePerson; size?: number }) {
-  if (person.avatarUrl) {
-    return <img src={person.avatarUrl} alt="" className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />;
+  if (usableAvatarUrl(person.avatarUrl)) {
+    return <img src={usableAvatarUrl(person.avatarUrl) ?? undefined} alt="" className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />;
   }
   return (
     <span

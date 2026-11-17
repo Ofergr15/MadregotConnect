@@ -15,6 +15,7 @@ import {
 import { ProductImage, ProductLine, shekelRound, whenIL } from '@/components/podium/parts';
 import { DistributePanel, ReceivePanel } from '@/components/podium/ReceivePanels';
 import { CsvDownload } from '@/components/podium/CsvDownload';
+import { usableAvatarUrl } from '@/lib/avatar-url';
 
 type Round = PodiumRound & { state: RoundState };
 /** athleteId null = a group order ("אקסטרות", migration 175), named by its label. */
@@ -521,8 +522,9 @@ function Kpi({ n, l, warn }: { n: string; l: string; warn?: boolean }) {
 }
 
 function Avatar({ url, name }: { url?: string | null; name: string }) {
+  const src = usableAvatarUrl(url);
   // eslint-disable-next-line @next/next/no-img-element
-  return url ? <img src={url} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" /> : <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-600/10 text-sm font-extrabold text-brand-600">{name.slice(0, 1)}</span>;
+  return src ? <img src={src} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" /> : <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-600/10 text-sm font-extrabold text-brand-600">{name.slice(0, 1)}</span>;
 }
 
 function Chip({ o, over }: { o: Order; over?: number }) {

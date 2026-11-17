@@ -4,6 +4,7 @@ import type { ChannelAvatarProps } from 'stream-chat-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { AI_USER_ID } from '@/lib/stream/constants';
+import { usableAvatarUrl } from '@/lib/avatar-url';
 
 function initialsOf(name: string): string {
   const words = (name || '').trim().split(/\s+/).filter(Boolean);
@@ -57,9 +58,9 @@ export function RunChatAvatar({
       data-user={ai ? AI_USER_ID : undefined}
     >
       <Avatar className="run-chat-avatar__face">
-        {imageUrl && (
+        {usableAvatarUrl(imageUrl) && (
           <AvatarImage
-            src={imageUrl}
+            src={usableAvatarUrl(imageUrl) ?? undefined}
             alt=""
             referrerPolicy="no-referrer"
             className="run-chat-avatar__img str-chat__avatar-image"

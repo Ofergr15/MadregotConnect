@@ -16,6 +16,7 @@ import { initialsOf, type AcademyBand, type AcademyCoachSummary, type AcademyMem
 import { CoachesPicker } from './CoachesPicker';
 import { MoveInPanel } from './MoveInPanel';
 import { personMatches } from '@/lib/search/match';
+import { usableAvatarUrl } from '@/lib/avatar-url';
 
 // The manager's sheets on the members tab: move to a coach (one trainee or many),
 // set the band for many, and add somebody — a club member, or someone new. Every
@@ -85,9 +86,10 @@ function Radio({ on }: { on: boolean }) {
 }
 
 function Avatar({ name, url, coach, size = 36 }: { name: string; url?: string | null; coach?: boolean; size?: number }) {
-  if (url) {
+  const src = usableAvatarUrl(url);
+  if (src) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={url} alt="" style={{ width: size, height: size }} className="shrink-0 rounded-full object-cover" />;
+    return <img src={src} alt="" style={{ width: size, height: size }} className="shrink-0 rounded-full object-cover" />;
   }
   return (
     <span

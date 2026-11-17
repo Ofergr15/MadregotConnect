@@ -11,6 +11,7 @@ import { teammateHref } from '@/lib/athletes/profile-link';
 import { roundKm } from '@/lib/plans/week-summary';
 import { dayStatus } from '@/lib/plans/week-status';
 import type { PlanWeekStats } from '@/lib/athletes/plan-week';
+import { usableAvatarUrl } from '@/lib/avatar-url';
 
 /**
  * The runner's home as a morning briefing (Ofer, 2026-10-19, mockups/morning-1019/home-v4):
@@ -37,11 +38,12 @@ interface ClubTodayData {
 }
 
 function Avatar({ name, url, size = 28 }: { name: string; url: string | null; size?: number }) {
+  const src = usableAvatarUrl(url);
   return (
     <span className="grid flex-none place-items-center overflow-hidden rounded-full bg-brand-600/10 text-[10px] font-extrabold text-brand-600" style={{ width: size, height: size }}>
-      {url
+      {src
         // eslint-disable-next-line @next/next/no-img-element
-        ? <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+        ? <img src={src} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
         : name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
     </span>
   );

@@ -11,6 +11,7 @@ import { useApi } from '@/lib/api';
 import { SkeletonList, SegmentedControl, Card, EmptyState } from '@/components/ui';
 import { FeedbackThread, type ThreadMessage } from '@/components/FeedbackThread';
 import { AthleteLink } from '@/components/AthleteLink';
+import { usableAvatarUrl } from '@/lib/avatar-url';
 
 interface FeedbackItem {
   id: string;
@@ -132,9 +133,9 @@ const shortDate = (iso: string) => new Date(iso).toLocaleDateString('he-IL', { d
 const count = (n: number, one: string, many: string) => (n === 1 ? one : `${n} ${many}`);
 
 function Avatar({ person, size = 44 }: { person: FeedbackItem; size?: number }) {
-  return person.avatarUrl
+  return usableAvatarUrl(person.avatarUrl)
     // eslint-disable-next-line @next/next/no-img-element
-    ? <img src={person.avatarUrl} alt="" style={{ width: size, height: size }} className="rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+    ? <img src={usableAvatarUrl(person.avatarUrl) ?? undefined} alt="" style={{ width: size, height: size }} className="rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
     : <span style={{ width: size, height: size }} className="rounded-full bg-brand-600/15 flex items-center justify-center text-sm font-bold text-brand-600 shrink-0">{(person.name[0] || '?').toUpperCase()}</span>;
 }
 

@@ -20,6 +20,7 @@ import {
   shiftWeek, sundayOf,
   type AcademyMember, type AcademyMembersResponse,
 } from './types';
+import { usableAvatarUrl } from '@/lib/avatar-url';
 
 // The manager's landing screen, in the order the questions get asked:
 //
@@ -425,9 +426,9 @@ function WeekArrow({ label, onClick, dir, disabled }: { label: string; onClick: 
 
 function Avatar({ member, size = 'md' }: { member: AcademyMember; size?: 'md' | 'lg' }) {
   const cls = size === 'lg' ? 'h-12 w-12 text-sm' : 'h-9 w-9 text-xs';
-  if (member.avatarUrl) {
+  if (usableAvatarUrl(member.avatarUrl)) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={member.avatarUrl} alt="" className={cn('shrink-0 rounded-full object-cover', cls)} />;
+    return <img src={usableAvatarUrl(member.avatarUrl) ?? undefined} alt="" className={cn('shrink-0 rounded-full object-cover', cls)} />;
   }
   return (
     <div className={cn('flex shrink-0 items-center justify-center rounded-full bg-brand-600/20 font-bold text-brand-600', cls)}>
