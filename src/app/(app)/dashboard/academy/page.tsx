@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { SkeletonList } from '@/components/ui';
+import { LoadError, SkeletonList } from '@/components/ui';
 import { AcademyMyView } from '@/components/academy/AcademyMyView';
 import { AcademyShell } from '@/components/academy/AcademyShell';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
+import { withTimeout } from '@/lib/with-timeout';
+import { useLoadTimeout } from '@/lib/use-load-timeout';
 import { useAthleteId } from '@/lib/use-athlete-id';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
@@ -54,19 +56,26 @@ export default function AcademyPage() {
   const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
 
   const [email, setEmail] = useState<string | null>(null);
+  // Bumped by "נסה שוב": re-reads identity and re-asks the gate's requests.
+  const [attempt, setAttempt] = useState(0);
+  const [identityFailed, setIdentityFailed] = useState(false);
   const myAthleteId = useAthleteId();
   useEffect(() => {
+    setIdentityFailed(false);
     if (previewRole) { setEmail(''); return; }
     const stored = localStorage.getItem('athlete_email') || localStorage.getItem('coach_email') || '';
     // Not the session's address while viewing as somebody: that one is the admin's.
     if (stored || isViewingPerson()) { setEmail(stored); return; }
-    getSupabase().auth.getSession()
+    // getSession() waits on auth-js's lock and could hang forever, leaving
+    // `email === null` and this page on its skeleton for good. A timeout is not
+    // "nobody signed in" (that would hand an admin the runner lens) — it's an error.
+    withTimeout(getSupabase().auth.getSession(), 8_000, 'getSession')
       .then(({ data }) => setEmail(data.session?.user?.email || ''))
-      .catch(() => setEmail(''));
+      .catch(() => setIdentityFailed(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [attempt]);
 
-  const { data: meData, isLoading: roleLoading } = useApi<{ role?: string; roles?: string[]; isAcademy?: boolean; academyOnly?: boolean }>(
+  const { data: meData, isLoading: roleLoading, error: meError, mutate: retryMe } = useApi<{ role?: string; roles?: string[]; isAcademy?: boolean; academyOnly?: boolean }>(
     !previewRole && email ? '/api/auth/me' : null,
   );
   // The account's own view switch (role-views.ts). Not a preview: identity and
@@ -79,7 +88,7 @@ export default function AcademyPage() {
   // that says so is the shell's (ViewAsBanner), on every screen, not this page's.
   const [viewed, setViewed] = useState<ViewedPerson | null>(null);
   useEffect(() => { setViewed(getViewedPerson()); }, []);
-  const { data: viewer } = useApi<{ role: string; roles: string[]; isStaff: boolean; isManager: boolean }>(
+  const { data: viewer, error: viewerError, mutate: retryViewer } = useApi<{ role: string; roles: string[]; isStaff: boolean; isManager: boolean }>(
     viewed ? '/api/academy/viewer' : null,
   );
   const viewedRole = viewer
@@ -123,6 +132,19 @@ export default function AcademyPage() {
   // `email === null` means we haven't even looked yet — distinct from "looked
   // and found nobody", which is a real anonymous visitor.
   const resolving = email === null || (!previewRole && !!email && roleLoading) || (!!viewed && !viewer);
+  // A gate that can't resolve: identity timed out, /api/auth/me failed (without it a
+  // manager would silently fall through to the trainee lens), the view-as lookup
+  // failed (`!viewer` stayed true forever), or the whole thing ran past 15 s.
+  const gateTimedOut = useLoadTimeout(resolving, 15_000, attempt);
+  const gateFailed = identityFailed
+    || (!previewRole && !!email && !meData && !!meError)
+    || (!!viewed && !viewer && !!viewerError)
+    || gateTimedOut;
+  const retryGate = () => {
+    setAttempt((n) => n + 1);
+    void retryMe();
+    void retryViewer();
+  };
 
   // Read through `useSearchParams`, not `window.location` once on mount: a push
   // tapped while this screen is already open is a router navigation to the same
@@ -139,6 +161,14 @@ export default function AcademyPage() {
   useEffect(() => { if (testRedirect) router.replace(testRedirect); }, [testRedirect, router]);
   const linkTab = deepLink.tab && valid.includes(deepLink.tab as Tab) ? deepLink.tab : null;
   const linkThread = deepLink.thread && deepLink.thread !== 'mine' ? deepLink.thread : null;
+
+  if (gateFailed) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <LoadError onRetry={retryGate} />
+      </div>
+    );
+  }
 
   if (resolving || testRedirect) {
     return (

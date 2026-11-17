@@ -5,6 +5,7 @@ import useSWR, { SWRConfiguration } from 'swr';
 import { bearerHeaders, invalidateBearerToken } from '@/lib/auth/bearer-headers';
 import { trySilentReauth } from '@/lib/auth/silent-reauth';
 import { getSupabase } from '@/lib/supabase/client';
+import { withTimeout } from '@/lib/with-timeout';
 
 // The app's OLD auth convention was an `x-user-email` header, read from the
 // coach/athlete email in localStorage. It was forgeable — just a string the
@@ -82,18 +83,26 @@ export function prefetchApi<T = unknown>(url: string): Promise<T> {
   return p;
 }
 
+// No GET waits forever (2026-11-17, /dashboard/academy stuck on its skeleton):
+// getSession() inside bearerHeaders sits behind auth-js's lock, and a fetch with no
+// signal never settles on a dead connection. Either one held SWR's isLoading true
+// for good, so the screen could not even show an error. Now they reject, SWR
+// reports `error`, and the screen can offer "נסה שוב".
+export const AUTH_TIMEOUT_MS = 10_000;
+export const REQUEST_TIMEOUT_MS = 20_000;
+
 async function fetchJson<T>(url: string): Promise<T> {
-  const headers = await bearerHeaders(false);
-  let res = await fetch(url, { headers });
+  const headers = await withTimeout(bearerHeaders(false), AUTH_TIMEOUT_MS, 'auth');
+  let res = await fetch(url, { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
 
   // Only when we actually sent a credential. A 401 with no Authorization header
   // is just an unauthenticated caller, and bearerHeaders has already tried to
   // fix that; retrying would only repeat its work.
   if (res.status === 401 && headers.Authorization) {
-    const fresh = await recoverFrom401();
+    const fresh = await withTimeout(recoverFrom401(), AUTH_TIMEOUT_MS, 'reauth');
     // Exactly one retry. The recovery either produced a live token or cleared the
     // dead one, and neither outcome gets better by going round again.
-    if (fresh) res = await fetch(url, { headers: { ...headers, Authorization: `Bearer ${fresh}` } });
+    if (fresh) res = await fetch(url, { headers: { ...headers, Authorization: `Bearer ${fresh}` }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
   }
 
   if (!res.ok) {

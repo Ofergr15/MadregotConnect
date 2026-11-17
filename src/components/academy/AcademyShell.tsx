@@ -10,7 +10,7 @@ import { cn, israelToday } from '@/lib/utils';
 import { isViewingPerson } from '@/lib/view-as-person';
 import { useHideShellHeader } from '@/lib/shell-chrome';
 import { useApi } from '@/lib/api';
-import { Sheet } from '@/components/ui';
+import { LoadError, Sheet } from '@/components/ui';
 import { WeeklyReview } from '@/components/academy/WeeklyReview';
 import { AcademyPlanComposer } from '@/components/AcademyPlanComposer';
 import { AcademyResults } from '@/components/AcademyResults';
@@ -165,7 +165,7 @@ export function AcademyShell({
   setAcademyCoachScope(scopeCoach);
 
   // ── Data ──────────────────────────────────────────────────────────────────
-  const { data: members, isLoading: membersLoading, mutate: refreshMembers } = useApi<AcademyMembersResponse>(
+  const { data: members, isLoading: membersLoading, error: membersError, mutate: refreshMembers } = useApi<AcademyMembersResponse>(
     `/api/academy/members?weekStart=${thisWeek}${scopeQ ? `&${scopeQ}` : ''}`,
   );
   const { data: prev } = useApi<AcademyMembersResponse>(
@@ -540,7 +540,11 @@ export function AcademyShell({
             ‹ חזרה {cameFrom.label === 'לבית' ? 'לבית' : `ל־${cameFrom.label}`}
           </button>
         )}
-        {section === 'overview' ? (
+        {/* The roster is what every area draws from; without it the home rendered an
+            empty academy (the "empty main" a manager saw). Say it failed instead. */}
+        {!members && membersError ? (
+          <LoadError onRetry={() => { void refreshMembers(); void refreshHome(); }} />
+        ) : section === 'overview' ? (
           <AcademyHome
             onBandsChanged={reload}
             data={members}

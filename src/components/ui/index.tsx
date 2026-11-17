@@ -192,6 +192,32 @@ export function EmptyState({
   );
 }
 
+// ── LoadError ─────────────────────────────────────────────────────────────────
+// The answer to a skeleton that would otherwise never end: a request failed or
+// timed out (useLoadTimeout), so say so and offer one retry button.
+export function LoadError({
+  onRetry,
+  title = 'הטעינה נכשלה',
+  description = 'משהו השתבש או לקח יותר מדי זמן.',
+  className,
+}: {
+  onRetry: () => void;
+  title?: string;
+  description?: string;
+  className?: string;
+}) {
+  return (
+    <div role="alert">
+      <EmptyState
+        title={title}
+        description={description}
+        className={className}
+        action={<Button onClick={onRetry}>נסה שוב</Button>}
+      />
+    </div>
+  );
+}
+
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 // aria-busy: a screen of skeletons is loading, not empty — the blank-screen probe
 // (ClientEventReporter) reads it that way and looks again at 10 s instead of filing it.
