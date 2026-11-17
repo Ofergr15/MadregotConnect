@@ -5793,6 +5793,7 @@
     "savedNote": "The result is saved and your coach sees it."
   },
   "daySession": {
+    "closeFlow": "Close",
     "listHeader": "Your sessions",
     "listEmpty": "No sessions from today on",
     "chipInFeed": "In the feed",

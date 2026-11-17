@@ -14,6 +14,7 @@ import {
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
 import { ProfileStrip, WorkoutLines } from '@/components/day-session/WorkoutLines';
 import { DAY_SESSION_FOR_ALL } from '@/lib/day-session/flag';
+import { daySessionExitTarget } from '@/lib/day-session/exit';
 import {
   defaultPushCopy, MAX_DESCRIPTION, MAX_PUSH_BODY, MAX_PUSH_TITLE, MAX_TITLE, numberRuns, parseWorkout, totalsOf, NUTRITION_WHENS,
   type DaySession, type NutritionLine, type NutritionWhen,
@@ -214,6 +215,12 @@ export default function DaySessionPage() {
   };
 
   const close = () => router.push('/dashboard/coach-tools');
+  /** The ✕ on every screen of the flow: one tap out, wherever the coach came in from. */
+  const exitFlow = () => {
+    const target = daySessionExitTarget(window.history.length);
+    if (target === 'back') router.back(); else router.push(target);
+  };
+  const exitButton = <BarButton onClick={exitFlow} label={t('closeFlow')}><X aria-hidden className="h-6 w-6" /></BarButton>;
   const openDate = (d: string) => {
     if (d === today) setChip('today');
     else if (d === addDaysToDateStr(today, 1)) setChip('tomorrow');
@@ -285,7 +292,7 @@ export default function DaySessionPage() {
   if (step === 'watch') {
     return (
       <FlowOverlay label={t('toWatches')}>
-        <FlowScreen title={t('toWatches')} leading={<BarButton onClick={() => setStep(existing ? 2 : 1)}>‹ {t('back')}</BarButton>} className="gap-0 p-0 pt-3">
+        <FlowScreen title={t('toWatches')} leading={<BarButton onClick={() => setStep(existing ? 2 : 1)}>‹ {t('back')}</BarButton>} trailing={exitButton} className="gap-0 p-0 pt-3">
           {roster ? (
             <WatchChoose roster={roster} paces={packPaces} session={sessionLine} busy={sending} onSend={sendToWatches} />
           ) : <p className="p-6 text-center text-sm text-ink-400">…</p>}
@@ -300,7 +307,7 @@ export default function DaySessionPage() {
         <FlowScreen
           title={track.onTheWay ? t('trackSending') : t('trackTitle')}
           leading={<BarButton onClick={() => setStep(2)}>‹ {t('back')}</BarButton>}
-          trailing={<BarButton onClick={() => router.push('/feed')}>{t('toFeed')}</BarButton>}
+          trailing={<div className="flex items-center gap-3"><BarButton onClick={() => router.push('/feed')}>{t('toFeed')}</BarButton>{exitButton}</div>}
           className="gap-0 p-0 pt-3"
         >
           {track.data ? (
@@ -320,7 +327,7 @@ export default function DaySessionPage() {
   if (forbidden) {
     return (
       <FlowOverlay label={t('formTitle')}>
-        <FlowScreen title={t('formTitle')} leading={<BarButton onClick={close}>{t('cancel')}</BarButton>}>
+        <FlowScreen title={t('formTitle')} leading={<BarButton onClick={close}>{t('cancel')}</BarButton>} trailing={exitButton}>
           <p className={cn(CARD, 'p-4 text-sm font-bold text-ink-700')}>{t('noAccess')}</p>
         </FlowScreen>
       </FlowOverlay>
@@ -350,7 +357,7 @@ export default function DaySessionPage() {
   if (step === 'list') {
     return (
       <FlowOverlay label={t('formTitle')}>
-        <FlowScreen title={t('formTitle')} leading={<BarButton onClick={close}>‹ {t('coachTools')}</BarButton>}>
+        <FlowScreen title={t('formTitle')} leading={<BarButton onClick={close}>‹ {t('coachTools')}</BarButton>} trailing={exitButton}>
           <SessionList
             today={today}
             tomorrow={addDaysToDateStr(today, 1)}
@@ -368,7 +375,7 @@ export default function DaySessionPage() {
       <FlowOverlay label={t('formTitle')}>
         <FlowScreen
           title={existing ? t('editTitle') : t('formTitle')}
-          leading={<BarButton onClick={() => setStep('list')}>‹ {t('listBack')}</BarButton>}
+          leading={<BarButton onClick={() => setStep('list')}>‹ {t('listBack')}</BarButton>} trailing={exitButton}
           footer={<PrimaryButton onClick={() => setStep(2)} disabled={!ready}>{t('toNutrition')}</PrimaryButton>}
         >
           {existing && (
@@ -544,7 +551,7 @@ export default function DaySessionPage() {
     <FlowOverlay label={t('formTitle')}>
       <FlowScreen
         title={t('formTitle')}
-        leading={<BarButton onClick={() => setStep(1)}>‹ {t('back')}</BarButton>}
+        leading={<BarButton onClick={() => setStep(1)}>‹ {t('back')}</BarButton>} trailing={exitButton}
         footer={(
           <>
             <PrimaryButton onClick={() => save(inFeed)} disabled={!ready} busy={busy}>

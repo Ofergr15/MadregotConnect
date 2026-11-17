@@ -5793,6 +5793,7 @@
     "savedNote": "התוצאה נשמרת, והמאמן רואה אותה."
   },
   "daySession": {
+    "closeFlow": "סגירה",
     "listHeader": "האימונים שלך",
     "listEmpty": "אין אימונים מהיום והלאה",
     "chipInFeed": "בפיד",
