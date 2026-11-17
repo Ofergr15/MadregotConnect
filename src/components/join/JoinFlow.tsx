@@ -156,6 +156,7 @@ export function JoinFlow({ initialPath }: { initialPath?: 'club' | 'academy' | n
         <span className="rounded-xl bg-[#EEF0FF] px-3 py-1.5 text-[13px]">המסלול: <b className="font-black">{path === 'academy' ? '🎯 האקדמיה' : '🏃 המועדון'}</b> · <button type="button" onClick={() => go('path')} className="font-black text-brand-600">שינוי</button></span>
       </div>
       <div className="grid grid-cols-2 gap-2"><Field label={path === 'club' ? 'שם פרטי (באנגלית)' : 'שם פרטי'} value={first} onChange={setFirst} dir={path === 'club' ? 'ltr' : undefined} placeholder={path === 'club' ? 'Dana' : undefined} required /><Field label={path === 'club' ? 'שם משפחה (באנגלית)' : 'שם משפחה'} value={last} onChange={setLast} dir={path === 'club' ? 'ltr' : undefined} placeholder={path === 'club' ? 'Levi' : undefined} required /></div>
+      {path === 'club' && <p className="-mt-1 px-1 text-[13px]" style={{ color: JOURNEY.soft }}>באנגלית, כדי שנזהה אותך ב־<bdi dir="ltr">Strava</bdi> וב־<bdi dir="ltr">Garmin</bdi></p>}
       <Field label="אימייל" value={email} onChange={setEmail} type="email" dir="ltr" required />
       <Field label="נייד" value={phone} onChange={setPhone} type="tel" dir="ltr" placeholder="050-0000000" required />
       <p className="mt-1 px-1 text-[13px] font-extrabold" style={{ color: JOURNEY.soft }}>איך הגעת אלינו?</p>
