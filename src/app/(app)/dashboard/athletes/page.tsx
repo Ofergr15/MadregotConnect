@@ -575,7 +575,9 @@ ${inviteLink}`;
           list below md, two renderers to keep in sync). Tapping a row opens
           the same action sheet the old "..." button opened. */}
       {filteredAthletes.length > 0 ? (
-        <InsetSection>
+        // Desktop: two columns of the same rows — the 1px gap over bg-page draws
+        // the separators the phone's divide-y draws. Below md nothing changes.
+        <InsetSection listClassName="md:grid md:grid-cols-2 md:gap-px md:divide-y-0 md:bg-page md:[&>*:last-child:nth-child(odd)]:col-span-2">
           {filteredAthletes.map((athlete) => {
             const initials = athlete.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
             const groupStyle = getGroupChip(athlete.groupName);
@@ -583,7 +585,7 @@ ${inviteLink}`;
               <button
                 key={athlete.id}
                 onClick={() => setActiveMenu(athlete.id)}
-                className="w-full text-start active:bg-page/40 transition-colors"
+                className="w-full text-start active:bg-page/40 transition-colors md:bg-card"
               >
                 <div className="flex items-center gap-3 px-4 py-3 min-h-[52px]">
                   <span className="shrink-0 w-9 h-9 rounded-full bg-brand-600/20 flex items-center justify-center">

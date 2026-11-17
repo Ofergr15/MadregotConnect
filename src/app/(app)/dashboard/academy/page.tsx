@@ -1,5 +1,6 @@
 'use client';
 
+import { WidePage } from '@/components/WidePage';
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LoadError, SkeletonList } from '@/components/ui';
@@ -164,17 +165,17 @@ export default function AcademyPage() {
 
   if (gateFailed) {
     return (
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <WidePage className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <LoadError onRetry={retryGate} />
-      </div>
+      </WidePage>
     );
   }
 
   if (resolving || testRedirect) {
     return (
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <WidePage className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <SkeletonList count={5} />
-      </div>
+      </WidePage>
     );
   }
 
@@ -216,7 +217,7 @@ export default function AcademyPage() {
   return (
     // On a phone the shell's <main> already pads this page, so the page adds no
     // padding of its own there.
-    <div className="max-w-5xl mx-auto sm:px-6 lg:px-8 sm:py-8">
+    <WidePage className="max-w-5xl mx-auto sm:px-6 lg:px-8 sm:py-8">
       <AcademyShell
         isManager={isManager}
         scopeCoach={scopeCoach}
@@ -226,6 +227,6 @@ export default function AcademyPage() {
         linkTab={linkTab}
         linkThread={linkThread}
       />
-    </div>
+    </WidePage>
   );
 }

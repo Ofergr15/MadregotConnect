@@ -15,13 +15,13 @@ import { cn } from '@/lib/utils';
 // on the designer's light system now, so there's one look: a white 25px card on
 // the page grey, page-grey hairlines, ink text.
 
-export function InsetSection({ header, children, className }: { header?: string; children: React.ReactNode; className?: string }) {
+export function InsetSection({ header, children, className, listClassName }: { header?: string; children: React.ReactNode; className?: string; listClassName?: string }) {
   return (
     <div className={cn('mb-5', className)}>
       {header && (
         <p className="px-4 mb-1.5 text-2xs font-bold uppercase tracking-wider text-ink-400">{header}</p>
       )}
-      <div className="overflow-hidden rounded-card bg-card divide-y divide-page">
+      <div className={cn('overflow-hidden rounded-card bg-card divide-y divide-page', listClassName)}>
         {children}
       </div>
     </div>

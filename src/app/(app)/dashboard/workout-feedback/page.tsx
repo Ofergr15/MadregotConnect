@@ -1,5 +1,6 @@
 'use client';
 
+import { WidePage } from '@/components/WidePage';
 import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Check, Send } from 'lucide-react';
 import { apiHeaders } from '@/lib/api';
@@ -94,7 +95,7 @@ export default function WorkoutFeedbackPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto" dir="rtl">
+    <WidePage className="max-w-4xl mx-auto" dir="rtl">
       <div className="mb-4">
         <h1 className="text-2xl font-bold text-ink-700 flex items-center gap-2">
           <MessageSquare className="h-6 w-6 text-brand-600" /> משוב אימונים
@@ -119,13 +120,13 @@ export default function WorkoutFeedbackPage() {
       {view === 'all' ? <AllFeedback /> : !data ? <SkeletonList count={4} /> : view === 'waiting' ? (
         waiting.length === 0
           ? <EmptyState icon={Check} title="אף אחד לא מחכה לתשובה" />
-          : <div className="space-y-2.5">{waiting.map((g) => <RunnerCard key={g.athleteId} group={g} person={byId.get(g.athleteId)!} onOpen={() => setOpen(g.athleteId)} />)}</div>
+          : <div className="space-y-2.5 md:grid md:grid-cols-2 md:gap-2.5 md:space-y-0">{waiting.map((g) => <RunnerCard key={g.athleteId} group={g} person={byId.get(g.athleteId)!} onOpen={() => setOpen(g.athleteId)} />)}</div>
       ) : (
         answered.length === 0
           ? <EmptyState icon={MessageSquare} title={`עוד לא ענית לאף אחד ב־${WAITING_DAYS} הימים האחרונים`} />
-          : <div className="space-y-2.5">{answered.map((g) => <AnsweredCard key={g.athleteId} group={g} person={byId.get(g.athleteId)!} onOpen={() => setOpen(g.athleteId)} />)}</div>
+          : <div className="space-y-2.5 md:grid md:grid-cols-2 md:gap-2.5 md:space-y-0">{answered.map((g) => <AnsweredCard key={g.athleteId} group={g} person={byId.get(g.athleteId)!} onOpen={() => setOpen(g.athleteId)} />)}</div>
       )}
-    </div>
+    </WidePage>
   );
 }
 
@@ -237,7 +238,7 @@ function RunnerDetail({ group, person, onBack, onDone }: {
   };
 
   return (
-    <div className="max-w-4xl mx-auto" dir="rtl">
+    <WidePage className="max-w-4xl mx-auto" dir="rtl">
       <button type="button" onClick={onBack} className="mb-2 flex min-h-[44px] items-center gap-1 text-[15px] font-extrabold text-brand-600">
         <ChevronRight className="h-5 w-5" /> משוב אימונים
       </button>
@@ -284,7 +285,7 @@ function RunnerDetail({ group, person, onBack, onDone }: {
           <Check className="h-4 w-4" strokeWidth={3} /> טופל — בלי הודעה
         </button>
       )}
-    </div>
+    </WidePage>
   );
 }
 

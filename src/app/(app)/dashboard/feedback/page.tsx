@@ -1,5 +1,6 @@
 'use client';
 
+import { WidePage } from '@/components/WidePage';
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -189,7 +190,7 @@ function FeedbackForm() {
   // what is being answered; what the watch already knows is already marked, so when
   // it is right the whole form is one tap on "שליחה".
   return (
-    <div className="mx-auto max-w-md space-y-2.5 px-4 pb-2 pt-4" dir="rtl">
+    <WidePage className="mx-auto max-w-md space-y-2.5 px-4 pb-2 pt-4" wide="md:max-w-3xl" dir="rtl">
       <h1 className="text-xl font-black text-ink-900">{t('title')}</h1>
       {activityName && (
         <div className={cn(card, 'flex items-center gap-3 py-3')}>
@@ -327,7 +328,7 @@ function FeedbackForm() {
           {t('submit')}
         </button>
       </div>
-    </div>
+    </WidePage>
   );
 }
 
