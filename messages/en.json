@@ -219,6 +219,7 @@
     "signInWithStrava": "Sign in with Strava",
     "joinAcademy": "Join the Academy",
     "sinceLabel": "Since",
+    "trackedInAppSince": "Tracked in the app since <d>{date}</d>",
     "statKm": "Total KM",
     "statWorkouts": "Workouts",
     "statHours": "Hours",

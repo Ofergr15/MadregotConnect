@@ -514,7 +514,8 @@ export default function HomePage() {
               <>
               {stats.since && (
                 <p className="text-center text-[13px] sm:text-sm font-bold uppercase tracking-[0.18em] rtl:tracking-normal text-ink-400 mb-3 sm:mb-4">
-                  {t('sinceLabel')} {fmtMonthYear(stats.since, locale)}
+                  {/* The club dates from 2022; these totals only count what the app measured (#24). */}
+                  {t.rich('trackedInAppSince', { date: fmtMonthYear(stats.since, locale), d: (c) => <bdi>{c}</bdi> })}
                 </p>
               )}
               <div className="grid grid-cols-3 gap-2 sm:gap-6">

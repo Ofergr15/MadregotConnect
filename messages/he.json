@@ -219,6 +219,7 @@
     "signInWithStrava": "התחברות עם Strava",
     "joinAcademy": "הצטרפו לאקדמיה",
     "sinceLabel": "מאז",
+    "trackedInAppSince": "נמדד באפליקציה מאז <d>{date}</d>",
     "statKm": "ק\"מ",
     "statWorkouts": "אימונים",
     "statHours": "שעות",
