@@ -424,7 +424,8 @@ export default function AppLayout({
       </div>
     );
   }
-  if (blocked) return <AccessBlocked membership={blocked} />;
+  // With the banner: viewing an inactive/unknown member must still offer "יציאה".
+  if (blocked) return (<><ViewAsBanner /><AccessBlocked membership={blocked} /></>);
 
   return (
     // Wraps the whole shell so InstallPrompt, PushOptIn and FirstRunTour read

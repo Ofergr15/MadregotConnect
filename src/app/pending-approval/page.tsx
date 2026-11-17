@@ -13,6 +13,8 @@ import {
   JOURNEY, JourneyCard, JourneyHero, JourneyRow, JourneyScreen, JourneyTracker, NextCard, SecondaryButton,
 } from '@/components/onboarding/journey-ui';
 import { ApprovalEmailSent, ApprovalEmailStep, useApprovalContact } from '@/components/onboarding/ApprovalEmailStep';
+import { ViewAsBanner } from '@/components/ViewAsBanner';
+import { useViewAsReadOnly } from '@/lib/view-as-person';
 
 // How often to ask whether they have been let in yet. The (app) layout uses 30s
 // for the same question on the same endpoint; this screen is faster because it is
@@ -56,6 +58,9 @@ function PendingApproval() {
   const [contact, setContact] = useApprovalContact();
   const [editingEmail, setEditingEmail] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  // An admin viewing a pending member lands here too. "Sign out" would sign out the
+  // ADMIN, so while viewing the banner's "יציאה" is the way out instead.
+  const viewing = useViewAsReadOnly();
 
   const handleBackHome = async () => {
     await signOutEverywhere();
@@ -117,7 +122,7 @@ function PendingApproval() {
       </JourneyCard>
       {/* Nothing to press while waiting. The one way out says what it does: it
           signs out (it used to read "back to the home page"). */}
-      <SecondaryButton onClick={handleBackHome}>{t('pendingSignOut')}</SecondaryButton>
+      {!viewing && <SecondaryButton onClick={handleBackHome}>{t('pendingSignOut')}</SecondaryButton>}
     </>
   );
 
@@ -196,6 +201,9 @@ export default function PendingApprovalPage() {
   // screen: the guide is shown once, after approval.)
   return (
     <InstallStepProvider>
+      {/* Outside the (app) shell, so the shell's banner never drew here: an admin
+          viewing a pending member had no way back out. Renders nothing otherwise. */}
+      <ViewAsBanner />
       <PendingApproval />
     </InstallStepProvider>
   );
