@@ -178,7 +178,13 @@ function load(map: CacheMap, identity: string): void {
 function save(map: CacheMap, identity: string): void {
   const entries: [string, unknown][] = [];
   let total = 0;
-  for (const [key, value] of map) {
+  // Newest first, so a full budget keeps the screens the member opened LAST. The
+  // map is kept in last-written order (see the proxy's `set`); walking it oldest
+  // first and stopping at the cap meant whatever the session touched first (the
+  // shell, the feed) filled the 1 MB and every screen opened afterwards — settings,
+  // academy, club updates — was never saved, so each cold open of them painted
+  // skeletons until the network answered.
+  for (const [key, value] of Array.from(map).reverse()) {
     // `$`-prefixed keys are SWR's own internals (useSWRInfinite's composite keys,
     // request/length bookkeeping). Nothing in this app creates them, and none of
     // them means anything to a fresh page.
@@ -195,10 +201,13 @@ function save(map: CacheMap, identity: string): void {
     // UTF-16 units, which is what browsers actually charge localStorage in.
     const size = serialized.length;
     if (size > MAX_ENTRY_BYTES) continue;
-    if (total + size > MAX_TOTAL_BYTES) break;
+    // Skip, not stop: a smaller, older answer may still fit.
+    if (total + size > MAX_TOTAL_BYTES) continue;
     total += size;
     entries.push([key, data]);
   }
+  // Back to oldest first, so `load` rebuilds the same recency order.
+  entries.reverse();
   const blob: Persisted = { v: APP_VERSION, id: identity, e: entries };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(blob));
@@ -268,6 +277,9 @@ export function persistedCacheProvider(): Cache<unknown> {
       if (prop === 'set' || prop === 'delete') {
         const fn = Reflect.get(target, prop, target) as (...a: unknown[]) => unknown;
         return (...args: unknown[]) => {
+          // A write moves the key to the end: Map order is then recency order,
+          // which is what `save` trims by when the budget is full.
+          if (prop === 'set') target.delete(args[0] as string);
           const result = fn.apply(target, args);
           schedule();
           return result;

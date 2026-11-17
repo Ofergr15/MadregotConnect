@@ -223,6 +223,29 @@ describe('persistedCacheProvider — writing', () => {
     expect(store.get(STORAGE_KEY)!.length).toBeLessThan(1_200_000);
   });
 
+  it('keeps the most recently used screens when the budget is full, not the first ones', () => {
+    // The shell and the feed are written first in a session; with an oldest-first
+    // walk that stopped at the cap, a screen opened later (settings, academy) was
+    // never saved and every cold open of it started from skeletons.
+    signedInAs('a1');
+    const cache = persistedCacheProvider();
+    for (let i = 0; i < 20; i++) {
+      cache.set(`/api/page/${i}`, { data: { blob: 'x'.repeat(100_000) } });
+    }
+    cache.set('/api/admin/club-updates', { data: { enabled: true } });
+    // Re-written (a revalidation) — that counts as recent too.
+    cache.set('/api/page/0', { data: { blob: 'y'.repeat(100_000) } });
+    vi.advanceTimersByTime(2000);
+
+    const keys = written()!.e.map(([k]) => k);
+    expect(keys).toContain('/api/admin/club-updates');
+    expect(keys).toContain('/api/page/0');
+    expect(keys).toContain('/api/page/19');
+    expect(keys).not.toContain('/api/page/1');
+    // Stored oldest first, so a reload rebuilds the same order.
+    expect(keys[keys.length - 1]).toBe('/api/page/0');
+  });
+
   it('gives up cleanly when the quota is blown anyway', () => {
     signedInAs('a1');
     const cache = persistedCacheProvider();
