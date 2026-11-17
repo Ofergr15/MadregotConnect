@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { PRACTICE_SEED_COPY, localizePractice, localizeDuration } from '@/lib/practice/seed-i18n';
