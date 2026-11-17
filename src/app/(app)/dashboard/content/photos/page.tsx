@@ -6,7 +6,7 @@ import { useApi } from '@/lib/api';
 import { FolderLinks } from '@/components/content/FolderLinks';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Sheet } from '@/components/ui';
-import { cn, israelToday } from '@/lib/utils';
+import { cn, israelToday, planWeekStartOf } from '@/lib/utils';
 import { tagColor } from '@/lib/photos/folder-kind';
 import { photosWaiting, postsOf, weekFolders, type FolderProposal, type MadeFolder, type WeekFolder } from '@/lib/content/hub';
 import { useContentLevels } from '@/components/content/use-hub';
@@ -44,7 +44,7 @@ export default function ContentPhotosPage() {
 
   const status = st?.status ?? null;
   const waiting = photosWaiting(status);
-  const rows = useMemo(() => weekFolders(week?.made ?? [], (week?.upcoming ?? []) as FolderProposal[], weekStartOf(israelToday())), [week]);
+  const rows = useMemo(() => weekFolders(week?.made ?? [], (week?.upcoming ?? []) as FolderProposal[], planWeekStartOf(israelToday())), [week]);
   const published = postsOf(hub?.recent ?? [], 'photos');
   const members = hub?.members ?? 0;
 
@@ -220,11 +220,6 @@ function PublishSheet({ open, onOpenChange, date, adding, count, onDone }: { ope
   );
 }
 
-function weekStartOf(day: string): string {
-  const d = new Date(`${day}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - d.getUTCDay());
-  return d.toISOString().slice(0, 10);
-}
 const DOW = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 function openedLabel(iso: string): string {
   const d = new Date(iso);

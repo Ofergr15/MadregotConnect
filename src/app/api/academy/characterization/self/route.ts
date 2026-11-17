@@ -6,7 +6,7 @@ import { isMissingTable } from '@/lib/supabase/schema-drift';
 import { coachIdsOf } from '@/lib/academy/trainee-coaches';
 import { notifyAthlete } from '@/lib/push';
 import { academyQuestionsAnsweredCopy } from '@/lib/notifications/copy';
-import { israelToday } from '@/lib/utils';
+import { planWeekStartOf } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,9 +36,7 @@ async function self(request: Request) {
 
 /** Average km over the last four whole weeks (Sunday weeks), from their own runs. */
 async function recentWeeklyKm(supabase: ReturnType<typeof createServerClient>, athleteId: string): Promise<number | null> {
-  const today = israelToday();
-  const d = new Date(`${today}T12:00:00Z`);
-  const weekStart = new Date(d.getTime() - d.getUTCDay() * 86_400_000);
+  const weekStart = new Date(`${planWeekStartOf()}T00:00:00Z`);
   const from = new Date(weekStart.getTime() - 28 * 86_400_000).toISOString().slice(0, 10);
   const to = weekStart.toISOString().slice(0, 10);
   const { data } = await supabase.from('athlete_activities').select('distance, start_time')

@@ -1,8 +1,8 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
-// Feedback #84: the weekly-km card on the feed cut the week Monday–Sunday even for a member
-// whose profile is set to Sunday–Saturday. The card is about one person's own week, so it
-// follows `athletes.week_start_day`; these pin both settings and the Monday default.
+// QA 2026-11-17 #3: the feed card labelled the week "16-22 November" (Monday activity
+// week) while the plan read "15-21 November". The card now uses the plan week
+// (planWeekStartOf, Sunday–Saturday in Israel) whatever the member's preference.
 
 let weekStartDay: unknown;
 let activityFrom: string | undefined;
@@ -52,19 +52,25 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('GET /api/feed/highlight week window', () => {
-  it('starts on Sunday for a Sunday–Saturday member', async () => {
-    weekStartDay = 0;
-    expect(await read()).toBe('2026-09-19');
-    expect(planWeek).toBe('2026-09-20');
-  });
+  for (const pref of [0, 1, null]) {
+    it(`uses the plan's Sunday week (week_start_day=${pref})`, async () => {
+      weekStartDay = pref;
+      expect(await read()).toBe('2026-09-19');
+      expect(planWeek).toBe('2026-09-20');
+    });
+  }
 
-  it('starts on Monday for a Monday member', async () => {
+  it('Sunday 00:30 Israel (still Saturday in UTC) is already the new week', async () => {
     weekStartDay = 1;
-    expect(await read()).toBe('2026-09-20');
+    vi.setSystemTime(new Date('2026-11-14T22:30:00Z')); // Sun 15 Nov 00:30 IST
+    expect(await read()).toBe('2026-11-14');
+    expect(planWeek).toBe('2026-11-15');
   });
 
-  it('defaults to Monday when the preference is unset', async () => {
-    weekStartDay = null;
-    expect(await read()).toBe('2026-09-20');
+  it('Saturday 23:30 Israel stays in the week it closes', async () => {
+    weekStartDay = 1;
+    vi.setSystemTime(new Date('2026-11-21T21:30:00Z')); // Sat 21 Nov 23:30 IST
+    expect(await read()).toBe('2026-11-14');
+    expect(planWeek).toBe('2026-11-15');
   });
 });

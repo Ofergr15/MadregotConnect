@@ -1,4 +1,5 @@
 import { daysBetween, shiftDate, type LoadSource } from './load';
+import { planWeekStartOf } from '@/lib/utils';
 
 /**
  * Fitness, fatigue and form (TP's PMC) — spec §3.2, mockup 7/7ב/C2.
@@ -289,8 +290,7 @@ export function loadWeeks(
 
 /** The Sunday that starts `date`'s plan week (planWeekStartOf, without a clock or a zone). */
 export function weekStartOf(date: string): string {
-  const dow = new Date(`${date.slice(0, 10)}T00:00:00Z`).getUTCDay();
-  return shiftDate(date, -dow);
+  return planWeekStartOf(date.slice(0, 10));
 }
 
 /** The `n` Sunday weeks ending with the one holding `today`, oldest first. */

@@ -1,6 +1,6 @@
 import type { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
-import { israelToday } from '@/lib/utils';
+import { israelToday, planWeekStartOf } from '@/lib/utils';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import { classifyWorkout, type WorkoutType } from '@/lib/plans/session-summary';
 import { trainingDayBeforeCopy, trainingEveningBeforeCopy } from '@/lib/notifications/copy';
@@ -211,8 +211,7 @@ export async function loadWeek(supabase: Db, weekStart: string): Promise<WeekSna
 
 /** The Sunday of the week `date` is in, and of the next one. */
 export function weekStartOf(date: string = israelToday()): string {
-  const d = new Date(`${date}T12:00:00Z`);
-  return addDays(date, -d.getUTCDay());
+  return planWeekStartOf(date.slice(0, 10));
 }
 export { qualityOf };
 

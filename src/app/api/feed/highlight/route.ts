@@ -14,13 +14,10 @@ import {
   type FeedHighlight,
   type HighlightChallenge,
 } from '@/lib/feed/highlight';
-import { readWeekStartDay } from '@/lib/athletes/week-pref';
 import {
   activityLocalDateStr,
   addDaysToDateStr,
-  getPlanWeekStart,
-  weekStartOn,
-  israelDateAnchor,
+  planWeekStartOf,
   israelToday,
 } from '@/lib/utils';
 
@@ -48,13 +45,11 @@ export const dynamic = 'force-dynamic';
  * integration and the richer record (laps, HR, cadence).
  *
  * ── Which week ───────────────────────────────────────────────────────────────
- * Two of them, and which is which matters. The kilometres, the day strip and the
- * dismiss key are the ACTIVITY week (`weekStartOn` on the athlete's own
- * `week_start_day`, Monday by default) — this card's headline is a distance and it has to be the distance the athlete's watch shows,
- * which is what every other km in the app now uses. The target it is measured
- * against is read for the PLAN week (`getPlanWeekStart`, Sunday), because that is
- * what `weekly_plans.week_start_date` is keyed on. They were one window between
- * 2026-08-21 and 2026-09-09 and are six-of-seven days apart again.
+ * One: the PLAN week (`planWeekStartOf`, Sunday–Saturday in Israel), for the
+ * kilometres, the day strip, the dismiss key and the target alike — the window
+ * `weekly_plans.week_start_date` is keyed on and the profile ring already uses.
+ * Until 2026-11-17 the km half was cut on `athletes.week_start_day` (Monday by
+ * default), so the card's label disagreed with the plan's by a day (QA #3).
  * Deliberately not `getDisplayWeekStart`, which rolls to next week after Saturday
  * 20:00: the dashboard does that so a runner can preview the coming plan, but this
  * card answers "how is my week going", and on Saturday evening that is still the
@@ -97,22 +92,13 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
     const now = new Date();
     const todayKey = israelToday(now);
-    const anchor = israelDateAnchor(now);
-    // The card's week is the ACTIVITY week (Monday) — its headline is kilometres,
-    // and a runner reconciles that against their watch. The TARGET it is measured
-    // against comes from the PLAN week (Sunday), which is what the coach published
-    // and what `weekly_plans.week_start_date` is keyed on. The two overlap by six
-    // of seven days; a weekly volume target is a range, so measuring Mon–Sun km
-    // against the Sun–Sat plan's ceiling is a day's worth of slack, and worth it to
-    // stop this card disagreeing with every other km on the app.
-    //
-    // Cut on the athlete's own week-start preference (`athletes.week_start_day`),
-    // not a hard-coded Monday. Feedback #84: a member set to Sunday–Saturday saw
-    // their profile in Sunday weeks and this card, above it on the feed, still in
-    // Monday weeks. This card is about one person's own week, which is exactly
-    // what the preference covers; the leaderboard and pack war stay Monday.
-    // For a Sunday member the two windows coincide, so the target is exact.
-    const planWeek = getPlanWeekStart(anchor);
+    // ONE window for the whole card: the PLAN week (Sunday–Saturday, Israel), the
+    // same `planWeekStartOf` the plan, the profile ring (lib/athletes/plan-week) and
+    // `weekly_plans.week_start_date` use. QA 2026-11-17 #3: this card used to cut
+    // its km on the athlete's activity week (Monday by default) while measuring it
+    // against the Sunday plan's target, so the feed read "16-22 November" above a
+    // plan reading "15-21 November" and the km and the target covered different days.
+    const planWeek = planWeekStartOf(now);
     // The target and the challenge need neither the week preference nor the runs,
     // so they go out now and are collected below: two function↔DB round trips
     // instead of four on a card the feed shows on open. The extra handler only
@@ -123,7 +109,7 @@ export async function GET(request: Request) {
       resolveChallenge(supabase, athleteId, todayKey),
     ]);
     sideReads.catch(() => {});
-    const weekStart = weekStartOn(anchor, await readWeekStartDay(supabase, athleteId));
+    const weekStart = planWeek;
     const daysElapsed = dayKeyDiff(weekStart, todayKey) + 1;
 
     // Only this week's rows, because this week is all the card uses.
@@ -159,7 +145,7 @@ export async function GET(request: Request) {
 
     const runs = filterQualifyingRuns((acts || []) as ActivityRow[]);
 
-    // This week's kilometres, per day, from `weekStart` (Monday or Sunday). Read as the athlete's local
+    // This week's kilometres, per day, from `weekStart` (the plan's Sunday). Read as the athlete's local
     // day — these timestamps are wall-clock-stored-as-UTC (see lib/utils.ts).
     const dailyKm = new Array<number>(WEEK_DAYS).fill(0);
     for (const r of runs) {
