@@ -4,7 +4,9 @@ import { COACH_ID } from '@/lib/constants';
 import { requireSession, authError } from '@/lib/auth-session';
 import { filterQualifyingRuns, type RunActivityRow } from '@/lib/prs/pr-buckets';
 import { computeChallengeProgress, type ChallengeRow } from '@/lib/challenges/engine';
-import { buildWeekBreakdown } from '@/lib/plans/workout-parsing';
+import { planWeekTarget } from '@/lib/feed/plan-week-target';
+import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
+import type { Lane } from '@/lib/academy/group-lane';
 import {
   buildHighlight,
   dayKeyDiff,
@@ -195,10 +197,9 @@ export async function GET(request: Request) {
  * Same precedence as /api/academy/segments — an academy runner on an individual
  * plan must be measured against that plan and not against the group's.
  *
- * The distance is taken from group 1's column when the plan is written per group.
- * Across the three groups a week's *distances* are the same and only the *paces*
- * differ (that's the whole point of the `3:30 (3:40) ((3:50))` notation), so this
- * is the shared number rather than group 1's number.
+ * The club week is read in the member's own lane and as the same floor–ceiling band
+ * as the profile ring (`planWeekTarget`). Lanes share distances only for km-written
+ * sessions; a timed session priced at a slower lane's pace is fewer km.
  *
  * Returns 0/0 rather than throwing when no plan covers the week — a member's first
  * week, or a week the coach hasn't published yet. The card then shows kilometres
@@ -229,8 +230,9 @@ async function resolveWeekTarget(
     const [own, club] = await Promise.all([pick(true), pick(false)]);
     const plan = own ?? club;
     if (!plan) return none;
-    const { weekTotalMin, weekTotalMax } = buildWeekBreakdown(plan.parsed_workouts);
-    return { targetMin: weekTotalMin, targetMax: weekTotalMax };
+    // The club week is read in the member's own pace lane, like the profile ring.
+    const lane = own ? null : ((await groupNumberForAthlete(supabase, athleteId, weekStart).catch(() => 1)) as Lane);
+    return planWeekTarget(plan.parsed_workouts, lane);
   } catch {
     // A plan that fails to parse must not take the whole card down with it.
     return none;
