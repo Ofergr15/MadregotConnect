@@ -18,14 +18,27 @@ const DOW = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 const dayOf = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
 const clock = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' });
 /** "היום" / "מחר" / "ה׳" — a day this week, as the rows say it. */
-export function dayWord(day: string, today: string): string {
+/** The YYYY-MM-DD part of a real day, or null for missing/malformed input. */
+function validDay(day: string | null | undefined): string | null {
+  if (!day || !/^\d{4}-\d{2}-\d{2}/.test(day)) return null;
+  const d = day.slice(0, 10);
+  return Number.isNaN(new Date(`${d}T12:00:00Z`).getTime()) ? null : d;
+}
+export function dayWord(raw: string | null | undefined, today: string): string {
+  // A missing or malformed day says nothing, never "undefined" (QA 11-17: a survey with no
+  // closing date read "נסגר undefined" on the hub's on-air row).
+  const day = validDay(raw);
+  if (!day) return '';
   if (day === today) return 'היום';
   const t = new Date(`${today}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + 1);
   if (day === t.toISOString().slice(0, 10)) return 'מחר';
   return DOW[new Date(`${day}T12:00:00Z`).getUTCDay()];
 }
 /** "ה׳ 23.10" */
-export const shortDate = (day: string) => `${DOW[new Date(`${day}T12:00:00Z`).getUTCDay()]} ${Number(day.slice(8, 10))}.${Number(day.slice(5, 7))}`;
+export const shortDate = (raw: string | null | undefined) => {
+  const day = validDay(raw);
+  return day ? `${DOW[new Date(`${day}T12:00:00Z`).getUTCDay()]} ${Number(day.slice(8, 10))}.${Number(day.slice(5, 7))}` : '';
+};
 
 const first = (name: string | null) => (name || '').trim().split(/\s+/)[0] || 'חבר/ה';
 
@@ -44,7 +57,10 @@ export function weekSections(
     }
     if (!r.active) continue;
     const href = r.source === 'club' ? '/dashboard/content/circle' : r.source === 'survey' ? '/dashboard/content/surveys' : '/dashboard/content/cheers';
-    const sub = r.source === 'survey' ? `${r.answers ?? 0} ענו · נסגר ${dayWord(r.until, today)}` : `עד ${dayWord(r.until, today)}`;
+    const until = dayWord(r.until, today);
+    const sub = r.source === 'survey'
+      ? `${r.answers ?? 0} ענו · ${until ? `נסגר ${until}` : 'פתוח'}`
+      : until ? `עד ${until}` : '';
     out.air.push({ key: `a:${r.source}:${r.id}`, section: 'air', emoji: r.emoji, title: r.title, sub, href, ...(r.source === 'club' ? { logo: true } : {}) });
   }
   // A birthday that will really go out this week (the cron would act on it), not yet up.
