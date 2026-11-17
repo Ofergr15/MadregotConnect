@@ -23,7 +23,12 @@ export interface SurveyResultsData {
 }
 
 const DAYS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
-const when = (iso: string) => { const x = israelDateTime(iso); return `${DAYS[x.dow]} ${Number(x.date.slice(8, 10))}.${Number(x.date.slice(5, 7))} · ${x.time}`; };
+// A malformed timestamp gives '' (not "undefined NaN.NaN"): DAYS[NaN] is undefined (QA 11-17).
+export const when = (iso: string | null | undefined) => {
+  if (!iso || Number.isNaN(Date.parse(iso))) return '';
+  const x = israelDateTime(iso);
+  return `${DAYS[x.dow]} ${Number(x.date.slice(8, 10))}.${Number(x.date.slice(5, 7))} · ${x.time}`;
+};
 
 export function SurveyResultsView({ data, busy, note, confirmClose, onAskClose, onRemind, onClose, onCopy, readOnly = false }: {
   data: SurveyResultsData; busy: 'remind' | 'close' | null; note: string | null; confirmClose: boolean;
@@ -55,7 +60,7 @@ export function SurveyResultsView({ data, busy, note, confirmClose, onAskClose, 
         <div className="px-3.5 pb-2 pt-3">
           <b dir="auto" className="block text-[18px] font-extrabold text-ink-900">{s.question}</b>
           <small className="text-13 text-ink-400">
-            {audience} · {s.closesAt ? (s.open ? <>נסגר <bdi dir="ltr">{when(s.closesAt)}</bdi></> : 'נסגר') : 'פתוח'}
+            {audience} · {when(s.closesAt) ? (s.open ? <>נסגר <bdi dir="ltr">{when(s.closesAt)}</bdi></> : 'נסגר') : s.open ? 'פתוח' : 'נסגר'}
             {data.push?.status === 'sent' && data.push.sent ? ` · התראה ל-${data.push.sent}` : data.push?.status === 'scheduled' ? ' · ההתראה עוד לא יצאה' : ''}
             {s.anonymous ? ' · אנונימי לרצים' : ''}
           </small>
@@ -114,7 +119,7 @@ export function SurveyResultsView({ data, busy, note, confirmClose, onAskClose, 
             {data.reminders.map((r) => (
               <div key={r.id} className="flex min-h-[54px] items-center gap-3 border-b border-[#F0F0F3] px-3.5 py-2 last:border-0">
                 <span className="min-w-0 flex-1">
-                  <b className="block text-[14.5px] font-semibold text-ink-900">{r.at ? <bdi dir="ltr">{when(r.at)}</bdi> : '—'}</b>
+                  <b className="block text-[14.5px] font-semibold text-ink-900">{when(r.at) ? <bdi dir="ltr">{when(r.at)}</bdi> : '—'}</b>
                   <small className="text-[12px] text-ink-400">
                     {r.state === 'sent' ? `נשלחה ל-${r.sent}${r.after ? ` · ${r.after} ענו אחריה` : ''}` : r.state === 'scheduled' ? `כרגע תגיע ל-${withPush}` : 'בוטלה'}
                   </small>

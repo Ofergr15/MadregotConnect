@@ -95,12 +95,12 @@ export const isLocked = (w: WeekFolder) => w.state === 'opened';
 // ── "מחכה לך": one row per block, never shared ─────────────────────────────
 
 export interface PhotosStatus { date: string; name: string; found: number; published: number; previews: string[] }
-export interface OpenSurvey { id: string; title: string; until: string; answers: number }
+export interface OpenSurvey { id: string; title: string; until?: string | null; answers: number; day?: string | null }
 export interface CheerSuggestion { athleteId: string; name: string; detail: string; line: string }
 
 export type Waiting =
   | { type: 'photos'; title: string; sub: string; previews: string[]; action: 'publish' }
-  | { type: 'surveys'; title: string; sub: string; surveyId: string; action: 'open' }
+  | { type: 'surveys'; title: string; sub: string; surveyId: string; action: 'open'; opened: string }
   | { type: 'cheers'; title: string; sub: string; athleteId: string; action: 'approve' };
 
 /** Photos in the folder the club hasn't seen yet. Nothing found, or all of it out: nothing waits. */
@@ -119,10 +119,13 @@ export function photosWaiting(s: PhotosStatus | null | undefined): Waiting | nul
 export function surveyWaiting(open: OpenSurvey[], members: number, today: string): Waiting | null {
   const pending = open.filter((s) => members <= 0 || s.answers < members);
   if (!pending.length) return null;
-  const s = [...pending].sort((a, b) => (a.until || '9999').localeCompare(b.until || '9999'))[0];
+  // A missing or malformed closing day is "no closing date", never a label (QA 11-17: "undefined").
+  const until = (x: OpenSurvey) => (validDay(x.until) ? x.until : '');
+  const s = [...pending].sort((a, b) => (until(a) || '9999').localeCompare(until(b) || '9999'))[0];
+  const u = until(s);
   const missing = members > 0 ? members - s.answers : null;
-  const closes = !s.until ? 'פתוח' : s.until === today ? 'נסגר היום' : s.until === nextDay(today) ? 'נסגר מחר' : `נסגר ${shortDay(s.until)}`;
-  return { type: 'surveys', action: 'open', surveyId: s.id, title: s.title, sub: missing != null ? `${closes} · ${missing} עוד לא ענו` : closes };
+  const closes = !u ? 'פתוח' : u === today ? 'נסגר היום' : u === nextDay(today) ? 'נסגר מחר' : `נסגר ${shortDay(u)}`;
+  return { type: 'surveys', action: 'open', surveyId: s.id, title: s.title, opened: validDay(s.day) ? s.day : '', sub: missing != null ? `${closes} · ${missing} עוד לא ענו` : closes };
 }
 
 /** The newest suggestion nobody has posted a cheer for yet. */
@@ -135,9 +138,40 @@ export function cheerWaiting(suggestions: CheerSuggestion[]): Waiting | null {
 function nextDay(day: string): string {
   const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10);
 }
-export function shortDay(day: string): string {
+/** A real calendar day, YYYY-MM-DD. Anything else (null, '', 'Invalid Date', an ISO timestamp) is not. */
+export function validDay(day: unknown): day is string {
+  if (typeof day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
+  const d = new Date(`${day}T12:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === day;
+}
+/** 19.10, or '' for anything that is not a real day — never "NaN" or "undefined". */
+export function shortDay(day: string | null | undefined): string {
+  if (!validDay(day)) return '';
   const [, m, d] = day.split('-');
   return `${Number(d)}.${Number(m)}`;
+}
+const DOW_SHORT = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+/** ד׳ 19.10 — the day a survey row is about, so same-titled surveys tell apart. '' when unknown. */
+export function dowDay(day: string | null | undefined): string {
+  if (!validDay(day)) return '';
+  return `${DOW_SHORT[new Date(`${day}T12:00:00Z`).getUTCDay()]} ${shortDay(day)}`;
+}
+/**
+ * A survey row's own date: "נפתח ד׳ 19.10 · פתוח". The cron's same-titled surveys
+ * ("מי בא לרוץ מחר…") tell apart by it (QA 11-17). Labels come from messages.
+ */
+export function surveyDateLine(
+  s: { createdAt: string | null | undefined; open: boolean },
+  t: (key: 'surveyOpened' | 'surveyStateOpen' | 'surveyStateClosed', v?: { date: string }) => string,
+): string {
+  const opened = dowDay(israelDayOf(s.createdAt));
+  const state = s.open ? t('surveyStateOpen') : t('surveyStateClosed');
+  return opened ? `${t('surveyOpened', { date: opened })} · ${state}` : state;
+}
+/** An ISO timestamp → its Israel day, or null when it is missing or malformed. */
+export function israelDayOf(iso: string | null | undefined): string | null {
+  if (!iso || Number.isNaN(Date.parse(iso))) return null;
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
 }
 
 // ── One post's results ──────────────────────────────────────────────────────

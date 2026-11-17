@@ -688,7 +688,7 @@ function PollsCard({ d, m, t, lang, owner, skip, onOpen }: { d: WeekSnapshot; m:
             <span className="flex min-w-0 flex-1 flex-col">
               <b dir="auto" className="truncate text-[13.5px] font-bold text-ink-900">{p.question}</b>
               <span className="truncate text-[11.5px] text-ink-400">
-                <bdi dir="ltr">{p.answered}/{p.asked}</bdi> {t('pollsAnswered')}{p.closesAt ? <> · {p.open ? t('pollCloses', { when: day(p.closesAt) }) : t('pollClosed')}</> : null}
+                <bdi dir="ltr">{p.answered}/{p.asked}</bdi> {t('pollsAnswered')}{p.closesAt && !Number.isNaN(Date.parse(p.closesAt)) ? <> · {p.open ? t('pollCloses', { when: day(p.closesAt) }) : t('pollClosed')}</> : null}
               </span>
             </span>
             <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />

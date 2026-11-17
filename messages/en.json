@@ -3775,6 +3775,9 @@
     "inviteCopy": "Copy the personal link"
   },
   "contentHub": {
+    "surveyOpened": "Opened {date}",
+    "surveyStateOpen": "Open",
+    "surveyStateClosed": "Closed",
     "title": "Content",
     "challenges": "Challenges",
     "phase_active": "Active",

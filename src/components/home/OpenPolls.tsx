@@ -16,7 +16,7 @@ export function OpenPolls() {
   const polls = data?.polls ?? [];
   if (!polls.length) return null;
   const closes = (iso: string | null) => {
-    if (!iso) return null;
+    if (!iso || Number.isNaN(Date.parse(iso))) return null;
     const h = (Date.parse(iso) - Date.now()) / 3_600_000;
     return h < 24 ? t('pollClosesHours', { n: Math.max(1, Math.round(h)) }) : t('pollClosesDays', { n: Math.floor(h / 24) });
   };

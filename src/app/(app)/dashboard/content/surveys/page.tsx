@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
-import { shortDay } from '@/lib/content/hub';
+import { israelDayOf, shortDay, surveyDateLine, validDay } from '@/lib/content/hub';
 import { Chips, DateTile, Empty, Group, PlusButton, SectionHead, TypePage } from '@/components/content/hub-ui';
 import { useHubContent } from '@/components/content/use-hub';
 
@@ -21,6 +22,7 @@ interface SurveyRow {
 }
 
 export default function ContentSurveysPage() {
+  const t = useTranslations('contentHub');
   const { data, error } = useApi<{ today: string; surveys: SurveyRow[] }>('/api/admin/content/surveys');
   const { data: hub } = useHubContent();
   const members = hub?.members ?? 0;
@@ -33,7 +35,7 @@ export default function ContentSurveysPage() {
       {error ? <Group><Empty>לא הצלחתי לטעון את הסקרים.</Empty></Group>
         : !data ? <Group><Empty>טוען…</Empty></Group>
         : open.length === 0 ? <Group><Empty>אין סקר פתוח. ״＋ סקר״ למעלה.</Empty></Group>
-        : open.map((s) => <OpenSurvey key={s.id} s={s} members={members} today={data.today} />)}
+        : open.map((s) => <OpenSurvey key={s.id} s={s} members={members} today={data.today} dateLine={surveyDateLine(s, t)} />)}
 
       {closed.length > 0 && (
         <>
@@ -43,9 +45,10 @@ export default function ContentSurveysPage() {
               const top = [...s.options].sort((a, b) => b.count - a.count)[0];
               const body = (
                 <>
-                  <DateTile date={s.closesOn ?? s.createdAt.slice(0, 10)} />
+                  {(() => { const d = validDay(s.closesOn) ? s.closesOn : israelDayOf(s.createdAt); return d ? <DateTile date={d} /> : null; })()}
                   <span className="min-w-0 flex-1">
                     <b dir="auto" className="block truncate text-[15.5px] font-semibold text-ink-900">{s.question}</b>
+                    <small className="block text-12 text-ink-400">{surveyDateLine(s, t)}</small>
                     <span className="mt-1 flex flex-wrap items-center gap-1.5">
                       <Chips chips={[{ key: 'answers', text: `${s.answers} ענו` }]} />
                       {s.fixed && <span className="text-[12px] font-semibold text-ink-400">סקר קבוע (הוסר)</span>}
@@ -66,14 +69,15 @@ export default function ContentSurveysPage() {
   );
 }
 
-function OpenSurvey({ s, members, today }: { s: SurveyRow; members: number; today: string }) {
+function OpenSurvey({ s, members, today, dateLine }: { s: SurveyRow; members: number; today: string; dateLine: string }) {
   const top = Math.max(0, ...s.options.map((o) => o.count));
   const missing = members > 0 ? Math.max(0, members - s.answers) : null;
-  const closes = !s.closesOn ? 'פתוח' : s.closesOn === today ? 'נסגר היום' : `נסגר ${shortDay(s.closesOn)}`;
+  const closes = !validDay(s.closesOn) ? 'פתוח' : s.closesOn === today ? 'נסגר היום' : `נסגר ${shortDay(s.closesOn)}`;
   return (
     <Group className="mb-2.5">
       <div className="px-3.5 pb-1 pt-3">
         <b dir="auto" className="block text-[16.5px] font-bold text-ink-900">{s.question}</b>
+        <small className="block text-12 font-semibold text-ink-400">{dateLine}</small>
         <small className="text-13 text-ink-400">{closes} · {members > 0 ? `${s.answers} מתוך ${members} ענו` : `${s.answers} ענו`}{s.delivered ? ` · התראה ל־${s.delivered}` : ''}</small>
       </div>
       {s.options.map((o) => {

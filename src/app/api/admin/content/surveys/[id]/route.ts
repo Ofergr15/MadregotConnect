@@ -75,7 +75,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({
       survey: {
         id: s.id, question: s.question_he, closesAt: s.closes_at, createdAt: s.created_at,
-        open: !s.closes_at || Date.parse(s.closes_at) > Date.now(),
+        open: !(Date.parse(s.closes_at ?? '') <= Date.now()),
         audience: s.audience_type, pack: s.audience_type === 'group' && s.audience_id ? groupName.get(s.audience_id) || null : null,
         multi: s.multi_answer === true, anonymous: s.anonymous === true, postId: ((post || []) as Array<{ id: string }>)[0]?.id ?? null,
       },

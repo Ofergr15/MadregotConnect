@@ -7,7 +7,7 @@ import { Award, Bell, CalendarDays, Radio, Sparkles, Trophy } from 'lucide-react
 import { InsetRow, InsetSection, Sheet } from '@/components/ui';
 import { israelDateOf } from '@/lib/reports/last-7-days';
 import {
-  CONTENT_TYPES, cheerWaiting, photosWaiting, postsOf, resultChips, shortDay, surveyWaiting, TYPE_ORDER,
+  CONTENT_TYPES, cheerWaiting, dowDay, photosWaiting, postsOf, resultChips, shortDay, surveyWaiting, TYPE_ORDER, validDay,
   type ContentType,
 } from '@/lib/content/hub';
 import { LastLine, TypeBlock, TypeIcon, WaitRow } from '@/components/content/hub-ui';
@@ -58,7 +58,7 @@ export default function ContentPage() {
 
   const waiting = {
     photos: photosWaiting(photos?.status),
-    surveys: surveyWaiting(items.filter((r) => r.source === 'survey').map((r) => ({ id: r.id, title: r.title, until: r.until, answers: r.answers ?? 0 })), members, today),
+    surveys: surveyWaiting(items.filter((r) => r.source === 'survey').map((r) => ({ id: r.id, title: r.title, until: r.until, day: r.day, answers: r.answers ?? 0 })), members, today),
     cheers: cheerWaiting(sug?.suggestions ?? []),
   };
   const { data: share } = useShareDays();
@@ -107,7 +107,7 @@ export default function ContentPage() {
         const w = waiting.surveys;
         return (
           <TypeBlock key={type} type={type}>
-            {w && w.type === 'surveys' && <WaitRow kicker={w.sub} title={w.title} action="לפתוח" href="/dashboard/content/surveys" />}
+            {w && w.type === 'surveys' && <WaitRow kicker={w.opened ? `${t('surveyOpened', { date: dowDay(w.opened) })} · ${w.sub}` : w.sub} title={w.title} action="לפתוח" href="/dashboard/content/surveys" />}
             {lastLine}
           </TypeBlock>
         );
@@ -198,11 +198,12 @@ export default function ContentPage() {
 
 const DAY_NAME = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 function dayTitle(day: string): string {
+  if (!validDay(day)) return '';
   const d = new Date(`${day}T12:00:00Z`);
   return `${DAY_NAME[d.getUTCDay()]} ${shortDay(day)}`;
 }
 function atLabel(iso?: string): string {
-  if (!iso) return '';
+  if (!iso || Number.isNaN(Date.parse(iso))) return '';
   const d = new Date(iso);
   const day = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
   const time = d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' });

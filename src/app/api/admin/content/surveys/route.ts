@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireContentLevel } from '@/lib/access/require-content';
 import { israelToday } from '@/lib/utils';
+import { israelDayOf } from '@/lib/content/hub';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,8 +10,6 @@ export const dynamic = 'force-dynamic';
 // the last 60 days of surveys, each with its options and the votes on each, when it
 // closes, how many phones its push reached, and the feed post it lives on. Same
 // gate as the hub (requireStaff).
-
-const dayOf = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
 
 export async function GET(request: Request) {
   // Staff as before, and whoever sees the surveys part (הרשאות).
@@ -49,8 +48,9 @@ export async function GET(request: Request) {
         const v = votes.get(r.id) ?? [];
         return {
           id: r.id, question: r.question_he, createdAt: r.created_at,
-          closesOn: r.closes_at ? dayOf(r.closes_at) : null,
-          open: !r.closes_at || Date.parse(r.closes_at) > now,
+          // Missing or malformed closes_at = no closing date: null, and still open.
+          closesOn: israelDayOf(r.closes_at),
+          open: !(Date.parse(r.closes_at ?? '') <= now),
           options: (r.options_he || []).map((o, i) => ({ option: o, count: v.filter((x) => x === i).length })),
           answers: voters.get(r.id)?.size ?? 0, delivered: delivered.get(r.id) ?? null, postId: posts.get(r.id) ?? null,
           // The retired weekly pack poll (cron/tick made them): history, labelled as gone.

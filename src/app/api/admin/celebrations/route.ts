@@ -5,6 +5,7 @@ import { addDaysToDateStr, israelToday } from '@/lib/utils';
 import { toCelebration, CELEBRATION_TYPES } from '@/lib/feed/celebration';
 import { CLUB_STORIES_KEY, readClubStories } from '@/lib/feed/club-stories';
 import { birthdayBodyAsOf } from '@/lib/feed/birthday';
+import { israelDayOf } from '@/lib/content/hub';
 import { BIRTHDAY_DAYS_KEY, readBirthdayDays } from '@/lib/feed/celebration-days';
 
 export const dynamic = 'force-dynamic';
@@ -82,7 +83,7 @@ export async function GET(request: Request) {
     }
     const surveys: Row[] = surveyRows.map((x) => ({
       id: x.id, source: 'survey', emoji: '📊', label: 'סקר', title: x.question_he, day: dayOf(x.created_at),
-      until: x.closes_at ? dayOf(x.closes_at) : '', active: true, likes: 0, auto: false, answers: answers.get(x.id) ?? 0,
+      until: israelDayOf(x.closes_at) ?? '', active: true, likes: 0, auto: false, answers: answers.get(x.id) ?? 0,
     }));
     const scheduled: Row[] = ((queued || []) as Array<{ id: string; title_he: string | null; body_he: string | null; next_run_at: string }>).map((x) => ({
       id: x.id, source: 'scheduled', emoji: '⏰', label: 'הודעה מתוזמנת', title: x.title_he || x.body_he || '',

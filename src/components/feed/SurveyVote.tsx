@@ -23,7 +23,7 @@ interface Answer {
 export interface SurveyDraft { options: string[]; closesAt: string | null; multi: boolean }
 
 function closesIn(iso: string | null, t: ReturnType<typeof useTranslations>): string | null {
-  if (!iso) return null;
+  if (!iso || Number.isNaN(Date.parse(iso))) return null;
   const ms = Date.parse(iso) - Date.now();
   if (ms <= 0) return t('surveyClosed');
   const days = Math.floor(ms / 86400000);
@@ -41,7 +41,7 @@ export function SurveyVote({ surveyId, myAthleteId, draft }: { surveyId: string 
     : live;
   if (!data?.survey) return null;
   const multi = data.survey.multi_answer === true;
-  const closed = !!data.survey.closes_at && Date.parse(data.survey.closes_at) < Date.now();
+  const closed = Date.parse(data.survey.closes_at ?? '') < Date.now();
   const counts = data.survey.options_he.map((_, i) => data.results?.find((r) => r.optionIndex === i)?.people.length ?? 0);
   // The share is of the people who answered: with several answers each, the bars add up past 100%.
   const voters = new Set((data.results || []).flatMap((r) => r.people.map((p) => p.id))).size;

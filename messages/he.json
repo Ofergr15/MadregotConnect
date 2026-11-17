@@ -3775,6 +3775,9 @@
     "inviteCopy": "העתקת הקישור האישי"
   },
   "contentHub": {
+    "surveyOpened": "נפתח {date}",
+    "surveyStateOpen": "פתוח",
+    "surveyStateClosed": "נסגר",
     "title": "תוכן",
     "challenges": "אתגרים",
     "phase_active": "פעיל",
