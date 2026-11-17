@@ -199,6 +199,9 @@ export default function PublishPage() {
 
   const send = async (url: string, body: unknown) => {
     setBusy(true); setMsg(null);
+    // Stays busy once it went out: the button must not come back during the redirect's
+    // wait, or a second tap publishes the same survey again (P1 #15, two identical polls).
+    let sent = false;
     try {
       const res = await fetch(url, { method: 'POST', headers: await bearerHeaders(), body: JSON.stringify(body) });
       if (!res.ok) {
@@ -210,6 +213,7 @@ export default function PublishPage() {
       }
       const done = (await res.json().catch(() => ({}))) as { joinedAt?: string | null; draft?: boolean };
       // "מפרסם באישור" (lib/access/drafts): kept for an admin, not posted yet.
+      sent = true;
       if (done.draft) {
         setMsg({ ok: true, text: 'נשלח לאישור. כשמנהל יאשר — זה יוצא, ותקבל/י התראה.' });
         setTimeout(() => router.push('/dashboard/content'), 1600);
@@ -218,7 +222,7 @@ export default function PublishPage() {
       // One push a day: said, so nobody wonders why their phone stayed quiet.
       setMsg({ ok: true, text: done.joinedAt ? t('publishedJoined', { time: israelDateTime(done.joinedAt).time }) : t('published') });
       setTimeout(() => router.push('/dashboard/content'), 900);
-    } catch { setMsg({ ok: false, text: t('failed') }); } finally { setBusy(false); }
+    } catch { setMsg({ ok: false, text: t('failed') }); } finally { if (!sent) setBusy(false); }
   };
 
   // This account's level in the part being published (הרשאות): 3 publishes, 2 sends for approval.
