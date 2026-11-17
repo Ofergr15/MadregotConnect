@@ -189,3 +189,24 @@ export function parseLoginState(state: string | null): ParsedState {
   }
   return { ...none, linkAthleteId: state };
 }
+
+/**
+ * What the /auth/handoff page should do in THIS browser.
+ *
+ *  - 'finish':  this partition holds the verifier, so it started the login and
+ *               can claim it itself (go to '/').
+ *  - 'sheet':   no verifier, on iOS — the in-app browser sheet a standalone PWA
+ *               is forced into. "Close this with the ✕" is true here.
+ *  - 'browser': no verifier, anywhere else (a desktop or Android tab). There is
+ *               no ✕ and no app underneath; usually the login was started on a
+ *               different address (e.g. a *.vercel.app URL while the callback
+ *               lands on NEXT_PUBLIC_APP_URL), so localStorage is a different
+ *               partition. Say so and offer to continue here.
+ */
+export type HandoffContext = 'finish' | 'sheet' | 'browser';
+
+export function handoffContext(hasVerifier: boolean, userAgent: string, maxTouchPoints = 0): HandoffContext {
+  if (hasVerifier) return 'finish';
+  const ios = /iPhone|iPad|iPod/.test(userAgent) || (/Macintosh/.test(userAgent) && maxTouchPoints > 1);
+  return ios ? 'sheet' : 'browser';
+}

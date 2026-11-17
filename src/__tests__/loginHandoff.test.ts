@@ -221,7 +221,7 @@ describe('the /auth/handoff screen', () => {
     // does, which is the whole reason the handoff exists. So a verifier here means
     // this browser can claim the parked login itself.
     expect(finish).toContain('readPendingVerifier()');
-    expect(finish).toMatch(/if \(!readPendingVerifier\(\)\) return/);
+    expect(finish).toMatch(/handoffContext\(!!readPendingVerifier\(\)/);
   });
 
   it("sends the browser that can finish to '/', where the claim already lives", () => {
@@ -238,5 +238,26 @@ describe('the /auth/handoff screen', () => {
   it('stays server-rendered, so the instruction survives a bad connection', () => {
     expect(page).not.toContain("'use client'");
     expect(page).toContain('<HandoffFinish />');
+  });
+});
+
+describe('handoffContext', () => {
+  const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15';
+  const MAC = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/605.1.15';
+  const WIN = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0 Safari/537.36';
+  it('finishes wherever the verifier is', async () => {
+    const { handoffContext } = await import('../lib/auth/login-handoff');
+    expect(handoffContext(true, WIN)).toBe('finish');
+    expect(handoffContext(true, IPHONE)).toBe('finish');
+  });
+  it('keeps the close-the-sheet copy only on iOS (incl. iPadOS desktop UA)', async () => {
+    const { handoffContext } = await import('../lib/auth/login-handoff');
+    expect(handoffContext(false, IPHONE)).toBe('sheet');
+    expect(handoffContext(false, MAC, 5)).toBe('sheet');
+  });
+  it('says something true in a plain desktop tab', async () => {
+    const { handoffContext } = await import('../lib/auth/login-handoff');
+    expect(handoffContext(false, MAC, 0)).toBe('browser');
+    expect(handoffContext(false, WIN)).toBe('browser');
   });
 });
