@@ -21,10 +21,12 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 const resolveVerifiedCaller = vi.fn();
 // The loop's pushes (launch BL8) are asserted here, not delivered: the real sender writes
 // history rows into `scheduled_notifications`, which is the table the reminder tests read.
-const loop = { invited: vi.fn(async () => {}), confirmed: vi.fn(async () => {}) };
+const loop = { invited: vi.fn(async () => {}), confirmed: vi.fn(async () => {}), otherTime: vi.fn(async () => {}) };
 vi.mock('@/lib/academy/loop-notify', () => ({
   notifyTestInvited: (...a: unknown[]) => loop.invited(...(a as [])),
   notifyTestConfirmed: (...a: unknown[]) => loop.confirmed(...(a as [])),
+  // "Another time" tells the coach (route.ts PATCH action 'other').
+  notifyTestOtherTime: (...a: unknown[]) => loop.otherTime(...(a as [])),
 }));
 vi.mock('@/lib/auth/self-or-staff', () => ({
   resolveVerifiedCaller: (req: Request) => resolveVerifiedCaller(req),
@@ -357,8 +359,11 @@ describe('the trainee answering', () => {
   it('asks for another time, with the note kept', async () => {
     const row = seedInvitation();
     asTrainee();
+    loop.otherTime.mockClear();
     const res = await patch({ id: row.id, action: 'other', note: '  עובד במשמרות עד ה-20  ' });
     expect(res.status).toBe(200);
+    expect(loop.otherTime).toHaveBeenCalledTimes(1);
+    expect((loop.otherTime.mock.calls[0] as unknown[])[1]).toMatchObject({ athleteId: row.athlete_id, note: 'עובד במשמרות עד ה-20' });
     expect((await res.json()).invitation).toMatchObject({
       status: 'other',
       requestedNote: 'עובד במשמרות עד ה-20',
@@ -368,9 +373,11 @@ describe('the trainee answering', () => {
   it('allows an empty note, because "none of these work" is itself an answer', async () => {
     const row = seedInvitation();
     asTrainee();
+    loop.otherTime.mockClear();
     const res = await patch({ id: row.id, action: 'other' });
     expect(res.status).toBe(200);
     expect((await res.json()).invitation.requestedNote).toBeNull();
+    expect((loop.otherTime.mock.calls[0] as unknown[])[1]).toMatchObject({ athleteId: row.athlete_id, note: null });
   });
 
   it('clears a previous confirmation when asking for another time', async () => {

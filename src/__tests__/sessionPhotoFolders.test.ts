@@ -277,3 +277,22 @@ describe('the push when the photos are up', () => {
     expect(ev.body).toBe('מרתון ולנסיה · לחיצה פותחת את כל התמונות');
   });
 });
+
+describe('the ledger keeps two weeks counted from the tick, not from the wall clock', () => {
+  it('on 2026-11-17 keeps 11-03 and drops 11-02, even when the machine clock says otherwise', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2027-06-01T12:00:00Z')); // a wall clock far from the tick
+    try {
+      h.qualityDays = new Set(['2026-11-18']);
+      h.settings[FOLDER_LEDGER_KEY] = JSON.stringify({
+        '2026-11-02': { folderId: 'old', link: 'l' },
+        '2026-11-03': { folderId: 'edge', link: 'l' },
+      });
+      // 20:00 in Jerusalem (UTC+2 in November): tomorrow's folder is made and the ledger written.
+      expect(await runSessionPhotoFolders(db(), new Date('2026-11-17T18:00:00Z'))).toEqual(['sessionFolder:2026-11-18']);
+      expect(Object.keys(JSON.parse(h.settings[FOLDER_LEDGER_KEY])).sort()).toEqual(['2026-11-03', '2026-11-18']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

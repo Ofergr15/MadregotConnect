@@ -71,9 +71,9 @@ export async function readFolderLedger(supabase: Db): Promise<FolderLedger> {
   }
 }
 
-async function writeFolderLedger(supabase: Db, ledger: FolderLedger): Promise<void> {
+async function writeFolderLedger(supabase: Db, ledger: FolderLedger, now = new Date()): Promise<void> {
   // Keep two weeks: the ledger is a day-by-day note, not an archive.
-  const cutoff = addDaysToDateStr(israelToday(), -14);
+  const cutoff = addDaysToDateStr(israelToday(now), -14);
   const kept = Object.fromEntries(Object.entries(ledger).filter(([d]) => d >= cutoff));
   await supabase.from('app_settings').upsert({ key: FOLDER_LEDGER_KEY, value: JSON.stringify(kept) }, { onConflict: 'key' });
 }
@@ -322,7 +322,7 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
     fired.push(`${card ? 'sessionPhotosMore' : 'sessionPhotos'}:${date}`);
   }
 
-  if (dirty) await writeFolderLedger(supabase, ledger);
+  if (dirty) await writeFolderLedger(supabase, ledger, now);
   return fired;
 }
 
@@ -350,7 +350,7 @@ export async function createFolderNow(
       ...(p.kind ? { kind: p.kind } : {}), ...(p.tags ? { tags: p.tags } : {}),
     };
     ledger[p.date] = entry;
-    await writeFolderLedger(supabase, ledger);
+    await writeFolderLedger(supabase, ledger, now);
     return entry;
   }
   const folder = await ensureDayFolder(drive, p.date, p.name);
@@ -380,7 +380,7 @@ export async function createFolderNow(
     entry.toldAt = new Date().toISOString();
   }
   ledger[p.date] = entry;
-  await writeFolderLedger(supabase, ledger);
+  await writeFolderLedger(supabase, ledger, now);
   return entry;
 }
 

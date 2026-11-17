@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { laneReferences } from '@/lib/academy/senior-pick';
 import { COACH_ID } from '@/lib/constants';
 import { LOAD_VERSION, shiftDate } from '@/lib/academy/load';
+import { BACKFILL_DAYS } from '@/lib/academy/load-server';
 import {
   athleteLoads, ensureActivityLoads, hasActivityLoadsTable, isStale, loadDailyRows, plannedLoads, rhrOn, sweepActivityLoads,
 } from '@/lib/academy/load-server';
@@ -320,6 +321,8 @@ function israelDay() {
 }
 
 describe('a long history on its first open (issue 4)', () => {
+  afterEach(() => vi.useRealTimers());
+
   it('athleteLoads prices round after round until nothing is pending, so the first number is the settled one', async () => {
     const db = setup();
     db.tables.academy_tests.push(test30(db.athlete, '2025-01-01', 7143));
@@ -342,7 +345,25 @@ describe('a long history on its first open (issue 4)', () => {
     const db = setup();
     db.tables.academy_tests.push(test30(db.athlete, '2025-01-01', 7143));
     for (let d = 1; d <= 380; d += 1) addRun(db, shiftDate(TODAY, -d));
+    // The sweep has no `today` of its own: it reads the clock, so the clock is pinned to the
+    // day the runs were seeded against (otherwise the oldest runs fall out of the window).
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(`${TODAY}T09:00:00Z`));
     const r = await sweepActivityLoads(db.client, { athletes: [db.athlete], budgetMs: 60_000 });
     expect(r).toMatchObject({ athletes: 1, priced: 380, pending: 0, timedOut: false });
+  });
+
+  it('on the real calendar day the sweep window ends exactly BACKFILL_DAYS back', async () => {
+    const day = '2026-11-17';
+    vi.useFakeTimers({ toFake: ['Date'] });
+    // 23:30 UTC is already the next morning in Jerusalem: the window follows the Israeli day.
+    vi.setSystemTime(new Date(`${shiftDate(day, -1)}T23:30:00Z`));
+    const db = setup();
+    db.tables.academy_tests.push(test30(db.athlete, '2025-01-01', 7143));
+    addRun(db, day);
+    addRun(db, shiftDate(day, -BACKFILL_DAYS));
+    addRun(db, shiftDate(day, -BACKFILL_DAYS - 1));
+    const r = await sweepActivityLoads(db.client, { athletes: [db.athlete], budgetMs: 60_000 });
+    expect(r).toMatchObject({ athletes: 1, priced: 2, pending: 0, timedOut: false });
   });
 });
