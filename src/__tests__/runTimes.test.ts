@@ -21,3 +21,17 @@ describe('the run page times', () => {
     expect(he.timerLine).toMatch(/\{timer\}.*\{stopped\}/);
   });
 });
+
+// #29: "בשעון (Time בגרמין): 42:18" scrambled — the English term and both times are isolated.
+describe('the timer line bidi', () => {
+  const en = JSON.parse(fs.readFileSync('messages/en.json', 'utf8')).runAnalysis;
+  const src = fs.readFileSync('src/components/activity/RunAnalysis.tsx', 'utf8');
+  it('wraps the Latin word and the times in tags rendered as <bdi>', () => {
+    for (const m of [he.timerLine, en.timerLine]) {
+      expect(m).toMatch(/<l>[^<]+<\/l>/);
+      expect(m).toMatch(/<n>\{timer\}<\/n>.*<n>\{stopped\}<\/n>/);
+    }
+    expect(he.timerLine.replace(/<l>[^<]*<\/l>/g, '').replace(/<\/?n>|\{\w+\}/g, '')).not.toMatch(/[A-Za-z]/);
+    expect(src).toMatch(/t\.rich\('timerLine'.*l: \(c\) => <B>\{c\}<\/B>, n: \(c\) => <B>\{c\}<\/B>/);
+  });
+});

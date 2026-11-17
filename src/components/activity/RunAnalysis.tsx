@@ -575,7 +575,7 @@ export function Times({ total, moving, timer }: { total: number; moving: number 
       </div>
       {showTimer && (
         <p className="mt-2 text-[11.5px] leading-relaxed text-ink-400">
-          {t('timerLine', { timer: clock(timer!), stopped: clock(Math.max(0, total - timer!)) })}
+          {t.rich('timerLine', { timer: clock(timer!), stopped: clock(Math.max(0, total - timer!)), l: (c) => <B>{c}</B>, n: (c) => <B>{c}</B> })}
         </p>
       )}
     </section>

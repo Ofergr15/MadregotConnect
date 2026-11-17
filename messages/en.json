@@ -6632,7 +6632,7 @@
     "heatHigh": "Heat and humidity slowed you by about {s} s/km — your real pace is faster than it reads. Drink plenty today.",
     "heatLow": "Comfortable — the heat cost only about {s} s/km.",
     "heatNone": "Great running weather — no heat cost.",
-    "timerLine": "Watch timer (Garmin's Time): {timer} · the watch was stopped {stopped}"
+    "timerLine": "Watch timer (<l>Garmin's Time</l>): <n>{timer}</n> · the watch was stopped <n>{stopped}</n>"
   },
   "weekTab": {
     "title": "This week",
