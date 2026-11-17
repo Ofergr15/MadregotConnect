@@ -72,6 +72,7 @@ import {
   type AcademyCoachSummary, type AcademyMember, type AcademyMembersResponse,
 } from './types';
 import { CoachTourOffer } from '@/components/tour/CoachTourOffer';
+import { buildActionCards, type ActionKind } from '@/lib/academy/action-cards';
 
 // The academy's staff lens: five areas under the title, each with its sub-tabs
 // (lib/academy/areas.ts), the title row with the shared search on every area,
@@ -436,6 +437,26 @@ export function AcademyShell({
     if (w.target.registrations) setRegistrationsOpen(true);
   };
 
+  // The home's "what to do now" cards (lib/academy/action-cards.ts), from the same reads the
+  // waiting list uses. "Approved and not inside" has no academy source, so no remind card here.
+  const formsWaiting = manager ? (home?.funnel?.forms.length ?? 0) : 0;
+  const regsWaiting = manager ? (members?.pending.registrations ?? 0) : 0;
+  const actionCards = useMemo(() => buildActionCards({
+    pain: waiting.filter((w) => w.kind === 'pain').length,
+    reply: awaiting.length,
+    approve: formsWaiting + regsWaiting,
+    tests: home?.approvals?.length ?? 0,
+    unassigned: manager ? unpaired : 0,
+    inFunnel: manager ? home?.funnel?.live ?? 0 : 0,
+  }), [waiting, awaiting, formsWaiting, regsWaiting, home, manager, unpaired]);
+  const onAction = (k: ActionKind) => {
+    if (k === 'pain') go('readiness');
+    else if (k === 'reply') go('threads');
+    else if (k === 'approve') { go('funnel'); if (!formsWaiting && regsWaiting) setRegistrationsOpen(true); }
+    else if (k === 'tests') go('tests');
+    else if (k === 'assign') go('coaches');
+  };
+
   const onQuick = (k: QuickKey) => {
     if (k === 'add') setAddOpen(true);
     else if (k === 'move') setQuick('move');
@@ -561,6 +582,8 @@ export function AcademyShell({
             onSuggestionMore={setMore}
             onQuick={onQuick}
             onWaiting={onWaiting}
+            actionCards={actionCards}
+            onAction={onAction}
             strips={tools?.strips}
             onStrip={(id) => router.push(`/dashboard/academy/week?athleteId=${encodeURIComponent(id)}`)}
             readinessAlert={readiness?.alert}

@@ -6676,5 +6676,30 @@
     "subtitle": "The link is broken or the page was removed",
     "body": "The address may be mistyped, or the page no longer exists.",
     "back": "Back to the feed"
+  },
+  "actionCards": {
+    "painTitle": "Answer the runners in pain",
+    "painText": "{count, plural, one {<n>1 runner</n> reported pain} other {<n>{count} runners</n> reported pain}}{extra, plural, =0 {} one {, and <n>1 question</n> is waiting for a reply} other {, and <n>{extra} questions</n> are waiting for a reply}}",
+    "painCta": "Read the feedback",
+    "replyTitle": "Answer who is waiting",
+    "replyText": "{count, plural, one {<n>1 question</n> is waiting for your reply} other {<n>{count} questions</n> are waiting for your reply}}",
+    "replyCta": "Reply now",
+    "approveTitle": "Approve new sign-ups",
+    "approveText": "{count, plural, one {<n>1 person</n> is waiting for approval} other {<n>{count} people</n> are waiting for approval}}",
+    "approveCta": "Approve now",
+    "remindTitle": "Remind who hasn't come in",
+    "remindText": "{count, plural, one {<n>1 person</n> was approved and hasn't opened the app} other {<n>{count} people</n> were approved and haven't opened the app}}",
+    "remindCta": "Send a reminder",
+    "testsTitle": "Review tests",
+    "testsText": "{count, plural, one {<n>1 test</n> is waiting for your approval} other {<n>{count} tests</n> are waiting for your approval}}",
+    "testsCta": "Start reviewing",
+    "assignTitle": "Assign a coach",
+    "assignText": "{count, plural, one {<n>1 trainee</n> has no coach} other {<n>{count} trainees</n> have no coach}}{extra, plural, =0 {} one { · <n>1 registrant</n> still on the way in} other { · <n>{extra} registrants</n> still on the way in}}",
+    "assignCta": "Assign",
+    "header": "What to do now",
+    "statsHeader": "By the numbers",
+    "showList": "See the full list",
+    "hideList": "Hide the list",
+    "approveNote": "One approval also opens maintenance."
   }
 }

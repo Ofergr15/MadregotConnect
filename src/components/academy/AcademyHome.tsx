@@ -19,6 +19,8 @@ import {
 import type { Suggestion } from '@/lib/academy/suggestions';
 import type { AcademyMembersResponse } from './types';
 import { memberCoachIds } from '@/lib/academy/members';
+import { ActionCards } from './ActionCards';
+import type { ActionCard, ActionKind } from '@/lib/academy/action-cards';
 import { AfterApprovalNote, TestApprovalCard, type Approval } from './completion/TestApprovalCard';
 
 // The academy home, as phone 1 of the approved mockup (academy-manager-v5.html)
@@ -43,13 +45,11 @@ export type SquareKey = 'onPlan' | 'behind' | 'notRun';
 export type QuickKey = 'add' | 'move' | 'coach';
 
 const VIOLET = '#5B21D6';
-/** Test approval cards drawn on the home before "הכל". */
-const MAX_CARDS = 2;
 
 export function AcademyHome({
   data, isLoading, prev, home, waiting, suggestion, suggestionBusy, capacity, isManager,
   onSquare, onSuggestion, onSuggestionMore, onQuick, onWaiting, strips, onStrip, readinessAlert, readinessHeld, onReadiness,
-  approvalCards, onApprovalDecided, onApprovalCorrect, onTrainee, threadsUnread, threadsCount, onThreads, onBandsChanged,
+  actionCards, onAction, approvalCards, onApprovalDecided, onApprovalCorrect, onTrainee, threadsUnread, threadsCount, onThreads, onBandsChanged,
 }: {
   data: AcademyMembersResponse | undefined;
   isLoading: boolean;
@@ -66,6 +66,9 @@ export function AcademyHome({
   onSuggestionMore: (s: Suggestion) => void;
   onQuick: (key: QuickKey) => void;
   onWaiting: (item: WaitingItem) => void;
+  /** "What to do now" (lib/academy/action-cards.ts), first on the home. */
+  actionCards?: ActionCard[];
+  onAction?: (kind: ActionKind) => void;
   /** This week per trainee, as colour squares (the coach tools' payload). */
   strips?: TraineeStrip[];
   onStrip?: (athleteId: string) => void;
@@ -91,6 +94,8 @@ export function AcademyHome({
   onBandsChanged?: () => void | Promise<void>;
 }) {
   const [allWaiting, setAllWaiting] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
+  const tc = useTranslations('actionCards');
   const members = useMemo(() => data?.members ?? [], [data]);
   const squares = useMemo(() => weekSquares(members), [members]);
 
@@ -107,41 +112,51 @@ export function AcademyHome({
   const rateDiff = rate !== null && prevRate !== null ? Math.round((rate - prevRate) * 100) : null;
   const cards = approvalCards ?? [];
   const rowsWaiting = cards.length ? waiting.filter((w) => w.kind !== 'approvals') : waiting;
-  const shownWaiting = allWaiting ? rowsWaiting : rowsWaiting.slice(0, 3);
-  // The approval cards are ~210px each: at most two on the home, the rest under the same "הכל"
-  // as the rows — after "לבקש מכולם" to a whole list, a dozen of them would be the whole home.
-  const shownCards = allWaiting ? cards : cards.slice(0, MAX_CARDS);
-  const waitingCount = rowsWaiting.length + cards.length;
-  const more = rowsWaiting.length > 3 || cards.length > MAX_CARDS;
+  // The kinds an action card already counts (AcademyShell → buildActionCards).
+  const covered = new Set<WaitingKind>(actionCards?.length ? ['pain', 'threads', 'form', 'registrations', 'approvals'] : []);
+  const coveredRows = rowsWaiting.filter((w) => covered.has(w.kind));
+  const otherRows = rowsWaiting.filter((w) => !covered.has(w.kind));
 
   return (
     <div className="space-y-2.5" dir="rtl">
       {readinessAlert && onReadiness && <ReadinessStory alert={readinessAlert} held={!!readinessHeld} onOpen={onReadiness} />}
 
-      {/* Waiting for you — first (academy-dash.html): what needs a hand now. */}
-      {waitingCount > 0 && (
+      {/* What to do now (P2 item 16): a verb, one sentence with the count in it, one button. */}
+      {!!actionCards?.length && <ActionCards cards={actionCards} onAction={(k) => onAction?.(k)} />}
+
+      {/* The rest of the waiting list, one row each (a watch that missed a workout, a pace to
+          decide…): no card speaks for these, so they stay in sight. What a card already
+          counts — and the inline test approvals — sit behind one quiet toggle. */}
+      {otherRows.length > 0 && (
+        <div data-tour="coach-waiting" className="overflow-hidden rounded-card bg-card">
+          {(allWaiting ? otherRows : otherRows.slice(0, 3)).map((w) => <WaitingRow key={w.key} item={w} onClick={() => onWaiting(w)} />)}
+        </div>
+      )}
+      {otherRows.length > 3 && (
+        <button type="button" onClick={() => setAllWaiting((v) => !v)} className="mx-1 -my-1 min-h-[44px] text-xs font-extrabold text-brand-600">
+          {allWaiting ? 'פחות' : 'הכל'}
+        </button>
+      )}
+      {(cards.length > 0 || coveredRows.length > 0) && (
+        <button type="button" onClick={() => setListOpen((v) => !v)} aria-expanded={listOpen}
+          className="mx-1 -my-1 block min-h-[44px] text-xs font-bold text-brand-600">
+          {listOpen ? tc('hideList') : tc('showList')}
+        </button>
+      )}
+      {listOpen && (
         <>
-          <div className="mx-1 -mb-0.5 mt-0.5 flex items-baseline justify-between">
-            <b className="text-[15px] font-black text-ink-700">מחכה לך · <bdi dir="ltr">{waitingCount}</bdi></b>
-            {more && (
-              <button type="button" onClick={() => setAllWaiting((v) => !v)} className="-my-3 min-h-[44px] min-w-[44px] px-1 text-xs font-extrabold text-brand-600">
-                {allWaiting ? 'פחות' : 'הכל'}
-              </button>
-            )}
-          </div>
-          {shownCards.map((a) => (
+          {cards.map((a) => (
             <TestApprovalCard key={a.testId} approval={a} onDecided={() => onApprovalDecided?.()} onCorrect={(x) => onApprovalCorrect?.(x)} />
           ))}
           {/* What approving does, once under the cards (the mockup's green note). */}
           {cards.length > 0 && <AfterApprovalNote name={cards.length === 1 ? cards[0].name.split(' ')[0] || null : null} />}
-          {shownWaiting.length > 0 && (
-            <div data-tour="coach-waiting" className="overflow-hidden rounded-card bg-card">
-              {shownWaiting.map((w) => <WaitingRow key={w.key} item={w} onClick={() => onWaiting(w)} />)}
+          {coveredRows.length > 0 && (
+            <div className="overflow-hidden rounded-card bg-card">
+              {coveredRows.map((w) => <WaitingRow key={w.key} item={w} onClick={() => onWaiting(w)} />)}
             </div>
           )}
         </>
       )}
-
 
       {/* 1 · Growth */}
       <section className="rounded-card bg-card px-3 pb-2.5 pt-3" aria-label="מתאמנים באקדמיה">

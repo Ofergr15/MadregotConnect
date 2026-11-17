@@ -6676,5 +6676,30 @@
     "subtitle": "הקישור שבור או שהדף הוסר",
     "body": "אולי הכתובת הוקלדה לא נכון, או שהדף כבר לא קיים.",
     "back": "חזרה לפיד"
+  },
+  "actionCards": {
+    "painTitle": "לענות למי שכואב לו",
+    "painText": "{count, plural, one {רץ אחד כתב על כאב} other {<n>{count} רצים</n> כתבו על כאב}}{extra, plural, =0 {} one {, ועוד שאלה אחת מחכה לתשובה} other {, ועוד <n>{extra} שאלות</n> מחכות לתשובה}}",
+    "painCta": "לקרוא את המשוב",
+    "replyTitle": "לענות למי שמחכה",
+    "replyText": "{count, plural, one {שאלה אחת מחכה לתשובה שלך} other {<n>{count} שאלות</n> מחכות לתשובה שלך}}",
+    "replyCta": "לענות עכשיו",
+    "approveTitle": "לאשר נרשמים חדשים",
+    "approveText": "{count, plural, one {אדם אחד מחכה לאישור} other {<n>{count} אנשים</n> מחכים לאישור}}",
+    "approveCta": "לאשר עכשיו",
+    "remindTitle": "להזכיר למי שלא נכנס",
+    "remindText": "{count, plural, one {אדם אחד אושר ועוד לא פתח את האפליקציה} other {<n>{count} אנשים</n> אושרו ועוד לא פתחו את האפליקציה}}",
+    "remindCta": "לשלוח תזכורת",
+    "testsTitle": "לבדוק טסטים",
+    "testsText": "{count, plural, one {טסט אחד מחכה לאישור שלך} other {<n>{count} טסטים</n> מחכים לאישור שלך}}",
+    "testsCta": "להתחיל לבדוק",
+    "assignTitle": "לשבץ מאמן",
+    "assignText": "{count, plural, one {מתאמן אחד בלי מאמן} other {<n>{count} מתאמנים</n> בלי מאמן}}{extra, plural, =0 {} one { · נרשם אחד עוד בתהליך הכניסה} other { · <n>{extra} נרשמים</n> עוד בתהליך הכניסה}}",
+    "assignCta": "לשבץ",
+    "header": "מה לעשות עכשיו",
+    "statsHeader": "במספרים",
+    "showList": "לכל הרשימה",
+    "hideList": "להסתיר את הרשימה",
+    "approveNote": "אישור אחד פותח גם את התחזוקה."
   }
 }

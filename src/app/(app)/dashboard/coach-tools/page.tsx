@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { AdminManage } from '@/components/admin/AdminManage';
 import { isAdminHome, useNavIdentity } from '@/lib/nav-items';
 import { useTranslations } from 'next-intl';
-import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles, UserCog, Zap, CalendarPlus, UserCheck, CalendarCheck, Footprints } from 'lucide-react';
+import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles, UserCog, Zap, CalendarPlus, UserCheck, CalendarCheck, Footprints } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
 import { StoreRow } from '@/components/podium/StoreAdminSection';
 import { flowGroup, type EntryQueueMember } from '@/lib/admin/entry-queue';
@@ -20,6 +20,16 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { AcademyCoachToday } from '@/components/management/AcademyCoachToday';
 import { AcademyManagerSummary } from '@/components/management/AcademyManagerSummary';
+import { ActionCards } from '@/components/academy/ActionCards';
+import { buildActionCards, type ActionKind } from '@/lib/academy/action-cards';
+
+/** Where each action card's button goes: the screens these rows already linked to. */
+const ACTION_HREF: Partial<Record<ActionKind, string>> = {
+  pain: '/dashboard/workout-feedback',
+  reply: '/dashboard/workout-feedback',
+  approve: '/dashboard/entry-queue?at=mine',
+  remind: '/dashboard/entry-queue?at=login',
+};
 
 // Coach Tools hub (roadmap: native-iOS redesign, Batch 0) — the staff
 // equivalent of the bottom tab bar's 4th slot. Staff have too many tools
@@ -126,6 +136,12 @@ function CoachToolsClassic() {
   const waiting = members?.filter((m) => flowGroup(m) === 'mine').length ?? 0;
   const blocked = members?.filter((m) => m.blocked).length ?? 0;
   const stuck = members?.filter((m) => flowGroup(m) === 'login').length ?? 0;
+  const actionCards = buildActionCards({
+    pain: isClubCoachLens ? attention?.pain : 0,
+    reply: isClubCoachLens ? attention?.wantsReply : 0,
+    approve: waiting,
+    remind: stuck,
+  });
 
   /**
    * A count worth interrupting for, as a pill. Zero shows nothing at all.
@@ -159,42 +175,22 @@ function CoachToolsClassic() {
         <p className="text-ink-400 mt-1 text-sm" dir="rtl">{subtitle}</p>
       </div>
 
-      {/* Only when there is something to say. A status card that permanently
-          reads "all clear" is a card people stop looking at. */}
-      {!!members && (queue!.maintenance || waiting > 0 || stuck > 0) && (
+      {/* What to do now (P2 item 16): a verb, one sentence with the count inside it, one
+          button — most urgent first, nothing when nothing is waiting. The maintenance
+          window stays a status row above them: it is a state to switch off, not a queue. */}
+      {!!members && queue!.maintenance && (
         <InsetSection header={t('statusHeader')}>
-          {queue!.maintenance && (
-            <InsetRow
-              icon={Wrench}
-              iconBg="bg-accent-red"
-              label={t('statusMaintenance')}
-              sublabel={t('statusMaintenanceBlocked', { count: blocked })}
-              href="/dashboard/entry-queue?at=mine"
-              trailing={countPill(blocked, 'bad')}
-            />
-          )}
-          {waiting > 0 && (
-            <InsetRow
-              icon={Lock}
-              iconBg="bg-band-3"
-              label={t('statusWaiting')}
-              sublabel={t('statusWaitingSub')}
-              href="/dashboard/entry-queue?at=mine"
-              trailing={countPill(waiting, 'bad')}
-            />
-          )}
-          {stuck > 0 && (
-            <InsetRow
-              icon={BellOff}
-              iconBg="bg-ink-300"
-              label={t('statusStuck')}
-              sublabel={t('statusStuckSub')}
-              href="/dashboard/entry-queue?at=login"
-              trailing={countPill(stuck, 'warn')}
-            />
-          )}
+          <InsetRow
+            icon={Wrench}
+            iconBg="bg-accent-red"
+            label={t('statusMaintenance')}
+            sublabel={t('statusMaintenanceBlocked', { count: blocked })}
+            href="/dashboard/entry-queue?at=mine"
+            trailing={countPill(blocked, 'bad')}
+          />
         </InsetSection>
       )}
+      <ActionCards approveNote cards={actionCards} href={(k) => ACTION_HREF[k] ?? null} />
 
       {/* ── The academy coach: their trainees, today (academy-coach.html) ── */}
       {isAcademyCoachLens && (
@@ -226,10 +222,7 @@ function CoachToolsClassic() {
               icon={MessageSquare}
               tone="bg-accent-red"
               label={tn('workoutFeedback')}
-              sub={attention && (attention.pain || attention.wantsReply)
-                ? t('tileFeedbackAlert', { pain: attention.pain, reply: attention.wantsReply })
-                : t('tileFeedbackSub')}
-              alert={!!attention && (attention.pain > 0 || attention.wantsReply > 0)}
+              sub={t('tileFeedbackSub')}
             />
             <TodayTile href="/dashboard/athletes" icon={Users} tone="bg-brand-600" label={tn('athletes')} sub={t('tileAthletesSub')} />
           </div>
