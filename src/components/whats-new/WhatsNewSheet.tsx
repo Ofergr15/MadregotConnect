@@ -29,6 +29,7 @@ import { useOnboardingV2 } from '@/lib/install/v2';
 import { useOnboarding } from '@/lib/onboarding/use-onboarding';
 import { useInstallStep } from '@/components/onboarding/InstallStepProvider';
 import { readPushPermission, whatsNewTiming } from '@/lib/onboarding/first-run-order';
+import { isNewMember } from '@/lib/onboarding-surface';
 
 /**
  * WHAT'S NEW — the digest sheet.
@@ -348,7 +349,10 @@ export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
   // Onboarding v2: after the first run, never in front of it (whatsNewTiming).
   const v2 = useOnboardingV2();
   const { data: onboarding } = useOnboarding();
-  const { answered: installAnswered } = useInstallStep();
+  const { answered: installAnswered, surface, claim, reportWhatsNew } = useInstallStep();
+  // Item 25 (lib/onboarding-surface): returning members only, and only in a session
+  // the lock hands to What's New — never with the tour, never with an install offer.
+  const newMember = onboarding?.applicable ? isNewMember(onboarding.memberSince, Date.now()) : false;
 
   useEffect(() => {
     if (!ready || !all || entries) return;
@@ -375,6 +379,17 @@ export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
     const next = asked
       ? visibleEntries(all, { ...ledger, since: WHATS_NEW_EPOCH })
       : unseenEntries(all, ledger);
+    if (!asked) {
+      if (!onboarding) return; // "new or returning" isn't known yet
+      if (newMember) {
+        // A new member: the whole app is news and the tour explains it. Spend these.
+        if (next.length) localStorage.setItem(WHATS_NEW_KEY, JSON.stringify(markSeen(ledger, next.map((e) => e.slug))));
+        reportWhatsNew(false);
+        return;
+      }
+      reportWhatsNew(next.length > 0);
+      if (next.length === 0 || surface !== 'whatsNew') return; // re-runs when the lock decides
+    }
     if (next.length === 0) return;
     // A tap on the release push is asking, so it opens whatever the first run says.
     if (v2 && !asked) {
@@ -391,10 +406,11 @@ export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
     localStorage.setItem(
       WHATS_NEW_KEY, JSON.stringify(markSeen(ledger, next.map((e) => e.slug))),
     );
+    if (!asked) claim('whatsNew');
     setEntries(next);
     setMore(withHeadline(next, content));
     setOpen(true);
-  }, [ready, all, entries, v2, onboarding, installAnswered, content]);
+  }, [ready, all, entries, v2, onboarding, installAnswered, content, surface, claim, reportWhatsNew, newMember]);
 
   if (!entries) return null;
   // The evening's headlines come as the full-screen tour (version A); the plain

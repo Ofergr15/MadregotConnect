@@ -19,6 +19,8 @@ export type OnboardingState =
       migrated: boolean;
       tourSeen: boolean;
       tourSeenAt: string | null;
+      /** athletes.created_at — lib/onboarding-surface's "new member" signal. */
+      memberSince?: string | null;
       completed: boolean;
       completedAt: string | null;
       /** lib/onboarding/phone-app: opened on a phone yet, and their own link to get there. */

@@ -115,7 +115,7 @@ describe('where it shows', () => {
     expect(g).toMatch(/localStorage\.setItem\(INSTALL_GUIDE_SEEN_KEY, '1'\)/);
     const p = read('components/InstallPrompt.tsx');
     expect(p).toMatch(/wasSeen = localStorage\.getItem\(INSTALL_GUIDE_SEEN_KEY\) === '1' \|\| installOfferCount\(\) > 0;/);
-    expect(p).toMatch(/const quiet = v2 && !!offer && seen === true && !asked;\s+useEffect\(\(\) => \{ if \(quiet\) skipForSession\(\); \}, \[quiet, skipForSession\]\);/);
+    expect(p).toMatch(/const quiet = v2 && !!offer && seen === true && !asked && surface === 'installSheet';\s+useEffect\(\(\) => \{ if \(quiet\) skipForSession\(\); \}, \[quiet, skipForSession\]\);/);
     expect(p).toMatch(/data-testid="install-strip"/);
     expect(p).toMatch(/onClick=\{\(\) => \{ setAsked\(true\); reopen\(\); \}\}/);
   });

@@ -2,29 +2,26 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useLocale, useTranslations } from 'next-intl';
-import { ChevronLeft, ClipboardList, Newspaper, User } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useOnboarding, markOnboarding } from '@/lib/onboarding/use-onboarding';
 import { TOUR_HOME, canStartTour, tourExitTarget } from '@/lib/onboarding/first-run-order';
 import { FIRST_RUN_EVENT, readFirstRunStage, setFirstRunStage } from '@/lib/onboarding/first-run-flow';
 import { useOnboardingV2 } from '@/lib/install/v2';
 import { useInstallStep } from './InstallStepProvider';
-import { useApi } from '@/lib/api';
-import { APP_VERSION } from '@/lib/version';
-import type { WhatsNewRelease } from '@/lib/release-notes';
-import { tourLatest, type TourLatestItem } from '@/lib/whats-new/tour-latest';
-import { WHATS_NEW_KEY, markSeen, readWhatsNewLedger } from '@/lib/whats-new/ledger';
 import { trackOnb } from '@/lib/onboarding/track';
-import { JOURNEY, JourneyCard, JourneyHero, JourneyRow, JourneyScreen, PrimaryButton } from './journey-ui';
+import { JOURNEY } from './journey-ui';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The first-run guided tour. Runs once, ever (onboarding_tour_seen_at), for
 // everyone — all 28 club members are on the platform but none has been shown
 // around it, so "new members only" would mean 26 of them never get this.
 //
-// A welcome sheet naming the four screens, then a spotlight over the real tabs —
-// feed → program (or academy) → profile — one line each, then "what's new
-// lately", ending on the feed.
+// A spotlight over the real tabs — feed → program (or academy) → profile — one
+// line each, ending on the feed. Three screens, nothing else (item 25): the
+// welcome sheet and the "what's new lately" ending were cut, and the tour runs
+// only for NEW members, in a session nothing else claims — InstallStepProvider's
+// `surface` lock, rules in lib/onboarding-surface.ts. That supersedes the
+// "everyone" note above: the club's existing members got it by now.
 //
 // It used to run on /dashboard/profile and spotlight cards there ("your next
 // workout") while the profile tab was the one lit up, and it ended on the
@@ -82,24 +79,14 @@ const SETTLE_MS = 900;
 /** The nav renders once its permissions resolve; look again this many times before giving up. */
 const SETTLE_TRIES = 3;
 
-// The four athlete tabs, in the order the tab bar reads them
-// (BottomTabBar's ATHLETE_PRIMARY_ORDER), with the same icons and the same names
-// as the bar itself — the point of this sheet is that the bar becomes readable,
-// which a different set of words for the same tab would undo.
-const WELCOME_SCREENS = [
-  { icon: Newspaper, labelKey: 'tourScreenFeed', bodyKey: 'tourScreenFeedBody' },
-  { icon: ClipboardList, labelKey: 'tourScreenProgram', bodyKey: 'tourScreenProgramBody' },
-  { icon: User, labelKey: 'tourScreenProfile', bodyKey: 'tourScreenProfileBody' },
-];
-
-type Phase = 'idle' | 'welcome' | 'preparing' | 'steps' | 'latest' | 'done';
+type Phase = 'idle' | 'preparing' | 'steps' | 'done';
 
 export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boolean) => void }) {
   const t = useTranslations('setup');
   const router = useRouter();
   const pathname = usePathname();
   const { data, mutate } = useOnboarding();
-  const { answered: installAnswered } = useInstallStep();
+  const { surface, claim } = useInstallStep();
 
   const [phase, setPhase] = useState<Phase>('idle');
 
@@ -109,15 +96,6 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
   /** The steps whose anchors actually exist, snapshotted once. */
   const [steps, setSteps] = useState<TourStep[]>([]);
   const [index, setIndex] = useState(0);
-  // The tour's last screen: what's new lately, straight from What's new
-  // (lib/whats-new/tour-latest) — nothing to keep up to date by hand.
-  const locale = useLocale();
-  const { data: wn } = useApi<{ releases: WhatsNewRelease[] }>('/api/whats-new', { revalidateOnFocus: false });
-  const latest: TourLatestItem[] = useMemo(
-    () => (wn ? tourLatest(wn.releases ?? [], APP_VERSION, locale === 'en' ? 'en' : 'he') : []),
-    [wn, locale],
-  );
-  const [exitTarget, setExitTarget] = useState<string | null>(null);
   const [box, setBox] = useState<{ top: number; left: number; width: number; height: number; radius: number } | null>(null);
 
   // Arm on the first read that says this person hasn't seen it — and not before
@@ -133,8 +111,10 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
   }, []);
 
   useEffect(() => {
-    onActiveChange?.(phase === 'welcome' || phase === 'preparing' || phase === 'steps' || phase === 'latest');
-  }, [phase, onActiveChange]);
+    const active = phase === 'preparing' || phase === 'steps';
+    onActiveChange?.(active);
+    if (active) claim('tour');
+  }, [phase, onActiveChange, claim]);
 
   const finish = useCallback(async () => {
     setPhase('done');
@@ -156,7 +136,9 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
 
   useEffect(() => {
     if (phase !== 'idle') return;
-    if (!canStartTour(data, installAnswered)) return;
+    // The install step no longer comes first: it is deferred past the signup day,
+    // and the session lock decides between the two (lib/onboarding-surface).
+    if (surface !== 'tour' || !canStartTour(data, true)) return;
     // Onboarding v2: the tour is step two of FirstRunFlow's sequence. It waits for
     // the hand-off, and skips its own welcome sheet — the flow already welcomed them.
     if (v2) {
@@ -164,8 +146,8 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
       start();
       return;
     }
-    setPhase('welcome');
-  }, [data, phase, installAnswered, v2, stageTick, start]);
+    start();
+  }, [data, phase, surface, v2, stageTick, start]);
 
   // Snapshot which steps are real. Done once, after the destination screen has
   // had a moment to render, so the "3 of 4" counter can't claim a step that will
@@ -192,20 +174,6 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
     return () => clearTimeout(timer);
   }, [phase, finish]);
 
-  /** End on "what's new lately" when there is any. True when it took over. */
-  const toLatest = useCallback((target: string | null) => {
-    if (latest.length === 0) return false;
-    // Shown here, so the What's new sheet does not announce the same three again.
-    try {
-      const ledger = readWhatsNewLedger(localStorage.getItem(WHATS_NEW_KEY));
-      localStorage.setItem(WHATS_NEW_KEY, JSON.stringify(markSeen(ledger, latest.map((i) => i.slug))));
-    } catch { /* private mode */ }
-    setExitTarget(target);
-    setPhase('latest');
-    trackOnb('latest_shown', { meta: { slugs: latest.map((i) => i.slug) } });
-    return true;
-  }, [latest]);
-
   const advance = useCallback(() => {
     if (index + 1 < steps.length) {
       setIndex(index + 1);
@@ -216,23 +184,15 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
     // checklist itself (see tourExitTarget).
     const target = tourExitTarget(steps, index);
     trackOnb('tour_done');
-    if (toLatest(target)) return;
     if (target) router.push(target);
+    else if (pathname !== TOUR_HOME) router.push(TOUR_HOME);
     finish();
-  }, [index, steps, finish, router, toLatest]);
+  }, [index, steps, finish, router, pathname]);
 
-  /** "Skip" mid-tour still ends on what's new: one screen, and nobody misses the launch's news. */
   const skip = useCallback(() => {
     trackOnb('tour_skipped', { meta: { at: index + 1, of: steps.length } });
-    if (!toLatest(null)) finish();
-  }, [toLatest, finish, index, steps.length]);
-
-  const leaveLatest = useCallback((href?: string) => {
-    // "לפיד, בואו נרוץ" lands on the feed — the first run ends there.
-    const to = href || exitTarget || (pathname !== TOUR_HOME ? TOUR_HOME : null);
-    if (to) router.push(to);
     finish();
-  }, [exitTarget, finish, router, pathname]);
+  }, [finish, index, steps.length]);
 
   const step = phase === 'steps' ? steps[index] : null;
 
@@ -267,76 +227,7 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
   }, [step]);
 
   if (phase === 'idle' || phase === 'done') return null;
-  if (phase === 'latest') {
-    // The tour's last screen in the journey's one look (journey-ui): the sunset
-    // header, one card per item with its own icon and a chevron that says it
-    // opens, and the one primary pill back to the feed.
-    return (
-      <div className="fixed inset-0 z-[60] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="tour-latest-title" data-testid="tour-latest">
-        <JourneyScreen
-          hero={<JourneyHero compact eyebrow={t('tourLatestKicker')} title={<span id="tour-latest-title">{t('tourLatestTitle')}</span>} subtitle={t('tourLatestBody')} />}
-          actions={<PrimaryButton onClick={() => leaveLatest()}>{t('tourLatestDone')}</PrimaryButton>}
-        >
-          {latest.map((item) => (
-            <button key={item.slug} type="button" onClick={() => { trackOnb('latest_clicked', { meta: { slug: item.slug } }); leaveLatest(item.href); }} className="block w-full text-start active:opacity-70">
-              <JourneyCard className="border border-[#EDE3DC] py-2">
-                <JourneyRow
-                  icon={item.icon}
-                  title={item.title}
-                  sub={item.body}
-                  end={<ChevronLeft className="mt-2.5 h-5 w-5 shrink-0" style={{ color: JOURNEY.muted }} aria-hidden />}
-                />
-              </JourneyCard>
-            </button>
-          ))}
-        </JourneyScreen>
-      </div>
-    );
-  }
-
-  // ── Welcome ───────────────────────────────────────────────────────────────
-  if (phase === 'welcome' || phase === 'preparing') {
-    return (
-      <div className="fixed inset-0 z-[60] flex flex-col justify-end" dir="rtl">
-        <div className="absolute inset-0 bg-ink-900/[0.86]" />
-        <div className="relative max-h-[92dvh] overflow-y-auto rounded-t-card bg-card px-4 pb-6 pt-2.5 text-start">
-          <div className="mx-auto mb-3.5 h-1 w-9 rounded-pill bg-ink-300" />
-          <h2 className="text-xl font-bold text-ink-700">{t('tourWelcomeTitle')}</h2>
-          <p className="mt-1.5 text-13 font-light leading-relaxed text-ink-400">{t('tourWelcomeBody')}</p>
-
-          {WELCOME_SCREENS.map(({ icon: Icon, labelKey, bodyKey }) => (
-            <div key={labelKey} className="mt-3.5 flex items-start gap-3">
-              <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-xl bg-brand-600/10">
-                <Icon className="h-[17px] w-[17px] text-brand-600" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-ink-700">{t(labelKey)}</p>
-                <p className="mt-0.5 text-xs font-light leading-relaxed text-ink-500">{t(bodyKey)}</p>
-              </div>
-            </div>
-          ))}
-
-          <button
-            type="button"
-            onClick={start}
-            disabled={phase === 'preparing'}
-            className="mt-4 flex min-h-[48px] w-full items-center justify-center rounded-pill bg-brand-600 text-[15px] font-bold text-white active:bg-brand-700 disabled:opacity-60"
-          >
-            {t('tourStart')}
-          </button>
-          <button
-            type="button"
-            onClick={finish}
-            className="mt-1.5 flex min-h-[46px] w-full items-center justify-center text-[15px] font-bold underline underline-offset-2"
-            style={{ color: JOURNEY.soft }}
-          >
-            {t('tourSkipWelcome')}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
+  // 'preparing' draws nothing: the welcome sheet that used to sit here was cut (item 25).
   if (!step) return null;
 
   // ── Spotlight ─────────────────────────────────────────────────────────────

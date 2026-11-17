@@ -11,6 +11,7 @@ import { JOURNEY } from '@/components/onboarding/journey-ui';
 import { useOnboardingV2 } from '@/lib/install/v2';
 import { useIsComputer } from '@/lib/install/use-computer';
 import { INSTALL_DISMISS_KEY, installOfferCount } from '@/lib/onboarding/first-run-order';
+import { STRIP_EVERY_MS, STRIP_HIDE_KEY } from '@/lib/onboarding-surface';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The install offer — step 1 of the first run, and the only screen that comes
@@ -47,13 +48,15 @@ import { INSTALL_DISMISS_KEY, installOfferCount } from '@/lib/onboarding/first-r
 // remove it.
 // ═════════════════════════════════════════════════════════════════════════════
 
-/** Until when this phone has hidden the "not on the home screen yet" strip. */
-const STRIP_HIDE_KEY = 'pwa_install_strip_hidden_until';
-const STRIP_HIDE_MS = 7 * 24 * 3600 * 1000;
+// Item 25: which of the sheet and the strip may show at all — and when — is no
+// longer decided here but by the session lock (InstallStepProvider `surface`,
+// rules in lib/onboarding-surface.ts): the sheet never on the signup day nor in a
+// session the tour or What's New took, the strip only after the sheet was waved
+// away and at most once a week. This file only renders what it is handed.
 
 export function InstallPrompt() {
   const t = useTranslations('install');
-  const { offer, dismissForever, skipForSession, reopen, canOffer } = useInstallStep();
+  const { offer, dismissForever, skipForSession, reopen, canOffer, surface, claim } = useInstallStep();
   const [copied, setCopied] = useState(false);
   const v2 = useOnboardingV2();
   const computer = useIsComputer();
@@ -66,8 +69,10 @@ export function InstallPrompt() {
     let wasSeen = false, off = true;
     try {
       wasSeen = localStorage.getItem(INSTALL_GUIDE_SEEN_KEY) === '1' || installOfferCount() > 0;
-      off = isStandalone() || localStorage.getItem(INSTALL_DISMISS_KEY) === '1'
-        || Number(localStorage.getItem(STRIP_HIDE_KEY) || 0) > Date.now();
+      // The week-long STRIP_HIDE_KEY is the lock's to read (pickSurface): it is
+      // stamped the moment the strip shows, so reading it here would hide the strip
+      // again on the next remount within the same visit.
+      off = isStandalone() || localStorage.getItem(INSTALL_DISMISS_KEY) === '1';
     } catch { /* private mode: no strip, and the guide as before */ }
     setSeen(wasSeen);
     setStripOff(off);
@@ -77,8 +82,15 @@ export function InstallPrompt() {
   }, []);
   // Seen before and not asked for: answer the step for this visit instead of
   // opening the guide over the app again.
-  const quiet = v2 && !!offer && seen === true && !asked;
+  // Only for an offer the lock has handed us; any other session keeps it unasked.
+  const quiet = v2 && !!offer && seen === true && !asked && surface === 'installSheet';
   useEffect(() => { if (quiet) skipForSession(); }, [quiet, skipForSession]);
+  // Tapping the strip reopens the guide inside the strip's own session.
+  const mine = asked || surface === (offer ? 'installSheet' : 'installStrip');
+  const visible = mine && (offer ? !quiet && seen !== null : v2 && !computer && !stripOff && canOffer && seen !== null);
+  useEffect(() => {
+    if (visible && !asked) claim(offer ? 'installSheet' : 'installStrip');
+  }, [visible, asked, offer, claim]);
 
   const copyLink = async () => {
     // The fallback for the member whose webview hides its own menu: paste the
@@ -101,19 +113,19 @@ export function InstallPrompt() {
   // The hook has to sit above the `!offer` early return, or React sees a different
   // hook count on the render where the offer arrives.
   useEffect(() => {
-    if (!offer) return;
+    if (!offer || !visible) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') skipForSession();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [offer, skipForSession]);
+  }, [offer, visible, skipForSession]);
 
   if (!offer) {
     // v2, phone, not installed, something to offer: the one small reminder.
-    if (!v2 || computer || stripOff || !canOffer || seen === null) return null;
+    if (!visible) return null;
     const hide = () => {
-      try { localStorage.setItem(STRIP_HIDE_KEY, String(Date.now() + STRIP_HIDE_MS)); } catch { /* ignore */ }
+      try { localStorage.setItem(STRIP_HIDE_KEY, String(Date.now() + STRIP_EVERY_MS)); } catch { /* ignore */ }
       setStripOff(true);
     };
     return (
@@ -126,6 +138,8 @@ export function InstallPrompt() {
       </div>
     );
   }
+
+  if (!visible) return null;
 
   const install = async () => {
     if (offer.kind !== 'prompt') return;

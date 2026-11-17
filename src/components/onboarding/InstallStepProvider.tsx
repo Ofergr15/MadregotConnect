@@ -17,8 +17,21 @@ import {
   OFFER_SETTLE_MS,
   isInstallStepAnswered,
   recordInstallOfferSkipped,
+  installOfferCount,
   resetInstallOffer,
 } from '@/lib/onboarding/first-run-order';
+import { INSTALL_GUIDE_SEEN_KEY } from '@/components/install/InstallGuide';
+import { useOnboarding } from '@/lib/onboarding/use-onboarding';
+import { isNativeShell } from '@/lib/native-shell';
+import {
+  SESSION_SURFACE_KEY,
+  STRIP_EVERY_MS,
+  STRIP_HIDE_KEY,
+  installAnsweredForPush,
+  pickSurface,
+  type OnbSurface,
+  type SurfaceContext,
+} from '@/lib/onboarding-surface';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Step 1 of the first run: add to the home screen — BEFORE the tour, and before
@@ -64,6 +77,16 @@ export interface InstallStepValue {
    * desktop Firefox would otherwise be handed iPhone instructions.
    */
   canOffer: boolean;
+  /**
+   * The ONE post-login surface this session may show (lib/onboarding-surface):
+   * the tour, What's New, the install sheet or the install strip. Each of them
+   * renders only when this names it, and calls claim() once it is on screen.
+   */
+  surface: OnbSurface | null;
+  /** Take the session for this surface; nothing else shows until the next visit. */
+  claim: (surface: OnbSurface) => void;
+  /** WhatsNewAutoSheet: is there anything unseen to show a returning member? */
+  reportWhatsNew: (pending: boolean) => void;
 }
 
 /**
@@ -78,6 +101,10 @@ const FALLBACK: InstallStepValue = {
   skipForSession: () => {},
   reopen: () => {},
   canOffer: false,
+  // No provider, no lock: let each surface fall back to its own rules.
+  surface: null,
+  claim: () => {},
+  reportWhatsNew: () => {},
 };
 
 const InstallStepContext = createContext<InstallStepValue | null>(null);
@@ -90,6 +117,53 @@ export function InstallStepProvider({ children }: { children: ReactNode }) {
   const [offer, setOffer] = useState<InstallOffer | null>(null);
   const [answered, setAnswered] = useState(false);
   const [canOffer, setCanOffer] = useState(false);
+
+  // ── The one-surface-per-session lock (lib/onboarding-surface) ──────────────
+  const { data: onboarding } = useOnboarding();
+  const [sessionSurface, setSessionSurface] = useState<OnbSurface | null>(null);
+  const [whatsNew, setWhatsNew] = useState<SurfaceContext['whatsNew']>('unknown');
+  const [device, setDevice] = useState({
+    standalone: false, sheetDismissed: false, dismissedForever: false, stripHiddenUntil: 0, read: false,
+  });
+  const readDevice = useCallback(() => {
+    try {
+      setDevice({
+        standalone: isStandalone(),
+        sheetDismissed: installOfferCount() > 0
+          || sessionStorage.getItem(INSTALL_SESSION_SKIP_KEY) === '1'
+          || localStorage.getItem(INSTALL_GUIDE_SEEN_KEY) === '1',
+        dismissedForever: localStorage.getItem(INSTALL_DISMISS_KEY) === '1',
+        stripHiddenUntil: Number(localStorage.getItem(STRIP_HIDE_KEY) || 0),
+        read: true,
+      });
+    } catch {
+      setDevice((d) => ({ ...d, read: true })); // private mode
+    }
+  }, []);
+  useEffect(() => {
+    readDevice();
+    try {
+      const held = sessionStorage.getItem(SESSION_SURFACE_KEY) as OnbSurface | null;
+      if (held) setSessionSurface(held);
+    } catch { /* private mode */ }
+    // What's New reports from the feed. Anywhere else nobody will: after this long
+    // it counts as nothing to show, so the install offer isn't held forever.
+    const timer = setTimeout(() => setWhatsNew((w) => (w === 'unknown' ? 'none' : w)), OFFER_SETTLE_MS * 2);
+    return () => clearTimeout(timer);
+  }, [readDevice]);
+
+  const claim = useCallback((next: OnbSurface) => {
+    setSessionSurface((held) => {
+      if (held) return held;
+      try {
+        sessionStorage.setItem(SESSION_SURFACE_KEY, next);
+        // "At most once every 7 days" is stamped when the strip is SHOWN.
+        if (next === 'installStrip') localStorage.setItem(STRIP_HIDE_KEY, String(Date.now() + STRIP_EVERY_MS));
+      } catch { /* private mode */ }
+      return next;
+    });
+  }, []);
+  const reportWhatsNew = useCallback((pending: boolean) => setWhatsNew(pending ? 'pending' : 'none'), []);
 
   // The deferred Chromium prompt, kept even after the sheet closes. It fires once
   // per load, so reopen() has nothing to re-offer unless we hold on to it here.
@@ -165,7 +239,8 @@ export function InstallStepProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(INSTALL_DISMISS_KEY, '1');
     show(null);
     setAnswered(true);
-  }, [show]);
+    readDevice();
+  }, [show, readDevice]);
 
   const skipForSession = useCallback(() => {
     sessionStorage.setItem(INSTALL_SESSION_SKIP_KEY, '1');
@@ -175,7 +250,8 @@ export function InstallStepProvider({ children }: { children: ReactNode }) {
     recordInstallOfferSkipped();
     show(null);
     setAnswered(true);
-  }, [show]);
+    readDevice();
+  }, [show, readDevice]);
 
   const reopen = useCallback(() => {
     // Clears the sticky answers first, or isInstallStepAnswered() would shut the
@@ -187,9 +263,29 @@ export function InstallStepProvider({ children }: { children: ReactNode }) {
     else show({ kind: 'ios' });
   }, [show]);
 
+  const ctx: SurfaceContext = {
+    now: Date.now(),
+    native: isNativeShell(),
+    standalone: device.standalone,
+    loaded: !!onboarding && device.read,
+    memberSince: onboarding && onboarding.applicable ? onboarding.memberSince ?? null : null,
+    tourUnseen: !!onboarding && onboarding.applicable && !onboarding.tourSeen,
+    whatsNew,
+    installOffer: !!offer,
+    sheetDismissed: device.sheetDismissed,
+    installDismissedForever: device.dismissedForever,
+    canOffer,
+    stripHiddenUntil: device.stripHiddenUntil,
+    sessionSurface,
+  };
+  const surface = pickSurface(ctx);
+  // Push waits on this (PushOptIn / NotificationsStep). An install offer deferred
+  // to another day or session counts as answered for now — see installAnsweredForPush.
+  const answeredForPush = installAnsweredForPush(ctx, answered);
+
   const value = useMemo(
-    () => ({ offer, answered, dismissForever, skipForSession, reopen, canOffer }),
-    [offer, answered, dismissForever, skipForSession, reopen, canOffer],
+    () => ({ offer, answered: answeredForPush, dismissForever, skipForSession, reopen, canOffer, surface, claim, reportWhatsNew }),
+    [offer, answeredForPush, dismissForever, skipForSession, reopen, canOffer, surface, claim, reportWhatsNew],
   );
 
   return <InstallStepContext.Provider value={value}>{children}</InstallStepContext.Provider>;
