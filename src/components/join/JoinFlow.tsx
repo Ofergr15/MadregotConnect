@@ -120,7 +120,8 @@ export function JoinFlow({ initialPath }: { initialPath?: 'club' | 'academy' | n
 
   if (done) return <RegisterReceived state={done.state} email={done.email} name={first.trim()} />;
 
-  const hero = (title: string, subtitle?: string) => <JourneyHero compact eyebrow="מצטרפים למדרגות" title={title} subtitle={subtitle} />;
+  // Step 1's title already says "מצטרפים למדרגות", so it drops the eyebrow (#22).
+  const hero = (title: string, subtitle?: string, eyebrow: string | null = 'מצטרפים למדרגות') => <JourneyHero compact eyebrow={eyebrow ?? undefined} title={title} subtitle={subtitle} />;
   const typoFix = error === 'typo' ? suggestEmail(email) : null;
   const err = typoFix ? (
     <div role="alert" className="rounded-2xl bg-[#FFF4E5] px-3.5 py-3 text-center">
@@ -133,7 +134,7 @@ export function JoinFlow({ initialPath }: { initialPath?: 'club' | 'academy' | n
   ) : error && <p role="alert" className="text-center text-sm font-bold text-accent-red">{error}</p>;
 
   if (step === 'path') return (
-    <JourneyScreen testId="join-path" hero={hero('מצטרפים למדרגות 👋', 'מה מתאים לך? אפשר לשנות גם אחר כך')}
+    <JourneyScreen testId="join-path" hero={hero('מצטרפים למדרגות 👋', 'מה מתאים לך? אפשר לשנות גם אחר כך', null)}
       actions={<PrimaryButton disabled={!path} onClick={() => go('details')}>המשך</PrimaryButton>}>
       {([['club', '🏃', 'המועדון', 'אימוני קבוצה בשלישי ושישי בבוקר, דבוקות לפי קצב מרתון, תוכנית שבועית ומאמני המועדון.'],
         ['academy', '🎯', 'האקדמיה', 'תוכנית אישית ומאמן אישי שמלווה אותך — און ליין, או משולב עם מפגשים. מכל רמה, גם מאפס.']] as const).map(([k, e, t, d]) => (
