@@ -1,10 +1,11 @@
 'use client';
 
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { SETUP_GATE_FOR_ALL } from '@/lib/setup/flag';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Check, Eye, EyeOff, Mail } from 'lucide-react';
+import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Check,  Mail } from 'lucide-react';
 import { InsetSection, InsetRow, Button } from '@/components/ui';
 import { cn, resolveGroup } from '@/lib/utils';
 import { InstallGuide, INSTALL_GUIDE_SEEN_KEY } from '@/components/install/InstallGuide';
@@ -79,7 +80,6 @@ export default function JoinPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [garminEmail, setGarminEmail] = useState('');
   const [garminPassword, setGarminPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [mfaRequired, setMfaRequired] = useState(false);
   const [mfaCode, setMfaCode] = useState('');
   const [mfaSessionId, setMfaSessionId] = useState('');
@@ -814,23 +814,12 @@ export default function JoinPage() {
               <label htmlFor="jt-garminPassword" className="block text-sm font-medium text-ink-500 mb-1">
                 {to('garminPassword')}
               </label>
-              <div className="relative">
-                <Input id="jt-garminPassword"
-                  type={showPassword ? 'text' : 'password'}
-                  value={garminPassword}
-                  onChange={(e) => setGarminPassword(e.target.value)}
-                  placeholder={to('enterPassword')}
-                  className="pe-12"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute end-1.5 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center text-ink-400 hover:text-ink-900 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
+              <PasswordInput as={Input} id="jt-garminPassword"
+                value={garminPassword}
+                onChange={(e) => setGarminPassword(e.target.value)}
+                placeholder={to('enterPassword')}
+                required
+              />
               <p className="text-13 text-ink-400 mt-1.5">
                 {t('tapEye')}
               </p>

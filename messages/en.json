@@ -1,5 +1,7 @@
 {
   "common": {
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
     "signIn": "Sign In",
     "signOut": "Sign Out",
     "signingIn": "Signing in...",
@@ -3687,7 +3689,8 @@
     "noDevices": "Off, no device",
     "setup": "Setup",
     "setupDone": "Done",
-    "setupNotDone": "Not finished",
+    "setupNotDone": "An optional step is left",
+    "setupOptional": "Optional: {items}",
     "lastRun": "Last run",
     "lastSeen": "Last opened the app",
     "never": "Never",
@@ -3701,7 +3704,7 @@
     "alertSilent": "No run in {n} days",
     "alertSilentNever": "No run in 60 days",
     "alertSilentHint": "The watch is connected, but nothing has arrived. Worth a message.",
-    "alertSetup": "Setup not finished",
+    "alertSetup": "An optional step left",
     "alertSetupHint": "Signed in but never finished setting the app up.",
     "actions": "Actions",
     "openProfile": "Member profile",

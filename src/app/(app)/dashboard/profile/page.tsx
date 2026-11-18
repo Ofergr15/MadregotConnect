@@ -1,5 +1,6 @@
 'use client';
 
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import Link from 'next/link';
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
@@ -1129,8 +1130,7 @@ function ProfileContent() {
                     className="w-full px-3 py-2.5 rounded-lg bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50"
                   />
                   {!mfaRequired && (
-                    <input
-                      type="password"
+                    <PasswordInput
                       placeholder={t('garminPassword')}
                       value={garminPassword}
                       onChange={e => setGarminPassword(e.target.value)}

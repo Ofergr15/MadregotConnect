@@ -1,5 +1,7 @@
 {
   "common": {
+    "showPassword": "הצגת הסיסמה",
+    "hidePassword": "הסתרת הסיסמה",
     "signIn": "התחברות",
     "signOut": "התנתקות",
     "signingIn": "מתחבר...",
@@ -3687,7 +3689,8 @@
     "noDevices": "כבויות, אין מכשיר",
     "setup": "הגדרה",
     "setupDone": "הושלמה",
-    "setupNotDone": "לא הושלמה",
+    "setupNotDone": "יש עוד צעד אופציונלי",
+    "setupOptional": "אפשר להשלים: {items}",
     "lastRun": "ריצה אחרונה",
     "lastSeen": "פתח את האפליקציה לאחרונה",
     "never": "אף פעם",
@@ -3701,7 +3704,7 @@
     "alertSilent": "אין ריצה {n} ימים",
     "alertSilentNever": "אין ריצה ב-60 הימים האחרונים",
     "alertSilentHint": "השעון מחובר, אבל שום דבר לא הגיע. שווה הודעה.",
-    "alertSetup": "ההגדרה לא הושלמה",
+    "alertSetup": "עוד צעד אופציונלי",
     "alertSetupHint": "נכנס לאפליקציה אבל לא סיים להגדיר אותה.",
     "actions": "פעולות",
     "openProfile": "הפרופיל של החבר",

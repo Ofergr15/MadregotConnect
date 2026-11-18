@@ -1,5 +1,6 @@
 'use client';
 
+import { TASK_LABEL_KEY } from '@/components/onboarding/task-meta';
 import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -14,7 +15,7 @@ import { israelDateOf } from '@/lib/reports/last-7-days';
 import { PackMoveToast, PackSwitchSheet, laneOf, usePackMove, type PackGroup } from '@/components/packs/PackSwitch';
 import { personMatches } from '@/lib/search/match';
 import {
-  faceSignals, isStaffPerson, isWaitingPerson, wallAreas, wallSections,
+  faceSignals, isStaffPerson, isWaitingPerson, setupLine, wallAreas, wallSections,
   type FaceSignals, type Person, type Signal,
 } from '@/lib/admin/people';
 
@@ -248,6 +249,8 @@ function FaceCard({ person: p, today, packLabel, onPack, onDone }: {
   const t = useTranslations('people');
   const s = faceSignals(p, today);
   const waiting = isWaitingPerson(p);
+  const ts = useTranslations('setup');
+  const setup = setupLine(p);
   const [sent, setSent] = useState<'idle' | 'busy' | 'ok' | 'fail'>('idle');
   const ago = (n: number | null) => (n === null ? '—' : n <= 0 ? t('today') : n === 1 ? t('yesterday') : t('daysAgo', { n }));
   const roleName = p.role === 'coach' ? t('role_coach') : p.role === 'academy_coach' ? t('role_academy_coach') : p.role === 'admin' ? t('role_admin') : null;
@@ -289,7 +292,9 @@ function FaceCard({ person: p, today, packLabel, onPack, onDone }: {
           value={p.pushDevices === 0 ? t('pushOff') : p.pushDead ? t('pushDeadShort') : t('pushOn', { n: p.pushDevices })} bad={s.push === 'bad'} ok={s.push === 'ok'} />
       </div>
       <div className="mt-3 divide-y divide-page overflow-hidden rounded-2xl bg-card">
-        <Line icon={<CheckCircle2 className="h-4 w-4" />} tint="bg-ink-400" label={t('setup')} value={p.setupDone ? t('setupDone') : t('setupNotDone')} bad={!p.setupDone && !waiting} ok={p.setupDone} />
+        <Line icon={<CheckCircle2 className="h-4 w-4" />} tint="bg-ink-400" label={t('setup')}
+          value={setup.kind === 'done' ? t('setupDone') : setup.kind === 'optional' ? t('setupOptional', { items: setup.keys.map(k => ts(TASK_LABEL_KEY[k])).join(' / ') }) : t('setupNotDone')}
+          ok={setup.kind === 'done'} />
         <Line icon={<CalendarDays className="h-4 w-4" />} tint="bg-ink-400" label={t('lineSince')} value={p.joinedAt ? shortDate(p.joinedAt) : '—'} />
       </div>
 
