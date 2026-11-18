@@ -17,7 +17,7 @@ describe('what the trainee reads', () => {
     const { subject, html } = academyExistingFormEmail({ name: 'יוסי לוי', url: 'https://www.madregot.app/academy-register?i=abc' });
     expect(subject).toBe('🎓 יוסי, האקדמיה עוברת לאפליקציה — נשאר רק למלא פרטים');
     expect(html).toContain('/academy-register?i=abc');
-    expect(html).toContain('מהמאמן/ת שלך');
+    expect(html).toContain('כשהמאמן יפרסם אותה');
     expect(html).not.toContain('onb=v2');
   });
   it('2 · after the form: no intro call ahead of them, the app link comes next', () => {
