@@ -2108,7 +2108,8 @@
     "recNone": "No {label} record yet",
     "recSeconds": "s",
     "recChartAria": "{label} record timeline",
-    "watchResent": "{count, plural, one {The waiting session is on your watch now} other {The # waiting sessions are on your watch now}}"
+    "watchResent": "{count, plural, one {The waiting session is on your watch now} other {The # waiting sessions are on your watch now}}",
+    "installApp": "Install the app"
   },
   "profileBest": {
     "title": "Your Best",
@@ -6707,5 +6708,65 @@
     "showList": "See the full list",
     "hideList": "Hide the list",
     "approveNote": "One approval also opens maintenance."
+  },
+  "academyGuide": {
+    "title": "Academy guide",
+    "subtitle": "A six-minute read with everything for day one",
+    "open": "Open this screen",
+    "stepOf": "Step {n}",
+    "entryRow": "Academy guide",
+    "entryRowSub": "Where the plan, the coach chat and feedback are",
+    "entryCard": "New to the academy? The short guide",
+    "doneLink": "A short academy guide",
+    "steps": {
+      "today": {
+        "title": "What to do today",
+        "body": "The first tab shows today's workout, and tomorrow's on a rest day. The button opens the workout with its paces and steps."
+      },
+      "board": {
+        "title": "Your plan",
+        "body": "The board shows your coach's whole week, Sunday to Saturday. Switch to the month view; tap a day to open its workout."
+      },
+      "coach": {
+        "title": "Your coach chat",
+        "body": "The message bubble at the top of Today opens the chat with your coach. A red dot with a number means a new message."
+      },
+      "feel": {
+        "title": "Workout feedback",
+        "body": "After a run, open the workout on the board and say how it felt, how hard it was, and whether anything hurt. Pain alerts your coach."
+      },
+      "watch": {
+        "title": "Connect your watch",
+        "body": "Connect Garmin once: your coach's workouts go to the watch and your runs come back on their own. Today shows a Connect Garmin card until you do."
+      },
+      "progress": {
+        "title": "Your progress",
+        "body": "The Progress tab shows your fitness over time, your tests and your paces."
+      },
+      "home": {
+        "title": "Your academy",
+        "body": "The Academy tab opens My academy: your goal, your paces and the week Sunday to Saturday. The arrows switch weeks."
+      },
+      "week": {
+        "title": "The week's plan",
+        "body": "Tap a day to open its workout. Under the days, a button opens the full week with totals and what is already on the watch."
+      },
+      "coachV1": {
+        "title": "Your coach chat",
+        "body": "The coach's circle at the top of My academy opens the chat. A red dot on it means a new message."
+      },
+      "feedbackV1": {
+        "title": "Workout feedback",
+        "body": "Open the workout from the week. Your coach's feedback is there, with a button under it to write how it went or reply."
+      },
+      "watchV1": {
+        "title": "Connect your watch",
+        "body": "In Profile, under Connections, connect Garmin or Strava. From then on runs arrive on their own and your coach sees them."
+      },
+      "appV1": {
+        "title": "App and notifications",
+        "body": "From Profile you can install the app on the home screen any time, and turn on notifications so no coach message is missed."
+      }
+    }
   }
 }

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSWRConfig } from 'swr';
-import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Activity, WifiOff, Copy, Check, Share2, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X, CalendarClock, AlertTriangle, Languages, Sparkles, LogOut, Trash2 } from 'lucide-react';
+import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Activity, WifiOff, Copy, Check, Share2, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X, CalendarClock, AlertTriangle, Languages, Sparkles, LogOut, Trash2, GraduationCap, Smartphone } from 'lucide-react';
 import { cn, israelToday, MONDAY_WEEK, type WeekStartDay } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { useTranslations, useFormatter, useLocale } from 'next-intl';
@@ -36,6 +36,9 @@ import { fetchActivities } from '@/lib/activities-client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { APP_VERSION } from '@/lib/version';
 import { useNavIdentity } from '@/lib/nav-items';
+import { InstallGuide } from '@/components/install/InstallGuide';
+import { isStandalone } from '@/lib/pwa';
+import { ACADEMY_GUIDE_PATH } from '@/lib/academy/guide';
 import { AdminAccount } from '@/components/admin/AdminAccount';
 import type { GroupedWeeklyPlans } from '@/lib/ai/types';
 import { AthleteLink } from '@/components/AthleteLink';
@@ -135,8 +138,19 @@ function ProfileContent() {
   const { mutate: globalMutate } = useSWRConfig();
   const t = useTranslations('profile');
   // An academy-only trainee has no club pack: no blank "דבוקת קצב" row (academy-dash.html).
-  const { isAcademyOnly } = useNavIdentity();
+  const { isAcademyOnly, isAcademyMember } = useNavIdentity();
+  // "אפשר להתקין אחר כך מהפרופיל" (the setup gate's last screen) is this row: the same install
+  // guide as the first visit, any time, until the app runs from the home screen. `?install=1`
+  // (the academy guide's button) opens it on arrival.
+  const [installable, setInstallable] = useState(false);
+  const [showInstall, setShowInstall] = useState(false);
+  useEffect(() => {
+    const standalone = isStandalone();
+    setInstallable(!standalone);
+    if (!standalone && new URLSearchParams(window.location.search).get('install') === '1') setShowInstall(true);
+  }, []);
   const tp = useTranslations('packSwitch');
+  const tg = useTranslations('academyGuide');
   const tCommon = useTranslations('common');
   const format = useFormatter();
   const locale = useLocale();
@@ -912,6 +926,8 @@ function ProfileContent() {
                 </InsetSection>
 
                 <InsetSection header={t('appSection')}>
+                  {installable && <InsetRow icon={Smartphone} iconBg="bg-brand-600" label={t('installApp')} onClick={() => setShowInstall(true)} />}
+                  {isAcademyMember && <InsetRow icon={GraduationCap} iconBg="bg-brand-600" label={tg('entryRow')} sublabel={tg('entryRowSub')} href={ACADEMY_GUIDE_PATH} />}
                   <MapPrefsRow />
                   <InsetRow icon={Sparkles} iconBg="bg-brand-600" label={t('whatsNew')} value={APP_VERSION} href="/dashboard/whats-new" />
                 </InsetSection>
@@ -929,6 +945,10 @@ function ProfileContent() {
       {/* ═══ DETAIL: Setup checklist — already on the light system, so it sits
           outside the dark wrapper below and needs no back-nav of its own here
           (SetupChecklist renders a light one). ═══ */}
+      {showInstall && (
+        <InstallGuide canPrompt={false} memberName={athleteName || null} onLater={() => setShowInstall(false)} />
+      )}
+
       {activeTab === 'setup' && (
         <SetupChecklist
           onBack={() => setActiveTab(null)}

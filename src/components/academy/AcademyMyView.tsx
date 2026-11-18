@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { GuideEntryCard } from '@/components/academy/GuideEntryCard';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, GraduationCap } from 'lucide-react';
@@ -329,6 +330,9 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
           {t('openWeek')} <ChevronLeft className="h-3.5 w-3.5" />
         </Link>
       </div>
+
+      {/* Day one: where everything is (lib/academy/guide.ts). */}
+      <GuideEntryCard />
 
       {/* ── Below the fold: the journey ── */}
       {data?.journey && (

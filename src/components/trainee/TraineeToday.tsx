@@ -20,6 +20,7 @@ import { FormCard } from './FormCard';
 import { MAX_HR_MIN_RUNS } from '@/lib/academy/load';
 import { hrEstimateKey } from '@/lib/academy/test-state';
 import { LoadSheet } from './LoadSheet';
+import { GuideEntryCard } from '@/components/academy/GuideEntryCard';
 import { RaceLine } from './RaceLine';
 import { RestCard, TodayWorkoutCard } from './TodayWorkoutCard';
 import { TestEntryCard } from '@/components/academy/completion/TestEntryCard';
@@ -237,6 +238,9 @@ export function TraineeToday({ athleteId, firstName, academyOnly = false }: {
       <FormCard form={data.form} when={data.dayState === 'rest' ? 'tomorrow' : when} gender={data.athlete.gender} showBands={data.dayState === 'workout'} testKind={data.test?.kind ?? null} />
 
       <BodyChips sleep={data.body.sleep} rhr={data.body.rhr} missing={data.body.missing} today={today} />
+
+      {/* Day one: where everything is (lib/academy/guide.ts). */}
+      {!viewingAs && <GuideEntryCard />}
 
       {data.race && <RaceLine race={data.race} showBuild={data.dayState === 'workout'} />}
 

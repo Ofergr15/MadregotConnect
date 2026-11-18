@@ -26,6 +26,8 @@ import { remainingSteps, SETUP_ORDER, type SetupStep } from '@/lib/setup/gate';
 import { useInstallStep } from '@/components/onboarding/InstallStepProvider';
 import { pointManifestAt } from '@/lib/auth/install-key';
 import { isViewingPerson } from '@/lib/view-as-person';
+import { useNavIdentity } from '@/lib/nav-items';
+import { ACADEMY_GUIDE_PATH } from '@/lib/academy/guide';
 
 type SizeKey = 'shoeSize' | 'shirtSize' | 'pantsSize' | 'tightsSize' | 'socksSize';
 interface SetupFacts {
@@ -404,8 +406,9 @@ function ShoeChips({ value, onPick }: { value: string | null; onPick: (v: string
 }
 
 // ── done ────────────────────────────────────────────────────────────────────
-function DoneStep({ garmin, strava, installed, push, onClose }: { garmin: boolean; strava: boolean; installed: boolean; push: boolean; onClose: () => void }) {
+function DoneStep({ garmin, strava, installed, push, onClose, onGuide }: { garmin: boolean; strava: boolean; installed: boolean; push: boolean; onClose: () => void; onGuide?: () => void }) {
   const name = firstName();
+  const tg = useTranslations('academyGuide');
   // Only what is true: a member who came in by email code has no Strava, and one who
   // continued in Safari has no home-screen app or notifications yet (2026-10-21).
   const watch: [string, string?] = garmin
@@ -418,7 +421,15 @@ function DoneStep({ garmin, strava, installed, push, onClose }: { garmin: boolea
     ['הפרטים מלאים'],
   ];
   return (
-    <Shell step={0} title={null} foot={<Primary onClick={onClose}>לאפליקציה</Primary>}>
+    <Shell step={0} title={null} foot={<>
+      <Primary onClick={onClose}>לאפליקציה</Primary>
+      {/* An academy trainee: the day-one guide (lib/academy/guide.ts) — the plan, the coach, the feedback. */}
+      {onGuide && (
+        <button type="button" onClick={onGuide} className="flex min-h-[48px] items-center justify-center gap-0.5 text-[15.5px] font-extrabold" style={{ color: BLUE }} data-testid="setup-guide-link">
+          {tg('doneLink')}<ChevronLeft className="h-4 w-4" aria-hidden />
+        </button>
+      )}
+    </>}>
       <div className="flex flex-1 flex-col items-center justify-center text-center">
         <span className="mb-[18px] flex h-24 w-24 items-center justify-center rounded-full bg-[#E3F4EA] text-[#0E7A3C]"><Check className="h-12 w-12" strokeWidth={3} /></span>
         <h1 className="mb-1 text-[29px] font-black tracking-[-0.6px]">הכל מוכן{name ? `, ${name}` : ''}</h1>
@@ -441,6 +452,8 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
   // writes to the default cache, which no screen reads — so a refresh did nothing.
   const { mutate } = useSWRConfig();
   const pathname = usePathname();
+  const router = useRouter();
+  const { isAcademyMember } = useNavIdentity();
   const computer = useIsComputer();
   // ?setup=1 turns the super user's preview on for this tab (the server refuses anyone else).
   const [preview, setPreview] = useState(false);
@@ -488,7 +501,8 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
   useEffect(() => { onActive?.(active); }, [active, onActive]);
   if (!active) return null;
   const refresh = () => mutate(key);
-  if (done) return <DoneStep garmin={!!data?.garmin} strava={!!data?.strava} installed={standalone} push={!!data?.push} onClose={() => setClosed(true)} />;
+  if (done) return <DoneStep garmin={!!data?.garmin} strava={!!data?.strava} installed={standalone} push={!!data?.push} onClose={() => setClosed(true)}
+    onGuide={isAcademyMember ? () => { setClosed(true); router.push(ACADEMY_GUIDE_PATH); } : undefined} />;
 
   const at = steps[0];
   if (at === 'install') return <InstallStep onSkip={() => setInstallLater(true)} />;
