@@ -9,7 +9,7 @@ import SwiftUI
 /// HealthKit entitlement. The buttons say so instead of pretending.
 struct DataSourcesView: View {
     @Environment(SessionStore.self) private var session
-    var client: DataSourcesClient = HTTPDataSourcesClient(config: .current)
+    var client: DataSourcesClient?
 
     @State private var status: DataSourcesStatus?
     @State private var errorText: String?
@@ -105,6 +105,14 @@ struct DataSourcesView: View {
         }
     }
 
+    private var resolvedClient: DataSourcesClient {
+        if let client { return client }
+        #if DEBUG
+        if session.isDemo { return DemoDataSourcesClient() }
+        #endif
+        return HTTPDataSourcesClient(config: .current)
+    }
+
     private func load() async {
         guard let athleteId = session.session?.athleteId else {
             errorText = "לא נמצא חשבון מחובר."
@@ -114,7 +122,7 @@ struct DataSourcesView: View {
         defer { loading = false }
         do {
             let token = try await session.validAccessToken()
-            status = try await client.status(athleteId: athleteId, accessToken: token)
+            status = try await resolvedClient.status(athleteId: athleteId, accessToken: token)
             errorText = nil
         } catch let error as DataSourcesError {
             errorText = error.message

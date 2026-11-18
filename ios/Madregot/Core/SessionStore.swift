@@ -17,6 +17,8 @@ final class SessionStore {
 
     private(set) var state: State
     private(set) var session: StoredSession?
+    /// Debug-only demo: fake data, no network, nothing in the Keychain.
+    private(set) var isDemo = false
 
     private let client: AuthClient
     private let tokens: TokenStore
@@ -91,10 +93,23 @@ final class SessionStore {
     }
 
     func signOut() {
-        tokens.clear()
+        if !isDemo { tokens.clear() }
+        isDemo = false
         session = nil
         state = .signedOut
     }
+
+    #if DEBUG
+    /// Shows the signed-in app with made-up data so screens can be reviewed without a
+    /// server. Debug builds only: the button and this method do not exist in a release
+    /// build. Never touches the Keychain, so a real session on the device is left alone.
+    func enterDemo() {
+        session = StoredSession(accessToken: "demo", refreshToken: "demo", expiresAt: .distantFuture,
+                                athleteId: "demo-athlete", email: "demo@madregot.app")
+        isDemo = true
+        state = .signedIn
+    }
+    #endif
 
     // MARK: - Private
 

@@ -6,6 +6,12 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             List {
+                if session.isDemo {
+                    Section {
+                        Label("מצב הדגמה: כל הנתונים מדומים", systemImage: "theatermasks")
+                            .foregroundStyle(.orange)
+                    }
+                }
                 Section {
                     NavigationLink {
                         DataSourcesView()

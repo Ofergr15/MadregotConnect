@@ -125,4 +125,20 @@ struct SessionStoreTests {
         #expect(store.session == nil)
         #expect(tokens.load() == nil)
     }
+
+    #if DEBUG
+    @Test func demoModeNeverTouchesTheKeychain() async throws {
+        let real = StoredSession(accessToken: "real", refreshToken: "real-r", expiresAt: t0.addingTimeInterval(600))
+        let tokens = InMemoryTokenStore(real)
+        let store = SessionStore(client: FakeAuthClient(), tokens: tokens, now: { t0 })
+        store.enterDemo()
+        #expect(store.state == .signedIn)
+        #expect(store.isDemo)
+        #expect(try await store.validAccessToken() == "demo")
+        store.signOut()
+        #expect(!store.isDemo)
+        // Leaving the demo must not sign the device's real member out.
+        #expect(tokens.load() == real)
+    }
+    #endif
 }

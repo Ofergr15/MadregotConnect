@@ -88,6 +88,12 @@ struct SignInView: View {
                 .font(.subheadline.bold())
                 .padding(.top, 8)
                 .accessibilityIdentifier("open-registration")
+            #if DEBUG
+            Button("מצב הדגמה (פיתוח בלבד)") { session.enterDemo() }
+                .font(.footnote)
+                .foregroundStyle(.orange)
+                .accessibilityIdentifier("demo-mode")
+            #endif
         }
     }
 
