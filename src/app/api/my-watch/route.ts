@@ -8,6 +8,7 @@ import { withGroupPaces } from '@/lib/plans/watch-paces';
 import { paceGroupKeyFor } from '@/lib/plans/pace-group';
 import { loadOwnWeek, providerFor, pushOwnWeek } from '@/lib/watch/own-week';
 import { missingForAthletes } from '@/lib/watch/missing';
+import { isAcademyOnly } from '@/lib/plans/scope';
 import { israelToday } from '@/lib/utils';
 import { appleCandidates, deliverWeek, resolveWatchProvider, type WatchProvider } from '@/lib/watch';
 import type { ParsedWorkout } from '@/lib/ai/types';
@@ -143,7 +144,8 @@ export async function GET(request: Request) {
     // answer just drops it.
     const [provider, missingAll] = await Promise.all([
       providerFor(supabase, athlete),
-      athlete ? missingForAthletes([athlete], weekStartDate, israelToday(), supabase) : Promise.resolve(null),
+      // An academy-only trainee was sent no club week, so there is nothing "missing" from it.
+      athlete && !isAcademyOnly(athlete) ? missingForAthletes([athlete], weekStartDate, israelToday(), supabase) : Promise.resolve(null),
     ]);
     const missing = athlete && provider !== 'apple' ? missingAll?.get(athlete.id) ?? null : null;
 

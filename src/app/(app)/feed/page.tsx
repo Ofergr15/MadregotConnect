@@ -188,7 +188,7 @@ export default function FeedPage() {
 
   // The operator account has no member feed (#71) — but every sign-in path
   // lands on /feed, so this is the one place that sends it home instead.
-  const { isOperator } = useNavIdentity();
+  const { isOperator, isAcademyOnly } = useNavIdentity();
   // A story deep link (the Saturday push, the stories admin preview) stays: it opens a
   // story over the page, and sent home it was dropped and opened nothing (2026-10-23).
   const storyLink = searchParams.get('weekStory') === '1' || searchParams.get('annualStory') === '1';
@@ -656,6 +656,8 @@ export default function FeedPage() {
           NextSessionCard. */}
       {/* A one-day session (lib/day-session) is in the week the next-session card reads
           (lib/day-session/week-merge.ts), so it is that card, like every session. */}
+      {/* Club-plan cards: an academy-only trainee (no club group) has no club week (QA 11-18). */}
+      {!isAcademyOnly && <>
       <div className="mb-4 empty:mb-0">
         <QuietBoundary resetKey={weeklyForCards}>
           <NextSessionCard />
@@ -670,6 +672,7 @@ export default function FeedPage() {
           <WeekWatchCard />
         </QuietBoundary>
       </div>
+      </>}
 
       {/* ═══ THE HIGHLIGHT CARD ═══
           One number about the reader, above everything about everyone else: the

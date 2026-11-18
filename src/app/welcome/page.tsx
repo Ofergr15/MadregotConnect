@@ -18,6 +18,8 @@ import { useRouter } from 'next/navigation';
 import { INSTALL_KEY } from '@/lib/auth/install-key';
 import { helpWhatsAppHref } from '@/lib/help-whatsapp';
 import { getSupabase } from '@/lib/supabase/client';
+import { apiFetcher } from '@/lib/api';
+import { postLoginPath } from '@/lib/auth/landing';
 import { ONBOARDING_V2_KEY } from '@/lib/install/v2';
 import { useIsComputer } from '@/lib/install/use-computer';
 import { isIosDevice, isStandalone } from '@/lib/pwa';
@@ -68,7 +70,12 @@ export default function WelcomePage() {
     (async () => {
       const supabase = getSupabase();
       const { data } = await supabase.auth.getSession();
-      if (data.session && localStorage.getItem('athlete_id')) { router.replace('/feed'); return; }
+      if (data.session && localStorage.getItem('athlete_id')) {
+        // Already signed in (the installed app's next opens): an academy-only trainee lands on Today.
+        const me = await apiFetcher<{ academyOnly?: boolean }>('/api/auth/me').catch(() => null);
+        router.replace(postLoginPath({ isAcademy: !!me?.academyOnly, groupId: null }));
+        return;
+      }
       if (INSTALL_KEY.test(k)) {
         const res = await fetch('/api/auth/claim-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verifier: k }) });
         const got = res.ok ? await res.json().catch(() => null) : null;
@@ -128,7 +135,7 @@ export default function WelcomePage() {
       if (who?.firstName) localStorage.setItem('mc-first-name', who.firstName);
       localStorage.setItem('athlete_email', data.email);
       if (data.groupId) localStorage.setItem('athlete_group_id', data.groupId); else localStorage.removeItem('athlete_group_id');
-      router.replace('/feed');
+      router.replace(postLoginPath({ role: data.role, isAcademy: data.isAcademy, groupId: data.groupId }));
     } catch (err) {
       failed = true;
       setError(err instanceof Error ? err.message : 'משהו השתבש');

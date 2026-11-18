@@ -12,6 +12,7 @@
 //
 // Steps aside on the profile screen, where the watch is connected, and comes back after.
 
+import { postLoginPath } from '@/lib/auth/landing';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSWRConfig } from 'swr';
@@ -455,7 +456,7 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
   const { mutate } = useSWRConfig();
   const pathname = usePathname();
   const router = useRouter();
-  const { isAcademyMember } = useNavIdentity();
+  const { isAcademyMember, isAcademyOnly } = useNavIdentity();
   const computer = useIsComputer();
   // ?setup=1 turns the super user's preview on for this tab (the server refuses anyone else).
   const [preview, setPreview] = useState(false);
@@ -511,7 +512,12 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
   useEffect(() => { onActive?.(active); }, [active, onActive]);
   if (!active) return null;
   const refresh = () => mutate(key);
-  if (done) return <DoneStep garmin={!!data?.garmin} strava={!!data?.strava} installed={standalone} push={!!data?.push} onClose={() => setClosed(true)}
+  if (done) return <DoneStep garmin={!!data?.garmin} strava={!!data?.strava} installed={standalone} push={!!data?.push} onClose={() => {
+    setClosed(true);
+    // "לאפליקציה": an academy-only trainee has no club feed week, so the app opens on Today.
+    const to = postLoginPath({ isAcademy: isAcademyOnly, groupId: null });
+    if (isAcademyOnly && pathname !== to) router.replace(to);
+  }}
     onGuide={isAcademyMember ? () => { setClosed(true); router.push(ACADEMY_GUIDE_PATH); } : undefined} />;
 
   const at = steps[0];

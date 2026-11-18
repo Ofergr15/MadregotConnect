@@ -3,10 +3,10 @@ import { createServerClient } from '@/lib/supabase/server';
 import { WEEKLY_PLANS_TAG } from '@/lib/plans/cache';
 import { COACH_ID } from '@/lib/constants';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { planRowsFilter, prefersPlan } from '@/lib/plans/scope';
+import { planRowsFilter, prefersPlan, rowsForReader } from '@/lib/plans/scope';
 import { rethrowIfDynamicBailout } from '@/lib/dynamic-bailout';
 import { getDisplayWeekStart, extractWorkouts, getWorkoutKm, buildWeekBreakdown, dedupeWorkoutsByDay } from '@/lib/plans/workout-parsing';
-import { ownPlanRowsCount, withoutOwnRows } from '@/lib/plans/scope-server';
+import { academyOnlyReader, ownPlanRowsCount, withoutOwnRows } from '@/lib/plans/scope-server';
 import { daySessionWorkouts, mergeDaySessions } from '@/lib/day-session/week-merge';
 
 // A coach pushes a new plan roughly once a week (weekly_plans has only 10
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     // long-run progression), none of which need the full all-time history.
     // Fetch newest-first so the LIMIT keeps the recent rows, then restore
     // ascending order for the rest of the function's week-over-week math.
-    const [{ data: plansDescRaw }, ownCounts] = await Promise.all([
+    const [{ data: plansDescRaw }, ownCounts, academyOnly] = await Promise.all([
       supabase
         .from('weekly_plans')
         .select('id, week_start_date, parsed_workouts, status, created_at, athlete_id')
@@ -47,8 +47,10 @@ export async function GET(request: Request) {
         .limit(20),
       // A trainee who left the academy reads the club's week again (scope-server.ts).
       ownPlanRowsCount(me),
+      // An academy-only trainee (no club group) gets no club rows: their week is their own or none.
+      academyOnlyReader(me),
     ]);
-    const plansDesc = plansDescRaw ? withoutOwnRows(plansDescRaw, ownCounts) : plansDescRaw;
+    const plansDesc = plansDescRaw ? rowsForReader(withoutOwnRows(plansDescRaw, ownCounts), me, academyOnly) : plansDescRaw;
     const plans = plansDesc ? [...plansDesc].reverse() : plansDesc;
 
     // Deduplicate plans by week: the caller's own week first, then 'pushed'
@@ -78,7 +80,8 @@ export async function GET(request: Request) {
     const currentPlan = uniquePlans.find(p => p.week_start_date === currentWeekStart);
     // A one-day session the coach typed for a date this week, on a day the plan leaves empty,
     // is a session of the week like any other (lib/day-session/week-merge.ts).
-    const dayWorkouts = await daySessionWorkouts(currentWeekStart);
+    // The club's one-day sessions are not an academy-only trainee's either.
+    const dayWorkouts = academyOnly ? [] : await daySessionWorkouts(currentWeekStart);
 
     // Previous week = 7 days before the DISPLAYED week (keeps the delta correct
     // after the Saturday-evening rollover).

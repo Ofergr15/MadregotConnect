@@ -1,4 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server';
+import { isAcademyOnly } from '@/lib/plans/scope';
 
 /**
  * Does this reader's OWN plan row still count? Only while they are in the academy
@@ -40,4 +41,26 @@ export function isManualPlan(row: { parsed_workouts?: unknown } | null | undefin
 export function withoutOwnRows<T extends { athlete_id?: string | null; parsed_workouts?: unknown }>(rows: T[] | null | undefined, ownCount: boolean): T[] {
   const list = rows || [];
   return ownCount ? list : list.filter((r) => !r.athlete_id || isManualPlan(r));
+}
+
+/**
+ * Is this reader academy-only (in the academy, no club group — lib/plans/scope.ts isAcademyOnly)?
+ * Such a reader has no club week: the club's rows and one-day sessions are not served to them
+ * (QA 11-18: the feed showed an academy-only trainee with no plan the CLUB week and a
+ * "not on the watch" warning for it). Fails CLOSED to "club member" (false): an error keeps
+ * today's behaviour. Uncached for the same reason as ownPlanRowsCount.
+ */
+export async function academyOnlyReader(athleteId: string | null | undefined): Promise<boolean> {
+  if (!athleteId) return false;
+  try {
+    const { data, error } = await createServerClient()
+      .from('athletes')
+      .select('is_academy, group_id')
+      .eq('id', athleteId)
+      .maybeSingle();
+    if (error || !data) return false;
+    return isAcademyOnly(data as { is_academy?: boolean | null; group_id?: string | null });
+  } catch {
+    return false;
+  }
 }

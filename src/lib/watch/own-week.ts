@@ -1,4 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server';
+import { isAcademyOnly } from '@/lib/plans/scope';
 import { COACH_ID } from '@/lib/constants';
 import { getDisplayWeekStart } from '@/lib/plans/workout-parsing';
 import { normalizeWorkoutParts } from '@/lib/plans/normalize-plan';
@@ -19,7 +20,7 @@ type Db = ReturnType<typeof createServerClient>;
 export async function loadOwnWeek(athleteId: string, weekStartDate = getDisplayWeekStart(new Date())) {
   const supabase = createServerClient();
   // The row and the plan don't depend on each other: asked together, one round trip.
-  const [{ data: athlete }, { data: plan }, { data: manualRows }] = await Promise.all([supabase
+  const [{ data: athlete }, { data: clubRow }, { data: manualRows }] = await Promise.all([supabase
     .from('athletes')
     .select('id, name, garmin_auth, is_academy, group_id, groups!group_id(pace_profile)')
     .eq('id', athleteId)
@@ -46,6 +47,8 @@ export async function loadOwnWeek(athleteId: string, weekStartDate = getDisplayW
     .eq('athlete_id', athleteId)
     .order('created_at', { ascending: false })]);
   const manual = ((manualRows || []) as { id: string; parsed_workouts: unknown; status: string }[]).find(isManualPlan);
+  // An academy-only trainee (no club group) has no club week: only a week written for them.
+  const plan = isAcademyOnly(athlete as { is_academy?: boolean | null; group_id?: string | null } | null) ? null : clubRow;
   return { supabase, weekStartDate, athlete, plan: manual || plan };
 }
 

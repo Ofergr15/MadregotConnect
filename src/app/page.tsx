@@ -1,4 +1,5 @@
 'use client';
+import { postLoginPath } from '@/lib/auth/landing';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -313,7 +314,7 @@ export default function HomePage() {
         localStorage.removeItem('athlete_email');
         localStorage.removeItem('athlete_group_id');
       }
-      router.push('/feed');
+      router.push(postLoginPath({ role: data.role, groupId: data.groupId }));
     } catch (err: any) {
       setAdminError(err.message);
     } finally {
