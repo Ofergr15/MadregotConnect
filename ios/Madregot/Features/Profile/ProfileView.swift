@@ -6,6 +6,14 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    NavigationLink {
+                        DataSourcesView()
+                    } label: {
+                        Label("שעון ונתונים", systemImage: "applewatch")
+                    }
+                    .accessibilityIdentifier("open-data-sources")
+                }
                 Section("גרסה") {
                     LabeledContent("אפליקציה", value: Bundle.main.appVersion)
                     LabeledContent("שרת", value: AppConfig.current.apiBaseURL.host() ?? "-")
