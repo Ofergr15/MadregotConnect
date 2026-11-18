@@ -14,7 +14,10 @@ struct SignInView: View {
     @State private var busy = false
     @State private var errorText: String?
     @State private var info: String?
+    @State private var showRegistration = false
     @FocusState private var focus: Field?
+
+    var registrationClient: RegistrationClient = HTTPRegistrationClient(config: .current)
 
     var body: some View {
         NavigationStack {
@@ -36,6 +39,14 @@ struct SignInView: View {
             .padding(.horizontal, 28)
             .padding(.top, 48)
             .onAppear { focus = .email }
+            .navigationDestination(isPresented: $showRegistration) {
+                RegistrationView(client: registrationClient) { registeredEmail in
+                    email = registeredEmail
+                    step = .email
+                    errorText = nil
+                    showRegistration = false
+                }
+            }
         }
     }
 
@@ -73,6 +84,10 @@ struct SignInView: View {
             Text("נשלח קוד בן 6 ספרות למייל, אם הוא רשום אצלנו.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+            Button("חדשים במועדון? הצטרפות") { showRegistration = true }
+                .font(.subheadline.bold())
+                .padding(.top, 8)
+                .accessibilityIdentifier("open-registration")
         }
     }
 

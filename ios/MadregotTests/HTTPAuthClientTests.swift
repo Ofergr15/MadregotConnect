@@ -42,9 +42,12 @@ private func body(_ request: URLRequest) -> [String: Any] {
     (try? JSONSerialization.jsonObject(with: request.httpBody ?? Data())) as? [String: Any] ?? [:]
 }
 
-/// Serialized: the stub's handler is shared static state.
-@Suite(.serialized)
-struct HTTPAuthClientTests {
+/// Every suite that uses StubURLProtocol nests here: its handler is shared static
+/// state, and `.serialized` on the parent runs all of them one test at a time.
+@Suite(.serialized) struct NetworkStubTests {}
+
+extension NetworkStubTests {
+@Suite struct HTTPAuthClientTests {
     let client: HTTPAuthClient
 
     init() {
@@ -110,4 +113,5 @@ struct HTTPAuthClientTests {
         let bare = HTTPAuthClient(config: AppConfig(info: [:]))
         await #expect(throws: AuthError.notConfigured) { _ = try await bare.refresh(refreshToken: "R1") }
     }
+}
 }

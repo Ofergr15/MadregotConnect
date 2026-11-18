@@ -119,11 +119,11 @@ final class SessionStore {
         state = .signedIn
     }
 
-    static func normalise(_ email: String) -> String {
+    nonisolated static func normalise(_ email: String) -> String {
         email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
-    static func looksLikeEmail(_ email: String) -> Bool {
+    nonisolated static func looksLikeEmail(_ email: String) -> Bool {
         let parts = email.split(separator: "@", omittingEmptySubsequences: false)
         guard parts.count == 2, !parts[0].isEmpty, parts[1].contains("."),
               !parts[1].hasPrefix("."), !parts[1].hasSuffix(".") else { return false }
