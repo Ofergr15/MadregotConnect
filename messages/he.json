@@ -2542,7 +2542,7 @@
     "waitingTitle": "מחכה לתשובה שלך",
     "howWasIt": "איך היה?",
     "feelN": "הרגשה {n} מתוך 5",
-    "repeated": "נשלח {n} פעמים — מוצג פעם אחת",
+    "repeated": "אותה התראה התקבלה {n} פעמים — מוצגת פעם אחת",
     "likesFolded": "{name} {n, plural, one {ועוד אחד} other {ועוד #}} נתנו לך כיף 👍",
     "reportsFolded": "{n} דיווחים שלך טופלו ✅",
     "surveysClosed": "{n, plural, one {סקר קודם אחד} other {# סקרים קודמים}}",
