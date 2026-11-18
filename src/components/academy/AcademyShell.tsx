@@ -73,6 +73,8 @@ import {
 } from './types';
 import { CoachTourOffer } from '@/components/tour/CoachTourOffer';
 import { buildActionCards, type ActionKind } from '@/lib/academy/action-cards';
+import { bandTasks } from '@/lib/academy/band-task';
+import { academyThreadUrl } from '@/lib/academy/deep-links';
 
 // The academy's staff lens: five areas under the title, each with its sub-tabs
 // (lib/academy/areas.ts), the title row with the shared search on every area,
@@ -441,20 +443,28 @@ export function AcademyShell({
   // waiting list uses. "Approved and not inside" has no academy source, so no remind card here.
   const formsWaiting = manager ? (home?.funnel?.forms.length ?? 0) : 0;
   const regsWaiting = manager ? (members?.pending.registrations ?? 0) : 0;
+  // "לשבץ דבוקה": derived from the roster, so a saved band closes it with no extra state.
+  const bandTodo = useMemo(() => bandTasks(roster, (members?.bands?.length ?? 0) > 0), [roster, members]);
   const actionCards = useMemo(() => buildActionCards({
     pain: waiting.filter((w) => w.kind === 'pain').length,
     reply: awaiting.length,
     approve: formsWaiting + regsWaiting,
     tests: home?.approvals?.length ?? 0,
+    band: bandTodo.needsBand.length,
+    bandNoCoach: manager ? bandTodo.noCoach.length : 0,
     unassigned: manager ? unpaired : 0,
     inFunnel: manager ? home?.funnel?.live ?? 0 : 0,
-  }), [waiting, awaiting, formsWaiting, regsWaiting, home, manager, unpaired]);
+  }), [waiting, awaiting, formsWaiting, regsWaiting, home, manager, unpaired, bandTodo]);
   const onAction = (k: ActionKind) => {
     if (k === 'pain') go('readiness');
     else if (k === 'reply') go('threads');
     else if (k === 'approve') { go('funnel'); if (!formsWaiting && regsWaiting) setRegistrationsOpen(true); }
     else if (k === 'tests') go('tests');
-    else if (k === 'assign') go('coaches');
+    else if (k === 'band' && bandTodo.needsBand[0]) {
+      // The same door as the push: the trainee's card with the "טופס התאמה" open.
+      window.location.assign(`${academyThreadUrl({ recipientIsStaff: true, traineeId: bandTodo.needsBand[0].athleteId })}&setup=1`);
+    }
+    else if (k === 'assign' || k === 'bandNoCoach') go('coaches');
   };
 
   const onQuick = (k: QuickKey) => {

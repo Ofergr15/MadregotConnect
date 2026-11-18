@@ -7,7 +7,7 @@
 // under "actionCards" (`<kind>Title`, `<kind>Text`, `<kind>Cta`), with every number
 // wrapped in <n>…</n> so the screen can isolate it with <bdi>.
 
-export type ActionKind = 'pain' | 'reply' | 'approve' | 'remind' | 'tests' | 'assign';
+export type ActionKind = 'pain' | 'reply' | 'approve' | 'remind' | 'tests' | 'band' | 'bandNoCoach' | 'assign';
 
 export interface ActionCounts {
   /** Runners who reported pain. */
@@ -20,6 +20,10 @@ export interface ActionCounts {
   remind?: number;
   /** Test submissions waiting for approval. */
   tests?: number;
+  /** Trainees with a coach and no band (lib/academy/band-task.ts) — the coach's "לשבץ דבוקה". */
+  band?: number;
+  /** Trainees with neither a coach nor a band — the managers' (the coach is theirs to pick). */
+  bandNoCoach?: number;
   /** Trainees without a coach. */
   unassigned?: number;
   /** Registrants still on their way in (context on the assign card only). */
@@ -39,7 +43,8 @@ const n = (x: number | undefined) => (Number.isFinite(x) && (x as number) > 0 ? 
 
 /**
  * Most urgent first: pain (with the replies folded in), or replies alone; then approvals,
- * then the reminder to the approved who never came in, then tests, then assigning a coach.
+ * then the reminder to the approved who never came in, then tests, then a missing band (the coach's, then the coachless for the manager), then
+ * assigning a coach.
  * A count of 0 is no card.
  */
 export function buildActionCards(c: ActionCounts): ActionCard[] {
@@ -50,6 +55,8 @@ export function buildActionCards(c: ActionCounts): ActionCard[] {
   if (n(c.approve)) out.push({ kind: 'approve', count: n(c.approve), extra: 0, tone: 'orange' });
   if (n(c.remind)) out.push({ kind: 'remind', count: n(c.remind), extra: 0, tone: 'brand' });
   if (n(c.tests)) out.push({ kind: 'tests', count: n(c.tests), extra: 0, tone: 'orange' });
+  if (n(c.band)) out.push({ kind: 'band', count: n(c.band), extra: 0, tone: 'orange' });
+  if (n(c.bandNoCoach)) out.push({ kind: 'bandNoCoach', count: n(c.bandNoCoach), extra: 0, tone: 'orange' });
   if (n(c.unassigned)) out.push({ kind: 'assign', count: n(c.unassigned), extra: n(c.inFunnel), tone: 'brand' });
   return out;
 }

@@ -142,6 +142,8 @@ export const KIND_CATEGORY: Record<string, Category> = {
   academy_pace_update: 'coach',
   academy_removed: 'coach',
   academy_trainee_joined: 'coach',
+  // The joined push when the trainee has no band yet (loop-notify notifyTraineeJoined).
+  academy_band_missing: 'coach',
   academy_plan_saved: 'program',
   academy_missed_week: 'program',
   // To the coach: the trainee confirmed a test slot / submitted a result.
@@ -155,6 +157,8 @@ export const KIND_CATEGORY: Record<string, Category> = {
   // athlete — so the toggle exists to let a coach turn them DOWN, not up.
   signup_request: 'management',
   academy_applicant: 'management',
+  // A trainee signed in with neither a coach nor a band (loop-notify notifyTraineeJoined).
+  academy_band_missing_no_coach: 'management',
   problem_report: 'management',
   workout_delivery_failed: 'management',
   sync_stalled: 'management',

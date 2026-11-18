@@ -38,6 +38,8 @@ export const LOOP_KINDS = {
   missedWeek: 'academy_missed_week',
   removed: 'academy_removed',
   traineeJoined: 'academy_trainee_joined',
+  bandMissing: 'academy_band_missing',
+  bandMissingNoCoach: 'academy_band_missing_no_coach',
 } as const;
 
 // ── Copy ────────────────────────────────────────────────────────────────────
@@ -147,24 +149,62 @@ function quiet(p: Promise<unknown>, what: string): Promise<void> {
 
 // ── Sends: to the coaches ───────────────────────────────────────────────────
 
+/** The stable tag of the "no band yet" push — one per trainee, so a resend replaces, never stacks. */
+export const bandMissingTag = (athleteId: string) => `academy-band-missing-${athleteId}`;
+
 /**
  * An academy trainee opened the app for the first time, signed in (/api/auth/me's
  * first_seen_at stamp — the one signal that means the app really opened for them, which
- * on the email's link is after installing). Tells their coaches — the managers when none
- * is set — and opens the trainee's card. Never throws.
+ * on the email's link is after installing). Fires once per trainee: only the request that
+ * wins the `first_seen_at is null` update calls this.
+ *
+ * - Coaches, band set: "installed and signed in" (academyTraineeJoinedCopy), the card.
+ * - Coaches, no band: the SAME one push, saying the band is missing and opening the
+ *   "טופס התאמה" (`&setup=1`), where the coach sets it. Never a second push.
+ * - No coach, band set: the managers hear "joined", as before.
+ * - No coach, no band: the managers (notifyStaff + academy managers) are told to assign a
+ *   coach. Nothing here picks a coach or a band, and nothing writes academy_band_id.
+ *
+ * The open task itself is not stored: the academy home derives "לשבץ דבוקה" from the
+ * roster (lib/academy/band-task.ts), so a saved band closes it. Never throws.
  */
 export function notifyTraineeJoined(supabase: Db, athleteId: string): Promise<void> {
   return quiet((async () => {
-    const { data } = await supabase.from('athletes').select('name, is_academy').eq('id', athleteId).maybeSingle();
-    const row = data as { name?: string | null; is_academy?: boolean | null } | null;
+    const { data } = await supabase.from('athletes').select('name, is_academy, academy_band_id').eq('id', athleteId).maybeSingle();
+    const row = data as { name?: string | null; is_academy?: boolean | null; academy_band_id?: string | null } | null;
     if (!row?.is_academy) return;
-    const { academyTraineeJoinedCopy } = await import('@/lib/notifications/copy');
+    const { academyTraineeJoinedCopy, academyTraineeJoinedNoBandCopy, academyBandNoCoachCopy } = await import('@/lib/notifications/copy');
     const name = (row.name || '').trim();
-    const to = await coachesOrManagers(supabase, athleteId);
-    await Promise.all(to.map((coachId) => notifyAthlete({
-      athleteId: coachId, kind: LOOP_KINDS.traineeJoined, actorAthleteId: athleteId,
-      url: academyThreadUrl({ recipientIsStaff: true, traineeId: athleteId }),
-      tag: `academy-joined-${athleteId}`, category: 'coach',
+    // Only an explicit null is "no band": a read that did not return the column says nothing.
+    const noBand = row.academy_band_id === null;
+    const { coachIdsOf } = await import('./trainee-coaches');
+    const coaches = [...new Set((await coachIdsOf(supabase as never, athleteId).catch(() => [] as string[])).filter((id) => id !== athleteId))];
+    const card = academyThreadUrl({ recipientIsStaff: true, traineeId: athleteId });
+
+    if (coaches.length) {
+      await Promise.all(coaches.map((coachId) => notifyAthlete({
+        athleteId: coachId, kind: noBand ? LOOP_KINDS.bandMissing : LOOP_KINDS.traineeJoined, actorAthleteId: athleteId,
+        url: noBand ? `${card}&setup=1` : card,
+        tag: noBand ? bandMissingTag(athleteId) : `academy-joined-${athleteId}`, category: 'coach',
+        copy: (locale) => noBand ? academyTraineeJoinedNoBandCopy(locale, { name }) : academyTraineeJoinedCopy(locale, { name }),
+      })));
+      return;
+    }
+
+    const { academyManagerIds, notifyStaff } = await import('@/lib/notifications/staff');
+    const managers = (await academyManagerIds()).filter((id) => id !== athleteId);
+    if (noBand) {
+      await notifyStaff({
+        kind: LOOP_KINDS.bandMissingNoCoach, url: '/dashboard/academy?tab=coaches',
+        tag: bandMissingTag(athleteId), category: 'management', actorAthleteId: athleteId,
+        extraRecipientIds: managers,
+        copy: (locale) => academyBandNoCoachCopy(locale, { name }),
+      });
+      return;
+    }
+    await Promise.all(managers.map((id) => notifyAthlete({
+      athleteId: id, kind: LOOP_KINDS.traineeJoined, actorAthleteId: athleteId,
+      url: card, tag: `academy-joined-${athleteId}`, category: 'coach',
       copy: (locale) => academyTraineeJoinedCopy(locale, { name }),
     })));
   })(), 'trainee joined');

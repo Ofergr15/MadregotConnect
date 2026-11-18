@@ -789,6 +789,28 @@ export function academyTraineeJoinedCopy(locale: NotificationLocale, p: { name: 
 }
 
 /**
+ * The joined push when the trainee arrived with no band (Ofer, 2026-11-18): one push, not two —
+ * the band is the coach's to set, in the "טופס התאמה" this opens. Never names a band.
+ */
+export function academyTraineeJoinedNoBandCopy(locale: NotificationLocale, p: { name: string }): PushCopy {
+  const who = (p.name || '').trim() || SOMEONE[locale];
+  return locale === 'he'
+    ? { title: `✅ ${who} התקין/ה את האפליקציה והתחבר/ה`, body: 'עדיין אין דבוקה. לחיצה פותחת את טופס ההתאמה כדי לקבוע אותה, ואז אפשר לבנות את התוכנית.' }
+    : { title: `✅ ${who} installed the app and signed in`, body: 'No band yet. Tap to set it in their coaching form, then build their plan.' };
+}
+
+/**
+ * To the academy managers when a trainee arrived with neither a coach nor a band: the coach
+ * is theirs to pick (nothing here picks one), and that coach then sets the band.
+ */
+export function academyBandNoCoachCopy(locale: NotificationLocale, p: { name: string }): PushCopy {
+  const who = (p.name || '').trim() || SOMEONE[locale];
+  return locale === 'he'
+    ? { title: `⚠️ ${who} התחבר/ה בלי מאמן ובלי דבוקה`, body: 'צריך לשבץ מאמן. את הדבוקה יקבע המאמן בטופס ההתאמה. לחיצה פותחת את השיבוץ.' }
+    : { title: `⚠️ ${who} signed in with no coach and no band`, body: 'Assign a coach; the coach then sets the band in the coaching form. Tap to open coach assignment.' };
+}
+
+/**
  * To the coaches when the manager accepts a trainee who is not in the app yet: a heads-up,
  * so they can read the form before the trainee arrives (the real "start" comes with
  * academyTraineeJoinedCopy).
