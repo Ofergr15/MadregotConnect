@@ -18,7 +18,7 @@
 import { notifyAthlete } from '@/lib/push';
 import type { NotificationLocale } from '@/lib/notifications/locale';
 import type { PushCopy } from '@/lib/notifications/copy';
-import { academyBoardUrl, academyTestUrl, academyThreadUrl } from './deep-links';
+import { academyBoardUrl, academyTestUrl, academyThreadUrl, academySetupUrl } from './deep-links';
 
 type Db = { from: (table: string) => any };
 
@@ -184,7 +184,7 @@ export function notifyTraineeJoined(supabase: Db, athleteId: string): Promise<vo
     if (coaches.length) {
       await Promise.all(coaches.map((coachId) => notifyAthlete({
         athleteId: coachId, kind: noBand ? LOOP_KINDS.bandMissing : LOOP_KINDS.traineeJoined, actorAthleteId: athleteId,
-        url: noBand ? `${card}&setup=1` : card,
+        url: noBand ? academySetupUrl(athleteId) : card,
         tag: noBand ? bandMissingTag(athleteId) : `academy-joined-${athleteId}`, category: 'coach',
         copy: (locale) => noBand ? academyTraineeJoinedNoBandCopy(locale, { name }) : academyTraineeJoinedCopy(locale, { name }),
       })));

@@ -1,4 +1,5 @@
 'use client';
+import { postLoginPath } from '@/lib/auth/landing';
 
 // "No Strava? Sign in with a code by email" — the way in for a member without
 // Strava (lib/auth/email-code). Two steps in one sheet: the address, then the six
@@ -63,7 +64,7 @@ export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenCh
       localStorage.setItem('athlete_email', data.email);
       if (data.groupId) localStorage.setItem('athlete_group_id', data.groupId);
       else localStorage.removeItem('athlete_group_id');
-      router.push('/feed');
+      router.push(postLoginPath({ role: data.role, isAcademy: data.isAcademy, groupId: data.groupId }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'משהו השתבש, נסו שוב');
     } finally {

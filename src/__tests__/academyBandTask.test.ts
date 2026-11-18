@@ -81,7 +81,7 @@ describe('first sign-in of a trainee with no band', () => {
     expect(pushes).toHaveLength(1);
     expect(pushes[0]).toMatchObject({
       athleteId: 'coach-1', kind: 'academy_band_missing', tag: 'academy-band-missing-t-1', category: 'coach',
-      url: '/dashboard/academy?tab=threads&thread=t-1&setup=1',
+      url: '/dashboard/academy/week?athleteId=t-1&setup=1',
     });
     expect(pushes[0].copy('he').body).toContain('עדיין אין דבוקה');
     expect(pushes[0].copy('en').body).toContain('No band yet');

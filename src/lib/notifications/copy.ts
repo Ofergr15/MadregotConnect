@@ -815,6 +815,14 @@ export function academyBandNoCoachCopy(locale: NotificationLocale, p: { name: st
  * so they can read the form before the trainee arrives (the real "start" comes with
  * academyTraineeJoinedCopy).
  */
+/** To an academy trainee when they are let in: no promise of a plan that may not exist yet (owner 11-18). */
+export function academyApprovalCopy(locale: NotificationLocale, p: { name?: string | null }): { title: string; body: string } {
+  const who = (p.name || '').trim().split(/\s+/)[0];
+  return locale === 'he'
+    ? { title: who ? `${who}, ההרשמה אושרה! 🎉` : 'ההרשמה אושרה! 🎉', body: 'באפליקציה תוכל/י לראות את התוכנית כשהמאמן יפרסם אותה, לתת משוב על האימונים ולשוחח עם המאמן.' }
+    : { title: who ? `${who}, you're approved! 🎉` : "You're approved! 🎉", body: 'In the app you can see your plan once your coach publishes it, give feedback on workouts and talk to your coach.' };
+}
+
 export function academyTraineeComingCopy(locale: NotificationLocale, p: { name: string }): PushCopy {
   const who = (p.name || '').trim() || SOMEONE[locale];
   return locale === 'he'

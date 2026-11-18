@@ -27,7 +27,7 @@ type Db = ReturnType<typeof createServerClient>;
 async function memberFor(supabase: Db, email: string) {
   const { data } = await supabase
     .from('athletes')
-    .select('id, email, name, group_id, status, approved')
+    .select('id, email, name, group_id, status, approved, role, is_academy')
     .eq('email', email)
     .maybeSingle();
   if (!data || data.approved !== true || data.status === 'removed' || data.status === 'disconnected') return null;
@@ -132,6 +132,8 @@ export async function POST(request: Request) {
         name: member.name,
         athleteId: member.id,
         groupId: member.group_id,
+        role: (member as { role?: string | null }).role ?? null,
+        isAcademy: !!(member as { is_academy?: boolean | null }).is_academy,
         session: auth.session,
       });
       const device = signDeviceToken(email);

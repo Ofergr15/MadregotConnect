@@ -13,11 +13,11 @@ import {
   type BuiltEmail, type SendResult,
 } from '@/lib/email';
 import { notifyAthlete } from '@/lib/push';
-import { academyTraineeComingCopy, academyTraineesAssignedCopy, approvalCopy } from '@/lib/notifications/copy';
+import { academyApprovalCopy, academyTraineeComingCopy, academyTraineesAssignedCopy } from '@/lib/notifications/copy';
 import { inviteUrl, isInviteFresh } from './intake';
 import { isAcademyManager, setPairCoaches } from './pairing-server';
 import { coachIdsOf, hasTraineeCoachesTable, joinHebrewList } from './trainee-coaches';
-import { academyThreadUrl } from './deep-links';
+import { academyThreadUrl, academySetupUrl } from './deep-links';
 import { applyAcademyMembership } from './membership-server';
 import { holdsAcademyCoachRole } from '@/lib/academy/coaches';
 
@@ -283,7 +283,7 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
     notifyAthlete({
       athleteId: athlete.id,
       kind: 'approval',
-      copy: (locale) => approvalCopy(locale, { name: athlete.name }),
+      copy: (locale) => academyApprovalCopy(locale, { name: athlete.name }),
       url: '/dashboard',
       tag: 'approval',
     }).catch((err: unknown) => console.error('Accept: push failed:', err)),
@@ -303,7 +303,7 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
         : academyTraineesAssignedCopy(locale, { names: [card.name || athlete.name] }),
       // Their card, where the plan is built — not the whole list; for somebody not in the app
       // yet, open on the coach's "טופס התאמה" (TraineeSetup).
-      url: `${academyThreadUrl({ recipientIsStaff: true, traineeId: athlete.id })}${needsJoin ? '&setup=1' : ''}`,
+      url: needsJoin ? academySetupUrl(athlete.id) : academyThreadUrl({ recipientIsStaff: true, traineeId: athlete.id }),
       tag: `academy-trainee-${athlete.id}`,
     }).catch((err: unknown) => console.error('Accept: coach push failed:', err))),
   ]);

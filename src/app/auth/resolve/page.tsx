@@ -1,4 +1,5 @@
 'use client';
+import { postLoginPath } from '@/lib/auth/landing';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -231,7 +232,7 @@ export default function AuthResolvePage() {
         localStorage.removeItem('athlete_email');
         localStorage.removeItem('athlete_group_id');
       }
-      router.replace('/feed');
+      router.replace(postLoginPath({ role: data.role, groupId: data.athlete?.group_id ?? null }));
     } else if (data.needsOnboarding && !data.athlete) {
       const params = new URLSearchParams({ email, name });
       if (data.missingGroup === false) params.set('skipGroup', '1');
@@ -252,7 +253,7 @@ export default function AuthResolvePage() {
         return;
       }
       localStorage.removeItem('coach_email');
-      router.replace('/feed');
+      router.replace(postLoginPath({ role: data.role, groupId: data.athlete?.group_id ?? null }));
     } else if (data.pendingApproval) {
       router.replace('/pending-approval');
     } else {

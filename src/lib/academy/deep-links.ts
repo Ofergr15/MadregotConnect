@@ -21,6 +21,15 @@
 export const ACADEMY_PATH = '/dashboard/academy';
 
 /** The conversation a thread notification is about, from the RECIPIENT's side. */
+/**
+ * The coach's "טופס התאמה" for one trainee, open. It lives on the trainee's page
+ * (week?athleteId=, TraineeHeader → TraineeSetupBanner), NOT in the conversation, so a
+ * thread link with &setup=1 opened the chat and the form never appeared (QA 11-18).
+ */
+export function academySetupUrl(traineeId: string): string {
+  return `/dashboard/academy/week?athleteId=${encodeURIComponent(traineeId)}&setup=1`;
+}
+
 export function academyThreadUrl(opts: { recipientIsStaff: boolean; traineeId: string | null | undefined }): string {
   if (!opts.recipientIsStaff) return `${ACADEMY_PATH}?thread=mine`;
   return opts.traineeId

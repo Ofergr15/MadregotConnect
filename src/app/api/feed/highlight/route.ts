@@ -1,3 +1,4 @@
+import { isAcademyOnly } from '@/lib/plans/scope';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
@@ -213,8 +214,13 @@ async function resolveWeekTarget(
 
   try {
     // Both asked at once; the athlete's own week still wins over the club's.
-    const [own, club] = await Promise.all([pick(true), pick(false)]);
-    const plan = own ?? club;
+    const [own, club, who] = await Promise.all([
+      pick(true), pick(false),
+      supabase.from('athletes').select('is_academy, group_id').eq('id', athleteId).maybeSingle(),
+    ]);
+    // An academy-only trainee has no club week: their target is their coach's plan or
+    // nothing, never the club's (QA 11-18: a new trainee saw "מתוך 113 ק״מ").
+    const plan = own ?? (isAcademyOnly(who.data as never) ? null : club);
     if (!plan) return none;
     // The club week is read in the member's own pace lane, like the profile ring.
     const lane = own ? null : ((await groupNumberForAthlete(supabase, athleteId, weekStart).catch(() => 1)) as Lane);

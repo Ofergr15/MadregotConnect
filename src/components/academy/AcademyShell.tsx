@@ -74,7 +74,7 @@ import {
 import { CoachTourOffer } from '@/components/tour/CoachTourOffer';
 import { buildActionCards, type ActionKind } from '@/lib/academy/action-cards';
 import { bandTasks } from '@/lib/academy/band-task';
-import { academyThreadUrl } from '@/lib/academy/deep-links';
+import { academyThreadUrl, academySetupUrl } from '@/lib/academy/deep-links';
 
 // The academy's staff lens: five areas under the title, each with its sub-tabs
 // (lib/academy/areas.ts), the title row with the shared search on every area,
@@ -462,7 +462,7 @@ export function AcademyShell({
     else if (k === 'tests') go('tests');
     else if (k === 'band' && bandTodo.needsBand[0]) {
       // The same door as the push: the trainee's card with the "טופס התאמה" open.
-      window.location.assign(`${academyThreadUrl({ recipientIsStaff: true, traineeId: bandTodo.needsBand[0].athleteId })}&setup=1`);
+      window.location.assign(academySetupUrl(bandTodo.needsBand[0].athleteId));
     }
     else if (k === 'assign' || k === 'bandNoCoach') go('coaches');
   };
