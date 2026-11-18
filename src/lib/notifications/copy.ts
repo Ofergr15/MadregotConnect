@@ -784,8 +784,8 @@ export function academyTraineesAssignedCopy(
 export function academyTraineeJoinedCopy(locale: NotificationLocale, p: { name: string }): PushCopy {
   const who = (p.name || '').trim() || SOMEONE[locale];
   return locale === 'he'
-    ? { title: `✅ ${who} התקין/ה את האפליקציה והתחבר/ה`, body: 'זה הזמן לבנות את התוכנית הראשונה. לחיצה פותחת את הכרטיס.' }
-    : { title: `✅ ${who} installed the app and signed in`, body: 'Time to build their first plan. Tap to open their card.' };
+    ? { title: `✅ ${who} התחבר/ה`, body: 'זה הזמן לבנות את התוכנית הראשונה. לחיצה פותחת את הכרטיס.' }
+    : { title: `✅ ${who} signed in`, body: 'Time to build their first plan. Tap to open their card.' };
 }
 
 /**
@@ -795,8 +795,8 @@ export function academyTraineeJoinedCopy(locale: NotificationLocale, p: { name: 
 export function academyTraineeJoinedNoBandCopy(locale: NotificationLocale, p: { name: string }): PushCopy {
   const who = (p.name || '').trim() || SOMEONE[locale];
   return locale === 'he'
-    ? { title: `✅ ${who} התקין/ה את האפליקציה והתחבר/ה`, body: 'עדיין אין דבוקה. לחיצה פותחת את טופס ההתאמה כדי לקבוע אותה, ואז אפשר לבנות את התוכנית.' }
-    : { title: `✅ ${who} installed the app and signed in`, body: 'No band yet. Tap to set it in their coaching form, then build their plan.' };
+    ? { title: `✅ ${who} התחבר/ה`, body: 'עדיין אין דבוקה. לחיצה פותחת את טופס ההתאמה כדי לקבוע אותה, ואז אפשר לבנות את התוכנית.' }
+    : { title: `✅ ${who} signed in`, body: 'No band yet. Tap to set it in their coaching form, then build their plan.' };
 }
 
 /**

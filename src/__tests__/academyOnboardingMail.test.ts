@@ -72,7 +72,7 @@ describe('the coach', () => {
   });
   it('6 · when they signed in from the app: build the first plan', () => {
     const c = academyTraineeJoinedCopy('he', { name: 'יוסי לוי' });
-    expect(c.title).toBe('✅ יוסי לוי התקין/ה את האפליקציה והתחבר/ה');
+    expect(c.title).toBe('✅ יוסי לוי התחבר/ה');
     expect(c.body).toContain('התוכנית הראשונה');
   });
   it('a trainee who is already in the app (moved from the club): the plan can start now', () => {
