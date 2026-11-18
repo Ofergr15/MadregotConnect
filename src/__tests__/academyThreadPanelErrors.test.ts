@@ -11,11 +11,11 @@ const src = readFileSync(join(__dirname, '../components/academy/AcademyThreadPan
 describe('AcademyThreadPanel — a failed open is an error with a retry, not a spinner', () => {
   it('reads the token mint failure, not only its data', () => {
     expect(src).toContain('useStreamTokenState(supabaseToken, attempt)');
-    expect(src).toMatch(/token\.failed \? THREAD_ERROR_FALLBACK/);
+    expect(src).toMatch(/token\.failed && autoRetry\.current\.exhausted \? THREAD_ERROR_FALLBACK/);
   });
 
   it('a missing session is an error', () => {
-    expect(src).toMatch(/if \(!access\) setError\(THREAD_ERROR_FALLBACK\)/);
+    expect(src).toMatch(/if \(!access && !failOpen\('session'\)\) setError\(THREAD_ERROR_FALLBACK\)/);
   });
 
   it('a failed watch() is checked before the !channel spinner', () => {

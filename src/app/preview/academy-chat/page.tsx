@@ -6,6 +6,8 @@ import { ThreadTranscript, type ThreadMessage } from '@/components/academy/Threa
 import { ChatAvatar, ChatList, type ChatPayload } from '@/components/academy/ChatList';
 import { useSearchParams } from 'next/navigation';
 import type { ChatRow } from '@/lib/academy/chat-list';
+import { STAFF_QUICK, STAFF_TRANSCRIPT_CLASS, StaffThreadScreen } from '@/components/academy/AcademyThreadPanel';
+import { useOpenThread } from '@/components/academy/AcademyThreads';
 
 // ── Login-free preview of the chat thread (mockup academy-chat/chat.html, 2) ──
 // The live thread needs Stream; this renders the same transcript with a fixture.
@@ -40,9 +42,56 @@ const LIST: ChatPayload = {
   ],
 };
 
+/** 55 messages over a week, for the long-thread check (brief 1.4). */
+const LONG: ThreadMessage[] = Array.from({ length: 55 }, (_, i) => ({
+  id: `l${i}`,
+  authorId: i % 3 ? 'noa' : 'coach-1',
+  authorName: i % 3 ? 'נועה לוי' : 'מירב',
+  seat: i % 3 ? 'trainee' : 'coach',
+  text: i % 4 ? `הודעה מספר ${i + 1}` : `הודעה ארוכה יותר מספר ${i + 1}, כדי שהבועה תשבור שורה ותראה כמו שיחה אמיתית`,
+  at: T(`2026-10-${String(14 + Math.floor(i / 8)).padStart(2, '0')}`, `${String(8 + (i % 8)).padStart(2, '0')}:0${i % 10}`),
+}) as ThreadMessage);
+
+/**
+ * The staff chat screen as the live one draws it: inbox row → full-screen thread, the
+ * same shell, class and back handling as AcademyThreads / AcademyThreadPanel, with the
+ * fixture in place of Stream. `?screen=staff` (2 messages) or `?screen=staff&long=1`.
+ */
+function StaffPreview({ long }: { long: boolean }) {
+  const { openId, open, onBack } = useOpenThread(null);
+  if (!openId) {
+    return (
+      <div className="mx-auto max-w-[430px] p-4" dir="rtl">
+        <button type="button" data-testid="open-thread" onClick={() => open('noa')} className="min-h-[44px] w-full rounded-xl bg-white px-4 text-start">נועה לוי</button>
+      </div>
+    );
+  }
+  return (
+    <StaffThreadScreen name="נועה לוי" athleteId="noa" onBack={onBack}>
+      <ThreadTranscript messages={long ? LONG : MESSAGES.slice(0, 2)} viewerSeat="coach" viewerId="coach-1"
+        onSend={() => {}} quickReplies={STAFF_QUICK} layout="sheet" className={STAFF_TRANSCRIPT_CLASS} />
+    </StaffThreadScreen>
+  );
+}
+
+/** The trainee's conversation sheet (TraineeBoard), 88dvh from the bottom. `?screen=trainee`. */
+function TraineePreview() {
+  return (
+    <div className="fixed inset-x-0 bottom-0 flex h-[88dvh] flex-col rounded-t-[20px] bg-white" dir="rtl" data-testid="trainee-sheet">
+      <div className="shrink-0 p-3 text-center font-bold">השרשור שלי</div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden pb-3">
+        <ThreadTranscript messages={MESSAGES} viewerSeat="trainee" viewerId="noa" onSend={() => {}} layout="sheet" className="min-h-0 flex-1" />
+      </div>
+    </div>
+  );
+}
+
 export default function Page() {
-  const screen = useSearchParams().get('screen');
+  const params = useSearchParams();
+  const screen = params.get('screen');
   if (process.env.NODE_ENV === 'production') notFound();
+  if (screen === 'staff') return <StaffPreview long={params.get('long') === '1'} />;
+  if (screen === 'trainee') return <TraineePreview />;
   if (screen === 'list') return <div className="mx-auto max-w-[430px] p-4"><ChatList data={LIST} /></div>;
   return (
     <div className="mx-auto max-w-[430px] p-4" dir="rtl">
