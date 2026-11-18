@@ -29,6 +29,27 @@ const allowSubmit = createRateLimiter(5, 60_000);
 const allowFromIp = createRateLimiter(40, 60_000);
 
 /**
+ * A second submit of the same card inside this window (a double tap, a browser retry, a
+ * "did it go?" re-send) saves the details but mails nobody again: the trainee already has
+ * the "קיבלנו" mail and staff already have the heads-up. 2026-11-18, אופיר חיון: two of each.
+ */
+export const FORM_RESEND_WINDOW_MS = 10 * 60_000;
+
+/** Did this card's "received" mail already go out inside the window? Best effort: a failed read sends. */
+async function receivedRecently(supabase: any, candidateId: string, now = Date.now()): Promise<boolean> {
+  try {
+    const since = new Date(now - FORM_RESEND_WINDOW_MS).toISOString();
+    const { data, error } = await supabase
+      .from('email_log').select('id')
+      .eq('candidate_id', candidateId).eq('template', 'academy_form_received')
+      .gte('created_at', since).limit(1);
+    return !error && Array.isArray(data) && data.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * GET /api/academy/register?i={invite token} — the prefill for a personal link.
  * Name, email and phone of that one card, or `{ prefill: null }` for anything else
  * (unknown, stale, malformed): the form then simply opens empty.
@@ -133,6 +154,9 @@ export async function POST(request: Request) {
     // chosen in the file, say). The answer says which, so the screen never promises an install
     // mail that did not go out (sign-up E2E, 2026-10-28).
     let letIn = false;
+    // The card was accepted before this submit: they are in, so "קיבלנו, the install link is
+    // coming" would mislead. The details are saved; nobody is mailed; the page says so.
+    let alreadyIn = false;
     const afterSave = async (athleteId: string | null, existingMember: boolean, likelyMember: string | null = null) => {
       const candidateId = await recordFormCandidate(supabase as any, {
         name: fullName, email: normEmail, phone: phoneValue, inviteToken, src, athleteId, intake: intakeObj,
@@ -141,8 +165,13 @@ export async function POST(request: Request) {
       // must read it as that, not as a new applicant (Ofer, 2026-10-19).
       let existingTrainee = false;
       if (candidateId) {
-        const { data: card } = await supabase.from('academy_candidates').select('source').eq('id', candidateId).maybeSingle();
-        existingTrainee = (card as { source?: string | null } | null)?.source === 'existing';
+        const { data: card } = await supabase.from('academy_candidates').select('source, accepted_at').eq('id', candidateId).maybeSingle();
+        const c = card as { source?: string | null; accepted_at?: string | null } | null;
+        existingTrainee = c?.source === 'existing';
+        // Accepted already (by staff, or by this form's own earlier confirmation): save only.
+        // A form opened without its ?i= (from the move-in mail, say) is not `imported` here,
+        // so this is checked for every card — that is the path the 11-18 duplicates took.
+        if (c?.accepted_at) { alreadyIn = true; if (imported) letIn = true; return; }
       }
       // Chosen by staff from the academy's file: confirming the details lets them in — the
       // install mail and the coach's heads-up go from the accept; no "waiting for approval".
@@ -153,6 +182,7 @@ export async function POST(request: Request) {
         });
         if (r.accepted || (r as { reason?: string }).reason === 'already') { letIn = true; return; }
       }
+      if (candidateId && await receivedRecently(supabase, candidateId)) return;
       await notifyAdminNewAcademyRegistration({
         name: fullName, email: normEmail, phone, existingMember, candidateId,
         intake: intakeObj, likelyMember, existingTrainee,
@@ -173,7 +203,7 @@ export async function POST(request: Request) {
 
     if (existing && existing.onboarding_status !== 'academy_pending') {
       await afterSave(null, true);
-      return NextResponse.json({ success: true, ...(imported ? { letIn } : {}) });
+      return NextResponse.json({ success: true, ...(imported ? { letIn } : {}), ...(alreadyIn ? { alreadyIn } : {}) });
     }
 
     // Accepted already (approved), not yet signed in: the form is sent again — from the
@@ -229,7 +259,7 @@ export async function POST(request: Request) {
 
     await afterSave(athleteId, false, await likelyClubMember(supabase as any, { name: fullName, email: normEmail, phone: phoneValue, athleteId }));
 
-    return NextResponse.json({ success: true, ...(imported ? { letIn } : {}) });
+    return NextResponse.json({ success: true, ...(imported ? { letIn } : {}), ...(alreadyIn ? { alreadyIn } : {}) });
   } catch (error: any) {
     console.error('Academy register error:', error);
     return NextResponse.json({ error: error.message || 'Registration failed' }, { status: 500 });
