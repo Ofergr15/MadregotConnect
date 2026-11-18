@@ -50,6 +50,33 @@ async function receivedRecently(supabase: any, candidateId: string, now = Date.n
 }
 
 /**
+ * Claim this card's "received" mails + staff push, atomically: a conditional UPDATE that only
+ * one request can win. Postgres takes the row lock for the UPDATE; a second, concurrent UPDATE
+ * of the same row waits for the first to commit, then re-checks its WHERE against the new row
+ * version (READ COMMITTED re-evaluation), finds form_mail_claimed_at already inside the window,
+ * and updates — and returns — nothing. So exactly one caller gets a row back and sends.
+ *
+ * Needs migration 178 (form_mail_claimed_at, NOT applied yet). Until then, and on any other
+ * failed write, it falls back to the email_log read above (best effort: a failed read sends).
+ */
+export async function claimFormMail(supabase: any, candidateId: string, now = Date.now()): Promise<boolean> {
+  try {
+    const since = new Date(now - FORM_RESEND_WINDOW_MS).toISOString();
+    const { data, error } = await supabase
+      .from('academy_candidates')
+      .update({ form_mail_claimed_at: new Date(now).toISOString() })
+      .eq('id', candidateId)
+      .or(`form_mail_claimed_at.is.null,form_mail_claimed_at.lt.${since}`)
+      .select('id');
+    if (!error && Array.isArray(data)) return data.length > 0;
+    if (error && !isMissingColumn(error)) console.error('Academy register: mail claim failed:', error.message);
+  } catch (err) {
+    console.error('Academy register: mail claim threw:', err);
+  }
+  return !(await receivedRecently(supabase, candidateId, now));
+}
+
+/**
  * GET /api/academy/register?i={invite token} — the prefill for a personal link.
  * Name, email and phone of that one card, or `{ prefill: null }` for anything else
  * (unknown, stale, malformed): the form then simply opens empty.
@@ -182,7 +209,7 @@ export async function POST(request: Request) {
         });
         if (r.accepted || (r as { reason?: string }).reason === 'already') { letIn = true; return; }
       }
-      if (candidateId && await receivedRecently(supabase, candidateId)) return;
+      if (candidateId && !(await claimFormMail(supabase, candidateId))) return;
       await notifyAdminNewAcademyRegistration({
         name: fullName, email: normEmail, phone, existingMember, candidateId,
         intake: intakeObj, likelyMember, existingTrainee,
