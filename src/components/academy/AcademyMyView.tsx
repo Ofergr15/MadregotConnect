@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { GuideEntryCard } from '@/components/academy/GuideEntryCard';
+import { EmptyPlanCoach } from '@/components/academy/EmptyPlanCoach';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, GraduationCap } from 'lucide-react';
@@ -304,7 +305,10 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
       {/* ── This week, Sunday to Saturday ── */}
       <div className="overflow-hidden rounded-2xl bg-card">
         {!week || week.workouts.length === 0 ? (
-          <p className="px-4 py-6 text-center text-xs text-ink-400">{t('noPlannedWorkouts')}</p>
+          <div className="px-4 py-6 text-center text-xs text-ink-400">
+            {t('noPlannedWorkouts')}
+            <EmptyPlanCoach className="mt-1.5" onOpen={openConversation} />
+          </div>
         ) : (
           weekDates(weekStart).map((date) => {
             const w = byDate.get(date);

@@ -21,6 +21,7 @@ import { MAX_HR_MIN_RUNS } from '@/lib/academy/load';
 import { hrEstimateKey } from '@/lib/academy/test-state';
 import { LoadSheet } from './LoadSheet';
 import { GuideEntryCard } from '@/components/academy/GuideEntryCard';
+import { EmptyPlanCoach } from '@/components/academy/EmptyPlanCoach';
 import { RaceLine } from './RaceLine';
 import { RestCard, TodayWorkoutCard } from './TodayWorkoutCard';
 import { TestEntryCard } from '@/components/academy/completion/TestEntryCard';
@@ -182,6 +183,7 @@ export function TraineeToday({ athleteId, firstName, academyOnly = false }: {
             <>
               <h2 className="text-[20px] font-black text-ink-900">{t('noPlan', { week: data.weekStart !== planWeekStartOf(today) ? 'next' : 'this' })}</h2>
               <p className="mt-1 text-[14px] text-ink-500">{t('noPlanSay', { when })}</p>
+              <EmptyPlanCoach className="mt-2.5" />
             </>
           )}
         </section>

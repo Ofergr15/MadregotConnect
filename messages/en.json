@@ -6768,5 +6768,9 @@
         "body": "From Profile you can install the app on the home screen any time, and turn on notifications so no coach message is missed."
       }
     }
+  },
+  "emptyPlan": {
+    "line": "Your plan will appear here as soon as your coach prepares it.",
+    "button": "Message your coach"
   }
 }

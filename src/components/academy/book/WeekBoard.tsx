@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { EmptyPlanCoach } from '@/components/academy/EmptyPlanCoach';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { addDaysToDateStr, cn } from '@/lib/utils';
@@ -146,7 +147,10 @@ export function WeekBoard({ athleteId, initialWeek, openDate, onView, onClosed, 
             <p className="px-1 text-13 text-ink-400">{t('fromClubNote', { name: data.athlete.name.split(' ')[0] })}</p>
           )}
           {data.workouts.length === 0 && (
-            <p className="rounded-[18px] bg-white px-4 py-5 text-center text-sm text-ink-400">{tw('empty')}</p>
+            <div className="rounded-[18px] bg-white px-4 py-5 text-center text-sm text-ink-400">
+              {tw('empty')}
+              {!data.canPlan && <EmptyPlanCoach className="mt-1.5" />}
+            </div>
           )}
           {days.map((d) => {
             const list = data.workouts.filter(w => w.date === d);
@@ -180,7 +184,10 @@ export function WeekBoard({ athleteId, initialWeek, openDate, onView, onClosed, 
       )}
 
       {data.workouts.length === 0 && (
-        <p className="rounded-[18px] bg-white px-4 py-5 text-center text-sm text-ink-400">{t('weekEmpty')}</p>
+        <div className="rounded-[18px] bg-white px-4 py-5 text-center text-sm text-ink-400">
+          {t('weekEmpty')}
+          {!data.canPlan && <EmptyPlanCoach className="mt-1.5" />}
+        </div>
       )}
 
       {data.workouts.map(w => (
