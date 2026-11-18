@@ -1,0 +1,28 @@
+import SwiftUI
+
+struct ProfileView: View {
+    @Environment(SessionStore.self) private var session
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("גרסה") {
+                    LabeledContent("אפליקציה", value: Bundle.main.appVersion)
+                    LabeledContent("שרת", value: AppConfig.apiBaseURL.host() ?? "-")
+                }
+                Section {
+                    Button("יציאה", role: .destructive) { session.signOut() }
+                }
+            }
+            .navigationTitle("פרופיל")
+        }
+    }
+}
+
+extension Bundle {
+    var appVersion: String {
+        let version = infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        return "\(version) (\(build))"
+    }
+}
