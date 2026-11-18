@@ -60,3 +60,10 @@ describe('continue in the browser', () => {
     expect(profile).not.toMatch(/browserChosen/);
   });
 });
+
+describe('a reload of a finished setup', () => {
+  it('does not walk a phantom step before the device is known (no closing screen on reload)', () => {
+    const gate = readFileSync(join(process.cwd(), 'src/components/setup/SetupGate.tsx'), 'utf8');
+    expect(gate).toMatch(/if \(!data\?\.applicable \|\| !deviceKnown\) return \[\]/);
+  });
+});

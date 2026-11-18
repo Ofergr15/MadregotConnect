@@ -471,7 +471,10 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
   const { data } = useApi<SetupFacts>(key, { revalidateOnFocus: true });
   const [standalone, setStandalone] = useState(false);
   const [iosTab, setIosTab] = useState(false);
-  useEffect(() => { setStandalone(isStandalone()); setIosTab(isIosDevice()); }, []);
+  // Steps wait for the device answer: on the first render an iPhone tab reads as "not iOS",
+  // so the push step counted as walked and every reload ended on the closing screen.
+  const [deviceKnown, setDeviceKnown] = useState(false);
+  useEffect(() => { setStandalone(isStandalone()); setIosTab(isIosDevice()); setDeviceKnown(true); }, []);
   // "Can't install" — an install the app can't see (an Android Chrome tab) must never lock
   // somebody out. It used to live only in this state, so any remount (a full reload, the
   // update's reload, the shell's spinner) brought the install step back. Now it is also
@@ -485,7 +488,7 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
   const [closed, setClosed] = useState(false);
 
   const steps = useMemo(() => {
-    if (!data?.applicable) return [] as SetupStep[];
+    if (!data?.applicable || !deviceKnown) return [] as SetupStep[];
     return remainingSteps({
       phone: !computer,
       // Only the installed app itself counts: phone_app_opened_at is stamped by any phone
@@ -500,7 +503,7 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
       birthDate: data.birthDate ?? null, heightCm: data.heightCm ?? null, sizes: Object.values(data.sizes || {}),
       detailsConfirmed: data.detailsConfirmed,
     });
-  }, [data, computer, standalone, installLater, iosTab]);
+  }, [data, computer, standalone, installLater, iosTab, deviceKnown]);
   useEffect(() => { if (steps.length) setWalked(true); }, [steps.length]);
 
   const done = steps.length === 0 && walked && !closed;
