@@ -1,0 +1,12 @@
+// Shared build settings for the Madregot app target.
+//
+// Debug builds default to the local Next.js dev server, never to production.
+// To point a local build somewhere else, create ios/Config/Secrets.xcconfig
+// (git-ignored; copy Secrets.example.xcconfig) and override the values there.
+// Note: "//" starts a comment in xcconfig files, hence the "$()" in URLs.
+
+MADREGOT_API_BASE_URL = http:/$()/localhost:3000
+SUPABASE_URL =
+SUPABASE_ANON_KEY =
+
+#include? "Secrets.xcconfig"

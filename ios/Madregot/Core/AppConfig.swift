@@ -1,29 +1,34 @@
 import Foundation
 
-/// Where the app's backend lives.
+/// Where the app's backend lives, read from Info.plist (filled from ios/Config/*.xcconfig).
 ///
-/// M0 makes no network calls at all. The base URL is recorded here so later
-/// milestones have one place to change it — and so that a debug build can never
-/// silently default to production while the live pilot is running.
-enum AppConfig {
-    enum Environment: String {
-        case local
-        case production
+/// Debug builds default to the local Next.js dev server and never to production while the
+/// live pilot is running. A local override goes in the git-ignored Config/Secrets.xcconfig.
+struct AppConfig: Sendable {
+    let apiBaseURL: URL
+    /// Supabase project used only to refresh the session. Nil until configured locally.
+    let supabaseURL: URL?
+    let supabaseAnonKey: String?
+
+    static let current = AppConfig(info: Bundle.main.infoDictionary ?? [:])
+
+    init(apiBaseURL: URL, supabaseURL: URL?, supabaseAnonKey: String?) {
+        self.apiBaseURL = apiBaseURL
+        self.supabaseURL = supabaseURL
+        self.supabaseAnonKey = supabaseAnonKey
     }
 
-    #if DEBUG
-    static let environment: Environment = .local
-    #else
-    static let environment: Environment = .production
-    #endif
-
-    static var apiBaseURL: URL {
-        switch environment {
-        case .local:
-            // The Next.js dev server (`npm run dev`). The Simulator reaches the Mac at localhost.
-            URL(string: "http://localhost:3000")!
-        case .production:
-            URL(string: "https://www.madregot.app")!
+    init(info: [String: Any]) {
+        func value(_ key: String) -> String? {
+            guard let raw = (info[key] as? String)?.trimmingCharacters(in: .whitespaces),
+                  !raw.isEmpty, !raw.hasPrefix("$(") else { return nil }
+            return raw
         }
+        apiBaseURL = value("MadregotAPIBaseURL").flatMap(URL.init(string:))
+            ?? URL(string: "http://localhost:3000")!
+        supabaseURL = value("SupabaseURL").flatMap(URL.init(string:))
+        supabaseAnonKey = value("SupabaseAnonKey")
     }
+
+    var canRefreshSessions: Bool { supabaseURL != nil && supabaseAnonKey != nil }
 }

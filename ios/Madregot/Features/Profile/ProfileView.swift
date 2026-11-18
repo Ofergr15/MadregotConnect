@@ -8,7 +8,12 @@ struct ProfileView: View {
             List {
                 Section("גרסה") {
                     LabeledContent("אפליקציה", value: Bundle.main.appVersion)
-                    LabeledContent("שרת", value: AppConfig.apiBaseURL.host() ?? "-")
+                    LabeledContent("שרת", value: AppConfig.current.apiBaseURL.host() ?? "-")
+                }
+                if let email = session.session?.email {
+                    Section("חשבון") {
+                        LabeledContent("מייל", value: email)
+                    }
                 }
                 Section {
                     Button("יציאה", role: .destructive) { session.signOut() }

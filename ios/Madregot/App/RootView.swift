@@ -1,13 +1,15 @@
 import SwiftUI
 
-/// Signed-out → sign-in screen; signed-in → the tab shell.
+/// Restoring → spinner; signed out → sign-in; signed in → the tab shell.
 struct RootView: View {
     @Environment(SessionStore.self) private var session
 
     var body: some View {
         switch session.state {
+        case .restoring:
+            ProgressView()
         case .signedOut:
-            SignInPlaceholderView()
+            SignInView()
         case .signedIn:
             MainTabView()
         }
@@ -35,6 +37,6 @@ struct MainTabView: View {
 
 #Preview("לא מחובר") {
     RootView()
-        .environment(SessionStore())
+        .environment(SessionStore(previewState: .signedOut))
         .environment(\.layoutDirection, .rightToLeft)
 }
