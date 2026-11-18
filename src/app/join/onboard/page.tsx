@@ -410,6 +410,8 @@ function OnboardContent() {
             <div>
               <label htmlFor="jo-garminEmail" className="block text-sm font-medium text-ink-500 mb-1">{t('garminEmail')}</label>
               <Input id="jo-garminEmail"
+                name="garmin-email"
+                autoComplete="off"
                 type="email"
                 value={garminEmail}
                 onChange={(e) => setGarminEmail(e.target.value)}
@@ -421,6 +423,8 @@ function OnboardContent() {
             <div>
               <label htmlFor="jo-garminPassword" className="block text-sm font-medium text-ink-500 mb-1">{t('garminPassword')}</label>
               <PasswordInput as={Input} id="jo-garminPassword"
+                name="garmin-password"
+                autoComplete="off"
                 value={garminPassword}
                 onChange={(e) => setGarminPassword(e.target.value)}
                 placeholder={t('enterPassword')}

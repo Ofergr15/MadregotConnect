@@ -1124,6 +1124,9 @@ function ProfileContent() {
                 <div className="px-4 pb-4 space-y-3 border-t border-page/30 pt-3">
                   <input
                     type="email"
+                    id="garmin-email"
+                    name="garmin-email"
+                    autoComplete="off"
                     placeholder={t('garminEmail')}
                     value={garminEmail}
                     onChange={e => setGarminEmail(e.target.value)}
@@ -1131,6 +1134,9 @@ function ProfileContent() {
                   />
                   {!mfaRequired && (
                     <PasswordInput
+                      id="garmin-password"
+                      name="garmin-password"
+                      autoComplete="off"
                       placeholder={t('garminPassword')}
                       value={garminPassword}
                       onChange={e => setGarminPassword(e.target.value)}
