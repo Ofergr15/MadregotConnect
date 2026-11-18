@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   const fresh = SETUP_GATE_FOR_ALL && String(row.created_at || '') >= SETUP_GATE_SINCE;
   if (!fresh && !preview) return NextResponse.json({ applicable: false });
 
-  const setup = ((row.notification_prefs as Record<string, unknown> | null)?.setup || {}) as { noWatch?: boolean; detailsConfirmedAt?: string };
+  const setup = ((row.notification_prefs as Record<string, unknown> | null)?.setup || {}) as { noWatch?: boolean; detailsConfirmedAt?: string; browserAt?: string };
   return NextResponse.json({
     applicable: true,
     preview,
@@ -43,6 +43,9 @@ export async function GET(request: Request) {
     strava: !!row.strava_auth,
     noWatch: setup.noWatch === true,
     detailsConfirmed: typeof setup.detailsConfirmedAt === 'string' && !!setup.detailsConfirmedAt,
+    // "Continue in the browser" on the install step — per account, because an iPhone's
+    // home-screen app and its Safari tab do not share storage. Not "installed".
+    browserChosen: typeof setup.browserAt === 'string' && !!setup.browserAt,
     push: (count ?? 0) > 0,
     birthDate: (row.birth_date as string) || null,
     heightCm: row.height_cm == null ? null : Number(row.height_cm),
@@ -55,17 +58,19 @@ export async function GET(request: Request) {
 }
 
 /**
- * PATCH /api/setup  { noWatch?: boolean, detailsConfirmed?: true } — "I have no Garmin" passes
- * the watch step; detailsConfirmed stamps detailsConfirmedAt ("הכל נכון" on the details step,
- * so it never asks again). Kept in notification_prefs.setup, merged so every other key stays.
+ * PATCH /api/setup  { noWatch?: boolean, detailsConfirmed?: true, browser?: true } — "I have no
+ * Garmin" passes the watch step; detailsConfirmed stamps detailsConfirmedAt ("הכל נכון" on the
+ * details step, so it never asks again); browser stamps browserAt ("ממשיכים בדפדפן" on the
+ * install step, so a reload does not bring the step back — the app is NOT marked installed). Kept in notification_prefs.setup, merged so every other key stays.
  */
 export async function PATCH(request: Request) {
   const { denied, caller } = await resolveVerifiedCaller(request);
   if (denied) return denied;
   if (!caller.athleteId) return NextResponse.json({ error: 'no athlete' }, { status: 400 });
-  const body = (await request.json().catch(() => ({}))) as { noWatch?: unknown; detailsConfirmed?: unknown };
+  const body = (await request.json().catch(() => ({}))) as { noWatch?: unknown; detailsConfirmed?: unknown; browser?: unknown };
   const confirm = body.detailsConfirmed === true;
-  if (typeof body.noWatch !== 'boolean' && !confirm) return NextResponse.json({ error: 'noWatch must be true or false' }, { status: 400 });
+  const browser = body.browser === true;
+  if (typeof body.noWatch !== 'boolean' && !confirm && !browser) return NextResponse.json({ error: 'noWatch must be true or false' }, { status: 400 });
   const db = createServerClient();
   const { data, error } = await db.from('athletes').select('notification_prefs').eq('id', caller.athleteId).maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -73,7 +78,8 @@ export async function PATCH(request: Request) {
   const setup: Record<string, unknown> = { ...((prefs.setup as Record<string, unknown>) || {}) };
   if (typeof body.noWatch === 'boolean') setup.noWatch = body.noWatch;
   if (confirm) setup.detailsConfirmedAt = new Date().toISOString();
+  if (browser && !setup.browserAt) setup.browserAt = new Date().toISOString();
   const { error: upErr } = await db.from('athletes').update({ notification_prefs: { ...prefs, setup } }).eq('id', caller.athleteId);
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
-  return NextResponse.json({ ok: true, noWatch: setup.noWatch === true, detailsConfirmed: !!setup.detailsConfirmedAt });
+  return NextResponse.json({ ok: true, noWatch: setup.noWatch === true, detailsConfirmed: !!setup.detailsConfirmedAt, browserChosen: !!setup.browserAt });
 }

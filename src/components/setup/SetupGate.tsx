@@ -43,6 +43,8 @@ interface SetupFacts {
   sizes?: Record<SizeKey, string | null>;
   /** "הכל נכון" was said once (notification_prefs.setup.detailsConfirmedAt). */
   detailsConfirmed?: boolean;
+  /** "ממשיכים בדפדפן" was chosen once (notification_prefs.setup.browserAt). */
+  browserChosen?: boolean;
 }
 
 const PREVIEW_KEY = 'mc:setup-preview';
@@ -470,8 +472,11 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
   const [standalone, setStandalone] = useState(false);
   const [iosTab, setIosTab] = useState(false);
   useEffect(() => { setStandalone(isStandalone()); setIosTab(isIosDevice()); }, []);
-  // "Can't install" holds for this visit only: an install the app can't see (an Android
-  // Chrome tab) must never lock somebody out.
+  // "Can't install" — an install the app can't see (an Android Chrome tab) must never lock
+  // somebody out. It used to live only in this state, so any remount (a full reload, the
+  // update's reload, the shell's spinner) brought the install step back. Now it is also
+  // stamped on the account (PATCH /api/setup {browser:true} → browserChosen); this state
+  // only bridges the moment until the facts come back.
   const [installLater, setInstallLater] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
@@ -485,7 +490,9 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
       phone: !computer,
       // Only the installed app itself counts: phone_app_opened_at is stamped by any phone
       // visit, a Safari tab included, so it would skip the install step in Safari.
-      installed: standalone || installLater,
+      // "Continue in the browser" passes the step without claiming an install.
+      installed: standalone,
+      browserChosen: installLater || !!data.browserChosen,
       garmin: !!data.garmin, strava: !!data.strava, noWatch: !!data.noWatch,
       // An iPhone's Safari tab cannot be asked for notifications (only the installed app
       // can): somebody who chose "continue in the browser" is not stuck on a step that fails.
@@ -505,7 +512,18 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
     onGuide={isAcademyMember ? () => { setClosed(true); router.push(ACADEMY_GUIDE_PATH); } : undefined} />;
 
   const at = steps[0];
-  if (at === 'install') return <InstallStep onSkip={() => setInstallLater(true)} />;
+  if (at === 'install') {
+    return <InstallStep onSkip={() => {
+      setInstallLater(true);
+      // Best effort: should it fail, this visit still moves on (the state above).
+      void (async () => {
+        try {
+          await fetch(KEY, { method: 'PATCH', headers: await apiHeaders(true), body: JSON.stringify({ browser: true }) });
+          await refresh();
+        } catch { /* holds for this visit; asked again next time */ }
+      })();
+    }} />;
+  }
   if (at === 'watch') {
     return <WatchStep strava={!!data?.strava} busy={busy} onNoWatch={async () => {
       setBusy(true);

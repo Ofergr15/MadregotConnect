@@ -26,6 +26,12 @@ export interface SetupFacts {
    * Absent = treated as confirmed, so a caller that does not know keeps today's behaviour.
    */
   detailsConfirmed?: boolean;
+  /**
+   * The member chose "ממשיכים בדפדפן" on the install step (notification_prefs.setup.browserAt).
+   * It passes the install step only: `installed` stays the truth, so the profile row and the
+   * later install sheet/strip still offer the app. Absent = never chose, today's behaviour.
+   */
+  browserChosen?: boolean;
 }
 
 /** The details still missing — birth date, height, the five kit sizes. Weight is never required. */
@@ -46,7 +52,7 @@ export function detailsMode(f: Pick<SetupFacts, 'birthDate' | 'heightCm' | 'size
 
 export function remainingSteps(f: SetupFacts): SetupStep[] {
   return SETUP_ORDER.filter((s) => {
-    if (s === 'install') return f.phone && !f.installed;
+    if (s === 'install') return f.phone && !f.installed && !f.browserChosen;
     // The step is Garmin: it is the one that can push workouts to the watch, and Strava
     // came with the sign-in. Shown until Garmin is linked or they say they have none.
     if (s === 'watch') return !f.garmin && !f.noWatch;
