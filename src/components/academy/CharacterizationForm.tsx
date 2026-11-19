@@ -116,16 +116,40 @@ export function CharacterizationForm({
   const [prTime, setPrTime] = useState(value?.prTimeSec ? formatTime(value.prTimeSec) : '');
   const [status, setStatus] = useState<'idle' | 'saving' | 'failed'>('idle');
 
+  /** The answers on screen right now, so the autosave can tell "confirmed" from "typed since". */
+  const shown = useRef(form);
+  shown.current = form;
+  /** True while edits the server has not confirmed yet exist — an echo must not rewrite them. */
+  const [unsavedEdits, setUnsavedEdits] = useState(false);
+
   // A different candidate is a different call. The sheet stays mounted, so without this the
-  // second person characterised in a sitting inherits the first one's injuries.
+  // second person characterised in a sitting inherits the first one's injuries. Render-phase
+  // derived state: unlike an effect it cannot show the PREVIOUS person's row for a render.
+  // State, not a ref: a render React throws away (concurrent rendering) must not consume the
+  // switch, or the next committed render would keep showing the previous person's answers.
+  const [shownFor, setShownFor] = useState(candidateId);
+  if (shownFor !== candidateId) {
+    setShownFor(candidateId);
+    setUnsavedEdits(false);
+    setForm(value && value.candidateId === candidateId ? value : emptyCharacterization(candidateId));
+    setPrTime(value && value.candidateId === candidateId && value.prTimeSec ? formatTime(value.prTimeSec) : '');
+    setStatus('idle');
+  }
+
+  // New answers from the server for THIS candidate (the autosave's echo, or a refetch): adopt
+  // them only while nothing is mid-edit, so a slow save never rewrites the field under the
+  // cursor. A row belonging to somebody else is never adopted here.
   useEffect(() => {
+    if (unsavedEdits) return;
+    if (value && value.candidateId !== candidateId) return;
     setForm(value ?? emptyCharacterization(candidateId));
     setPrTime(value?.prTimeSec ? formatTime(value.prTimeSec) : '');
-    setStatus('idle');
-  }, [candidateId, value]);
+  }, [value, candidateId, unsavedEdits]);
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  /** The save currently on the wire, if any — the next one waits for it (see `change`). */
+  const inFlight = useRef<Promise<void> | null>(null);
 
   /**
    * Every change goes through here: update the form, then schedule one save.
@@ -135,12 +159,25 @@ export function CharacterizationForm({
    * a call ending abruptly loses at most the last word.
    */
   const change = useCallback((patch: Partial<Characterization>) => {
+    setUnsavedEdits(true);
     setForm(prev => {
       const next = { ...prev, ...patch };
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => {
         setStatus('saving');
-        void onSave(next).then(ok => setStatus(ok ? 'idle' : 'failed'));
+        // One save on the wire at a time. The route is a plain upsert, so two PUTs in flight
+        // could be written in either order and leave the OLDER answers in the table; queued,
+        // each write lands after the previous one has been answered — last typed, last stored.
+        const send = () => onSave(next);
+        const run = inFlight.current ? inFlight.current.then(send, send) : send();
+        const done = run.then(ok => {
+          setStatus(ok ? 'idle' : 'failed');
+          // Confirmed exactly what is on screen (nothing typed since): echoes may hydrate
+          // again. Edits typed during the flight stay pending and keep their text.
+          if (ok && shown.current === next) setUnsavedEdits(false);
+        }, () => setStatus('failed'));
+        inFlight.current = done;
+        void done.then(() => { if (inFlight.current === done) inFlight.current = null; });
       }, 900);
       return next;
     });
