@@ -27,7 +27,8 @@ export const dynamic = 'force-dynamic';
  * creates the athlete (see /api/admin/registrations/approve).
  *
  * DELIBERATELY NOT SESSION-GATED — it runs before the person has any account at
- * all. What keeps it safe is that it can only ever insert into this one table.
+ * all. What keeps it safe is that it can only ever insert into this one table, and
+ * never rewrites a row already there: it proves nothing about the address it is given.
  */
 
 /**
@@ -56,7 +57,7 @@ async function recordMemberSubmission(
       .maybeSingle();
 
     if (existing) {
-      if (groupId) await supabase.from('signup_requests').update({ group_id: groupId }).eq('id', existing.id);
+      // Same rule as the pending branch: a public resubmission never rewrites a row.
       return;
     }
 
@@ -150,14 +151,10 @@ export async function POST(request: Request) {
       .eq('status', 'pending')
       .maybeSingle();
     if (pending) {
-      if (resolvedGroupId) {
-        await supabase.from('signup_requests').update({ group_id: resolvedGroupId }).eq('id', pending.id);
-      }
-      if (Object.keys(contact).length) {
-        // Best effort: before migration 131 the columns do not exist.
-        await supabase.from('signup_requests').update(contact).eq('id', pending.id);
-      }
-      if (intake) await supabase.from('signup_requests').update({ intake }).eq('id', pending.id);
+      // Nothing is written. This route is public and proves nothing about the address,
+      // so an update here let anybody rewrite another person's pending request (group,
+      // name, phone, intake) by typing their email. Corrections go through the coach
+      // (/dashboard/registrations) or, later, a flow that proves the address first.
       return NextResponse.json({ ok: true, state: 'pending' });
     }
 
