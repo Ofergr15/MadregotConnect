@@ -109,8 +109,21 @@ export async function POST(request: Request) {
       if (!row || Date.parse(row.expires_at) < Date.now() || row.attempts >= MAX_ATTEMPTS) {
         return NextResponse.json({ error: 'expired' }, { status: 401 });
       }
+      // Claim the attempt BEFORE comparing the code, atomically: the UPDATE matches only
+      // while `attempts` still holds the value read above. Read-then-write let N parallel
+      // guesses all pass the gate on the same count and try N codes against a limit of
+      // MAX_ATTEMPTS. A correct code also spends a slot; the row is deleted on success.
+      const { data: claimed } = await supabase
+        .from('login_codes')
+        .update({ attempts: row.attempts + 1 })
+        .eq('id', row.id)
+        .eq('attempts', row.attempts)
+        .lt('attempts', MAX_ATTEMPTS)
+        .select('id');
+      if (!claimed || claimed.length === 0) {
+        return NextResponse.json({ error: 'too-many' }, { status: 429 });
+      }
       if (!codeMatches(email, code, row.code_hash)) {
-        await supabase.from('login_codes').update({ attempts: row.attempts + 1 }).eq('id', row.id);
         return NextResponse.json({ error: 'wrong-code', left: Math.max(0, MAX_ATTEMPTS - row.attempts - 1) }, { status: 401 });
       }
       const member = await memberFor(supabase, email);
