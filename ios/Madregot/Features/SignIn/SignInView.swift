@@ -54,7 +54,7 @@ struct SignInView: View {
         VStack(spacing: 8) {
             Image(systemName: "figure.run.circle.fill")
                 .font(.system(size: 64))
-                .foregroundStyle(.tint)
+                .foregroundStyle(Theme.accent)
             Text("מדרגות").font(.largeTitle.bold())
             Text(step == .email ? "התחברות עם המייל שרשום במועדון" : (info ?? ""))
                 .font(.subheadline)

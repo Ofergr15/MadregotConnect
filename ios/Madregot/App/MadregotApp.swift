@@ -12,6 +12,7 @@ struct MadregotApp: App {
                 // An English mode (the web app's `en` locale) comes later and will lift this.
                 .environment(\.layoutDirection, .rightToLeft)
                 .environment(\.locale, Locale(identifier: "he_IL"))
+                .tint(Theme.accent)
                 .task { await session.restore() }
         }
     }
