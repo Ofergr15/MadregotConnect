@@ -35,13 +35,13 @@ enum Theme {
         }
     }
 
+    /// Bundled in Resources/Fonts (OFL, see Heebo-OFL.txt) and registered via UIAppFonts.
+    static let heeboAvailable = UIFont.familyNames.contains("Heebo")
+
     /// The PWA's font is Heebo (next/font, `font-sans`). Used when the font file is bundled;
     /// until then the system font, at the same sizes and weights.
     static func font(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-        if UIFont(name: "Heebo", size: size) != nil {
-            return .custom("Heebo", size: size).weight(weight)
-        }
-        return .system(size: size, weight: weight)
+        heeboAvailable ? .custom("Heebo", size: size).weight(weight) : .system(size: size, weight: weight)
     }
 }
 

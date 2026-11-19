@@ -50,7 +50,7 @@ struct FeedCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             RunnerHeader(run: run)
-            Text(run.title).font(.title3.weight(.semibold))
+            Text(run.title).font(Theme.font(20, .semibold))
             HStack(alignment: .lastTextBaseline, spacing: 28) {
                 RunStat(value: String(format: "%.1f", run.distanceKm), unit: "ק״מ")
                 RunStat(value: run.pace, unit: "לק״מ")
@@ -59,7 +59,7 @@ struct FeedCard: View {
                     liked.toggle()
                 } label: {
                     Label("\(run.kudos + (liked ? 1 : 0))", systemImage: liked ? "hands.clap.fill" : "hands.clap")
-                        .font(.subheadline.weight(.medium))
+                        .font(Theme.font(15, .medium))
                         .foregroundStyle(liked ? Theme.accent : .secondary)
                 }
                 .buttonStyle(.plain)
@@ -76,13 +76,13 @@ struct RunnerHeader: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(run.initials)
-                .font(.subheadline.bold())
+                .font(Theme.font(15, .bold))
                 .foregroundStyle(.white)
                 .frame(width: 40, height: 40)
                 .background(Theme.groupColor(run.group), in: .circle)
             VStack(alignment: .leading, spacing: 2) {
-                Text(run.name).font(.headline)
-                Text(run.when).font(.caption).foregroundStyle(.secondary)
+                Text(run.name).font(Theme.font(17, .semibold))
+                Text(run.when).font(Theme.font(12, .regular)).foregroundStyle(.secondary)
             }
             Spacer()
         }
@@ -95,8 +95,8 @@ struct RunStat: View {
     var size: CGFloat = 28
     var body: some View {
         HStack(alignment: .lastTextBaseline, spacing: 4) {
-            Text(value).font(.system(size: size, weight: .semibold, design: .rounded)).monospacedDigit()
-            Text(unit).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(Theme.font(size, .semibold)).monospacedDigit()
+            Text(unit).font(Theme.font(12, .regular)).foregroundStyle(.secondary)
         }
     }
 }
@@ -108,21 +108,21 @@ struct RunDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 RunnerHeader(run: run)
-                Text(run.title).font(.system(size: 30, weight: .bold, design: .rounded))
+                Text(run.title).font(Theme.font(30, .bold))
                 HStack(spacing: 24) {
                     RunStat(value: String(format: "%.1f", run.distanceKm), unit: "ק״מ", size: 34)
                     RunStat(value: run.pace, unit: "לק״מ", size: 34)
                     RunStat(value: run.durationLabel, unit: "זמן", size: 34)
                 }
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("קצב לפי קילומטר").font(.subheadline.bold())
+                    Text("קצב לפי קילומטר").font(Theme.font(15, .bold))
                     ForEach(Array(run.splits.enumerated()), id: \.offset) { index, split in
                         HStack {
                             Text("ק״מ \(index + 1)").foregroundStyle(.secondary)
                             Spacer()
                             Text(split).monospacedDigit()
                         }
-                        .font(.subheadline)
+                        .font(Theme.font(15, .regular))
                     }
                 }
                 .card()

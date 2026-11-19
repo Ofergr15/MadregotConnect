@@ -69,30 +69,30 @@ struct DataSourcesView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Label(name, systemImage: systemImage).font(.headline)
+                Label(name, systemImage: systemImage).font(Theme.font(17, .semibold))
                 if isPrimary {
                     Text("ראשי")
-                        .font(.caption2.bold())
+                        .font(Theme.font(11, .bold))
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(.tint.opacity(0.15), in: .capsule)
                 }
                 Spacer()
                 if let state {
                     Text(state.label)
-                        .font(.subheadline)
+                        .font(Theme.font(15, .regular))
                         .foregroundStyle(state.needsAttention ? .orange : (state.isConnected ? .green : .secondary))
                 }
             }
-            Text(detail).font(.footnote).foregroundStyle(.secondary)
+            Text(detail).font(Theme.font(13, .regular)).foregroundStyle(.secondary)
             if let lastSync {
                 Text("סנכרון אחרון: \(lastSync.formatted(.relative(presentation: .named)))")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(Theme.font(12, .regular)).foregroundStyle(.secondary)
             }
             Button(buttonTitle(state)) {}
-                .font(.subheadline)
+                .font(Theme.font(15, .regular))
                 .disabled(true)
             Text("החיבור מהאפליקציה יגיע בשלב הבא. בינתיים אפשר לחבר מהאתר.")
-                .font(.caption2).foregroundStyle(.secondary)
+                .font(Theme.font(11, .regular)).foregroundStyle(.secondary)
         }
         .padding(.vertical, 4)
     }

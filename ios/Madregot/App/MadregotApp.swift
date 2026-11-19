@@ -2,7 +2,7 @@ import SwiftUI
 
 @main
 struct MadregotApp: App {
-    @State private var session = SessionStore()
+    @State private var session = SessionStore.forLaunch()
     @State private var demo = DemoSettings()
 
     var body: some Scene {
@@ -19,3 +19,32 @@ struct MadregotApp: App {
         }
     }
 }
+
+extension SessionStore {
+    /// Debug only: `-simulateAuthError offline|server|config` makes every sign-in call fail that
+    /// way, so the real sign-in screen's error states can be reviewed without cutting the Mac's
+    /// network. Release builds always get the real client.
+    static func forLaunch() -> SessionStore {
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-simulateAuthError"), i + 1 < args.count {
+            let error: AuthError = switch args[i + 1] {
+            case "offline": .network
+            case "config": .notConfigured
+            default: .serverUnavailable
+            }
+            return SessionStore(client: FailingAuthClient(error: error), tokens: InMemoryTokenStore())
+        }
+        #endif
+        return SessionStore()
+    }
+}
+
+#if DEBUG
+private struct FailingAuthClient: AuthClient {
+    let error: AuthError
+    func sendCode(to email: String) async throws(AuthError) { throw error }
+    func verifyCode(_ code: String, email: String) async throws(AuthError) -> IssuedSession { throw error }
+    func refresh(refreshToken: String) async throws(AuthError) -> IssuedSession { throw error }
+}
+#endif

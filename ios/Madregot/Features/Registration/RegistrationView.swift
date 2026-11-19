@@ -38,7 +38,7 @@ struct RegistrationView: View {
                     .autocorrectionDisabled()
                     .accessibilityIdentifier("reg-name")
                 if let hint = nameHint {
-                    Text(hint).font(.footnote).foregroundStyle(.secondary)
+                    Text(hint).font(Theme.font(13, .regular)).foregroundStyle(.secondary)
                 }
             } header: {
                 Text("שם מלא")
@@ -55,7 +55,7 @@ struct RegistrationView: View {
                     .environment(\.layoutDirection, .leftToRight)
                     .accessibilityIdentifier("reg-email")
                 if showProblems && form.problems.contains(.emailInvalid) {
-                    Text("כתובת המייל לא נראית תקינה.").font(.footnote).foregroundStyle(.red)
+                    Text("כתובת המייל לא נראית תקינה.").font(Theme.font(13, .regular)).foregroundStyle(.red)
                 }
             }
 
@@ -65,7 +65,7 @@ struct RegistrationView: View {
                     .keyboardType(.phonePad)
                     .environment(\.layoutDirection, .leftToRight)
                 if showProblems && form.problems.contains(.phoneTooShort) {
-                    Text("מספר הטלפון קצר מדי.").font(.footnote).foregroundStyle(.red)
+                    Text("מספר הטלפון קצר מדי.").font(Theme.font(13, .regular)).foregroundStyle(.red)
                 }
             } header: {
                 Text("טלפון (לא חובה)")
@@ -95,7 +95,7 @@ struct RegistrationView: View {
                 .disabled(busy)
                 .accessibilityIdentifier("reg-submit")
                 if let errorText {
-                    Text(errorText).font(.footnote).foregroundStyle(.red)
+                    Text(errorText).font(Theme.font(13, .regular)).foregroundStyle(.red)
                 }
             } footer: {
                 Text("בחינם · בלי סיסמה · מאשרים בדרך כלל תוך יום")
@@ -117,7 +117,7 @@ struct RegistrationView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).foregroundStyle(.primary)
-                    if let subtitle { Text(subtitle).font(.footnote).foregroundStyle(.secondary) }
+                    if let subtitle { Text(subtitle).font(Theme.font(13, .regular)).foregroundStyle(.secondary) }
                 }
                 Spacer()
                 if form.groupId == id {

@@ -40,8 +40,8 @@ struct TodayContent: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(workout.dayLabel).font(.subheadline).foregroundStyle(.secondary)
-                        Text(workout.title).font(.system(size: 40, weight: .bold, design: .rounded))
+                        Text(workout.dayLabel).font(Theme.font(15, .regular)).foregroundStyle(.secondary)
+                        Text(workout.title).font(Theme.font(40, .bold))
                     }
 
                     HStack(spacing: 32) {
@@ -55,11 +55,11 @@ struct TodayContent: View {
                                 HStack(alignment: .firstTextBaseline, spacing: 14) {
                                     Circle().fill(Theme.accent).frame(width: 8, height: 8)
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(block.title).font(.headline)
-                                        Text(block.detail).font(.subheadline).foregroundStyle(.secondary)
+                                        Text(block.title).font(Theme.font(17, .semibold))
+                                        Text(block.detail).font(Theme.font(15, .regular)).foregroundStyle(.secondary)
                                     }
                                     Spacer()
-                                    Image(systemName: "chevron.left").font(.footnote.bold()).foregroundStyle(.tertiary)
+                                    Image(systemName: "chevron.left").font(Theme.font(13, .bold)).foregroundStyle(.tertiary)
                                 }
                                 .padding(.vertical, 10)
                                 .contentShape(.rect)
@@ -71,7 +71,7 @@ struct TodayContent: View {
 
                     if let note = workout.coachNote {
                         Label { Text(note) } icon: { Image(systemName: "quote.opening") }
-                            .font(.subheadline)
+                            .font(Theme.font(15, .regular))
                             .foregroundStyle(.secondary)
                     }
 
@@ -82,7 +82,7 @@ struct TodayContent: View {
             }
 
             Button { showWatchNote = true } label: {
-                Text("שליחה לשעון").font(.headline).frame(maxWidth: .infinity, minHeight: 56)
+                Text("שליחה לשעון").font(Theme.font(17, .semibold)).frame(maxWidth: .infinity, minHeight: 56)
             }
             .buttonStyle(.borderedProminent)
             .tint(Theme.accent)
@@ -98,18 +98,18 @@ struct TodayContent: View {
 
     private func metric(_ value: String, unit: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(value).font(.system(size: 52, weight: .semibold, design: .rounded)).monospacedDigit()
-            Text(unit).font(.footnote).foregroundStyle(.secondary)
+            Text(value).font(Theme.font(52, .semibold)).monospacedDigit()
+            Text(unit).font(Theme.font(13, .regular)).foregroundStyle(.secondary)
         }
     }
 
     private var weekProgress: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("השבוע").font(.subheadline.bold())
+                Text("השבוע").font(Theme.font(15, .bold))
                 Spacer()
                 Text("\(Int(workout.weekDoneKm)) מתוך \(Int(workout.weekTargetKm)) ק״מ")
-                    .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                    .font(Theme.font(15, .regular)).foregroundStyle(.secondary).monospacedDigit()
             }
             ProgressView(value: workout.weekDoneKm, total: workout.weekTargetKm).tint(Theme.accent)
         }
@@ -122,10 +122,10 @@ struct WorkoutBlockDetail: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text(block.title).font(.system(size: 34, weight: .bold, design: .rounded))
-                Text(block.detail).font(.title3).foregroundStyle(.secondary)
+                Text(block.title).font(Theme.font(34, .bold))
+                Text(block.detail).font(Theme.font(20, .regular)).foregroundStyle(.secondary)
                 if let note = block.note {
-                    Text(note).font(.body).card()
+                    Text(note).font(Theme.font(17, .regular)).card()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

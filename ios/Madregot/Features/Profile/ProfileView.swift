@@ -18,12 +18,16 @@ struct ProfileView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     VStack(spacing: 10) {
-                        Image(systemName: "person.crop.circle.fill")
-                            .font(.system(size: 76))
-                            .foregroundStyle(Theme.accent)
+                        // The PWA's avatar: initials on a brand-blue circle.
+                        Text(initials(displayName))
+                            .font(Theme.font(30, .black))
+                            .foregroundStyle(.white)
+                            .frame(width: 88, height: 88)
+                            .background(Theme.brand, in: .circle)
+                            .overlay(Circle().stroke(.white, lineWidth: 4))
                         Text(displayName).font(Theme.font(24, .black)).foregroundStyle(Theme.ink900)
                         if session.isDemo, case .loaded(let s) = summary {
-                            Text("\(s.groupLabel) · מצב הדגמה").font(.subheadline).foregroundStyle(.secondary)
+                            Text("\(s.groupLabel) · מצב הדגמה").font(Theme.font(15, .regular)).foregroundStyle(.secondary)
                         }
                     }
                     .padding(.top, 12)
@@ -31,11 +35,15 @@ struct ProfileView: View {
                     Group {
                         switch summary {
                         case .loaded(let s):
-                            HStack(spacing: 12) {
+                            // The PWA's stat strip: one white card, columns split by hairlines.
+                            HStack(spacing: 0) {
                                 tile("\(s.weekKm)", "ק״מ השבוע")
-                                tile("\(s.weekRuns)", "ריצות")
-                                tile("\(s.streakDays)", "ימים ברצף")
+                                Divider().frame(height: 36)
+                                tile("\(s.weekRuns)", "ריצות השבוע")
+                                Divider().frame(height: 36)
+                                tile("\(s.streakDays)", "שבועות ברצף")
                             }
+                            .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
                         case .loading:
                             ProgressView().frame(height: 96).accessibilityIdentifier("state-loading")
                         case .empty:
@@ -50,7 +58,7 @@ struct ProfileView: View {
                     if session.isDemo {
                         @Bindable var demo = demo
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("מצב תצוגה (הדגמה)").font(.subheadline.bold())
+                            Text("מצב תצוגה (הדגמה)").font(Theme.font(15, .bold))
                             Picker("מצב תצוגה", selection: $demo.scenario) {
                                 ForEach(DemoScenario.allCases) { Text($0.label).tag($0) }
                             }
@@ -80,7 +88,7 @@ struct ProfileView: View {
                     .buttonStyle(.plain)
 
                     Text("גרסה \(Bundle.main.appVersion) · \(AppConfig.current.apiBaseURL.host() ?? "-")")
-                        .font(.caption2).foregroundStyle(.tertiary)
+                        .font(Theme.font(11, .regular)).foregroundStyle(.tertiary)
                 }
                 .padding(Theme.gutter)
             }
@@ -107,6 +115,12 @@ struct ProfileView: View {
         }
     }
 
+    private func initials(_ name: String) -> String {
+        let parts = name.split(separator: " ").prefix(2)
+        let letters = parts.compactMap(\.first).map(String.init).joined()
+        return letters.isEmpty ? "?" : letters
+    }
+
     private func tile(_ value: String, _ label: String) -> some View {
         VStack(spacing: 4) {
             Text(value).font(Theme.font(28, .black)).monospacedDigit().foregroundStyle(Theme.ink900)
@@ -114,7 +128,6 @@ struct ProfileView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 18)
-        .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
     }
 
     private func row(_ title: String, _ icon: String) -> some View {
@@ -122,7 +135,7 @@ struct ProfileView: View {
             Image(systemName: icon).foregroundStyle(Theme.accent).frame(width: 28)
             Text(title).foregroundStyle(.primary)
             Spacer()
-            Image(systemName: "chevron.left").font(.footnote.bold()).foregroundStyle(.tertiary)
+            Image(systemName: "chevron.left").font(Theme.font(13, .bold)).foregroundStyle(.tertiary)
         }
         .padding(18)
     }
