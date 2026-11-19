@@ -84,3 +84,46 @@ struct BrandScreen: ViewModifier {
 extension View {
     func brandScreen(_ title: String) -> some View { modifier(BrandScreen(title: title)) }
 }
+
+/// Pushed screens and forms (settings, registration): the page background behind
+/// white grouped rows, and the title in Heebo instead of the system bar font.
+struct BrandList: ViewModifier {
+    let title: String
+    func body(content: Content) -> some View {
+        content
+            .scrollContentBackground(.hidden)
+            .background(Theme.page)
+            .tint(Theme.brand)
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(title)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(title).font(Theme.font(17, .black)).foregroundStyle(Theme.ink900)
+                }
+            }
+    }
+}
+
+/// Section header in the PWA's caption style (small, bold, muted).
+struct BrandSectionHeader: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+    var body: some View {
+        Text(text).font(Theme.font(13, .bold)).foregroundStyle(Theme.ink500).textCase(nil)
+    }
+}
+
+/// A small status pill: brand for "primary", green connected, amber attention, grey off.
+struct StatusPill: View {
+    let text: String
+    let color: Color
+    var body: some View {
+        Text(text).font(Theme.font(12, .bold)).foregroundStyle(color)
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .background(color.opacity(0.12), in: .capsule)
+    }
+}
+
+extension View {
+    func brandList(_ title: String) -> some View { modifier(BrandList(title: title)) }
+}

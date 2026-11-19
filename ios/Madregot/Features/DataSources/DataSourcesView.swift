@@ -43,22 +43,25 @@ struct DataSourcesView: View {
                     isPrimary: false
                 )
             } header: {
-                Text("עם מה אתם רצים?")
+                BrandSectionHeader("עם מה אתם רצים?")
             } footer: {
                 if let status, !status.hasAnySource {
                     Text("עוד לא חיברתם מקור. בלי מקור, הריצות לא יגיעו לפיד ולמאמן.")
+                        .font(Theme.font(13, .regular)).foregroundStyle(Theme.ink500)
                 }
             }
 
             if let errorText {
                 Section {
-                    Text(errorText).foregroundStyle(.red)
+                    Text(errorText).font(Theme.font(15, .bold)).foregroundStyle(Theme.danger)
                     Button("נסו שוב") { Task { await load() } }
+                        .buttonStyle(BrandButtonStyle())
+                        .listRowBackground(Color.clear)
                 }
             }
         }
-        .navigationTitle("שעון ונתונים")
-        .overlay { if loading && status == nil { ProgressView() } }
+        .brandList("שעון ונתונים")
+        .overlay { if loading && status == nil { ProgressView().controlSize(.large).tint(Theme.brand) } }
         .refreshable { await load() }
         .task { await load() }
     }
@@ -69,32 +72,32 @@ struct DataSourcesView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Label(name, systemImage: systemImage).font(Theme.font(17, .semibold))
-                if isPrimary {
-                    Text("ראשי")
-                        .font(Theme.font(11, .bold))
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(.tint.opacity(0.15), in: .capsule)
-                }
+                Image(systemName: systemImage)
+                    .font(.system(size: 17, weight: .semibold)).foregroundStyle(Theme.brand)
+                    .frame(width: 36, height: 36)
+                    .background(Theme.brand.opacity(0.1), in: .circle)
+                Text(name).font(Theme.font(17, .black)).foregroundStyle(Theme.ink900)
+                if isPrimary { StatusPill(text: "ראשי", color: Theme.brand) }
                 Spacer()
                 if let state {
-                    Text(state.label)
-                        .font(Theme.font(15, .regular))
-                        .foregroundStyle(state.needsAttention ? .orange : (state.isConnected ? .green : .secondary))
+                    StatusPill(text: state.label,
+                               color: state.needsAttention ? Color(hex: 0xD97706) : (state.isConnected ? Color(hex: 0x16A34A) : Theme.ink500))
                 }
             }
-            Text(detail).font(Theme.font(13, .regular)).foregroundStyle(.secondary)
+            Text(detail).font(Theme.font(14, .regular)).foregroundStyle(Theme.ink700)
             if let lastSync {
                 Text("סנכרון אחרון: \(lastSync.formatted(.relative(presentation: .named)))")
-                    .font(Theme.font(12, .regular)).foregroundStyle(.secondary)
+                    .font(Theme.font(12, .regular)).foregroundStyle(Theme.ink500)
             }
-            Button(buttonTitle(state)) {}
-                .font(Theme.font(15, .regular))
-                .disabled(true)
+            Text(buttonTitle(state))
+                .font(Theme.font(14, .bold)).foregroundStyle(Theme.ink500)
+                .frame(maxWidth: .infinity, minHeight: 40)
+                .overlay(Capsule().stroke(Theme.ink300, lineWidth: 1))
+                .accessibilityAddTraits(.isButton)
             Text("החיבור מהאפליקציה יגיע בשלב הבא. בינתיים אפשר לחבר מהאתר.")
-                .font(Theme.font(11, .regular)).foregroundStyle(.secondary)
+                .font(Theme.font(11, .regular)).foregroundStyle(Theme.ink500)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
     }
 
     private func buttonTitle(_ state: ConnectionState?) -> String {

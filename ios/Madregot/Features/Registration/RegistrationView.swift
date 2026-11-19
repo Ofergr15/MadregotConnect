@@ -25,8 +25,7 @@ struct RegistrationView: View {
                 formView
             }
         }
-        .navigationTitle("הצטרפות למועדון")
-        .navigationBarTitleDisplayMode(.inline)
+        .brandList("הצטרפות למועדון")
         .task { groups = await client.groups() }
     }
 
@@ -38,15 +37,16 @@ struct RegistrationView: View {
                     .autocorrectionDisabled()
                     .accessibilityIdentifier("reg-name")
                 if let hint = nameHint {
-                    Text(hint).font(Theme.font(13, .regular)).foregroundStyle(.secondary)
+                    Text(hint).font(Theme.font(13, .regular)).foregroundStyle(Theme.ink500)
                 }
             } header: {
-                Text("שם מלא")
+                BrandSectionHeader("שם מלא")
             } footer: {
                 Text("כך השם יופיע בשעון וב-Strava, ולפיו המאמן מוצא אתכם.")
+                    .font(Theme.font(13, .regular)).foregroundStyle(Theme.ink500)
             }
 
-            Section("מייל") {
+            Section {
                 TextField("המייל שלכם", text: $form.email)
                     .textContentType(.emailAddress)
                     .keyboardType(.emailAddress)
@@ -55,8 +55,10 @@ struct RegistrationView: View {
                     .environment(\.layoutDirection, .leftToRight)
                     .accessibilityIdentifier("reg-email")
                 if showProblems && form.problems.contains(.emailInvalid) {
-                    Text("כתובת המייל לא נראית תקינה.").font(Theme.font(13, .regular)).foregroundStyle(.red)
+                    Text("כתובת המייל לא נראית תקינה.").font(Theme.font(13, .regular)).foregroundStyle(Theme.danger)
                 }
+            } header: {
+                BrandSectionHeader("מייל")
             }
 
             Section {
@@ -68,9 +70,10 @@ struct RegistrationView: View {
                     Text("מספר הטלפון קצר מדי.").font(Theme.font(13, .regular)).foregroundStyle(.red)
                 }
             } header: {
-                Text("טלפון (לא חובה)")
+                BrandSectionHeader("טלפון (לא חובה)")
             } footer: {
                 Text("למקרה שנצטרך לחזור אליכם.")
+                    .font(Theme.font(13, .regular)).foregroundStyle(Theme.ink500)
             }
 
             Section {
@@ -79,26 +82,28 @@ struct RegistrationView: View {
                 }
                 groupRow(id: nil, title: "לא בטוחים?", subtitle: "המאמן יחליט")
             } header: {
-                Text("קבוצת קצב מועדפת")
+                BrandSectionHeader("קבוצת קצב מועדפת")
             }
 
             Section {
                 Button {
                     submit()
                 } label: {
-                    HStack {
-                        Spacer()
-                        if busy { ProgressView() } else { Text("שליחת הבקשה").bold() }
-                        Spacer()
-                    }
+                    if busy { ProgressView().tint(.white) } else { Text("שליחת הבקשה") }
                 }
+                .buttonStyle(BrandButtonStyle())
                 .disabled(busy)
                 .accessibilityIdentifier("reg-submit")
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
                 if let errorText {
-                    Text(errorText).font(Theme.font(13, .regular)).foregroundStyle(.red)
+                    Text(errorText).font(Theme.font(13, .bold)).foregroundStyle(Theme.danger)
+                        .listRowBackground(Color.clear)
                 }
             } footer: {
                 Text("בחינם · בלי סיסמה · מאשרים בדרך כלל תוך יום")
+                    .font(Theme.font(13, .regular)).foregroundStyle(Theme.ink500)
+                    .frame(maxWidth: .infinity)
             }
         }
     }
@@ -116,13 +121,12 @@ struct RegistrationView: View {
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title).foregroundStyle(.primary)
-                    if let subtitle { Text(subtitle).font(Theme.font(13, .regular)).foregroundStyle(.secondary) }
+                    Text(title).font(Theme.font(16, .bold)).foregroundStyle(Theme.ink900)
+                    if let subtitle { Text(subtitle).font(Theme.font(13, .regular)).foregroundStyle(Theme.ink500) }
                 }
                 Spacer()
-                if form.groupId == id {
-                    Image(systemName: "checkmark").foregroundStyle(.tint)
-                }
+                Image(systemName: form.groupId == id ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 22)).foregroundStyle(form.groupId == id ? Theme.brand : Theme.ink300)
             }
         }
     }
@@ -149,16 +153,12 @@ struct RegistrationResultView: View {
     let onSignIn: () -> Void
 
     var body: some View {
-        ContentUnavailableView {
-            Label(title, systemImage: outcome == .alreadyMember ? "person.crop.circle.badge.checkmark" : "hourglass")
-        } description: {
-            Text(message)
-        } actions: {
-            if outcome == .alreadyMember {
-                Button("להתחברות", action: onSignIn)
-                    .buttonStyle(.borderedProminent)
-            }
-        }
+        BrandEmptyState(
+            icon: outcome == .alreadyMember ? "person.crop.circle.badge.checkmark" : "hourglass",
+            title: title, message: message,
+            actionTitle: outcome == .alreadyMember ? "להתחברות" : nil,
+            action: outcome == .alreadyMember ? onSignIn : nil)
+            .background(Theme.page)
     }
 
     private var title: String {
