@@ -8,9 +8,11 @@ struct PaceGroup: Identifiable, Equatable, Sendable, Decodable {
     let index: Int?
     let marathonGoal: String?
 
-    /// Hebrew label, matching the web form ("קבוצה 1").
+    /// Hebrew label, matching the web form ("קבוצה 1"). The server answers -1 for a name
+    /// resolveGroup() doesn't recognise, so only a real band (0…) becomes a number;
+    /// anything else shows the group's own name rather than "קבוצה 0".
     var title: String {
-        if let index { return "קבוצה \(index + 1)" }
+        if let index, index >= 0 { return "קבוצה \(index + 1)" }
         return name
     }
 

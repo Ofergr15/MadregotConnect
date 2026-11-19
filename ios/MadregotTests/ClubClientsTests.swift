@@ -78,3 +78,15 @@ struct ClubClientsTests {
         #expect(w.weekTargetKm == 60)
     }
 }
+
+struct PaceGroupTitleTests {
+    @Test func knownBandIsNumbered() {
+        #expect(PaceGroup(id: "a", name: "Group 2", index: 1, marathonGoal: nil).title == "קבוצה 2")
+    }
+
+    @Test func unrecognisedNameKeepsItsOwnName() {
+        // The server's -1 used to render as "קבוצה 0".
+        #expect(PaceGroup(id: "a", name: "קבוצה 3", index: -1, marathonGoal: nil).title == "קבוצה 3")
+        #expect(PaceGroup(id: "b", name: "Trail", index: nil, marathonGoal: nil).title == "Trail")
+    }
+}
