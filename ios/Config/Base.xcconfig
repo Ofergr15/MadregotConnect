@@ -9,6 +9,12 @@ MADREGOT_API_BASE_URL = http:/$()/localhost:3000
 SUPABASE_URL =
 SUPABASE_ANON_KEY =
 
+// Cleartext http to a local/LAN dev server (ATS NSAllowsLocalNetworking) is allowed in
+// DEBUG builds only: Info.plist is preprocessed and the key sits in #if MC_LOCAL_NETWORKING.
+// Release/TestFlight builds get no ATS exception.
+INFOPLIST_PREPROCESS = YES
+INFOPLIST_PREPROCESSOR_DEFINITIONS[config=Debug] = MC_LOCAL_NETWORKING=1
+
 #include? "Secrets.xcconfig"
 
 // Demo mode (made-up data) stays available in TestFlight builds until the app has a

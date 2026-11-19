@@ -6,11 +6,13 @@
 	<false/>
 	<key>MadregotAPIBaseURL</key>
 	<string>$(MADREGOT_API_BASE_URL)</string>
+#if MC_LOCAL_NETWORKING
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+#endif
 	<key>SupabaseAnonKey</key>
 	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>SupabaseURL</key>
