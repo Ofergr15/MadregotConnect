@@ -7,7 +7,7 @@ struct RootView: View {
     var body: some View {
         switch session.state {
         case .restoring:
-            ProgressView()
+            BrandSplash()
         case .signedOut:
             SignInView()
         case .signedIn:
@@ -41,4 +41,19 @@ struct MainTabView: View {
         .environment(SessionStore(previewState: .signedOut))
         .environment(DemoSettings())
         .environment(\.layoutDirection, .rightToLeft)
+}
+
+/// Same look as the launch screen (brand blue, the club's white logo, whole) so the hand-off
+/// from the system splash to the app is seamless while the session restores.
+struct BrandSplash: View {
+    var body: some View {
+        ZStack {
+            Theme.brand.ignoresSafeArea()
+            VStack(spacing: 18) {
+                Image("ClubLogoWhite").resizable().scaledToFit().frame(width: 150)
+                    .accessibilityLabel("Madregot After 2KM")
+                ProgressView().tint(.white)
+            }
+        }
+    }
 }
