@@ -31,9 +31,33 @@ struct ClubClientsTests {
         #expect(HTTPFeedClient.clock(6570) == "1:49:30")
     }
 
-    @Test func todayWithoutAPlanIsEmpty() {
+    @Test func noPlanIsNotARestDay() {
         let state = HTTPTodayClient.parse(["hasPlan": false, "sessions": []], now: .now)
-        guard case .empty = state else { Issue.record("expected empty"); return }
+        guard case .loaded(.noPlan) = state else { Issue.record("expected noPlan, got \(state)"); return }
+    }
+
+    @Test func aPlanWithNothingTodayIsARestDay() throws {
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-11-19T10:00:00Z"))
+        let json: [String: Any] = ["hasPlan": true, "currentWeekStart": "2026-11-15",
+                                   "sessions": [["dayOfWeek": 3, "name": "קל", "kmMin": 8, "kmMax": 8]]]
+        guard case .loaded(.restDay) = HTTPTodayClient.parse(json, now: now) else { Issue.record("expected restDay"); return }
+    }
+
+    @Test func feedRunCarriesItemIdAndLikedState() throws {
+        let run = try #require(HTTPFeedClient.run([
+            "id": "item-1", "type": "activity", "likeCount": 3, "likedByMe": true,
+            "author": ["name": "א ב"], "activity": ["distance": 5000, "duration": 1500],
+        ]))
+        #expect(run.itemId == "item-1")
+        #expect(run.likedByMe)
+        #expect(run.kudos == 3)
+    }
+
+    @Test func likeAnswerParses() {
+        let answer = HTTPLikeClient.parse(["liked": true, "likeCount": 4])
+        #expect(answer?.liked == true)
+        #expect(answer?.count == 4)
+        #expect(HTTPLikeClient.parse(["error": "x"]) == nil)
     }
 
     @Test func todayPicksTheSessionsDatedToday() throws {
@@ -47,7 +71,7 @@ struct ClubClientsTests {
                 ["dayOfWeek": 4, "name": "ערב", "kmMin": 5, "kmMax": 5, "optional": true],
             ],
         ]
-        guard case .loaded(let w) = HTTPTodayClient.parse(json, now: now) else { Issue.record("not loaded"); return }
+        guard case .loaded(.workout(let w)) = HTTPTodayClient.parse(json, now: now) else { Issue.record("not a workout"); return }
         #expect(w.title == "טמפו")
         #expect(w.distanceKm == 12)
         #expect(w.blocks.count == 1)

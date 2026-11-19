@@ -4,14 +4,25 @@ import SwiftUI
 struct TodayView: View {
     @Environment(SessionStore.self) private var session
     @Environment(DemoSettings.self) private var demo
-    @State private var state: LoadState<TodayWorkout> = .loading
+    @State private var state: LoadState<TodayPlanDay> = .loading
 
     var body: some View {
         NavigationStack {
             Group {
-                StateView(state: state, emptyTitle: "אין אימון היום", emptyIcon: "moon.zzz",
-                          emptyMessage: "אין אימון מתוכנן להיום בתוכנית השבועית. מנוחה היא חלק מהאימון.",
-                          retry: load) { TodayContent(workout: $0, isDemo: session.isDemo) }
+                StateView(state: state, emptyTitle: "יום מנוחה", emptyIcon: "moon.zzz",
+                          emptyMessage: "אין אימון מתוכנן להיום.",
+                          retry: load) { day in
+                    switch day {
+                    case .workout(let workout):
+                        TodayContent(workout: workout, isDemo: session.isDemo)
+                    case .restDay:
+                        BrandEmptyState(icon: "moon.zzz", title: "יום מנוחה",
+                                        message: "לפי התוכנית השבועית, היום אין אימון. מנוחה היא חלק מהאימון.")
+                    case .noPlan:
+                        BrandEmptyState(icon: "calendar.badge.clock", title: "עוד אין תוכנית לשבוע",
+                                        message: "המאמן עוד לא פרסם תוכנית לשבוע הזה. כשהיא תעלה, האימון של היום יופיע כאן.")
+                    }
+                }
             }
             .brandScreen("היום")
             .navigationDestination(for: WorkoutBlock.self) { WorkoutBlockDetail(block: $0) }
@@ -22,7 +33,15 @@ struct TodayView: View {
     /// Demo: made-up content. Signed in: today's sessions from the club's weekly plan.
     private func load() async {
         state = .loading
-        if session.isDemo { state = await demo.content.today(); return }
+        if session.isDemo {
+            switch await demo.content.today() {
+            case .loaded(let w): state = .loaded(.workout(w))
+            case .empty: state = .loaded(.restDay)
+            case .failed(let m): state = .failed(m)
+            case .loading: state = .loading
+            }
+            return
+        }
         do {
             let token = try await session.validAccessToken()
             state = await HTTPTodayClient(config: .current).today(accessToken: token)

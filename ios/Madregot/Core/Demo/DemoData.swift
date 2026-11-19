@@ -32,6 +32,17 @@ struct FeedRun: Identifiable, Hashable, Sendable {
     let durationLabel: String
     let kudos: Int
     let splits: [String]
+    /// The server's feed item id (nil for demo runs) — what a clap is sent against.
+    var itemId: String? = nil
+    var likedByMe = false
+}
+
+/// What the plan says about today. "No plan" is not "rest": an athlete with no weekly
+/// plan must not be told to rest.
+enum TodayPlanDay: Sendable {
+    case workout(TodayWorkout)
+    case restDay
+    case noPlan
 }
 
 struct ProfileSummary: Equatable, Sendable {

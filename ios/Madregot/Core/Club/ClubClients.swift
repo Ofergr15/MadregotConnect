@@ -37,7 +37,9 @@ struct HTTPFeedClient: Sendable {
             pace: pace > 0 ? clock(pace) : "–",
             durationLabel: seconds > 0 ? clock(seconds) : "–",
             kudos: Int(jsonNumber(item["likeCount"]) ?? 0),
-            splits: []
+            splits: [],
+            itemId: id,
+            likedByMe: item["likedByMe"] as? Bool ?? false
         )
     }
 
@@ -85,6 +87,30 @@ struct HTTPFeedClient: Sendable {
     }
 }
 
+/// A clap: `POST /api/feed/like {itemId}` toggles the viewer's like (requireAthlete)
+/// and answers the server's truth, `{liked, likeCount}`.
+struct HTTPLikeClient: Sendable {
+    let config: AppConfig
+    var session: URLSession = .shared
+
+    func toggle(itemId: String, accessToken: String) async -> (liked: Bool, count: Int)? {
+        var request = URLRequest(url: config.apiBaseURL.appending(path: "api/feed/like"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["itemId": itemId])
+        guard let (data, response) = try? await session.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        return Self.parse(json)
+    }
+
+    static func parse(_ json: [String: Any]) -> (liked: Bool, count: Int)? {
+        guard let liked = json["liked"] as? Bool, let count = jsonNumber(json["likeCount"]) else { return nil }
+        return (liked, Int(count))
+    }
+}
+
 /// Today's workout, from the real backend: `GET /api/dashboard/weekly` (requireMember).
 /// A plan day carries only dayOfWeek, and the week served is not always the one the
 /// device stands in (it rolls forward Saturday evening), so the day is turned into a
@@ -93,29 +119,31 @@ struct HTTPTodayClient: Sendable {
     let config: AppConfig
     var session: URLSession = .shared
 
-    func today(accessToken: String, now: Date = .now) async -> LoadState<TodayWorkout> {
+    func today(accessToken: String, now: Date = .now) async -> LoadState<TodayPlanDay> {
         switch await AuthorizedGet(config: config, session: session).json("api/dashboard/weekly", token: accessToken) {
         case .failure(let reason): return .failed(reason.text)
         case .success(let json): return Self.parse(json, now: now)
         }
     }
 
-    static func parse(_ json: [String: Any], now: Date) -> LoadState<TodayWorkout> {
-        guard json["hasPlan"] as? Bool == true,
-              let weekStart = json["currentWeekStart"] as? String,
-              let sessions = json["sessions"] as? [[String: Any]] else { return .empty }
+    /// `hasPlan` is the server's own answer: false = no plan for the week (never "rest"),
+    /// true with nothing dated today = a real rest day inside the plan.
+    static func parse(_ json: [String: Any], now: Date) -> LoadState<TodayPlanDay> {
+        guard json["hasPlan"] as? Bool == true else { return .loaded(.noPlan) }
+        guard let weekStart = json["currentWeekStart"] as? String,
+              let sessions = json["sessions"] as? [[String: Any]] else { return .failed("התשובה מהשרת לא תקינה.") }
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: "Asia/Jerusalem")!
         let f = DateFormatter()
         f.calendar = cal; f.timeZone = cal.timeZone; f.dateFormat = "yyyy-MM-dd"
-        guard let start = f.date(from: weekStart) else { return .empty }
+        guard let start = f.date(from: weekStart) else { return .failed("התשובה מהשרת לא תקינה.") }
         let todayKey = f.string(from: now)
         let todays = sessions.filter { s in
             guard let dow = jsonNumber(s["dayOfWeek"]),
                   let day = cal.date(byAdding: .day, value: Int(dow), to: start) else { return false }
             return f.string(from: day) == todayKey && (s["optional"] as? Bool) != true
         }
-        guard let first = todays.first else { return .empty }
+        guard let first = todays.first else { return .loaded(.restDay) }
         let km = todays.reduce(0.0) { $0 + (jsonNumber($1["kmMax"]) ?? 0) }
         let blocks = todays.enumerated().map { i, s in
             let lo = jsonNumber(s["kmMin"]) ?? 0, hi = jsonNumber(s["kmMax"]) ?? 0
@@ -126,7 +154,7 @@ struct HTTPTodayClient: Sendable {
             let d = DateFormatter(); d.locale = Locale(identifier: "he_IL"); d.timeZone = cal.timeZone
             d.dateFormat = "EEEE, d בMMMM"; return d.string(from: now)
         }()
-        return .loaded(TodayWorkout(
+        return .loaded(.workout(TodayWorkout(
             dayLabel: dayLabel,
             title: first["name"] as? String ?? "האימון של היום",
             distanceKm: km,
@@ -135,6 +163,6 @@ struct HTTPTodayClient: Sendable {
             coachNote: nil,
             weekDoneKm: 0,
             weekTargetKm: jsonNumber(json["weekTotalMax"]) ?? 0
-        ))
+        )))
     }
 }

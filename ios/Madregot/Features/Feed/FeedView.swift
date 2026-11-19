@@ -15,12 +15,15 @@ struct FeedView: View {
                         ScrollView {
                             LazyVStack(spacing: 14) {
                                 ForEach(runs) { run in
-                                    NavigationLink(value: run) { FeedCard(run: run) }
+                                    NavigationLink(value: run) { FeedCard(run: run, onClap: clap) }
                                         .buttonStyle(.plain)
                                 }
                             }
                             .padding(Theme.gutter)
                         }
+                        // The floating tab bar sits over the content: keep the last card's
+                        // stats and clap fully above it when scrolled to the end.
+                        .contentMargins(.bottom, 96, for: .scrollContent)
                         .refreshable { await load() }
                     }
             }
@@ -28,6 +31,13 @@ struct FeedView: View {
             .navigationDestination(for: FeedRun.self) { RunDetailView(run: $0) }
         }
         .task(id: demo.scenario) { await load() }
+    }
+
+    /// Sends a clap and returns the server's answer; nil = keep what was shown.
+    private func clap(_ run: FeedRun) async -> (liked: Bool, count: Int)? {
+        guard !session.isDemo, let itemId = run.itemId else { return nil }
+        guard let token = try? await session.validAccessToken() else { return nil }
+        return await HTTPLikeClient(config: .current).toggle(itemId: itemId, accessToken: token)
     }
 
     /// Demo: made-up runs. Signed in: the club feed's runs from the backend.
@@ -46,7 +56,17 @@ struct FeedView: View {
 
 struct FeedCard: View {
     let run: FeedRun
-    @State private var liked = false
+    var onClap: (FeedRun) async -> (liked: Bool, count: Int)? = { _ in nil }
+    @State private var liked: Bool
+    @State private var count: Int
+    @State private var sending = false
+
+    init(run: FeedRun, onClap: @escaping (FeedRun) async -> (liked: Bool, count: Int)? = { _ in nil }) {
+        self.run = run
+        self.onClap = onClap
+        _liked = State(initialValue: run.likedByMe)
+        _count = State(initialValue: run.kudos)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -57,9 +77,18 @@ struct FeedCard: View {
                 RunStat(value: run.pace, unit: "לק״מ")
                 Spacer()
                 Button {
-                    liked.toggle()
+                    guard !sending else { return }
+                    // Optimistic, then the server's answer wins; a failure puts it back.
+                    let before = (liked, count)
+                    liked.toggle(); count += liked ? 1 : -1
+                    sending = true
+                    Task {
+                        if let answer = await onClap(run) { liked = answer.liked; count = answer.count }
+                        else if run.itemId != nil { (liked, count) = before }
+                        sending = false
+                    }
                 } label: {
-                    Label("\(run.kudos + (liked ? 1 : 0))", systemImage: liked ? "hands.clap.fill" : "hands.clap")
+                    Label("\(count)", systemImage: liked ? "hands.clap.fill" : "hands.clap")
                         .font(Theme.font(15, .medium))
                         .foregroundStyle(liked ? Theme.brand : Theme.ink500)
                 }

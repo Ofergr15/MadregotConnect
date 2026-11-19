@@ -77,7 +77,9 @@ struct DataSourcesView: View {
                     .frame(width: 36, height: 36)
                     .background(Theme.brand.opacity(0.1), in: .circle)
                 Text(name).font(Theme.font(17, .black)).foregroundStyle(Theme.ink900)
-                if isPrimary { StatusPill(text: "ראשי", color: Theme.brand) }
+                // "Primary" only for a source that is actually connected: dev data can name a
+                // primary source whose connection is gone, and the UI must not claim both.
+                if isPrimary && state?.isConnected == true { StatusPill(text: "ראשי", color: Theme.brand) }
                 Spacer()
                 if let state {
                     StatusPill(text: state.label,
