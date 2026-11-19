@@ -15,6 +15,20 @@ enum U21Track: String, CaseIterable, Identifiable, Sendable {
         case .pro: "ליווי אישי צמוד"
         }
     }
+    /// Verbatim from U21_TRACKS (intake.ts). Deliberately no price anywhere: the draft
+    /// prices have no approved source, so the native app never shows a number.
+    var benefits: [String] {
+        switch self {
+        case .basic: ["תוכנית ריצה שבועית מותאמת אישית", "תרגילי כוח ומוביליטי בסיסיים", "התוכנית עוברת בדיקה של המאמן לפני שליחה", "הצטרפות לקהילת מדרגות"]
+        case .advanced: ["כל מה שב־BASIC", "תוכנית כוח ומוביליטי מלאה", "עדכון התוכנית לפי משוב שבועי", "מעקב התקדמות לקראת יעד (גיבוש / מבדק / תחרות)", "הצטרפות לקהילת מדרגות"]
+        case .pro: ["כל מה שב־ADVANCED", "ליווי אישי צמוד של המאמן", "שיחת היכרות ושיחות מעקב", "התאמות שוטפות לאורך השבוע", "הצטרפות לקהילת מדרגות"]
+        }
+    }
+    /// parseU21TrackParam (entry.ts): exact ids only, anything else is no preselection.
+    init?(param: String?) {
+        guard let param, let t = U21Track(rawValue: param) else { return nil }
+        self = t
+    }
 }
 
 struct U21Field: Identifiable, Sendable {
@@ -41,6 +55,14 @@ enum U21Answer: Equatable, Sendable {
 enum U21Intake {
     static let draftNote = "טיוטה - ממתין לאישור המאמן והיבטים משפטיים"
     static let testNote = "גרסת בדיקה: יש להזין פרטים בדויים בלבד. אין להזין פרטים אישיים או רפואיים אמיתיים."
+    /// Verbatim from the web track picker.
+    static let noPaymentNote = "בחירת מסלול אינה כרוכה בתשלום בשלב זה."
+    /// Owner-fixed wording (Nov 19) for the top of the demo confirmation: an operational
+    /// truth label, not marketing copy. Nothing in this flow is sent or stored.
+    static let demoNotice = "מסך זה הוא הדגמה בלבד - הפרטים לא נשלחו ולא נשמרו."
+    static let redFlagKeys = ["chestPain": "chest_pain", "fainting": "fainting", "bonePain": "bone_pain", "acuteInjury": "acute_injury"]
+    static let minAge = 16
+    static let maxAge = 21
     static let dateHint = "יש לבחור תאריך באמצעות סמל לוח השנה. סדר היום והחודש בתצוגה נקבע לפי הגדרות המכשיר או הדפדפן."
     static let frameworks = ["מכינה קדם־צבאית", "שנת שירות", "תיכון", "אחר"]
     static let weekDays = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"]
@@ -97,27 +119,73 @@ enum U21Intake {
         return true
     }
 
-    /// Required-field and age checks for one section, mirroring validateU21Intake().
+    /// One section's checks, mirroring validateU21Intake() — same messages, same order of
+    /// precedence (a missing required value is reported, other checks only on a value).
     static func errors(section: String, answers: [String: U21Answer], now: Date = .now) -> [String: String] {
         var out: [String: String] = [:]
         for f in fields where f.section == section && visible(f, answers: answers, now: now) {
             let a = answers[f.key]
-            if f.required {
-                switch (f.kind, a) {
-                case (.checkbox, .flag(true)?), (.yesno, .flag?): break
-                case (.checkboxes, .choices(let s)?) where !s.isEmpty: break
-                case (.radio, .choice?), (.date, .date?): break
-                case (_, .text(let t)?) where !t.trimmingCharacters(in: .whitespaces).isEmpty: break
-                default: out[f.key] = "שדה חובה"
-                }
+            if f.required && isEmpty(f, a) {
+                out[f.key] = f.kind == .checkbox ? "נדרש אישור הורה / אפוטרופוס" : "שדה חובה"
+                continue
             }
-            if f.key == "email", case .text(let t)? = a, !t.isEmpty, !t.contains("@") { out[f.key] = "כתובת לא תקינה" }
+            if case .text(let raw)? = a {
+                let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                if t.isEmpty { continue }
+                if t.count > 2000 { out[f.key] = "ארוך מדי" }
+                if f.kind == .email, !matches(t, emailPattern) { out[f.key] = "אימייל לא תקין" }
+                if f.kind == .tel, !matches(t.replacingOccurrences(of: "-", with: "").replacingOccurrences(of: " ", with: ""), phonePattern) {
+                    out[f.key] = "מספר טלפון לא תקין"
+                }
+                if f.kind == .number, !matches(t, numberPattern) || (Double(t) ?? 0) > 300 { out[f.key] = "מספר לא תקין" }
+            }
             if f.key == "birthDate", case .date(let b)? = a {
-                let age = age(b, now: now)
-                if age < 16 || age > 21 { out[f.key] = "התוכנית מיועדת לגילאי 16–21" }
+                let years = age(b, now: now)
+                if years < minAge || years > maxAge { out[f.key] = "השירות מיועד לגילאי \(minAge)–\(maxAge)" }
             }
         }
         return out
+    }
+
+    /// All sections at once — the review step re-checks everything before the demo "send".
+    static func allErrors(answers: [String: U21Answer], now: Date = .now) -> [String: String] {
+        sections.reduce(into: [:]) { acc, s in acc.merge(errors(section: s, answers: answers, now: now)) { a, _ in a } }
+    }
+
+    /// The first section that has an error, so the review can send the user straight to it.
+    static func firstSectionWithErrors(answers: [String: U21Answer], now: Date = .now) -> String? {
+        sections.first { !errors(section: $0, answers: answers, now: now).isEmpty }
+    }
+
+    /// Only visible fields leave the questionnaire (pickKnownAnswers): a guardian entered
+    /// before the birth date said "adult", or "other framework" after switching away from
+    /// "אחר", is dropped, not kept as a hidden answer.
+    static func visibleAnswers(_ answers: [String: U21Answer], now: Date = .now) -> [String: U21Answer] {
+        var out: [String: U21Answer] = [:]
+        for f in fields where visible(f, answers: answers, now: now) {
+            if let a = answers[f.key] { out[f.key] = a }
+        }
+        return out
+    }
+
+    private static let emailPattern = #"^[^\s@]+@[^\s@]+\.[^\s@]+$"#
+    private static let phonePattern = #"^0\d{8,9}$"#
+    private static let numberPattern = #"^\d+(\.\d+)?$"#
+
+    private static func matches(_ s: String, _ pattern: String) -> Bool {
+        s.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    private static func isEmpty(_ f: U21Field, _ a: U21Answer?) -> Bool {
+        switch (f.kind, a) {
+        case (.checkbox, .flag(true)?): false
+        case (.checkbox, _): true
+        case (.yesno, .flag?): false
+        case (.checkboxes, .choices(let s)?): s.isEmpty
+        case (.radio, .choice?), (.date, .date?): false
+        case (_, .text(let t)?): t.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        default: true
+        }
     }
 
     /// Any red-flag "yes" — shown to the coach as "needs attention"; changes nothing for the applicant.
