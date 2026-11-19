@@ -90,3 +90,23 @@ struct PaceGroupTitleTests {
         #expect(PaceGroup(id: "b", name: "Trail", index: nil, marathonGoal: nil).title == "Trail")
     }
 }
+
+struct FeedRouteTests {
+    @Test func routePreviewParsesToPoints() {
+        let r = HTTPFeedClient.route([["lat": 32.08, "lng": 34.78], ["lat": 32.09, "lng": 34.79]])
+        #expect(r.count == 2)
+        #expect(r.first == RoutePoint(lat: 32.08, lng: 34.78))
+    }
+
+    @Test func missingOrBrokenRouteIsNoRoute() {
+        #expect(HTTPFeedClient.route(nil).isEmpty)                       // the feed's null
+        #expect(HTTPFeedClient.route([["lat": 32.0, "lng": 34.0]]).isEmpty) // one point isn't a line
+        #expect(HTTPFeedClient.route([["lat": 99, "lng": 34], ["lat": 32, "lng": 34]]).isEmpty)
+    }
+
+    @Test func shapeFitsInsideItsRect() {
+        let pts = [RoutePoint(lat: 32.0, lng: 34.0), RoutePoint(lat: 32.01, lng: 34.02), RoutePoint(lat: 32.02, lng: 34.0)]
+        let b = RouteShape(points: pts).path(in: CGRect(x: 0, y: 0, width: 100, height: 100)).boundingRect
+        #expect(b.minX >= -0.001 && b.maxX <= 100.001 && b.minY >= -0.001 && b.maxY <= 100.001)
+    }
+}

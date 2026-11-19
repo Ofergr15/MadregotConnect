@@ -35,6 +35,14 @@ struct FeedRun: Identifiable, Hashable, Sendable {
     /// The server's feed item id (nil for demo runs) — what a clap is sent against.
     var itemId: String? = nil
     var likedByMe = false
+    /// The run's route as the feed sends it (`routePreview`, up to 300 points). Empty =
+    /// no route for this run: the card shows none rather than inventing a shape.
+    var route: [RoutePoint] = []
+}
+
+struct RoutePoint: Hashable, Sendable {
+    let lat: Double
+    let lng: Double
 }
 
 /// What the plan says about today. "No plan" is not "rest": an athlete with no weekly

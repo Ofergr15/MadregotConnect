@@ -70,38 +70,112 @@ struct FeedCard: View {
     }
 
     var body: some View {
-        // Compact: name/time, then the run's title, then the two numbers that matter.
+        // Who → what → the one number (distance) large, pace/time as quiet secondaries,
+        // the route beside them when the run has one, the clap at the foot.
         VStack(alignment: .leading, spacing: 10) {
             RunnerHeader(run: run, compact: true)
-            Text(run.title).font(Theme.font(18, .black)).foregroundStyle(Theme.ink900)
-            HStack(alignment: .lastTextBaseline, spacing: 22) {
-                RunStat(value: String(format: "%.1f", run.distanceKm), unit: "ק״מ", size: 24)
-                RunStat(value: run.pace, unit: "לק״מ", size: 24)
-                Spacer()
-                Button {
-                    guard !sending else { return }
-                    // Optimistic, then the server's answer wins; a failure puts it back.
-                    let before = (liked, count)
-                    liked.toggle(); count += liked ? 1 : -1
-                    sending = true
-                    Task {
-                        if let answer = await onClap(run) { liked = answer.liked; count = answer.count }
-                        else if run.itemId != nil { (liked, count) = before }
-                        sending = false
+            HStack(alignment: .center, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(run.title).font(Theme.font(17, .black)).foregroundStyle(Theme.ink900).lineLimit(1)
+                    HStack(alignment: .lastTextBaseline, spacing: 4) {
+                        Text(String(format: "%.1f", run.distanceKm))
+                            .font(Theme.font(28, .black)).foregroundStyle(Theme.brand).monospacedDigit()
+                        Text("ק״מ").font(Theme.font(13, .bold)).foregroundStyle(Theme.brand.opacity(0.8))
                     }
-                } label: {
-                    Label("\(count)", systemImage: liked ? "hands.clap.fill" : "hands.clap")
-                        .font(Theme.font(15, .medium))
-                        .foregroundStyle(liked ? Theme.brand : Theme.ink500)
+                    HStack(spacing: 14) {
+                        secondary("speedometer", run.pace, "לק״מ")
+                        if run.durationLabel != "–" { secondary("stopwatch", run.durationLabel, nil) }
+                        if run.route.isEmpty { Spacer(minLength: 0); clapButton }
+                    }
                 }
-                .buttonStyle(.plain)
-                .sensoryFeedback(.selection, trigger: liked)
+                if !run.route.isEmpty {
+                    Spacer(minLength: 0)
+                    VStack(spacing: 8) {
+                        RouteThumbnail(points: run.route)
+                            .frame(width: 88, height: 88)
+                            .accessibilityLabel("מסלול הריצה")
+                        clapButton
+                    }
+                }
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.card, in: .rect(cornerRadius: 20))
+        // Shadow on the card shape only — applied to the whole view it haloes the text.
+        .background(
+            RoundedRectangle(cornerRadius: 20).fill(Theme.card)
+                .shadow(color: Theme.ink900.opacity(0.06), radius: 8, y: 2)
+        )
         .contentShape(.rect)
+    }
+
+    private func secondary(_ icon: String, _ value: String, _ unit: String?) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.ink500)
+            Text(value).font(Theme.font(15, .bold)).foregroundStyle(Theme.ink700).monospacedDigit()
+            if let unit { Text(unit).font(Theme.font(12, .regular)).foregroundStyle(Theme.ink500) }
+        }
+    }
+
+    private var clapButton: some View {
+        Button {
+            guard !sending else { return }
+            // Optimistic, then the server's answer wins; a failure puts it back.
+            let before = (liked, count)
+            liked.toggle(); count += liked ? 1 : -1
+            sending = true
+            Task {
+                if let answer = await onClap(run) { liked = answer.liked; count = answer.count }
+                else if run.itemId != nil { (liked, count) = before }
+                sending = false
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: liked ? "hands.clap.fill" : "hands.clap")
+                Text("\(count)").monospacedDigit()
+            }
+            .font(Theme.font(14, .bold))
+            .foregroundStyle(liked ? Theme.brand : Theme.ink500)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(liked ? Theme.brand.opacity(0.1) : Theme.canvas, in: .capsule)
+        }
+        .buttonStyle(.plain)
+        .sensoryFeedback(.selection, trigger: liked)
+        .accessibilityLabel("מחיאות כפיים, \(count)")
+    }
+}
+
+/// The real route, drawn from the feed's points — no map tiles, no SDK, nothing paid.
+/// An equirectangular projection (longitude scaled by cos(latitude)) is exact enough
+/// at a run's scale; the shape is aspect-fit so north stays up.
+struct RouteThumbnail: View {
+    let points: [RoutePoint]
+    var body: some View {
+        RouteShape(points: points)
+            .stroke(Theme.brand, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+            .padding(12)
+            .background(Theme.brand.opacity(0.07), in: .rect(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.brand.opacity(0.12), lineWidth: 1))
+    }
+}
+
+struct RouteShape: Shape {
+    let points: [RoutePoint]
+    func path(in rect: CGRect) -> Path {
+        guard points.count >= 2 else { return Path() }
+        let meanLat = points.map(\.lat).reduce(0, +) / Double(points.count)
+        let k = cos(meanLat * .pi / 180)
+        let xs = points.map { $0.lng * k }, ys = points.map { -$0.lat }
+        let minX = xs.min()!, maxX = xs.max()!, minY = ys.min()!, maxY = ys.max()!
+        let w = max(maxX - minX, 1e-9), h = max(maxY - minY, 1e-9)
+        let scale = min(rect.width / w, rect.height / h)
+        let dx = rect.minX + (rect.width - w * scale) / 2, dy = rect.minY + (rect.height - h * scale) / 2
+        var path = Path()
+        for (i, (x, y)) in zip(xs, ys).enumerated() {
+            let pt = CGPoint(x: dx + (x - minX) * scale, y: dy + (y - minY) * scale)
+            i == 0 ? path.move(to: pt) : path.addLine(to: pt)
+        }
+        return path
     }
 }
 

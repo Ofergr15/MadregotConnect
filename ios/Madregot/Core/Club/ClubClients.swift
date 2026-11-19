@@ -39,8 +39,20 @@ struct HTTPFeedClient: Sendable {
             kudos: Int(jsonNumber(item["likeCount"]) ?? 0),
             splits: [],
             itemId: id,
-            likedByMe: item["likedByMe"] as? Bool ?? false
+            likedByMe: item["likedByMe"] as? Bool ?? false,
+            route: route(activity["routePreview"])
         )
+    }
+
+    /// `routePreview` → points; anything malformed or shorter than a line is "no route".
+    static func route(_ raw: Any?) -> [RoutePoint] {
+        guard let list = raw as? [[String: Any]] else { return [] }
+        let points = list.compactMap { p -> RoutePoint? in
+            guard let lat = jsonNumber(p["lat"]), let lng = jsonNumber(p["lng"]),
+                  (-90...90).contains(lat), (-180...180).contains(lng) else { return nil }
+            return RoutePoint(lat: lat, lng: lng)
+        }
+        return points.count >= 2 ? points : []
     }
 
     /// "קבוצה 2" → 2. The web's resolveGroup() is the authority; this reads only its label.
