@@ -11,6 +11,7 @@ struct U21EntryCard: View {
     @State private var showFlow = false
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
         Button { showFlow = true } label: {
             HStack(spacing: 14) {
                 Text("U21")
@@ -31,6 +32,10 @@ struct U21EntryCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("open-u21")
+            Text(U21Intake.testNote)
+                .font(Theme.font(12, .semibold)).foregroundStyle(Theme.ink500)
+                .accessibilityIdentifier("u21-card-test-note")
+        }
         .fullScreenCover(isPresented: $showFlow) { U21Flow(onClose: { showFlow = false }) }
     }
 }
@@ -43,6 +48,8 @@ struct U21Flow: View {
     @State private var answers: [String: U21Answer] = U21Flow.initialAnswers
     @State private var step = 0          // 0 = track, 1…n = sections, n+1 = review, n+2 = done
     @State private var errors: [String: String] = [:]
+    /// Set when a section is opened from the review's "עריכה": "המשך" returns to the review.
+    @State private var editingFromReview = false
 
     private let sections = U21Intake.sections
 
@@ -107,12 +114,16 @@ struct U21Flow: View {
                 .font(Theme.font(15)).foregroundStyle(Theme.ink500)
             ForEach(U21Track.allCases) { t in
                 Button {
-                    track = t; step = 1; errors = [:]
+                    track = t; step = 1; errors = [:]; editingFromReview = false
                 } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(t.name).font(Theme.font(18, .black)).foregroundStyle(Theme.ink900)
                             Text(t.tagline).font(Theme.font(14)).foregroundStyle(Theme.ink500)
+                            ForEach(t.benefits, id: \.self) { b in
+                                Text("• " + b).font(Theme.font(13)).foregroundStyle(Theme.ink700)
+                            }
+                            .padding(.top, 2)
                         }
                         Spacer()
                         Image(systemName: "chevron.left").foregroundStyle(Theme.ink300)
@@ -124,6 +135,8 @@ struct U21Flow: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("u21-track-\(t.rawValue)")
             }
+            Text(U21Intake.noPaymentNote).font(Theme.font(13)).foregroundStyle(Theme.ink500)
+                .accessibilityIdentifier("u21-no-payment")
             notes
         }
     }
@@ -131,6 +144,10 @@ struct U21Flow: View {
     private func sectionForm(_ section: String) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(section).font(Theme.font(24, .black)).foregroundStyle(Theme.ink900)
+            if U21Intake.fields.contains(where: { $0.section == section && $0.redFlag }) {
+                Text(U21Intake.draftNote).font(Theme.font(12, .bold)).foregroundStyle(Theme.ink500)
+                    .accessibilityIdentifier("u21-section-draft-note")
+            }
             ForEach(U21Intake.fields.filter { $0.section == section && U21Intake.visible($0, answers: answers) }) { f in
                 U21FieldView(field: f, answer: binding(f.key), error: errors[f.key])
             }
@@ -144,29 +161,36 @@ struct U21Flow: View {
             row("מסלול", track?.name ?? "–")
             ForEach(sections, id: \.self) { section in
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(section).font(Theme.font(13, .bold)).foregroundStyle(Theme.ink500)
+                    HStack {
+                        Text(section).font(Theme.font(13, .bold)).foregroundStyle(Theme.ink500)
+                        Spacer()
+                        Button("עריכה") { edit(section) }
+                            .font(Theme.font(13, .bold)).foregroundStyle(Theme.ink900)
+                            .accessibilityIdentifier("u21-edit-\(sections.firstIndex(of: section) ?? 0)")
+                    }
+                    let shown = U21Intake.visibleAnswers(answers)
                     ForEach(U21Intake.fields.filter { $0.section == section && U21Intake.visible($0, answers: answers) }) { f in
-                        if let v = display(answers[f.key]) { row(f.label, v) }
+                        if let v = display(shown[f.key]) { row(f.label, v) }
                     }
                 }
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Theme.card, in: .rect(cornerRadius: 16))
             }
-            if U21Intake.redFlag(answers) {
-                Label("סימנת אחד מסימני הבטיחות. המאמן יראה זאת לפני כל תוכנית.", systemImage: "exclamationmark.triangle")
-                    .font(Theme.font(13, .semibold)).foregroundStyle(Theme.danger)
-            }
+            // No red-flag message here, on purpose: a (draft) red flag changes nothing the
+            // applicant sees — on the web it is only "needs attention" for the admin.
             notes
         }
     }
 
     private var confirmation: some View {
         VStack(spacing: 14) {
-            Text("מצב הדגמה · לא נשלח")
-                .font(Theme.font(12, .black)).foregroundStyle(.white)
-                .padding(.horizontal, 12).padding(.vertical, 5)
-                .background(Theme.ink900, in: .capsule)
+            Text(U21Intake.demoNotice)
+                .font(Theme.font(15, .black)).foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 14).padding(.vertical, 10)
+                .frame(maxWidth: .infinity)
+                .background(Theme.ink900, in: .rect(cornerRadius: 12))
                 .accessibilityIdentifier("u21-demo-badge")
             Image(systemName: "checkmark.circle.fill").font(.system(size: 56)).foregroundStyle(Theme.ink900)
             Text("הבקשה מוכנה").font(Theme.font(26, .black)).foregroundStyle(Theme.ink900)
@@ -194,7 +218,7 @@ struct U21Flow: View {
 
     private var footer: some View {
         HStack(spacing: 12) {
-            Button("חזרה") { errors = [:]; step -= 1 }
+            Button("חזרה") { back() }
                 .font(Theme.font(16, .bold)).foregroundStyle(Theme.ink700)
                 .frame(maxWidth: .infinity, minHeight: Theme.controlHeight)
                 .overlay(Capsule().stroke(Theme.ink300, lineWidth: 1))
@@ -216,8 +240,31 @@ struct U21Flow: View {
         if step <= sections.count {
             errors = U21Intake.errors(section: sections[step - 1], answers: answers)
             guard errors.isEmpty else { return }
+            if editingFromReview { editingFromReview = false; step = reviewStep; return }
+        } else if step == reviewStep {
+            // The demo "send" re-checks every section: an answer can go stale after an edit
+            // (e.g. a birth date changed to under 18 now needs the guardian fields).
+            if let bad = U21Intake.firstSectionWithErrors(answers: answers), let i = sections.firstIndex(of: bad) {
+                errors = U21Intake.errors(section: bad, answers: answers)
+                editingFromReview = true
+                step = i + 1
+                return
+            }
+            // Demo only: nothing is sent or stored — there is no network call in this flow.
         }
         step += 1
+    }
+
+    private func back() {
+        errors = [:]
+        if editingFromReview { editingFromReview = false; step = reviewStep } else { step -= 1 }
+    }
+
+    private func edit(_ section: String) {
+        guard let i = sections.firstIndex(of: section) else { return }
+        errors = [:]
+        editingFromReview = true
+        step = i + 1
     }
 
     private func binding(_ key: String) -> Binding<U21Answer?> {
