@@ -1,6 +1,7 @@
 'use client';
 
 import { useLayoutEffect, useRef, useState } from 'react';
+import { chipFades } from '@/lib/academy/chip-row';
 import { MessageCircle, Send, ShieldCheck } from 'lucide-react';
 import { cn, israelToday } from '@/lib/utils';
 import type { AcademyFeedbackAttachment } from '@/lib/academy/thread';
@@ -165,8 +166,8 @@ export function ThreadTranscript({
     // The WhatsApp look (mockup ~/.cache/madregot/open-and-chat, Ofer 10-20: "where you type
     // is unclear — it needs a box, like WhatsApp"): the warm wallpaper, white and green
     // bubbles with the time inside, and a white rounded box that stands out from it.
-    <div className={cn('flex flex-col bg-[#efe7de] px-2.5 pt-2', isSheet ? 'min-h-0 pb-[env(safe-area-inset-bottom)]' : 'rounded-[18px] pb-2', className)} dir="rtl">
-      <div ref={scrollRef} className={cn(isSheet && 'min-h-0 flex-1 overflow-y-auto overscroll-contain')}>
+    <div className={cn('flex flex-col bg-[#efe7de] px-2.5 pt-2', isSheet ? SHEET_ROOT_CLASS : 'rounded-[18px] pb-2', className)} dir="rtl" data-testid="thread-transcript">
+      <div ref={scrollRef} data-testid="thread-scroll" className={cn(isSheet && 'min-h-0 flex-1 overflow-y-auto overscroll-contain')}>
       {hidden > 0 && (
         <button
           type="button"
@@ -223,16 +224,12 @@ export function ThreadTranscript({
       )}
 
       {onSend && !readOnly && quickReplies?.length ? (
-        <div className={cn('mt-2 flex gap-1.5 overflow-x-auto [scrollbar-width:none]', isSheet && 'shrink-0')}>
-          {quickReplies.map((q) => (
-            <button key={q} type="button" onClick={() => setDraft((d) => (d.trim() ? `${d.trim()} ${q}` : q))}
-              className="min-h-[34px] shrink-0 rounded-full bg-white px-3 text-[12.5px] font-bold text-brand-600 shadow-[0_1px_1px_rgba(0,0,0,0.1)]">{q}</button>
-          ))}
-        </div>
+        <QuickReplyRow replies={quickReplies} className={cn(isSheet && 'shrink-0')}
+          onPick={(q) => setDraft((d) => (d.trim() ? `${d.trim()} ${q}` : q))} />
       ) : null}
 
       {onSend && !readOnly && (
-        <div className={cn('mt-2 flex items-end gap-2', isSheet && 'shrink-0 pb-2')}>
+        <div data-testid="thread-composer" className={cn('mt-2 flex items-end gap-2', isSheet && 'shrink-0 pb-2')}>
           <textarea
             ref={boxRef}
             value={draft}
@@ -410,5 +407,54 @@ export function SeatAvatar({ seat, name, size = 30 }: { seat: ThreadSeat; name: 
     >
       {seatInitials(name)}
     </span>
+  );
+}
+
+/**
+ * A `sheet` transcript's root: it fills what its parent gives it (flex-1) and may
+ * shrink below its content (min-h-0) so the inner box scrolls. flex-1 used to come
+ * only from the caller; the staff screen passed none, so a short thread shrank to
+ * its content and the composer floated mid-screen (brief 2026-11-18, 1.1/1.4).
+ */
+export const SHEET_ROOT_CLASS = 'min-h-0 flex-1 pb-[env(safe-area-inset-bottom)]';
+
+/**
+ * The quick-reply chips (brief 2026-11-18, 1.2). Two changes from the bare
+ * `overflow-x-auto` row: the scroller is `dir="ltr"` with the chips in reverse DOM
+ * order and each chip `dir="rtl"`, because iOS Safari's touch scrolling of an
+ * RTL overflow box inside a position:fixed screen is a known failure, and an LTR
+ * scroller sidesteps the negative-scrollLeft model entirely; and a fade on the edge
+ * where more chips are hidden, since the scrollbar is hidden and a cut chip alone
+ * did not read as "there's more".
+ */
+function QuickReplyRow({ replies, onPick, className }: { replies: string[]; onPick: (q: string) => void; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [fade, setFade] = useState({ start: false, end: false });
+  const update = () => {
+    const el = ref.current;
+    if (el) setFade(chipFades(el.scrollLeft, el.scrollWidth, el.clientWidth));
+  };
+  // LTR scroller with the first chip on the right: start scrolled fully right.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.scrollLeft = el.scrollWidth;
+    update();
+  }, [replies.length]);
+  return (
+    <div className={cn('relative mt-2', className)}>
+      <div ref={ref} dir="ltr" onScroll={update} data-testid="thread-chips"
+        className="flex gap-1.5 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [touch-action:pan-x] [&::-webkit-scrollbar]:hidden">
+        {/* Reversed in the DOM, not flex-row-reverse: a reversed flex row overflows to
+            the left of an LTR box, which is not scrollable at all. */}
+        {[...replies].reverse().map((q) => (
+          <button key={q} type="button" dir="rtl" onClick={() => onPick(q)}
+            className="min-h-[34px] shrink-0 rounded-full bg-white px-3 text-[12.5px] font-bold text-brand-600 shadow-[0_1px_1px_rgba(0,0,0,0.1)]">{q}</button>
+        ))}
+      </div>
+      {/* More chips hidden to the left (the reading end in RTL) / to the right after a scroll. */}
+      {fade.end && <div aria-hidden data-testid="thread-chips-fade" className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#efe7de] to-transparent" />}
+      {fade.start && <div aria-hidden data-testid="thread-chips-fade-start" className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#efe7de] to-transparent" />}
+    </div>
   );
 }

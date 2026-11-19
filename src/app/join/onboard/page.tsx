@@ -1,9 +1,10 @@
 'use client';
 
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Check, Eye, EyeOff } from 'lucide-react';
+import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Check } from 'lucide-react';
 import { signOutEverywhere } from '@/lib/auth/sign-out';
 import { InsetSection, InsetRow, EmptyState, LoadingBlock, SegmentedControl } from '@/components/ui';
 import { ApprovalPushOptIn } from '@/components/PushOptIn';
@@ -63,7 +64,6 @@ function OnboardContent() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [garminEmail, setGarminEmail] = useState(searchParams.get('email') || '');
   const [garminPassword, setGarminPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [mfaRequired, setMfaRequired] = useState(false);
   const [mfaCode, setMfaCode] = useState('');
   const [mfaSessionId, setMfaSessionId] = useState('');
@@ -410,6 +410,8 @@ function OnboardContent() {
             <div>
               <label htmlFor="jo-garminEmail" className="block text-sm font-medium text-ink-500 mb-1">{t('garminEmail')}</label>
               <Input id="jo-garminEmail"
+                name="garmin-email"
+                autoComplete="off"
                 type="email"
                 value={garminEmail}
                 onChange={(e) => setGarminEmail(e.target.value)}
@@ -420,23 +422,14 @@ function OnboardContent() {
 
             <div>
               <label htmlFor="jo-garminPassword" className="block text-sm font-medium text-ink-500 mb-1">{t('garminPassword')}</label>
-              <div className="relative">
-                <Input id="jo-garminPassword"
-                  type={showPassword ? 'text' : 'password'}
-                  value={garminPassword}
-                  onChange={(e) => setGarminPassword(e.target.value)}
-                  placeholder={t('enterPassword')}
-                  className="pe-12"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute end-1.5 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center text-ink-400 hover:text-ink-900 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
+              <PasswordInput as={Input} id="jo-garminPassword"
+                name="garmin-password"
+                autoComplete="off"
+                value={garminPassword}
+                onChange={(e) => setGarminPassword(e.target.value)}
+                placeholder={t('enterPassword')}
+                required
+              />
             </div>
 
             {error && (

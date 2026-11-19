@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
+import { computeSetupState } from '@/lib/onboarding/setup-tasks';
+import { kitSizeSetupInput } from '@/lib/kit-sizes';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaff } from '@/lib/auth/self-or-staff';
 import { COACH_ID } from '@/lib/constants';
 import { israelToday } from '@/lib/utils';
 import { REPORT_RUN_TYPES, runDateOf } from '@/lib/reports/last-7-days';
-import type { Person } from '@/lib/admin/people';
+import { optionalSetupLeft, type Person } from '@/lib/admin/people';
 import { REMOVED_STATUS } from '@/lib/admin/entry-queue';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 import { PUSH_DEAD_DAYS, pushLooksDead, type DeviceReceipt } from '@/lib/push-health';
@@ -47,6 +49,35 @@ interface AthleteRow {
   is_core_runner?: boolean | null;
   avatar_url?: string | null;
   extra_roles?: string[] | null;
+  data_source?: string | null;
+  phone?: string | null;
+  birth_date?: string | null;
+  gender?: string | null;
+  shirt_size?: string | null;
+  shoe_size?: string | null;
+  pants_size?: string | null;
+  tights_size?: string | null;
+  socks_size?: string | null;
+}
+
+function setupSummary(a: AthleteRow, pushCount: number) {
+  const state = computeSetupState({
+    hasGarminAuth: !!a.garmin_auth,
+    hasStravaAuth: !!a.strava_auth,
+    dataSource: a.data_source || null,
+    avatarUrl: a.avatar_url && /^https?:\/\//.test(a.avatar_url) ? a.avatar_url : null,
+    phone: a.phone || null,
+    birthDate: a.birth_date || null,
+    gender: a.gender || null,
+    shirtSize: a.shirt_size || null,
+    shoeSize: a.shoe_size || null,
+    ...kitSizeSetupInput(a as unknown as Record<string, unknown>),
+    pushSubscriptions: pushCount,
+    groupName: null,
+    hasActiveShoe: false,
+  });
+  const setupLeft = optionalSetupLeft(state.tasks);
+  return { setupLeft, setupDone: !!a.onboarding_completed_at || setupLeft.length === 0 };
 }
 
 export async function GET(request: Request) {
@@ -62,7 +93,7 @@ export async function GET(request: Request) {
       // reads them: the credentials never leave this function.
       supabase
         .from('athletes')
-        .select('id, name, role, group_id, pending_group_id, pending_group_from, status, approved, garmin_auth:has_garmin, strava_auth:has_strava, last_seen_at, created_at, onboarding_completed_at, is_academy, is_core_runner, avatar_url, extra_roles')
+        .select('id, name, role, group_id, pending_group_id, pending_group_from, status, approved, garmin_auth:has_garmin, strava_auth:has_strava, last_seen_at, created_at, onboarding_completed_at, is_academy, is_core_runner, avatar_url, extra_roles, data_source, phone, birth_date, gender, shirt_size, shoe_size, pants_size, tights_size, socks_size')
         .eq('coach_id', COACH_ID)
         .or(NOT_ADMIN)
         .order('name'),
@@ -160,7 +191,11 @@ export async function GET(request: Request) {
       lastRunDay: lastRun.get(a.id) ?? null,
       lastSeenAt: a.last_seen_at,
       joinedAt: a.created_at,
-      setupDone: !!a.onboarding_completed_at,
+      // What the setup checklist still lists, computed the same way the member's own
+      // card does. "Done" is the stamp OR nothing left: the stamp is only written
+      // when the member taps the celebration card, so somebody who did every task
+      // and never tapped it read "not finished" forever.
+      ...setupSummary(a, push.get(a.id)?.n ?? 0),
       pushDevices: push.get(a.id)?.n ?? 0,
       lastPushAt: push.get(a.id)?.last ?? null,
       pushDead: pushLooksDead(devicesOf.get(a.id) || [], sentTo.get(a.id) || 0),

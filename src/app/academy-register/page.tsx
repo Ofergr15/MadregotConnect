@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { JOIN_HANDOFF_KEY } from '@/lib/join/flag';
-import { JOURNEY, JourneyCard, JourneyHero, JourneyRow, JourneyScreen, JourneyTracker, NextCard } from '@/components/onboarding/journey-ui';
+import { JOURNEY, JourneyCard, PrimaryButton, JourneyHero, JourneyRow, JourneyScreen, JourneyTracker, NextCard } from '@/components/onboarding/journey-ui';
 import { ChevronLeft, GraduationCap } from 'lucide-react';
 import { Spinner } from '@/components/ui';
 import { CARD, NumberRuns } from '@/components/trainee/ui';
@@ -242,6 +242,12 @@ export default function AcademyRegisterPage() {
   const [values, setValues] = useState<Record<string, any>>({});
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  // The card was accepted before this submit (server's `alreadyIn`): "כבר בפנים", not "קיבלנו".
+  const [alreadyIn, setAlreadyIn] = useState(false);
+  // Held from the first tap until the request settles, and for good after a success: the
+  // `submitting` state only disables the button on the NEXT render, so a fast double tap got
+  // two POSTs through (2026-11-18, two "received" mails a minute apart).
+  const inFlight = useRef(false);
   // What the server said, when it said no. A field problem is NOT kept here: see `tried`.
   const [error, setError] = useState<string | null>(null);
   // The page whose המשך was pressed with something missing. Its problem is worked out
@@ -385,6 +391,9 @@ export default function AcademyRegisterPage() {
       if (problemOn(i)) { setStep(i); setTried(i); return; }
     }
     setTried(null);
+    if (inFlight.current) return;
+    inFlight.current = true;
+    let ok = false;
     setSubmitting(true);
     setError(null);
     try {
@@ -406,10 +415,14 @@ export default function AcademyRegisterPage() {
       if (!res.ok) throw new Error(data.message || data.error || 'ההרשמה נכשלה');
       // An imported card that was not let in (the accept refused) reads as a regular "received".
       if (data.letIn === false) setImported(null);
+      if (data.alreadyIn) setAlreadyIn(true);
+      ok = true;
       setDone(true);
     } catch (err: any) {
       setError(err.message || 'ההרשמה נכשלה');
     } finally {
+      // A success keeps the lock: the form is done, there is nothing left to send.
+      if (!ok) inFlight.current = false;
       setSubmitting(false);
     }
   };
@@ -435,6 +448,7 @@ export default function AcademyRegisterPage() {
     // The club's "we got it" screen, in the academy's words (2026-10-19, Ofer: bring
     // the academy screens up to the club's): the same journey look, the four steps the
     // form-received mail draws, and the one thing that happens next.
+    if (alreadyIn) return <AcademyAlreadyIn first={String(values.firstName || '').trim()} />;
     return <AcademyReceived existing={existing} imported={!!imported} first={String(values.firstName || '').trim()} email={String(values.email || '').trim()} phone={String(values.phone || '').trim()} />;
   }
 
@@ -694,6 +708,21 @@ export default function AcademyRegisterPage() {
 
 /** The academy's journey, as the form-received mail draws it. */
 const ACADEMY_JOURNEY = ['הטופס', 'שיחת היכרות', 'שיחה עם מאמן', 'מתחילים באפליקציה'] as const;
+
+/** Sent after the card was accepted: the details are saved, and they are already in. */
+function AcademyAlreadyIn({ first }: { first: string }) {
+  return (
+    <JourneyScreen
+      testId="academy-already-in"
+      hero={<JourneyHero eyebrow="האקדמיה של מדרגות" title={`תודה${first ? `, ${first}` : ''}! 🙌`} subtitle="הפרטים עודכנו" />}
+      actions={<PrimaryButton href="/">לאפליקציה</PrimaryButton>}
+    >
+      <NextCard label="כבר בפנים" title="אין צורך לעשות שום דבר נוסף">
+        החשבון שלך באקדמיה כבר פעיל.
+      </NextCard>
+    </JourneyScreen>
+  );
+}
 
 function AcademyReceived({ existing, imported, first, email, phone }: { existing: boolean; imported?: boolean; first: string; email: string; phone: string }) {
   if (imported) {

@@ -7,6 +7,7 @@
  * reads and hands the facts in.
  */
 
+import type { SetupTaskKey } from '@/lib/onboarding/setup-tasks';
 export type PersonState = 'waiting' | 'paused' | 'noWatch' | 'setup' | 'silent' | 'active';
 export type PeopleFilter = 'all' | 'waiting' | 'setup' | 'noWatch' | 'silent' | 'browser' | 'noPush';
 
@@ -35,6 +36,8 @@ export interface Person {
   lastSeenAt: string | null;
   joinedAt: string | null;
   setupDone: boolean;
+  /** Checklist tasks still open, minus the watch (it has its own line and pill). */
+  setupLeft?: SetupTaskKey[];
   pushDevices: number;
   /** Newest push_subscriptions.last_success_at across the member's devices. */
   lastPushAt: string | null;
@@ -52,6 +55,27 @@ export interface Person {
 
 function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86_400_000);
+}
+
+/**
+ * The setup tasks worth naming on a member's sheet as an optional next step. The
+ * watch is left out: no watch is its own state ("בלי שעון") with its own line,
+ * and none of the rest blocks anything, so they read as "you can still", never as
+ * a failed sign-up.
+ */
+export function optionalSetupLeft(tasks: Array<{ key: SetupTaskKey; done: boolean }>): SetupTaskKey[] {
+  return tasks.filter(t => !t.done && t.key !== 'watch').map(t => t.key);
+}
+
+/**
+ * What the sheet's "הגדרה" line says. 'optional' names the steps still open, as
+ * something they CAN do; it never appears once nothing optional is left.
+ */
+export type SetupLine = { kind: 'done' } | { kind: 'optional'; keys: SetupTaskKey[] } | { kind: 'open' };
+export function setupLine(p: Pick<Person, 'setupDone' | 'setupLeft'>): SetupLine {
+  if (p.setupDone) return { kind: 'done' };
+  if (p.setupLeft && p.setupLeft.length > 0) return { kind: 'optional', keys: p.setupLeft };
+  return p.setupLeft ? { kind: 'done' } : { kind: 'open' };
 }
 
 export function isSilent(p: Person, today: string): boolean {

@@ -1,12 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createOpenRetry, type OpenStep } from '@/lib/academy/open-retry';
 import { ChevronRight, Loader2, MessageCircleOff } from 'lucide-react';
 import { ChatAvatar } from './ChatList';
 import type { Channel as StreamChannel, StreamChat } from 'stream-chat';
 import { getSupabase } from '@/lib/supabase/client';
 import { apiHeaders, useApi } from '@/lib/api';
 import { useTranslations } from 'next-intl';
+import { cn } from '@/lib/utils';
+import { useVisualViewportBox } from '@/lib/academy/visual-viewport';
 import { announceReadOnly, isViewingPerson } from '@/lib/view-as-person';
 import { useConnectedStreamClient, useStreamTokenState, type StreamTokenData } from '@/lib/stream/client';
 // From `stream/constants`, not `stream/server`: that module holds the service-role
@@ -144,6 +147,20 @@ function LiveAcademyThreadPanel({
     setThread(null);
     setAttempt((n) => n + 1);
   }, []);
+  // One silent automatic retry before the error shows (brief 2026-11-18, 2.1).
+  const autoRetry = useRef(createOpenRetry());
+  const [retrying, setRetrying] = useState(false);
+  /** Logs the failing step; true when an automatic retry was scheduled instead of an error. */
+  const failOpen = useCallback((step: OpenStep, e?: unknown): boolean => {
+    const delay = autoRetry.current.fail(step, e);
+    if (delay == null) return false;
+    setRetrying(true);
+    setTimeout(() => { setRetrying(false); retry(); }, delay);
+    return true;
+  }, [retry]);
+  useEffect(() => {
+    if (token.failed && !retrying) failOpen('stream-token');
+  }, [token.failed, retrying, failOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,14 +171,13 @@ function LiveAcademyThreadPanel({
         if (cancelled) return;
         const access = data.session?.access_token ?? null;
         setSupabaseToken(access);
-        if (!access) setError(THREAD_ERROR_FALLBACK);
+        if (!access && !failOpen('session')) setError(THREAD_ERROR_FALLBACK);
       })
       .catch((e: unknown) => {
-        console.error('academy thread session', e);
-        if (!cancelled) setError(THREAD_ERROR_FALLBACK);
+        if (!cancelled && !failOpen('session', e)) setError(THREAD_ERROR_FALLBACK);
       });
     return () => { cancelled = true; };
-  }, [attempt]);
+  }, [attempt, failOpen]);
 
   useEffect(() => {
     if (!supabaseToken) return;
@@ -185,16 +201,20 @@ function LiveAcademyThreadPanel({
         // fetch") — the same defect by a different road, so nothing from the
         // exception reaches the screen either.
         if (!cancelled) {
+          const known = e instanceof Error && /[֐-׿]/.test(e.message) && e.message !== THREAD_ERROR_FALLBACK;
+          // A refusal (not academy / forbidden) won't change on a retry; anything else
+          // — a 5xx, a network throw — gets the one silent retry first.
+          if (!known && failOpen('open-thread', e)) return;
           if (!(e instanceof Error && /[֐-׿]/.test(e.message))) console.error('academy thread', e);
           setError(e instanceof Error && /[֐-׿]/.test(e.message) ? e.message : THREAD_ERROR_FALLBACK);
         }
       });
     return () => { cancelled = true; };
-  }, [supabaseToken, athleteId, attempt]);
+  }, [supabaseToken, athleteId, attempt, failOpen]);
 
   // The Stream token mint failing was invisible (useStreamToken returns null for
   // both "not yet" and "never") — the endless spinner of the bug report.
-  const shownError = error ?? (token.failed ? THREAD_ERROR_FALLBACK : null);
+  const shownError = retrying ? null : error ?? (token.failed && autoRetry.current.exhausted ? THREAD_ERROR_FALLBACK : null);
   if (shownError) {
     return (
       <div dir="rtl">
@@ -227,6 +247,7 @@ function LiveAcademyThreadPanel({
       key={`${tokenData.userId}:${attempt}`}
       tokenData={tokenData}
       onRetry={retry}
+      onFail={failOpen}
       thread={thread}
       segments={segments}
       className={className}
@@ -236,8 +257,17 @@ function LiveAcademyThreadPanel({
   );
 }
 
-/** Lines a coach sends a lot, one tap into the composer. */
-const STAFF_QUICK = ['איך הרגיש האימון?', 'ראיתי את הריצה 👏', 'מעולה, ממשיכים ככה 💪', 'בוא נדבר על השבוע'];
+/**
+ * The staff thread is a full-screen flex column (StaffThreadScreen), and a `sheet`
+ * transcript needs its parent to bound it (ThreadTranscript's `layout` doc). Without
+ * this the transcript shrank to its content: a two-message thread took 304px of 844
+ * and the composer floated mid-screen (brief 2026-11-18, 1.1), and long threads only
+ * scrolled because flex-shrink happened to clamp them (1.4).
+ */
+export const STAFF_TRANSCRIPT_CLASS = 'min-h-0 flex-1';
+
+/** Lines a coach sends a lot, one tap into the composer. Exported for the dev preview. */
+export const STAFF_QUICK = ['איך הרגיש האימון?', 'ראיתי את הריצה 👏', 'מעולה, ממשיכים ככה 💪', 'בוא נדבר על השבוע'];
 
 function ConnectedAcademyThread({
   tokenData,
@@ -247,9 +277,12 @@ function ConnectedAcademyThread({
   layout,
   onBack,
   onRetry,
+  onFail,
 }: {
   onBack?: () => void;
   onRetry: () => void;
+  /** The panel's silent auto-retry; true when it took the failure. */
+  onFail?: (step: OpenStep, e?: unknown) => boolean;
   tokenData: StreamTokenData;
   thread: OpenedThread;
   segments?: SegmentVerdict[];
@@ -289,7 +322,7 @@ function ConnectedAcademyThread({
         if (cancelled) return;
         // Stream's own message is English ("Request failed with status code 403")
         // and says nothing a trainee can act on: logged, never rendered.
-        console.error('academy thread watch', e);
+        if (onFail?.('stream-watch', e)) return;
         setError(THREAD_ERROR_FALLBACK);
       });
 
@@ -310,7 +343,7 @@ function ConnectedAcademyThread({
       subs.forEach(s => s.unsubscribe());
       ch.stopWatching().catch(() => { /* unmounting anyway */ });
     };
-  }, [client, thread.channelId, sync]);
+  }, [client, thread.channelId, sync, onFail]);
 
   const onSend = async (text: string) => {
     setSending(true);
@@ -374,7 +407,7 @@ function ConnectedAcademyThread({
       onSend={onSend}
       sending={sending}
       error={error}
-      className={className}
+      className={onBack ? cn(STAFF_TRANSCRIPT_CLASS, className) : className}
       layout={onBack ? 'sheet' : layout}
       seenAt={seenAt}
       quickReplies={thread.seat === 'trainee' ? undefined : STAFF_QUICK}
@@ -385,9 +418,24 @@ function ConnectedAcademyThread({
   // "looks bad" — it sat in a card under the academy's title and tabs). Over the tab bar
   // too; ‹ goes back to the list.
   return (
-    <div dir="rtl" className="fixed inset-0 z-[60] flex flex-col bg-[#efe7de] pt-[env(safe-area-inset-top)]">
-      <ThreadHeader name={thread.name} athleteId={thread.athleteId} onBack={onBack} />
+    <StaffThreadScreen name={thread.name} athleteId={thread.athleteId} onBack={onBack}>
       {transcript}
+    </StaffThreadScreen>
+  );
+}
+
+/** The staff full-screen shell around one thread. Exported for the dev preview. */
+export function StaffThreadScreen({ name, athleteId, onBack, children }: {
+  name: string; athleteId: string; onBack: () => void; children: ReactNode;
+}) {
+  // 100dvh rather than inset-0, and the visual viewport's box while the keyboard is
+  // open, so the composer stays above it (brief 2026-11-18, 3.1; unverified on a device).
+  const box = useVisualViewportBox();
+  return (
+    <div dir="rtl" data-testid="staff-thread-screen" style={box ?? undefined}
+      className="fixed inset-x-0 top-0 z-[60] flex h-[100dvh] flex-col bg-[#efe7de] pt-[env(safe-area-inset-top)]">
+      <ThreadHeader name={name} athleteId={athleteId} onBack={onBack} />
+      {children}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -125,12 +126,12 @@ export default function AcademyJoinPage() {
               {/* htmlFor/id: the label sat above its input but named nothing, so
                   the field announced as its placeholder, "your@email.com". */}
               <label htmlFor="ja-garmin-email" className="block text-sm font-medium text-ink-500 mb-1">{t('garminEmailLabel')}</label>
-              <Input id="ja-garmin-email" autoComplete="username" type="email" value={garminEmail} onChange={e => setGarminEmail(e.target.value)} required
+              <Input id="ja-garmin-email" name="garmin-email" autoComplete="off" type="email" value={garminEmail} onChange={e => setGarminEmail(e.target.value)} required
                 placeholder="your@email.com" />
             </div>
             <div>
               <label htmlFor="ja-garmin-password" className="block text-sm font-medium text-ink-500 mb-1">{t('garminPasswordLabel')}</label>
-              <Input id="ja-garmin-password" autoComplete="current-password" type="password" value={garminPassword} onChange={e => setGarminPassword(e.target.value)} required />
+              <PasswordInput as={Input} id="ja-garmin-password" name="garmin-password" autoComplete="off" value={garminPassword} onChange={e => setGarminPassword(e.target.value)} required />
             </div>
             {error && <p className="text-sm text-accent-red">{error}</p>}
             <Button type="submit" variant="primary" size="lg" className="w-full">

@@ -1,4 +1,5 @@
 'use client';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { postLoginPath } from '@/lib/auth/landing';
 
 import { useEffect, useState } from 'react';
@@ -438,8 +439,8 @@ export default function HomePage() {
               placeholder="admin@madregot.club"
               required
             />
-            <input
-              type="password"
+            <PasswordInput
+              autoComplete="current-password"
               value={adminPassword}
               onChange={e => setAdminPassword(e.target.value)}
               className="w-full min-h-[44px] bg-page/50 border border-page/50 rounded-xl px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50"

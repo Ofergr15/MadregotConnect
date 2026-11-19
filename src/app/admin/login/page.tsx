@@ -1,4 +1,5 @@
 'use client';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { postLoginPath } from '@/lib/auth/landing';
 
 import { useState } from 'react';
@@ -106,8 +107,8 @@ export default function AdminLoginPage() {
           </div>
           <div>
             <label htmlFor="al-password" className="block text-sm font-medium text-ink-500 mb-1">{th('password')}</label>
-            <Input id="al-password"
-              type="password"
+            <PasswordInput as={Input} id="al-password"
+              autoComplete="current-password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="••••••••"
