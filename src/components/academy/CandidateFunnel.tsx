@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, FileText, GraduationCap, Link2, Mail, MessageCircle, Phone, Plus, RotateCcw, Undo2, UserPlus } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { AcademyRegistrations, IntakeAnswers, IntakeTags } from '@/components/AcademyRegistrations';
@@ -21,6 +21,7 @@ import {
   PARKED_STAGES,
 } from '@/lib/academy/funnel';
 import type { Characterization } from '@/lib/academy/characterization';
+import { latestEcho } from '@/lib/academy/latest-echo';
 import type { LinkableAthlete } from '@/lib/academy/link';
 import { CharacterizationSheet } from './CharacterizationForm';
 import { LinkAthleteSheet } from './LinkAthleteSheet';
@@ -1198,6 +1199,9 @@ export function CandidateFunnel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  /** The open card's id as of now, for async save handlers (a closure holds the old one). */
+  const openIdNow = useRef(openId);
+  useEffect(() => { openIdNow.current = openId; }, [openId]);
   const [busy, setBusy] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   // The characterization form, and the answers behind it. `undefined` means "not fetched yet"
@@ -1205,6 +1209,7 @@ export function CandidateFunnel({
   // form must not open on an empty shell while the real answers are still in flight.
   const [characterizing, setCharacterizing] = useState(false);
   const [characterization, setCharacterization] = useState<Characterization | null | undefined>(undefined);
+  const echoes = useRef(latestEcho());
   const [charError, setCharError] = useState(false);
   // The roster, for joining a candidate to the account they registered. Fetched once, on the
   // first card that asks for it: it is 25 rows of staff-only data and most visits to this board
@@ -1491,6 +1496,7 @@ export function CandidateFunnel({
           candidateId={open.id}
           value={characterization}
           onSave={async next => {
+            const ticket = echoes.current.begin();
             const res = await fetch('/api/academy/characterization', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json', ...(await apiHeaders()) },
@@ -1501,7 +1507,11 @@ export function CandidateFunnel({
             // agree with what the table actually holds — a date the column refused is null
             // here, and the coach sees that rather than a value that only exists on screen.
             const body = await res.json().catch(() => null);
-            if (body?.characterization) setCharacterization(body.characterization);
+            // Only the newest save's echo, and only while that candidate is still the open
+            // card: a slow echo never reverts newer answers or lands on somebody else's card.
+            if (body?.characterization && echoes.current.isLatest(ticket) && openIdNow.current === next.candidateId) {
+              setCharacterization(body.characterization);
+            }
             return true;
           }}
           // The SAME request the card's `בוצע` button makes, so one code path moves the funnel.

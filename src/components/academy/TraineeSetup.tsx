@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ClipboardList } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { cn, israelToday } from '@/lib/utils';
 import { Sheet } from '@/components/ui';
 import type { Characterization } from '@/lib/academy/characterization';
+import { latestEcho } from '@/lib/academy/latest-echo';
 import { COACHING_TYPES, MISSING_LABEL, type SetupMissing } from '@/lib/academy/trainee-setup';
 import { CharacterizationForm } from './CharacterizationForm';
 import { ZoneRows } from './ZoneRows';
@@ -92,6 +93,7 @@ function TraineeSetupSheet({ open, onOpenChange, athleteId, setup, onSaved }: {
   const [bandId, setBandId] = useState<string | null>(setup.bandId);
   const [err, setErr] = useState<string | null>(null);
   const [characterization, setCharacterization] = useState<Characterization | null | undefined>(undefined);
+  const echoes = useRef(latestEcho());
   useEffect(() => { if (open) { setCoachingType(setup.coachingType); setBandId(setup.bandId); setErr(null); } }, [open, setup.coachingType, setup.bandId]);
   useEffect(() => {
     if (!open || !setup.candidateId) return;
@@ -171,12 +173,14 @@ function TraineeSetupSheet({ open, onOpenChange, athleteId, setup, onSaved }: {
               value={characterization}
               today={israelToday()}
               onSave={async (next) => {
+                const ticket = echoes.current.begin();
                 const res = await fetch('/api/academy/characterization', {
                   method: 'PUT', headers: await apiHeaders(true), body: JSON.stringify({ ...next, candidateId: setup.candidateId }),
                 });
                 if (!res.ok) return false;
                 const body = await res.json().catch(() => null);
-                if (body?.characterization) setCharacterization(body.characterization);
+                // Only the newest save's echo may replace the answers (lib/academy/latest-echo).
+                if (body?.characterization && echoes.current.isLatest(ticket)) setCharacterization(body.characterization);
                 onSaved();
                 return true;
               }}
