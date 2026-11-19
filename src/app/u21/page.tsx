@@ -6,6 +6,7 @@ import {
   DATE_HINT, DRAFT_NOTE, U21_FIELDS, U21_TRACKS, ageOn, fieldVisible, validateU21Intake,
   type U21Answers, type U21Field, type U21Track,
 } from '@/lib/u21/intake';
+import { parseU21TrackParam } from '@/lib/u21/entry';
 import { cn } from '@/lib/utils';
 
 type Step = 'track' | 'form' | 'done';
@@ -13,8 +14,16 @@ type Step = 'track' | 'form' | 'done';
 const input = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base focus:border-gray-900 focus:outline-none';
 
 export default function U21Page() {
-  const [step, setStep] = useState<Step>('track');
-  const [track, setTrack] = useState<U21Track | null>(null);
+  // Deep link from the registration page's U21 section (/u21?track=<id>,
+  // lib/u21/entry): a valid track skips the picker and opens the questionnaire
+  // directly — "בחירת מסלול וכניסה קדימה". Read in the state initializer (not
+  // an effect) so the track step never flashes first; null on the server.
+  const [entry] = useState(() =>
+    typeof window === 'undefined'
+      ? null
+      : parseU21TrackParam(new URLSearchParams(window.location.search).get('track')));
+  const [step, setStep] = useState<Step>(entry ? 'form' : 'track');
+  const [track, setTrack] = useState<U21Track | null>(entry);
   const [answers, setAnswers] = useState<U21Answers>({});
   const [honeypot, setHoneypot] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
