@@ -13,13 +13,14 @@ struct FeedView: View {
                               emptyMessage: "כשחברי המועדון ירוצו, הריצות שלהם יופיעו כאן.",
                               retry: load) { runs in
                         ScrollView {
-                            LazyVStack(spacing: 14) {
+                            LazyVStack(spacing: 10) {
                                 ForEach(runs) { run in
                                     NavigationLink(value: run) { FeedCard(run: run, onClap: clap) }
                                         .buttonStyle(.plain)
                                 }
                             }
-                            .padding(Theme.gutter)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 4)
                         }
                         // The floating tab bar sits over the content: keep the last card's
                         // stats and clap fully above it when scrolled to the end.
@@ -69,12 +70,13 @@ struct FeedCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            RunnerHeader(run: run)
-            Text(run.title).font(Theme.font(20, .black)).foregroundStyle(Theme.ink900)
-            HStack(alignment: .lastTextBaseline, spacing: 28) {
-                RunStat(value: String(format: "%.1f", run.distanceKm), unit: "ק״מ")
-                RunStat(value: run.pace, unit: "לק״מ")
+        // Compact: name/time, then the run's title, then the two numbers that matter.
+        VStack(alignment: .leading, spacing: 10) {
+            RunnerHeader(run: run, compact: true)
+            Text(run.title).font(Theme.font(18, .black)).foregroundStyle(Theme.ink900)
+            HStack(alignment: .lastTextBaseline, spacing: 22) {
+                RunStat(value: String(format: "%.1f", run.distanceKm), unit: "ק״מ", size: 24)
+                RunStat(value: run.pace, unit: "לק״מ", size: 24)
                 Spacer()
                 Button {
                     guard !sending else { return }
@@ -96,22 +98,25 @@ struct FeedCard: View {
                 .sensoryFeedback(.selection, trigger: liked)
             }
         }
-        .card()
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.card, in: .rect(cornerRadius: 20))
         .contentShape(.rect)
     }
 }
 
 struct RunnerHeader: View {
     let run: FeedRun
+    var compact = false
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: compact ? 10 : 12) {
             Text(run.initials)
-                .font(Theme.font(15, .bold))
+                .font(Theme.font(compact ? 13 : 15, .bold))
                 .foregroundStyle(.white)
-                .frame(width: 40, height: 40)
+                .frame(width: compact ? 34 : 40, height: compact ? 34 : 40)
                 .background(Theme.groupColor(run.group), in: .circle)
             VStack(alignment: .leading, spacing: 2) {
-                Text(run.name).font(Theme.font(17, .bold)).foregroundStyle(Theme.ink900)
+                Text(run.name).font(Theme.font(compact ? 15 : 17, .bold)).foregroundStyle(Theme.ink900)
                 Text(run.when).font(Theme.font(12, .regular)).foregroundStyle(Theme.ink500)
             }
             Spacer()

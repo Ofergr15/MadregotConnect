@@ -69,12 +69,13 @@ struct BrandScreen: ViewModifier {
             .background(Theme.page)
             .safeAreaInset(edge: .top, spacing: 0) {
                 HStack {
-                    Text(title).font(Theme.font(28, .black)).foregroundStyle(Theme.ink900)
+                    Text(title).font(Theme.font(26, .black)).foregroundStyle(Theme.ink900)
                     Spacer()
-                    ClubMark(size: 40)
+                    ClubMark(size: 36)
                 }
                 .padding(.horizontal, Theme.gutter)
-                .padding(.vertical, 10)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
                 .background(Theme.page)
             }
             .toolbar(.hidden, for: .navigationBar)
