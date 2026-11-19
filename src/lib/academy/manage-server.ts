@@ -21,6 +21,17 @@ import {
   type HistoryRow, type PendingApplicant,
 } from './manage';
 
+/**
+ * The Israel calendar day of a stored timestamp ('' for none). The undo compared the UTC date
+ * prefix with Israel's today, so between 00:00 and 02:00 (03:00 in summer) a card moved that
+ * night failed to return to the funnel (QA 11-19, Instinct).
+ */
+function israelDayOf(ts: string | null | undefined): string {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return Number.isNaN(d.getTime()) ? '' : israelToday(d);
+}
+
 export type { AcademyPeopleResponse, AddableMember, PendingApplicant } from './manage';
 
 // The server half of the manager's people tab (lib/academy/manage.ts is the pure
@@ -283,9 +294,9 @@ export async function runBulk(req: BulkRequest, caller: VerifiedCaller): Promise
       // already had from the form stays, back to how it was.
       const { data: card } = await supabase.from('academy_candidates').select('id, source, created_at, accepted_at').eq('athlete_id', id).maybeSingle();
       const c = card as { id: string; source?: string | null; created_at?: string | null; accepted_at?: string | null } | null;
-      if (c?.source === 'existing' && String(c.created_at || '').slice(0, 10) === today) {
+      if (c?.source === 'existing' && israelDayOf(c.created_at) === today) {
         await supabase.from('academy_candidates').delete().eq('id', c.id);
-      } else if (c?.source === 'existing' && String(c.accepted_at || '').slice(0, 10) === today) {
+      } else if (c?.source === 'existing' && israelDayOf(c.accepted_at) === today) {
         // Their form's card, which the move closed: back into the funnel. The form's own source
         // was not kept, so it reads as the form's default.
         await supabase.from('academy_candidates').update({ source: 'instagram', accepted_at: null }).eq('id', c.id);
