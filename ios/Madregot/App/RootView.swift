@@ -32,11 +32,13 @@ struct MainTabView: View {
 #Preview("מחובר") {
     RootView()
         .environment(SessionStore(previewState: .signedIn))
+        .environment(DemoSettings())
         .environment(\.layoutDirection, .rightToLeft)
 }
 
 #Preview("לא מחובר") {
     RootView()
         .environment(SessionStore(previewState: .signedOut))
+        .environment(DemoSettings())
         .environment(\.layoutDirection, .rightToLeft)
 }

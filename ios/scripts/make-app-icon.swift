@@ -1,7 +1,7 @@
 // Builds the App Store icon (1024×1024, opaque, square corners; iOS applies its own mask)
 // from any square-ish source image.
 //
-//   swift ios/scripts/make-app-icon.swift <source.png> [background-hex]
+//   swift ios/scripts/make-app-icon.swift <source.png> [background-hex] [padding-%]
 //
 // Writes ios/Madregot/Resources/Assets.xcassets/AppIcon.appiconset/icon-1024.png.
 // To swap in a better logo later: drop the new file in ios/Design/AppIcon/ and rerun.
@@ -14,6 +14,8 @@ guard args.count >= 2, let source = NSImage(contentsOfFile: args[1]) else {
 }
 let hex = args.count >= 3 ? args[2] : "FFFFFF"
 let v = UInt32(hex, radix: 16) ?? 0xFFFFFF
+// Inset so lettering near the source's edges survives iOS's rounded mask (default 10%).
+let padding = args.count >= 4 ? (Double(args[3]) ?? 10) / 100 : 0.10
 let bg = CGColor(red: CGFloat((v >> 16) & 0xFF) / 255, green: CGFloat((v >> 8) & 0xFF) / 255,
                  blue: CGFloat(v & 0xFF) / 255, alpha: 1)
 
@@ -28,7 +30,8 @@ ctx.interpolationQuality = .high
 // Fit the source inside the square, centred, keeping its aspect ratio.
 var rect = CGRect(origin: .zero, size: source.size)
 guard let cg = source.cgImage(forProposedRect: &rect, context: nil, hints: nil) else { exit(1) }
-let scale = min(CGFloat(side) / CGFloat(cg.width), CGFloat(side) / CGFloat(cg.height))
+let box = CGFloat(side) * (1 - 2 * padding)
+let scale = min(box / CGFloat(cg.width), box / CGFloat(cg.height))
 let w = CGFloat(cg.width) * scale, h = CGFloat(cg.height) * scale
 ctx.draw(cg, in: CGRect(x: (CGFloat(side) - w) / 2, y: (CGFloat(side) - h) / 2, width: w, height: h))
 

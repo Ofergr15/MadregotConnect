@@ -1,47 +1,39 @@
 import SwiftUI
 
 /// One thing per screen: today's workout, large, with one action at the thumb.
-struct TodayWorkout {
-    struct Block: Identifiable { let id = UUID(); let title: String; let detail: String }
-    let dayLabel: String
-    let title: String
-    let distanceKm: Double
-    let pace: String
-    let blocks: [Block]
-    let weekDoneKm: Double
-    let weekTargetKm: Double
-
-    static let sample = TodayWorkout(
-        dayLabel: "יום שלישי · 18 בנובמבר",
-        title: "אינטרוולים",
-        distanceKm: 12,
-        pace: "3:45",
-        blocks: [
-            .init(title: "חימום", detail: "2 ק״מ קל"),
-            .init(title: "6 × 1 ק״מ", detail: "קצב 3:45 · מנוחה 90 שנ׳"),
-            .init(title: "שחרור", detail: "2 ק״מ קל"),
-        ],
-        weekDoneKm: 34, weekTargetKm: 60
-    )
-}
-
 struct TodayView: View {
     @Environment(SessionStore.self) private var session
+    @Environment(DemoSettings.self) private var demo
+    @State private var state: LoadState<TodayWorkout> = .loading
 
     var body: some View {
         NavigationStack {
-            if session.isDemo {
-                TodayContent(workout: .sample)
-            } else {
-                ContentUnavailableView("האימון של היום", systemImage: "calendar",
-                                       description: Text("כאן יופיע האימון מהתוכנית השבועית."))
+            Group {
+                if session.isDemo {
+                    StateView(state: state, emptyTitle: "יום מנוחה", emptyIcon: "moon.zzz",
+                              emptyMessage: "אין אימון מתוכנן להיום. מנוחה היא חלק מהאימון.",
+                              retry: load) { TodayContent(workout: $0) }
+                } else {
+                    ContentUnavailableView("האימון של היום", systemImage: "calendar",
+                                           description: Text("כאן יופיע האימון מהתוכנית השבועית."))
+                }
             }
+            .navigationDestination(for: WorkoutBlock.self) { WorkoutBlockDetail(block: $0) }
         }
+        .task(id: demo.scenario) { await load() }
+    }
+
+    private func load() async {
+        guard session.isDemo else { return }
+        state = .loading
+        state = await demo.content.today()
     }
 }
 
+
 struct TodayContent: View {
     let workout: TodayWorkout
+    @State private var showWatchNote = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -57,18 +49,31 @@ struct TodayContent: View {
                         metric(workout.pace, unit: "לק״מ")
                     }
 
-                    VStack(alignment: .leading, spacing: 18) {
+                    VStack(spacing: 0) {
                         ForEach(workout.blocks) { block in
-                            HStack(alignment: .firstTextBaseline, spacing: 14) {
-                                Circle().fill(Theme.accent).frame(width: 8, height: 8)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(block.title).font(.headline)
-                                    Text(block.detail).font(.subheadline).foregroundStyle(.secondary)
+                            NavigationLink(value: block) {
+                                HStack(alignment: .firstTextBaseline, spacing: 14) {
+                                    Circle().fill(Theme.accent).frame(width: 8, height: 8)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(block.title).font(.headline)
+                                        Text(block.detail).font(.subheadline).foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.left").font(.footnote.bold()).foregroundStyle(.tertiary)
                                 }
+                                .padding(.vertical, 10)
+                                .contentShape(.rect)
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                     .card()
+
+                    if let note = workout.coachNote {
+                        Label { Text(note) } icon: { Image(systemName: "quote.opening") }
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
 
                     weekProgress
                 }
@@ -76,13 +81,18 @@ struct TodayContent: View {
                 .padding(.top, 24)
             }
 
-            Button {} label: {
+            Button { showWatchNote = true } label: {
                 Text("שליחה לשעון").font(.headline).frame(maxWidth: .infinity, minHeight: 56)
             }
             .buttonStyle(.borderedProminent)
             .tint(Theme.accent)
             .buttonBorderShape(.capsule)
             .padding(Theme.gutter)
+            .alert("במצב הדגמה", isPresented: $showWatchNote) {
+                Button("הבנתי", role: .cancel) {}
+            } message: {
+                Text("שליחה לשעון תעבוד אחרי חיבור לנתונים אמיתיים. כרגע לא נשלח דבר.")
+            }
         }
     }
 
@@ -106,6 +116,25 @@ struct TodayContent: View {
     }
 }
 
+struct WorkoutBlockDetail: View {
+    let block: WorkoutBlock
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text(block.title).font(.system(size: 34, weight: .bold, design: .rounded))
+                Text(block.detail).font(.title3).foregroundStyle(.secondary)
+                if let note = block.note {
+                    Text(note).font(.body).card()
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Theme.gutter)
+        }
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
 #Preview {
-    TodayContent(workout: .sample).environment(\.layoutDirection, .rightToLeft)
+    TodayContent(workout: DemoContent.workout).environment(\.layoutDirection, .rightToLeft)
 }

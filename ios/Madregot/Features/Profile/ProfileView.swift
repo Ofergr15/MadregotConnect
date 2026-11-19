@@ -2,8 +2,14 @@ import SwiftUI
 
 struct ProfileView: View {
     @Environment(SessionStore.self) private var session
+    @Environment(DemoSettings.self) private var demo
+    @State private var summary: LoadState<ProfileSummary> = .loading
 
-    private var displayName: String { session.isDemo ? "אופיר (הדגמה)" : (session.session?.email ?? "") }
+    private var displayName: String {
+        // The name is who is signed in, not loaded data: keep it in every demo state.
+        if session.isDemo { return DemoContent.summary.name }
+        return session.session?.email ?? ""
+    }
 
     var body: some View {
         NavigationStack {
@@ -14,18 +20,40 @@ struct ProfileView: View {
                             .font(.system(size: 76))
                             .foregroundStyle(Theme.accent)
                         Text(displayName).font(.title2.bold())
-                        if session.isDemo {
-                            Text("קבוצה 1 · מצב הדגמה").font(.subheadline).foregroundStyle(.secondary)
+                        if session.isDemo, case .loaded(let s) = summary {
+                            Text("\(s.groupLabel) · מצב הדגמה").font(.subheadline).foregroundStyle(.secondary)
                         }
                     }
                     .padding(.top, 12)
 
                     if session.isDemo {
-                        HStack(spacing: 12) {
-                            tile("34", "ק״מ השבוע")
-                            tile("4", "ריצות")
-                            tile("12", "ימים ברצף")
+                        switch summary {
+                        case .loaded(let s):
+                            HStack(spacing: 12) {
+                                tile("\(s.weekKm)", "ק״מ השבוע")
+                                tile("\(s.weekRuns)", "ריצות")
+                                tile("\(s.streakDays)", "ימים ברצף")
+                            }
+                        case .loading:
+                            ProgressView().frame(height: 96).accessibilityIdentifier("state-loading")
+                        case .empty:
+                            Text("עוד אין ריצות השבוע.").foregroundStyle(.secondary).frame(height: 96)
+                                .accessibilityIdentifier("state-empty")
+                        case .failed(let message):
+                            Text(message).foregroundStyle(.secondary).frame(height: 96)
+                                .accessibilityIdentifier("state-failed")
                         }
+
+                        @Bindable var demo = demo
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("מצב תצוגה (הדגמה)").font(.subheadline.bold())
+                            Picker("מצב תצוגה", selection: $demo.scenario) {
+                                ForEach(DemoScenario.allCases) { Text($0.label).tag($0) }
+                            }
+                            .pickerStyle(.segmented)
+                            .accessibilityIdentifier("demo-scenario")
+                        }
+                        .card()
                     }
 
                     VStack(spacing: 0) {
@@ -50,6 +78,11 @@ struct ProfileView: View {
                 .padding(Theme.gutter)
             }
             .navigationTitle("פרופיל")
+            .task(id: demo.scenario) {
+                guard session.isDemo else { return }
+                summary = .loading
+                summary = await demo.content.profile()
+            }
             .navigationBarTitleDisplayMode(.inline)
         }
     }

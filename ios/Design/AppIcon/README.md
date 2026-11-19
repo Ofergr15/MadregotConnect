@@ -22,8 +22,8 @@ or a ≥1024px PNG) is tracked for later.
 ## Swapping in a better logo
 
 1. Put the new file in this folder (any name).
-2. Run the script with that path (optionally a background hex as the second argument,
-   e.g. `FFFFFF`).
+2. Run the script with that path (optionally a background hex and a padding percent,
+   e.g. `FFFFFF 10`). Padding defaults to 10% so edge lettering survives the iOS mask.
 3. Check the result has no transparency: `sips -g hasAlpha <output>` must say `no`.
 
 Nothing else references the source file, so replacing it needs no code change.

@@ -3,11 +3,13 @@ import SwiftUI
 @main
 struct MadregotApp: App {
     @State private var session = SessionStore()
+    @State private var demo = DemoSettings()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(session)
+                .environment(demo)
                 // Hebrew-first: the app is right-to-left regardless of the device language.
                 // An English mode (the web app's `en` locale) comes later and will lift this.
                 .environment(\.layoutDirection, .rightToLeft)

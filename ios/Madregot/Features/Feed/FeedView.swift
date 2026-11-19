@@ -1,37 +1,28 @@
 import SwiftUI
 
 /// A calm list of club runs: who, what, and the one number that matters. No clutter.
-struct FeedRun: Identifiable {
-    let id = UUID()
-    let name: String
-    let initials: String
-    let group: Int            // 1 fast · 2 medium · 3 slow
-    let when: String
-    let title: String
-    let distanceKm: Double
-    let pace: String
-    let kudos: Int
-
-    static let samples: [FeedRun] = [
-        .init(name: "נועה לוי", initials: "נל", group: 1, when: "לפני שעה", title: "אינטרוולים \u{2066}6×1\u{2069} ק״מ", distanceKm: 12.1, pace: "4:02", kudos: 8),
-        .init(name: "איתי כהן", initials: "אכ", group: 2, when: "לפני 3 שעות", title: "ריצה קלה", distanceKm: 8.4, pace: "5:31", kudos: 3),
-        .init(name: "מיכל ברק", initials: "מב", group: 3, when: "הבוקר", title: "ריצה ארוכה", distanceKm: 18.0, pace: "6:05", kudos: 12),
-        .init(name: "דני שמש", initials: "דש", group: 1, when: "אתמול", title: "טמפו 10 ק״מ", distanceKm: 14.2, pace: "3:58", kudos: 6),
-    ]
-}
-
 struct FeedView: View {
     @Environment(SessionStore.self) private var session
+    @Environment(DemoSettings.self) private var demo
+    @State private var state: LoadState<[FeedRun]> = .loading
 
     var body: some View {
         NavigationStack {
             Group {
                 if session.isDemo {
-                    ScrollView {
-                        LazyVStack(spacing: 14) {
-                            ForEach(FeedRun.samples) { FeedCard(run: $0) }
+                    StateView(state: state, emptyTitle: "עוד אין ריצות", emptyIcon: "figure.run",
+                              emptyMessage: "כשחברי המועדון ירוצו, הריצות שלהם יופיעו כאן.",
+                              retry: load) { runs in
+                        ScrollView {
+                            LazyVStack(spacing: 14) {
+                                ForEach(runs) { run in
+                                    NavigationLink(value: run) { FeedCard(run: run) }
+                                        .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(Theme.gutter)
                         }
-                        .padding(Theme.gutter)
+                        .refreshable { await load() }
                     }
                 } else {
                     ContentUnavailableView("הפיד", systemImage: "list.bullet.rectangle",
@@ -39,9 +30,18 @@ struct FeedView: View {
                 }
             }
             .navigationTitle("פיד")
+            .navigationDestination(for: FeedRun.self) { RunDetailView(run: $0) }
         }
+        .task(id: demo.scenario) { await load() }
+    }
+
+    private func load() async {
+        guard session.isDemo else { return }
+        if case .loaded = state {} else { state = .loading }
+        state = await demo.content.feed()
     }
 }
+
 
 struct FeedCard: View {
     let run: FeedRun
@@ -49,24 +49,11 @@ struct FeedCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
-                Text(run.initials)
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.white)
-                    .frame(width: 40, height: 40)
-                    .background(Theme.groupColor(run.group), in: .circle)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(run.name).font(.headline)
-                    Text(run.when).font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-
+            RunnerHeader(run: run)
             Text(run.title).font(.title3.weight(.semibold))
-
             HStack(alignment: .lastTextBaseline, spacing: 28) {
-                stat(String(format: "%.1f", run.distanceKm), "ק״מ")
-                stat(run.pace, "לק״מ")
+                RunStat(value: String(format: "%.1f", run.distanceKm), unit: "ק״מ")
+                RunStat(value: run.pace, unit: "לק״מ")
                 Spacer()
                 Button {
                     liked.toggle()
@@ -80,12 +67,68 @@ struct FeedCard: View {
             }
         }
         .card()
+        .contentShape(.rect)
     }
+}
 
-    private func stat(_ value: String, _ unit: String) -> some View {
+struct RunnerHeader: View {
+    let run: FeedRun
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(run.initials)
+                .font(.subheadline.bold())
+                .foregroundStyle(.white)
+                .frame(width: 40, height: 40)
+                .background(Theme.groupColor(run.group), in: .circle)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(run.name).font(.headline)
+                Text(run.when).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+    }
+}
+
+struct RunStat: View {
+    let value: String
+    let unit: String
+    var size: CGFloat = 28
+    var body: some View {
         HStack(alignment: .lastTextBaseline, spacing: 4) {
-            Text(value).font(.system(size: 28, weight: .semibold, design: .rounded)).monospacedDigit()
+            Text(value).font(.system(size: size, weight: .semibold, design: .rounded)).monospacedDigit()
             Text(unit).font(.caption).foregroundStyle(.secondary)
         }
+    }
+}
+
+struct RunDetailView: View {
+    let run: FeedRun
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                RunnerHeader(run: run)
+                Text(run.title).font(.system(size: 30, weight: .bold, design: .rounded))
+                HStack(spacing: 24) {
+                    RunStat(value: String(format: "%.1f", run.distanceKm), unit: "ק״מ", size: 34)
+                    RunStat(value: run.pace, unit: "לק״מ", size: 34)
+                    RunStat(value: run.durationLabel, unit: "זמן", size: 34)
+                }
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("קצב לפי קילומטר").font(.subheadline.bold())
+                    ForEach(Array(run.splits.enumerated()), id: \.offset) { index, split in
+                        HStack {
+                            Text("ק״מ \(index + 1)").foregroundStyle(.secondary)
+                            Spacer()
+                            Text(split).monospacedDigit()
+                        }
+                        .font(.subheadline)
+                    }
+                }
+                .card()
+            }
+            .padding(Theme.gutter)
+        }
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
