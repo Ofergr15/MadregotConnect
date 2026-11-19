@@ -9,6 +9,9 @@ struct AppConfig: Sendable {
     /// Supabase project used only to refresh the session. Nil until configured locally.
     let supabaseURL: URL?
     let supabaseAnonKey: String?
+    /// The U21 Personal Coach registration flow (the web /u21 page). Configurable so dev
+    /// can point at a local or preview server and release at the live site.
+    var u21URL: URL
 
     static let current = AppConfig(info: Bundle.main.infoDictionary ?? [:])
 
@@ -16,6 +19,7 @@ struct AppConfig: Sendable {
         self.apiBaseURL = apiBaseURL
         self.supabaseURL = supabaseURL
         self.supabaseAnonKey = supabaseAnonKey
+        self.u21URL = apiBaseURL.appending(path: "u21")
     }
 
     init(info: [String: Any]) {
@@ -28,6 +32,7 @@ struct AppConfig: Sendable {
             ?? URL(string: "http://localhost:3000")!
         supabaseURL = value("SupabaseURL").flatMap(URL.init(string:))
         supabaseAnonKey = value("SupabaseAnonKey")
+        u21URL = value("MadregotU21URL").flatMap(URL.init(string:)) ?? apiBaseURL.appending(path: "u21")
     }
 
     var canRefreshSessions: Bool { supabaseURL != nil && supabaseAnonKey != nil }

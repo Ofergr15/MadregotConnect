@@ -6,6 +6,8 @@
 	<false/>
 	<key>MadregotAPIBaseURL</key>
 	<string>$(MADREGOT_API_BASE_URL)</string>
+	<key>MadregotU21URL</key>
+	<string>$(MADREGOT_U21_URL)</string>
 #if MC_LOCAL_NETWORKING
 	<key>NSAppTransportSecurity</key>
 	<dict>

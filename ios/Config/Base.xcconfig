@@ -6,6 +6,11 @@
 // Note: "//" starts a comment in xcconfig files, hence the "$()" in URLs.
 
 MADREGOT_API_BASE_URL = http:/$()/localhost:3000
+// The U21 Personal Coach flow (web /u21). Release defaults to the API host. Debug opens the
+// u21-personal-coach branch alias: a Vercel-protected preview, so the in-app browser shows
+// Vercel's own sign-in. No protection-bypass secret is ever put in the app.
+MADREGOT_U21_URL = $(MADREGOT_API_BASE_URL)/u21
+MADREGOT_U21_URL[config=Debug] = https:/$()/madregot-connect-git-u21-personal-coach-st-d1c4461c.vercel.app/u21
 SUPABASE_URL =
 SUPABASE_ANON_KEY =
 

@@ -105,6 +105,16 @@ struct RegistrationView: View {
                     .font(Theme.font(13, .regular)).foregroundStyle(Theme.ink500)
                     .frame(maxWidth: .infinity)
             }
+
+            // U21 at the bottom of registration (owner's voice note, Nov 19): no Strava or
+            // Google ask — pick a track and go. The flow itself is the web /u21 page.
+            Section {
+                U21EntryCard()
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+            } header: {
+                BrandSectionHeader("גילאי 16–21?")
+            }
         }
     }
 
