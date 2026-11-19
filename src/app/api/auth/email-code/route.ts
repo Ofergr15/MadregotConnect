@@ -86,6 +86,11 @@ export async function POST(request: Request) {
       // Migration 132 not pasted yet: say so, rather than fail as if the address were wrong.
       if (error && (error.code === '42P01' || error.code === 'PGRST205')) return NextResponse.json({ error: 'not-ready' }, { status: 503 });
       if (error) throw error;
+      // Dev backend only (no mail service there): print the code to the local server log.
+      // Needs BOTH an explicit flag and a non-production build, so it can never run live.
+      if (process.env.DEV_LOGIN_CODE_LOG === '1' && process.env.NODE_ENV !== 'production') {
+        console.log(`[email-code] DEV code for ${email}: ${code}`);
+      }
       const mail = await notifyLoginCode({ email, code, name: member.name, athleteId: member.id });
       if (!mail.ok) console.error('[email-code] mail not sent', mail.code, mail.reason);
       await recordOnbEvent({ step: 'code_sent', athleteId: member.id, device: deviceFromUa(request.headers.get('user-agent')), meta: { mailed: mail.ok } });
