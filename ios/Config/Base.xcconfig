@@ -10,3 +10,7 @@ SUPABASE_URL =
 SUPABASE_ANON_KEY =
 
 #include? "Secrets.xcconfig"
+
+// Demo mode (made-up data) stays available in TestFlight builds until the app has a
+// non-production backend. Remove DEMO before any App Store release.
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) DEMO

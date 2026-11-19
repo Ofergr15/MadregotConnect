@@ -107,7 +107,7 @@ struct DataSourcesView: View {
 
     private var resolvedClient: DataSourcesClient {
         if let client { return client }
-        #if DEBUG
+        #if DEBUG || DEMO
         if session.isDemo { return DemoDataSourcesClient() }
         #endif
         return HTTPDataSourcesClient(config: .current)

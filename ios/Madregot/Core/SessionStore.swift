@@ -99,7 +99,7 @@ final class SessionStore {
         state = .signedOut
     }
 
-    #if DEBUG
+    #if DEBUG || DEMO
     /// Shows the signed-in app with made-up data so screens can be reviewed without a
     /// server. Debug builds only: the button and this method do not exist in a release
     /// build. Never touches the Keychain, so a real session on the device is left alone.

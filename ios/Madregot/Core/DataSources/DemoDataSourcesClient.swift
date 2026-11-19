@@ -1,4 +1,4 @@
-#if DEBUG
+#if DEBUG || DEMO
 import Foundation
 
 /// Made-up connection state for demo mode: one healthy source, one that needs attention,
