@@ -43,24 +43,6 @@ struct HTTPProfileClient: ProfileClient {
     }
 
     private func get(_ path: String, query: [String: String], token: String) async -> Result<[String: Any], FailureText> {
-        var components = URLComponents(url: config.apiBaseURL.appending(path: path), resolvingAgainstBaseURL: false)!
-        components.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
-        var request = URLRequest(url: components.url!)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        do {
-            let (data, response) = try await session.data(for: request)
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            if status == 401 || status == 403 { return .failure(FailureText("צריך להתחבר מחדש.")) }
-            guard (200..<300).contains(status),
-                  let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-                return .failure(FailureText("משהו השתבש. נסו שוב."))
-            }
-            return .success(json)
-        } catch {
-            return .failure(FailureText(Connectivity.isOffline(error) ? Connectivity.offlineMessage : Connectivity.serverUnavailableMessage))
-        }
+        await AuthorizedGet(config: config, session: session).json(path, query: query, token: token)
     }
 }
-
-/// A user-facing reason, carried through `Result` (which needs an `Error`).
-struct FailureText: Error, Sendable { let text: String; init(_ text: String) { self.text = text } }

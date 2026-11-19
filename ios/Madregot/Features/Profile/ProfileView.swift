@@ -92,11 +92,9 @@ struct ProfileView: View {
                 }
                 .padding(Theme.gutter)
             }
-            .background(Theme.page)
-            .navigationTitle("פרופיל")
+            .brandScreen("פרופיל")
             .task(id: demo.scenario) { await load() }
             .refreshable { await load() }
-            .navigationBarTitleDisplayMode(.inline)
         }
     }
 

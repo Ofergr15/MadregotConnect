@@ -9,30 +9,33 @@ struct TodayView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if session.isDemo {
-                    StateView(state: state, emptyTitle: "יום מנוחה", emptyIcon: "moon.zzz",
-                              emptyMessage: "אין אימון מתוכנן להיום. מנוחה היא חלק מהאימון.",
-                              retry: load) { TodayContent(workout: $0) }
-                } else {
-                    ContentUnavailableView("האימון של היום", systemImage: "calendar",
-                                           description: Text("כאן יופיע האימון מהתוכנית השבועית."))
-                }
+                StateView(state: state, emptyTitle: "אין אימון היום", emptyIcon: "moon.zzz",
+                          emptyMessage: "אין אימון מתוכנן להיום בתוכנית השבועית. מנוחה היא חלק מהאימון.",
+                          retry: load) { TodayContent(workout: $0, isDemo: session.isDemo) }
             }
+            .brandScreen("היום")
             .navigationDestination(for: WorkoutBlock.self) { WorkoutBlockDetail(block: $0) }
         }
         .task(id: demo.scenario) { await load() }
     }
 
+    /// Demo: made-up content. Signed in: today's sessions from the club's weekly plan.
     private func load() async {
-        guard session.isDemo else { return }
         state = .loading
-        state = await demo.content.today()
+        if session.isDemo { state = await demo.content.today(); return }
+        do {
+            let token = try await session.validAccessToken()
+            state = await HTTPTodayClient(config: .current).today(accessToken: token)
+        } catch {
+            state = .failed((error as? AuthError ?? .sessionRejected).message)
+        }
     }
 }
 
 
 struct TodayContent: View {
     let workout: TodayWorkout
+    var isDemo = true
     @State private var showWatchNote = false
 
     var body: some View {
@@ -40,14 +43,19 @@ struct TodayContent: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(workout.dayLabel).font(Theme.font(15, .regular)).foregroundStyle(.secondary)
-                        Text(workout.title).font(Theme.font(40, .bold))
+                        Text(workout.dayLabel).font(Theme.font(15, .bold)).foregroundStyle(Theme.ink500)
+                        Text(workout.title).font(Theme.font(40, .black)).foregroundStyle(Theme.brand)
                     }
 
-                    HStack(spacing: 32) {
+                    HStack(spacing: 0) {
                         metric(String(format: "%g", workout.distanceKm), unit: "ק״מ")
-                        metric(workout.pace, unit: "לק״מ")
+                        if workout.pace != "–" {
+                            Divider().frame(height: 56)
+                            metric(workout.pace, unit: "לק״מ")
+                        }
                     }
+                    .padding(.vertical, 18)
+                    .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
 
                     VStack(spacing: 0) {
                         ForEach(workout.blocks) { block in
@@ -75,43 +83,42 @@ struct TodayContent: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    weekProgress
+                    if workout.weekTargetKm > 0 { weekProgress.card() }
                 }
                 .padding(.horizontal, Theme.gutter)
                 .padding(.top, 24)
             }
 
-            Button { showWatchNote = true } label: {
-                Text("שליחה לשעון").font(Theme.font(17, .semibold)).frame(maxWidth: .infinity, minHeight: 56)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(Theme.accent)
-            .buttonBorderShape(.capsule)
-            .padding(Theme.gutter)
+            if isDemo {
+                Button("שליחה לשעון") { showWatchNote = true }
+                .buttonStyle(BrandButtonStyle())
+                .padding(Theme.gutter)
             .alert("במצב הדגמה", isPresented: $showWatchNote) {
                 Button("הבנתי", role: .cancel) {}
             } message: {
                 Text("שליחה לשעון תעבוד אחרי חיבור לנתונים אמיתיים. כרגע לא נשלח דבר.")
             }
+            }
         }
     }
 
     private func metric(_ value: String, unit: String) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(value).font(Theme.font(52, .semibold)).monospacedDigit()
-            Text(unit).font(Theme.font(13, .regular)).foregroundStyle(.secondary)
+        VStack(spacing: 0) {
+            Text(value).font(Theme.font(44, .black)).foregroundStyle(Theme.ink900).monospacedDigit()
+            Text(unit).font(Theme.font(13, .regular)).foregroundStyle(Theme.ink500)
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var weekProgress: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("השבוע").font(Theme.font(15, .bold))
+                Text("השבוע").font(Theme.font(15, .black)).foregroundStyle(Theme.ink900)
                 Spacer()
-                Text("\(Int(workout.weekDoneKm)) מתוך \(Int(workout.weekTargetKm)) ק״מ")
+                Text(workout.weekDoneKm > 0 ? "\(Int(workout.weekDoneKm)) מתוך \(Int(workout.weekTargetKm)) ק״מ" : "יעד: \(Int(workout.weekTargetKm)) ק״מ")
                     .font(Theme.font(15, .regular)).foregroundStyle(.secondary).monospacedDigit()
             }
-            ProgressView(value: workout.weekDoneKm, total: workout.weekTargetKm).tint(Theme.accent)
+            ProgressView(value: workout.weekDoneKm, total: workout.weekTargetKm).tint(Theme.brand)
         }
     }
 }
@@ -122,7 +129,7 @@ struct WorkoutBlockDetail: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text(block.title).font(Theme.font(34, .bold))
+                Text(block.title).font(Theme.font(34, .black)).foregroundStyle(Theme.brand)
                 Text(block.detail).font(Theme.font(20, .regular)).foregroundStyle(.secondary)
                 if let note = block.note {
                     Text(note).font(Theme.font(17, .regular)).card()
@@ -131,6 +138,7 @@ struct WorkoutBlockDetail: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(Theme.gutter)
         }
+        .background(Theme.page)
         .navigationBarTitleDisplayMode(.inline)
     }
 }

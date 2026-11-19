@@ -103,7 +103,7 @@ struct SignInView: View {
                 .textContentType(.oneTimeCode)
                 .keyboardType(.numberPad)
                 .font(Theme.font(28, .black).monospacedDigit())
-                .tracking(8)
+                .tracking(code.isEmpty ? 0 : 8)   // spaced digits, not a spaced-out Hebrew placeholder
                 .multilineTextAlignment(.center)
                 .focused($focus, equals: .code)
                 .modifier(BrandFieldStyle(height: 60))
