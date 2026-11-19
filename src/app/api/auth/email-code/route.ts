@@ -63,6 +63,10 @@ export async function POST(request: Request) {
 
   // The welcome screen's greeting: who this link belongs to, never the full address.
   if (body?.action === 'who') {
+    // Only a join link may ask whose it is. Answered for a bare address, this told
+    // anybody "member, first name X" versus 404 — the probe `send` refuses to be.
+    // Same status and body as an unknown link, so the two cannot be told apart.
+    if (!token) return NextResponse.json({ error: 'unknown-link' }, { status: 404 });
     const member = await memberFor(supabase, email);
     if (!member) return NextResponse.json({ error: 'unknown-link' }, { status: 404 });
     // The name they typed on the form (migration 131) reads better than the roster's
