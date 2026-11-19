@@ -41,9 +41,63 @@ describe('POST /api/u21/register', () => {
     expect(inserted).toEqual([]);
   });
 
+  it('400s malformed required values (true for name/email/phone) and stores nothing', async () => {
+    const res = await POST(req({ track: 'basic', answers: { ...base, firstName: true, email: true, phone: true } }, '2.2.2.5'));
+    expect(res.status).toBe(400);
+    expect(Object.keys((await res.json()).errors).sort()).toEqual(['email', 'firstName', 'phone']);
+    expect(inserted).toEqual([]);
+  });
+
+  it.each([['an array', [base]], ['a string', 'x'], ['null', null], ['missing', undefined]])('400s answers that are %s', async (_l, answers) => {
+    const res = await POST(req({ track: 'basic', answers }, '2.2.2.6'));
+    expect(res.status).toBe(400);
+    expect(inserted).toEqual([]);
+  });
+
+  it('400s a body that is an array', async () => {
+    expect((await POST(req([{ track: 'basic', answers: base }], '2.2.2.7'))).status).toBe(400);
+  });
+
   it('a honeypot submit is acknowledged and not stored', async () => {
     const res = await POST(req({ track: 'basic', answers: base, website: 'spam' }, '2.2.2.4'));
     expect(res.status).toBe(200);
     expect(inserted).toEqual([]);
+  });
+});
+
+describe('POST /api/u21/register — error redaction', () => {
+  it('never returns the DB error message', async () => {
+    vi.resetModules();
+    vi.doMock('@/lib/supabase/server', () => ({
+      createServerClient: () => ({
+        from: () => ({ insert: () => Promise.resolve({ error: { message: 'violates check constraint "u21_guardian_for_minors" on u21_registrations', code: '23514' } }) }),
+      }),
+    }));
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { POST: post } = await import('@/app/api/u21/register/route');
+    const res = await post(req({ track: 'basic', answers: base }, '3.3.3.1'));
+    const text = await res.text();
+    expect(res.status).toBe(500);
+    expect(JSON.parse(text)).toEqual({ error: 'Could not save' });
+    expect(text).not.toMatch(/u21_|constraint|23514/);
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+    vi.doUnmock('@/lib/supabase/server');
+  });
+
+  it('never returns a thrown exception message', async () => {
+    vi.resetModules();
+    vi.doMock('@/lib/supabase/server', () => ({
+      createServerClient: () => { throw new Error('SUPABASE_SERVICE_ROLE_KEY missing at /var/secret'); },
+    }));
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { POST: post } = await import('@/app/api/u21/register/route');
+    const res = await post(req({ track: 'basic', answers: base }, '3.3.3.2'));
+    const text = await res.text();
+    expect(res.status).toBe(500);
+    expect(JSON.parse(text)).toEqual({ error: 'Server error' });
+    expect(text).not.toMatch(/SUPABASE|secret/);
+    spy.mockRestore();
+    vi.doUnmock('@/lib/supabase/server');
   });
 });

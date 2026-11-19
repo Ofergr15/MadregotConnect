@@ -88,3 +88,25 @@ describe('pickKnownAnswers', () => {
     expect(out.firstName).toBe('דניאל');
   });
 });
+
+describe('validateU21Intake — runtime types', () => {
+  it.each([
+    ['firstName', true], ['email', true], ['phone', true], ['birthDate', 20060501],
+    ['goal', { x: 1 }], ['runsPerWeek', 3], ['chestPain', false], ['weeklyKm', 30],
+    ['availableDays', 'ראשון'], ['availableDays', [1, 2]], ['framework', ['תיכון']],
+  ] as const)('rejects %s = %j', (key, value) => {
+    const r = validateU21Intake('basic', adult({ [key]: value as never }), NOW);
+    expect(r.ok).toBe(false);
+    expect(r.errors[key]).toBeDefined();
+  });
+  it('type-checks optional fields too', () => {
+    for (const [k, v] of [['fitnessResults', 5], ['equipment', 'מתח'], ['injuries', true], ['preferences', []], ['targetDate', 1]] as const) {
+      expect(validateU21Intake('basic', adult({ [k]: v as never }), NOW).errors[k]).toBeDefined();
+    }
+  });
+  it('accepts only a boolean for the guardian checkbox', () => {
+    const minor = adult({ birthDate: '2009-06-01', guardianName: 'אמא', guardianPhone: '0521234567' });
+    expect(validateU21Intake('basic', { ...minor, guardianConsent: 'true' }, NOW).errors.guardianConsent).toBeDefined();
+    expect(validateU21Intake('basic', { ...minor, guardianConsent: true }, NOW).ok).toBe(true);
+  });
+});

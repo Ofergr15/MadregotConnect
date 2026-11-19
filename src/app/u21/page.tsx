@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { HONEYPOT_FIELD } from '@/lib/academy/intake';
 import {
-  DRAFT_NOTE, U21_FIELDS, U21_TRACKS, ageOn, fieldVisible, validateU21Intake,
+  DATE_HINT, DRAFT_NOTE, U21_FIELDS, U21_TRACKS, ageOn, fieldVisible, validateU21Intake,
   type U21Answers, type U21Field, type U21Track,
 } from '@/lib/u21/intake';
 import { cn } from '@/lib/utils';
@@ -220,6 +220,7 @@ function FieldInput({ f, value, error, onChange }: {
     <label className="block">
       {label}
       {control}
+      {f.type === 'date' && <span className="mt-1 block text-xs text-gray-500">{DATE_HINT}</span>}
       {error && <span className="mt-1 block text-sm text-red-700">{error}</span>}
     </label>
   );

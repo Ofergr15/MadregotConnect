@@ -38,7 +38,7 @@ export default function U21AdminPage() {
                   <td className="p-2">{r.first_name} {r.last_name}</td>
                   <td className="p-2">{r.age_band}</td>
                   <td className="p-2">{U21_TRACKS.find(t => t.id === r.track)?.name ?? r.track}</td>
-                  <td className="p-2">{r.red_flag ? '🚩 דורש תשומת לב' : ''}</td>
+                  <td className="p-2">{r.red_flag ? <AttentionBadge /> : null}</td>
                   <td className="p-2">{STATUS[r.status] ?? r.status}</td>
                   <td className="p-2" dir="ltr">{new Date(r.created_at).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' })}</td>
                 </tr>
@@ -48,5 +48,17 @@ export default function U21AdminPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Inline SVG, not an emoji: renders the same on every device and in captures. */
+function AttentionBadge() {
+  return (
+    <span data-testid="u21-attention" className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+      <svg aria-hidden="true" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+        <path d="M3 1.5a.75.75 0 0 1 .75.75V3h8.5a.5.5 0 0 1 .4.8L11 6l1.65 2.2a.5.5 0 0 1-.4.8h-8.5v5.25a.75.75 0 0 1-1.5 0V2.25A.75.75 0 0 1 3 1.5Z" />
+      </svg>
+      דורש תשומת לב
+    </span>
   );
 }

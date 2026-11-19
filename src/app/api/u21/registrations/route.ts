@@ -5,6 +5,9 @@ import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+/** The only columns the list may return — no contact, guardian, birth date or intake. */
+export const U21_LIST_COLUMNS = 'id, first_name, last_name, age_band, track, red_flag, status, created_at';
+
 /**
  * GET /api/u21/registrations — read-only list for the U21 admin view.
  * Admin-only (same gate as /api/admin/notifications): these are minors' names and
@@ -20,17 +23,18 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
     const { data, error } = await supabase
       .from('u21_registrations')
-      .select('id, first_name, last_name, age_band, track, red_flag, status, created_at')
+      .select(U21_LIST_COLUMNS)
       .order('created_at', { ascending: false })
       .limit(500);
     if (error) {
       // Migration 180 not applied yet → an empty list with a hint, not a broken screen.
       if (error.code === '42P01' || error.code === 'PGRST205') return NextResponse.json({ data: [], ready: false });
-      return NextResponse.json({ error: 'Could not load', details: error.message }, { status: 500 });
+      console.error('u21 registrations read failed', error);
+      return NextResponse.json({ error: 'Could not load' }, { status: 500 });
     }
     return NextResponse.json({ data: data ?? [], ready: true });
-  } catch (error: any) {
+  } catch (error) {
     console.error('u21 registrations failed', error);
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }

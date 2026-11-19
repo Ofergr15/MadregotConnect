@@ -101,10 +101,16 @@ export type RedFlagKey =
 
 export const RED_FLAG_KEYS: RedFlagKey[] = ['chest_pain', 'fainting', 'bone_pain', 'acute_injury'];
 
-/** Guardian fields only show (and are only required) for an applicant under 18. */
 /** Shown next to the red-flag questions and the guardian consent in the UI. */
 export const DRAFT_NOTE = 'טיוטה - ממתין לאישור המאמן והיבטים משפטיים';
 
+/** Under every date field: the native picker's display order varies by device. */
+export const DATE_HINT = 'יש לבחור תאריך מלוח השנה. הפורמט: יום/חודש/שנה (לדוגמה 01/05/2007).';
+
+/** Shown at the top of every /u21 screen while this is a protected test preview. */
+export const TEST_PREVIEW_NOTE = 'גרסת בדיקה: יש להזין פרטים בדויים בלבד. אין להזין פרטים אישיים או רפואיים אמיתיים.';
+
+/** Guardian fields only show (and are only required) for an applicant under 18. */
 export const GUARDIAN_KEYS = ['guardianName', 'guardianPhone', 'guardianConsent'] as const;
 
 export const U21_FIELDS: U21Field[] = [
@@ -163,6 +169,18 @@ export interface U21ValidationResult {
   age: number | null;
 }
 
+/** Is `v` the runtime shape this field stores? Checkbox → boolean; checkboxes → string[]; else string. */
+export function hasFieldType(f: U21Field, v: unknown): boolean {
+  if (f.type === 'checkbox') return typeof v === 'boolean';
+  if (f.type === 'checkboxes') return Array.isArray(v) && v.every(x => typeof x === 'string');
+  return typeof v === 'string';
+}
+
+/** answers must be a plain object — not an array, null or a primitive. */
+export function isAnswersObject(v: unknown): v is U21Answers {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
 /** The same rules on both sides: the page shows them, the route enforces them. */
 export function validateU21Intake(track: unknown, answers: U21Answers, now = new Date()): U21ValidationResult {
   const errors: Record<string, string> = {};
@@ -173,6 +191,9 @@ export function validateU21Intake(track: unknown, answers: U21Answers, now = new
   for (const f of U21_FIELDS) {
     if (!fieldVisible(f.key, answers, age)) continue;
     const v = answers[f.key];
+    // Runtime type first, required or not: the route takes JSON from anyone, so a
+    // `true` where a name belongs must be refused, not stored as "true".
+    if (v !== undefined && v !== null && !hasFieldType(f, v)) { errors[f.key] = 'ערך לא תקין'; continue; }
     if (f.required) {
       const empty =
         v === undefined || v === null ||

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { clientIp, createRateLimiter, isBotSubmit } from '@/lib/academy/intake';
-import { ageBand, pickKnownAnswers, screenSafety, validateU21Intake, type U21Answers } from '@/lib/u21/intake';
+import { ageBand, isAnswersObject, pickKnownAnswers, screenSafety, validateU21Intake, type U21Answers } from '@/lib/u21/intake';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,11 +16,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Too many attempts' }, { status: 429 });
     }
     const body = await request.json().catch(() => null);
-    if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
     // A filled honeypot gets the same "received" a person would, and nothing is stored.
     if (isBotSubmit(body)) return NextResponse.json({ ok: true, status: 'pending_review' });
 
-    const answers = (body.answers && typeof body.answers === 'object' ? body.answers : {}) as U21Answers;
+    if (!isAnswersObject(body.answers)) return NextResponse.json({ error: 'validation', errors: { answers: 'ערך לא תקין' } }, { status: 400 });
+    const answers: U21Answers = body.answers;
     const v = validateU21Intake(body.track, answers);
     if (!v.ok || v.age === null) return NextResponse.json({ error: 'validation', errors: v.errors }, { status: 400 });
 
@@ -51,12 +52,13 @@ export async function POST(request: Request) {
       status: 'pending_review',
     });
     if (error) {
+      // Logged here only: a DB message names tables/columns/constraints and never leaves the server.
       console.error('u21 register insert failed', error);
-      return NextResponse.json({ error: 'Could not save', details: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Could not save' }, { status: 500 });
     }
     return NextResponse.json({ ok: true, status: 'pending_review' });
-  } catch (error: any) {
+  } catch (error) {
     console.error('u21 register failed', error);
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
