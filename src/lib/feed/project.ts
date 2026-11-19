@@ -365,14 +365,41 @@ function projectActivity(row: RawActivityRow, planVerdict: FeedPlanVerdict | nul
  * server can't be read out of the network response either.
  */
 const HIDDEN_FIELD_KEYS = ['calories', 'heart_rate', 'pace', 'power'] as const;
-type HiddenFieldKey = (typeof HIDDEN_FIELD_KEYS)[number];
+export type HiddenFieldKey = (typeof HIDDEN_FIELD_KEYS)[number];
 
-function readHiddenFields(payload: Record<string, unknown> | null): Set<HiddenFieldKey> {
+export function readHiddenFields(payload: Record<string, unknown> | null): Set<HiddenFieldKey> {
   const raw = payload?.hiddenFields;
   if (!Array.isArray(raw)) return new Set();
   return new Set(
     raw.filter((v): v is HiddenFieldKey => (HIDDEN_FIELD_KEYS as readonly unknown[]).includes(v)),
   );
+}
+
+/**
+ * The same choice applied to the activity DETAIL response (snake_case row + per-km
+ * splits), for viewers who are not the athlete. Kept beside maskHiddenStats so the
+ * two cannot drift: per-km splits are pace at a finer grain (dropped with `pace`), and
+ * carry HR (blanked with `heart_rate`).
+ */
+export function maskDetailForViewer<R extends Record<string, unknown>, S extends { averageHR: number | null }>(
+  row: R,
+  splits: S[],
+  hidden: Set<HiddenFieldKey>,
+): { row: R; splits: S[] } {
+  if (hidden.size === 0) return { row, splits };
+  return {
+    row: {
+      ...row,
+      ...(hidden.has('calories') ? { calories: null } : {}),
+      ...(hidden.has('heart_rate') ? { average_hr: null, max_hr: null } : {}),
+      ...(hidden.has('pace') ? { average_pace: null } : {}),
+    },
+    splits: hidden.has('pace')
+      ? []
+      : hidden.has('heart_rate')
+        ? splits.map((s) => ({ ...s, averageHR: null }))
+        : splits,
+  };
 }
 
 /**
