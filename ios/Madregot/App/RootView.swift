@@ -43,16 +43,16 @@ struct MainTabView: View {
         .environment(\.layoutDirection, .rightToLeft)
 }
 
-/// Same look as the launch screen (brand blue, the club's white logo, whole) so the hand-off
-/// from the system splash to the app is seamless while the session restores.
+/// Same look as the launch screen, which is how the PWA opens (manifest background
+/// #DFDFDF + the club's black logo), so the hand-off is seamless while the session restores.
 struct BrandSplash: View {
     var body: some View {
         ZStack {
-            Theme.brand.ignoresSafeArea()
+            Theme.page.ignoresSafeArea()
             VStack(spacing: 18) {
-                Image("ClubLogoWhite").resizable().scaledToFit().frame(width: 150)
+                Image("ClubLogo").resizable().scaledToFit().frame(width: 170)
                     .accessibilityLabel("Madregot After 2KM")
-                ProgressView().tint(.white)
+                ProgressView().tint(Theme.ink700)
             }
         }
     }

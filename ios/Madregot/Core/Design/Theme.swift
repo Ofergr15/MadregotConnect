@@ -5,8 +5,12 @@ import UIKit
 /// reinterpretation. Change a value here only if the web token changes.
 enum Theme {
     // Colours — tailwind.config.ts `colors`
-    static let brand = Color(hex: 0x1525FF)        // brand-600: headings, fills, active pills
-    static let brandPressed = Color(hex: 0x0F1CCC) // brand-700
+    /// Owner's call (Nov 19): the app's language is black and white for now — no blue.
+    /// Every "brand" use (pills, active tab, the distance figure, highlights) reads this,
+    /// so the accent is ink-900. The PWA's brand-600 (#1525FF) is kept below for reference.
+    static let brand = Color(hex: 0x1D1E26)        // was brand-600 #1525FF
+    static let brandPressed = Color(hex: 0x000000) // was brand-700 #0F1CCC
+    static let pwaBrand600 = Color(hex: 0x1525FF)  // unused while the app is black & white
     static let ink900 = Color(hex: 0x1D1E26)
     static let ink700 = Color(hex: 0x2D2E38)       // body text
     static let ink500 = Color(hex: 0x4F4F4F)       // muted captions
@@ -85,17 +89,19 @@ struct BrandFieldStyle: ViewModifier {
     }
 }
 
-/// The nav bar's mark: the club's white logo on a brand-blue rounded square.
+/// The club mark: the black logo on a white tile — the PWA's icon (icon-512.png), not a
+/// blue square. Hairline edge and a soft shadow so it reads on the grey page.
 struct ClubMark: View {
     var size: CGFloat = 72
     var body: some View {
-        Image("ClubLogoWhite")
+        Image("ClubLogo")
             .resizable()
             .scaledToFit()
-            .padding(size * 0.18)
+            .padding(size * 0.12)
             .frame(width: size, height: size)
-            .background(Theme.brand, in: .rect(cornerRadius: size * 0.27))
-            .shadow(color: Theme.brand.opacity(0.25), radius: 12, y: 6)
+            .background(.white, in: .rect(cornerRadius: size * 0.24))
+            .overlay(RoundedRectangle(cornerRadius: size * 0.24).stroke(Theme.ink300.opacity(0.5), lineWidth: 0.5))
+            .shadow(color: Theme.ink900.opacity(0.08), radius: 8, y: 3)
             .accessibilityLabel("Madregot After 2KM")
     }
 }
