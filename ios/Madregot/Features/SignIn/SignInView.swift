@@ -29,15 +29,17 @@ struct SignInView: View {
                 }
                 if let errorText {
                     Text(errorText)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                        .font(Theme.font(14, .semibold))
+                        .foregroundStyle(Theme.danger)
                         .multilineTextAlignment(.center)
                         .accessibilityIdentifier("sign-in-error")
                 }
                 Spacer()
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 48)
+            .padding(.horizontal, 24)
+            .padding(.top, 56)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Theme.canvas)
             .onAppear { focus = .email }
             .navigationDestination(isPresented: $showRegistration) {
                 RegistrationView(client: registrationClient) { registeredEmail in
@@ -51,17 +53,17 @@ struct SignInView: View {
     }
 
     private var header: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "figure.run.circle.fill")
-                .font(.system(size: 64))
-                .foregroundStyle(Theme.accent)
-            Text("מדרגות").font(.largeTitle.bold())
-            Text(step == .email ? "התחברות עם המייל שרשום במועדון" : (info ?? ""))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        VStack(spacing: 10) {
+            ClubMark(size: 76)
+            Text("מדרגות").font(Theme.font(30, .black)).foregroundStyle(Theme.ink900)
+            Text("מועדון ריצה AFTER 2KM").font(Theme.font(12, .bold)).foregroundStyle(Theme.ink500)
+            Text(step == .email ? "כותבים את המייל שאיתו נרשמתם למדרגות, ונשלח אליו קוד של 6 ספרות." : (info ?? ""))
+                .font(Theme.font(14))
+                .foregroundStyle(Theme.ink500)
                 .multilineTextAlignment(.center)
+                .padding(.top, 8)
         }
-        .padding(.bottom, 12)
+        .padding(.bottom, 8)
     }
 
     private var emailStep: some View {
@@ -76,22 +78,20 @@ struct SignInView: View {
                 .focused($focus, equals: .email)
                 .submitLabel(.send)
                 .onSubmit(sendCode)
-                .padding(14)
-                .background(.quaternary, in: .rect(cornerRadius: 12))
+                .font(Theme.font(16))
+                .modifier(BrandFieldStyle())
                 .accessibilityIdentifier("email-field")
             primaryButton("שליחת קוד", action: sendCode)
                 .disabled(email.isEmpty)
-            Text("נשלח קוד בן 6 ספרות למייל, אם הוא רשום אצלנו.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
             Button("חדשים במועדון? הצטרפות") { showRegistration = true }
-                .font(.subheadline.bold())
+                .font(Theme.font(14, .bold))
+                .foregroundStyle(Theme.brand)
                 .padding(.top, 8)
                 .accessibilityIdentifier("open-registration")
             #if DEBUG || DEMO
             Button("מצב הדגמה") { session.enterDemo() }
-                .font(.footnote)
-                .foregroundStyle(.orange)
+                .font(Theme.font(13, .semibold))
+                .foregroundStyle(Theme.ink500)
                 .accessibilityIdentifier("demo-mode")
             #endif
         }
@@ -102,11 +102,11 @@ struct SignInView: View {
             TextField("קוד בן 6 ספרות", text: $code)
                 .textContentType(.oneTimeCode)
                 .keyboardType(.numberPad)
-                .font(.title2.monospacedDigit())
+                .font(Theme.font(28, .black).monospacedDigit())
+                .tracking(8)
                 .multilineTextAlignment(.center)
                 .focused($focus, equals: .code)
-                .padding(14)
-                .background(.quaternary, in: .rect(cornerRadius: 12))
+                .modifier(BrandFieldStyle(height: 60))
                 .onChange(of: code) { _, new in
                     let digits = String(new.filter(\.isNumber).prefix(6))
                     if digits != new { code = digits }
@@ -126,7 +126,8 @@ struct SignInView: View {
                     focus = .email
                 }
             }
-            .font(.footnote)
+            .font(Theme.font(14, .bold))
+            .foregroundStyle(Theme.brand)
             .disabled(busy)
         }
     }
@@ -134,12 +135,10 @@ struct SignInView: View {
     private func primaryButton(_ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Group {
-                if busy { ProgressView() } else { Text(title).bold() }
+                if busy { ProgressView().tint(.white) } else { Text(title) }
             }
-            .frame(maxWidth: .infinity, minHeight: 28)
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
+        .buttonStyle(BrandButtonStyle())
         .disabled(busy)
     }
 

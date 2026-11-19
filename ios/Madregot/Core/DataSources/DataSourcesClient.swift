@@ -36,12 +36,14 @@ struct DataSourcesStatus: Equatable, Sendable {
 enum DataSourcesError: Error, Equatable, Sendable {
     case signedOut
     case network
+    case serverUnavailable
     case server
 
     var message: String {
         switch self {
         case .signedOut: "צריך להתחבר מחדש."
-        case .network: "אין חיבור לשרת. בדקו את האינטרנט ונסו שוב."
+        case .network: Connectivity.offlineMessage
+        case .serverUnavailable: Connectivity.serverUnavailableMessage
         case .server: "לא הצלחנו לטעון את מצב החיבורים."
         }
     }
@@ -69,7 +71,7 @@ struct HTTPDataSourcesClient: DataSourcesClient {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            throw .network
+            throw Connectivity.isOffline(error) ? .network : .serverUnavailable
         }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         if status == 401 || status == 403 { throw .signedOut }

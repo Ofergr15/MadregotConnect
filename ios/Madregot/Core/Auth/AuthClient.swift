@@ -11,6 +11,8 @@ enum AuthError: Error, Equatable, Sendable {
     case sessionRejected
     case notConfigured
     case network
+    /// Online, but the club's server did not answer (down, or a dev build pointed elsewhere).
+    case serverUnavailable
     case server(status: Int)
 
     /// Hebrew, for the sign-in screen.
@@ -25,7 +27,8 @@ enum AuthError: Error, Equatable, Sendable {
         case .notReady: "ההתחברות עם קוד עוד לא זמינה. נסו שוב מאוחר יותר."
         case .sessionRejected: "צריך להתחבר מחדש."
         case .notConfigured: "האפליקציה לא מוגדרת לשרת."
-        case .network: "אין חיבור לשרת. בדקו את האינטרנט ונסו שוב."
+        case .network: Connectivity.offlineMessage
+        case .serverUnavailable: Connectivity.serverUnavailableMessage
         case .server: "משהו השתבש. נסו שוב."
         }
     }
@@ -142,7 +145,7 @@ struct HTTPAuthClient: AuthClient {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            throw .network
+            throw Connectivity.isOffline(error) ? .network : .serverUnavailable
         }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]

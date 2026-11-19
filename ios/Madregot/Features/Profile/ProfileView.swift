@@ -4,10 +4,12 @@ struct ProfileView: View {
     @Environment(SessionStore.self) private var session
     @Environment(DemoSettings.self) private var demo
     @State private var summary: LoadState<ProfileSummary> = .loading
+    var profileClient: ProfileClient = HTTPProfileClient(config: .current)
 
     private var displayName: String {
         // The name is who is signed in, not loaded data: keep it in every demo state.
         if session.isDemo { return DemoContent.summary.name }
+        if case .loaded(let s) = summary { return s.name }
         return session.session?.email ?? ""
     }
 
@@ -19,14 +21,14 @@ struct ProfileView: View {
                         Image(systemName: "person.crop.circle.fill")
                             .font(.system(size: 76))
                             .foregroundStyle(Theme.accent)
-                        Text(displayName).font(.title2.bold())
+                        Text(displayName).font(Theme.font(24, .black)).foregroundStyle(Theme.ink900)
                         if session.isDemo, case .loaded(let s) = summary {
                             Text("\(s.groupLabel) · מצב הדגמה").font(.subheadline).foregroundStyle(.secondary)
                         }
                     }
                     .padding(.top, 12)
 
-                    if session.isDemo {
+                    Group {
                         switch summary {
                         case .loaded(let s):
                             HStack(spacing: 12) {
@@ -43,7 +45,9 @@ struct ProfileView: View {
                             Text(message).foregroundStyle(.secondary).frame(height: 96)
                                 .accessibilityIdentifier("state-failed")
                         }
+                    }
 
+                    if session.isDemo {
                         @Bindable var demo = demo
                         VStack(alignment: .leading, spacing: 10) {
                             Text("מצב תצוגה (הדגמה)").font(.subheadline.bold())
@@ -65,36 +69,52 @@ struct ProfileView: View {
                     }
                     .background(Theme.surface, in: .rect(cornerRadius: Theme.radius))
 
+                    // The PWA's outline pill: `rounded-pill border border-ink-300`, red label.
                     Button(role: .destructive) { session.signOut() } label: {
-                        Text("יציאה").frame(maxWidth: .infinity, minHeight: 50)
+                        Text("יציאה")
+                            .font(Theme.font(16, .bold))
+                            .foregroundStyle(Theme.danger)
+                            .frame(maxWidth: .infinity, minHeight: Theme.controlHeight)
+                            .overlay(Capsule().stroke(Theme.ink300, lineWidth: 1))
                     }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.capsule)
-                    .tint(.red)
+                    .buttonStyle(.plain)
 
                     Text("גרסה \(Bundle.main.appVersion) · \(AppConfig.current.apiBaseURL.host() ?? "-")")
                         .font(.caption2).foregroundStyle(.tertiary)
                 }
                 .padding(Theme.gutter)
             }
+            .background(Theme.page)
             .navigationTitle("פרופיל")
-            .task(id: demo.scenario) {
-                guard session.isDemo else { return }
-                summary = .loading
-                summary = await demo.content.profile()
-            }
+            .task(id: demo.scenario) { await load() }
+            .refreshable { await load() }
             .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    /// Demo: made-up content. Signed in: the member's own numbers from the backend.
+    private func load() async {
+        summary = .loading
+        if session.isDemo { summary = await demo.content.profile(); return }
+        guard let athleteId = session.session?.athleteId else {
+            summary = .failed("לא נמצא מזהה חבר בחשבון. צריך להתחבר מחדש."); return
+        }
+        do {
+            let token = try await session.validAccessToken()
+            summary = await profileClient.summary(athleteId: athleteId, accessToken: token)
+        } catch {
+            summary = .failed((error as? AuthError ?? .sessionRejected).message)
         }
     }
 
     private func tile(_ value: String, _ label: String) -> some View {
         VStack(spacing: 4) {
-            Text(value).font(.system(size: 30, weight: .semibold, design: .rounded)).monospacedDigit()
-            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(Theme.font(28, .black)).monospacedDigit().foregroundStyle(Theme.ink900)
+            Text(label).font(Theme.font(12, .semibold)).foregroundStyle(Theme.ink500)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 18)
-        .background(Theme.surface, in: .rect(cornerRadius: 20))
+        .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
     }
 
     private func row(_ title: String, _ icon: String) -> some View {

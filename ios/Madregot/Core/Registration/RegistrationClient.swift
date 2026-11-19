@@ -79,12 +79,14 @@ struct RegistrationForm: Equatable, Sendable {
 enum RegistrationError: Error, Equatable, Sendable {
     case invalidEmail
     case network
+    case serverUnavailable
     case server
 
     var message: String {
         switch self {
         case .invalidEmail: "כתובת המייל לא נראית תקינה."
-        case .network: "אין חיבור לשרת. בדקו את האינטרנט ונסו שוב."
+        case .network: Connectivity.offlineMessage
+        case .serverUnavailable: Connectivity.serverUnavailableMessage
         case .server: "ההרשמה נכשלה. נסו שוב."
         }
     }
@@ -120,7 +122,7 @@ struct HTTPRegistrationClient: RegistrationClient {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            throw .network
+            throw Connectivity.isOffline(error) ? .network : .serverUnavailable
         }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
