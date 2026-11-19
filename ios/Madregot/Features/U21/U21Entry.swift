@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// "Madregot Personal Coach · U21" — the section at the bottom of registration. The whole
+/// "U21" — the entry card at the bottom of registration. The whole
 /// flow is native SwiftUI (owner, Nov 19: part of the app, never a web page or web view):
 /// track → questionnaire (one section per step) → review → confirmation.
 ///
@@ -12,28 +12,35 @@ struct U21EntryCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-        Button { showFlow = true } label: {
-            HStack(spacing: 14) {
-                Text("U21")
-                    .font(Theme.font(17, .black)).foregroundStyle(Theme.ink900)
-                    .frame(width: 52, height: 52)
-                    .background(.white, in: .rect(cornerRadius: 14))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Madregot Personal Coach").font(Theme.font(17, .black)).foregroundStyle(.white)
-                    Text("בלי סטראבה או גוגל · בוחרים מסלול ונכנסים")
-                        .font(Theme.font(13, .semibold)).foregroundStyle(.white.opacity(0.8))
+            Button { showFlow = true } label: {
+                // User design (Nov 19, 19:55): U21 is the brand on this card — the headline and
+                // nothing competing with it. Who it is for and the tracks live inside the flow.
+                HStack(spacing: 14) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("U21")
+                            .font(Theme.font(34, .black)).foregroundStyle(.white)
+                            .accessibilityIdentifier("u21-card-title")
+                        Text("בחירת מסלול")
+                            .font(Theme.font(14, .semibold)).foregroundStyle(.white.opacity(0.8))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .layoutPriority(1)
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.left").font(.system(size: 16, weight: .bold)).foregroundStyle(.white.opacity(0.7))
                 }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.left").font(.system(size: 14, weight: .bold)).foregroundStyle(.white.opacity(0.7))
+                .padding(16)
+                .frame(maxWidth: .infinity)
+                .background(Theme.ink900, in: .rect(cornerRadius: Theme.radius))
             }
-            .padding(16)
-            .frame(maxWidth: .infinity)
-            .background(Theme.ink900, in: .rect(cornerRadius: Theme.radius))
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("open-u21")
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("open-u21")
+            // Mac review: rendered as "…יפואיים" — one unwrapped line clipped at its leading
+            // edge. Constrain it to the card's width and let it wrap.
             Text(U21Intake.testNote)
                 .font(Theme.font(12, .semibold)).foregroundStyle(Theme.ink500)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityIdentifier("u21-card-test-note")
         }
         .fullScreenCover(isPresented: $showFlow) { U21Flow(onClose: { showFlow = false }) }
@@ -281,9 +288,9 @@ struct U21Flow: View {
 
     private func display(_ a: U21Answer?) -> String? {
         switch a {
-        case .text(let t)? where !t.isEmpty: t
-        case .choice(let c)?: c
-        case .choices(let s)? where !s.isEmpty: s.sorted().joined(separator: ", ")
+        case .text(let t)? where !t.isEmpty: U21Intake.ltrIsolated(t)
+        case .choice(let c)?: U21Intake.ltrIsolated(c)
+        case .choices(let s)? where !s.isEmpty: U21Intake.ltrIsolated(s.sorted().joined(separator: ", "))
         case .flag(let b)?: b ? "כן" : "לא"
         case .date(let d)?: d.formatted(.dateTime.day().month().year())
         default: nil

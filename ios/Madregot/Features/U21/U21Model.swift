@@ -57,7 +57,8 @@ enum U21Intake {
     static let testNote = "גרסת בדיקה: יש להזין פרטים בדויים בלבד. אין להזין פרטים אישיים או רפואיים אמיתיים."
     /// Verbatim from the web track picker.
     static let noPaymentNote = "בחירת מסלול אינה כרוכה בתשלום בשלב זה."
-    /// Owner-fixed wording (Nov 19) for the top of the demo confirmation: an operational
+    /// Fixed wording given in the coordinator's answer to the open point (Nov 19), for the
+    /// top of the demo confirmation: an operational
     /// truth label, not marketing copy. Nothing in this flow is sent or stored.
     static let demoNotice = "מסך זה הוא הדגמה בלבד - הפרטים לא נשלחו ולא נשמרו."
     static let redFlagKeys = ["chestPain": "chest_pain", "fainting": "fainting", "bonePain": "bone_pain", "acuteInjury": "acute_injury"]
@@ -105,15 +106,27 @@ enum U21Intake {
         return seen
     }
 
-    static func age(_ birth: Date, now: Date = .now) -> Int {
-        Calendar(identifier: .gregorian).dateComponents([.year], from: birth, to: now).year ?? 0
+    /// Mirrors ageOn() (intake.ts): whole years between the calendar date the user picked
+    /// (its year/month/day on this device, like the web's YYYY-MM-DD) and today's date in
+    /// UTC; one less while this year's birthday has not come yet. A date in the future is
+    /// invalid (nil), never "0" or a negative age.
+    static func age(_ birth: Date, now: Date = .now) -> Int? {
+        let picked = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: birth)
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let today = utc.dateComponents([.year, .month, .day], from: now)
+        guard let by = picked.year, let bm = picked.month, let bd = picked.day,
+              let ny = today.year, let nm = today.month, let nd = today.day else { return nil }
+        var years = ny - by
+        if nm < bm || (nm == bm && nd < bd) { years -= 1 }
+        return years < 0 ? nil : years
     }
 
     /// Mirrors fieldVisible(): guardian fields only under 18; "other framework" only when "אחר".
     static func visible(_ f: U21Field, answers: [String: U21Answer], now: Date = .now) -> Bool {
         if guardianKeys.contains(f.key) {
-            guard case .date(let b)? = answers["birthDate"] else { return false }
-            return age(b, now: now) < 18
+            guard case .date(let b)? = answers["birthDate"], let years = age(b, now: now) else { return false }
+            return years < 18
         }
         if f.key == "frameworkOther" { return answers["framework"] == .choice("אחר") }
         return true
@@ -140,7 +153,7 @@ enum U21Intake {
                 if f.kind == .number, !matches(t, numberPattern) || (Double(t) ?? 0) > 300 { out[f.key] = "מספר לא תקין" }
             }
             if f.key == "birthDate", case .date(let b)? = a {
-                let years = age(b, now: now)
+                guard let years = age(b, now: now) else { out[f.key] = "תאריך לא תקין"; continue }
                 if years < minAge || years > maxAge { out[f.key] = "השירות מיועד לגילאי \(minAge)–\(maxAge)" }
             }
         }
@@ -186,6 +199,13 @@ enum U21Intake {
         case (_, .text(let t)?): t.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         default: true
         }
+    }
+
+    /// Display only: wraps every number or number range ("1–3", "5+", "7–8", "050-1234567")
+    /// in a Unicode LTR isolate (U+2066 … U+2069) so a right-to-left line cannot reorder it —
+    /// the Mac review saw "1–3 שנים" rendered as "3–1". Stored answers stay unchanged.
+    static func ltrIsolated(_ s: String) -> String {
+        s.replacingOccurrences(of: #"\d+(?:[–\-.]\d+)*\+?"#, with: "\u{2066}$0\u{2069}", options: .regularExpression)
     }
 
     /// Any red-flag "yes" — shown to the coach as "needs attention"; changes nothing for the applicant.

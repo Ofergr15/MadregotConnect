@@ -3,8 +3,13 @@ import Testing
 @testable import Madregot
 
 struct U21IntakeTests {
-    private let now = ISO8601DateFormatter().date(from: "2026-11-19T10:00:00Z")!
-    private func birth(yearsAgo: Int) -> Date { Calendar(identifier: .gregorian).date(byAdding: .year, value: -yearsAgo, to: now)! }
+    // Noon UTC on Nov 19 is Nov 19 in every time zone from UTC-11 to UTC+11, and a birth
+    // date is built as a local calendar date (what a DatePicker yields): no zone can shift
+    // either side of the birthday comparison.
+    private let now = ISO8601DateFormatter().date(from: "2026-11-19T12:00:00Z")!
+    private func birth(yearsAgo: Int, month: Int = 11, day: Int = 19) -> Date {
+        Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026 - yearsAgo, month: month, day: day))!
+    }
 
     @Test func tracksMatchTheWebContract() {
         #expect(U21Track.allCases.map(\.rawValue) == ["basic", "advanced", "pro"])
@@ -51,8 +56,13 @@ struct U21ContractTests {
 
 /// Validation parity with validateU21Intake() at baa5f738: same rules, same Hebrew messages.
 struct U21ValidationParityTests {
-    private let now = ISO8601DateFormatter().date(from: "2026-11-19T10:00:00Z")!
-    private func birth(yearsAgo: Int) -> Date { Calendar(identifier: .gregorian).date(byAdding: .year, value: -yearsAgo, to: now)! }
+    // Noon UTC on Nov 19 is Nov 19 in every time zone from UTC-11 to UTC+11, and a birth
+    // date is built as a local calendar date (what a DatePicker yields): no zone can shift
+    // either side of the birthday comparison.
+    private let now = ISO8601DateFormatter().date(from: "2026-11-19T12:00:00Z")!
+    private func birth(yearsAgo: Int, month: Int = 11, day: Int = 19) -> Date {
+        Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026 - yearsAgo, month: month, day: day))!
+    }
     private let personal = "פרטים אישיים"
 
     private func adult(_ over: [String: U21Answer] = [:]) -> [String: U21Answer] {
@@ -91,6 +101,22 @@ struct U21ValidationParityTests {
         #expect(U21Intake.errors(section: personal, answers: ok, now: now).isEmpty)
         ok["guardianConsent"] = .flag(false)
         #expect(U21Intake.errors(section: personal, answers: ok, now: now)["guardianConsent"] != nil)
+    }
+
+    @Test func ageFollowsTheWebAgeOn() {
+        #expect(U21Intake.age(birth(yearsAgo: 18), now: now) == 18)            // birthday today
+        #expect(U21Intake.age(birth(yearsAgo: 18, day: 20), now: now) == 17)   // birthday tomorrow
+        #expect(U21Intake.age(birth(yearsAgo: 18, day: 18), now: now) == 18)   // birthday yesterday
+        #expect(U21Intake.age(birth(yearsAgo: 0, day: 20), now: now) == nil)   // tomorrow → invalid
+        #expect(U21Intake.age(birth(yearsAgo: -3), now: now) == nil)           // years ahead → invalid
+        #expect(U21Intake.age(birth(yearsAgo: 0), now: now) == 0)              // today is not the future
+    }
+
+    @Test func futureBirthDateIsInvalidAndHidesTheGuardian() {
+        let future = adult(["birthDate": .date(birth(yearsAgo: -1))])
+        #expect(U21Intake.errors(section: personal, answers: future, now: now)["birthDate"] == "תאריך לא תקין")
+        let g = U21Intake.fields.first { $0.key == "guardianName" }!
+        #expect(!U21Intake.visible(g, answers: future, now: now))
     }
 
     @Test func eighteenNeedsNoGuardian() {
@@ -174,5 +200,32 @@ struct U21TrackContractTests {
         #expect(U21Intake.noPaymentNote == "בחירת מסלול אינה כרוכה בתשלום בשלב זה.")
         #expect(U21Intake.demoNotice == "מסך זה הוא הדגמה בלבד - הפרטים לא נשלחו ולא נשמרו.")
         #expect(U21Intake.minAge == 16 && U21Intake.maxAge == 21)
+    }
+}
+
+/// Bidi: numbers and ranges keep their order inside right-to-left review lines.
+struct U21BidiTests {
+    private let lri = "\u{2066}", pdi = "\u{2069}"
+
+    @Test func rangesAreIsolated() {
+        #expect(U21Intake.ltrIsolated("1–3 שנים") == "\(lri)1–3\(pdi) שנים")
+        #expect(U21Intake.ltrIsolated("7–8") == "\(lri)7–8\(pdi)")
+        #expect(U21Intake.ltrIsolated("5+") == "\(lri)5+\(pdi)")
+        #expect(U21Intake.ltrIsolated("פחות מ־6") == "פחות מ־\(lri)6\(pdi)")
+        #expect(U21Intake.ltrIsolated("050-1234567") == "\(lri)050-1234567\(pdi)")
+        #expect(U21Intake.ltrIsolated("30.5") == "\(lri)30.5\(pdi)")
+    }
+
+    @Test func textWithoutDigitsIsUnchanged() {
+        #expect(U21Intake.ltrIsolated("שנת שירות") == "שנת שירות")
+        #expect(U21Intake.ltrIsolated("") == "")
+    }
+
+    @Test func storedOptionsStayRaw() {
+        // Isolation is a rendering concern; the contract values are never rewritten.
+        guard case .radio(let options) = U21Intake.fields.first(where: { $0.key == "experience" })!.kind else {
+            Issue.record("experience is not a radio"); return
+        }
+        #expect(options.contains("1–3 שנים"))
     }
 }
