@@ -1,4 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+// The routes refuse to run unless the server env is the approved dev project (env-guard.ts).
+const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
+const fakeJwt = (payload: Record<string, unknown>) => `${b64({ alg: 'HS256' })}.${b64(payload)}.sig`;
+const APPROVED_REF = 'rtcgklespcwvxashhamh';
+const OTHER_REF = 'abcdefghijklmnopqrst';
+const APPROVED_ENV = {
+  NEXT_PUBLIC_SUPABASE_URL: `https://${APPROVED_REF}.supabase.co`,
+  SUPABASE_SERVICE_ROLE_KEY: fakeJwt({ role: 'service_role', ref: APPROVED_REF }),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: fakeJwt({ role: 'anon', ref: APPROVED_REF }),
+};
+const stubEnv = (over: Record<string, string> = {}) => {
+  for (const [k, v] of Object.entries({ ...APPROVED_ENV, ...over })) vi.stubEnv(k, v);
+};
+stubEnv();
+
 import { NextResponse } from 'next/server';
 
 // GET /api/u21/registrations: admin-only, minimal columns, no raw errors.
@@ -8,9 +23,11 @@ let caller: Caller | 'anon' | 'bad-token';
 let result: { data: unknown; error: unknown };
 let thrown: Error | null;
 let selected: string | null;
+let authCalls = 0;
 
 vi.mock('@/lib/auth/self-or-staff', () => ({
   resolveVerifiedCaller: async () => {
+    authCalls++;
     if (caller === 'anon') return { denied: NextResponse.json({ error: 'Authentication required' }, { status: 401 }), caller: {} };
     if (caller === 'bad-token') return { denied: NextResponse.json({ error: 'Invalid session' }, { status: 401 }), caller: {} };
     return { denied: null, caller };
@@ -107,5 +124,24 @@ describe('GET /api/u21/registrations', () => {
     result = { data: null, error: { code: '42P01', message: 'relation "u21_registrations" does not exist' } };
     const res = await GET(req());
     expect(await res.json()).toEqual({ data: [], ready: false });
+  });
+});
+
+describe('env guard', () => {
+  afterEach(() => { stubEnv(); vi.restoreAllMocks(); });
+  it.each([
+    ['a mismatched service key', { SUPABASE_SERVICE_ROLE_KEY: fakeJwt({ role: 'service_role', ref: OTHER_REF }) }],
+    ['a bad URL', { NEXT_PUBLIC_SUPABASE_URL: `https://${OTHER_REF}.supabase.co` }],
+  ])('503s on %s, touches nothing, and logs no ref', async (_l, over) => {
+    stubEnv(over);
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await (selected = null, authCalls = 0, GET(req()));
+    expect(res.status).toBe(503);
+    const text = await res.text();
+    expect(JSON.parse(text)).toEqual({ error: 'Service unavailable' });
+    expect(selected).toBeNull();
+    expect(authCalls).toBe(0);
+    const logged = JSON.stringify(spy.mock.calls);
+    for (const s of [APPROVED_REF, OTHER_REF]) { expect(logged).not.toContain(s); expect(text).not.toContain(s); }
   });
 });

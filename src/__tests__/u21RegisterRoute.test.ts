@@ -1,4 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+// The routes refuse to run unless the server env is the approved dev project (env-guard.ts).
+const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
+const fakeJwt = (payload: Record<string, unknown>) => `${b64({ alg: 'HS256' })}.${b64(payload)}.sig`;
+const APPROVED_REF = 'rtcgklespcwvxashhamh';
+const OTHER_REF = 'abcdefghijklmnopqrst';
+const APPROVED_ENV = {
+  NEXT_PUBLIC_SUPABASE_URL: `https://${APPROVED_REF}.supabase.co`,
+  SUPABASE_SERVICE_ROLE_KEY: fakeJwt({ role: 'service_role', ref: APPROVED_REF }),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: fakeJwt({ role: 'anon', ref: APPROVED_REF }),
+};
+const stubEnv = (over: Record<string, string> = {}) => {
+  for (const [k, v] of Object.entries({ ...APPROVED_ENV, ...over })) vi.stubEnv(k, v);
+};
+stubEnv();
+
 
 let inserted: Record<string, unknown>[] = [];
 vi.mock('@/lib/supabase/server', () => ({
@@ -99,5 +114,23 @@ describe('POST /api/u21/register — error redaction', () => {
     expect(text).not.toMatch(/SUPABASE|secret/);
     spy.mockRestore();
     vi.doUnmock('@/lib/supabase/server');
+  });
+});
+
+describe('env guard', () => {
+  afterEach(() => { stubEnv(); vi.restoreAllMocks(); });
+  it.each([
+    ['a mismatched service key', { SUPABASE_SERVICE_ROLE_KEY: fakeJwt({ role: 'service_role', ref: OTHER_REF }) }],
+    ['a bad URL', { NEXT_PUBLIC_SUPABASE_URL: `https://${OTHER_REF}.supabase.co` }],
+  ])('503s on %s, touches nothing, and logs no ref', async (_l, over) => {
+    stubEnv(over);
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await POST(req({ track: 'basic', answers: base }, '4.4.4.' + Math.random()));
+    expect(res.status).toBe(503);
+    const text = await res.text();
+    expect(JSON.parse(text)).toEqual({ error: 'Service unavailable' });
+    expect(inserted).toEqual([]);
+    const logged = JSON.stringify(spy.mock.calls);
+    for (const s of [APPROVED_REF, OTHER_REF]) { expect(logged).not.toContain(s); expect(text).not.toContain(s); }
   });
 });

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { assertU21ServerEnv } from '@/lib/u21/env-guard';
 import { clientIp, createRateLimiter, isBotSubmit } from '@/lib/academy/intake';
 import { ageBand, isAnswersObject, pickKnownAnswers, screenSafety, validateU21Intake, type U21Answers } from '@/lib/u21/intake';
 
@@ -12,6 +13,9 @@ const allowFromIp = createRateLimiter(10, 60_000);
 
 export async function POST(request: Request) {
   try {
+    // Before rate limit, auth or any DB access: refuse unless wired to the approved dev project.
+    const guard = assertU21ServerEnv();
+    if (guard.denied) return guard.denied;
     if (!allowFromIp(clientIp(request.headers))) {
       return NextResponse.json({ error: 'Too many attempts' }, { status: 429 });
     }

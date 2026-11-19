@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { assertU21ServerEnv } from '@/lib/u21/env-guard';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
@@ -15,6 +16,9 @@ export const U21_LIST_COLUMNS = 'id, first_name, last_name, age_band, track, red
  */
 export async function GET(request: Request) {
   try {
+    // Before rate limit, auth or any DB access: refuse unless wired to the approved dev project.
+    const guard = assertU21ServerEnv();
+    if (guard.denied) return guard.denied;
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
     if (!caller.isSuperUser && caller.role !== 'admin') {
