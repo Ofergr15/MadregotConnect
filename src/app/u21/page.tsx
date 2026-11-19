@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { HONEYPOT_FIELD } from '@/lib/academy/intake';
 import {
   DATE_HINT, DRAFT_NOTE, U21_FIELDS, U21_TRACKS, ageOn, fieldVisible, validateU21Intake,
@@ -24,6 +24,17 @@ export default function U21Page() {
       : parseU21TrackParam(new URLSearchParams(window.location.search).get('track')));
   const [step, setStep] = useState<Step>(entry ? 'form' : 'track');
   const [track, setTrack] = useState<U21Track | null>(entry);
+  // The initializer alone misses client-side <Link> navigation: during the
+  // route transition it can run before the URL commits, so it reads the
+  // SOURCE page's search and lands on the picker (seen on the deployed
+  // preview: /register → track link → picker instead of the questionnaire).
+  // Re-check once mounted, when location is final.
+  useEffect(() => {
+    if (track) return;
+    const t = parseU21TrackParam(new URLSearchParams(window.location.search).get('track'));
+    if (t) { setTrack(t); setStep('form'); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [answers, setAnswers] = useState<U21Answers>({});
   const [honeypot, setHoneypot] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
