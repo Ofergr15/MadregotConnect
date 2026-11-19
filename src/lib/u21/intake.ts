@@ -104,8 +104,9 @@ export const RED_FLAG_KEYS: RedFlagKey[] = ['chest_pain', 'fainting', 'bone_pain
 /** Shown next to the red-flag questions and the guardian consent in the UI. */
 export const DRAFT_NOTE = 'טיוטה - ממתין לאישור המאמן והיבטים משפטיים';
 
-/** Under every date field: the native picker's display order varies by device. */
-export const DATE_HINT = 'יש לבחור תאריך מלוח השנה. הפורמט: יום/חודש/שנה (לדוגמה 01/05/2007).';
+/** Under every date field. The native picker's day/month order follows the device and
+ *  browser, not the page locale, so this names no order and gives no numeric example. */
+export const DATE_HINT = 'יש לבחור תאריך באמצעות סמל לוח השנה. סדר היום והחודש בתצוגה נקבע לפי הגדרות המכשיר או הדפדפן.';
 
 /** Shown at the top of every /u21 screen while this is a protected test preview. */
 export const TEST_PREVIEW_NOTE = 'גרסת בדיקה: יש להזין פרטים בדויים בלבד. אין להזין פרטים אישיים או רפואיים אמיתיים.';
