@@ -4,7 +4,7 @@
 # production, and never deploys: production ships only through daily-release.yml
 # after Ofer approves a release in the app.
 #
-# The repo is PUBLIC, so anyone can comment. Only the accounts in ALLOWED_ACTORS can
+# The repo is PUBLIC, so anyone can comment. Only the login in the job's `if` (Ofergr15) can
 # trigger a run; everyone else's @claude is ignored. Keep that list short.
 #
 # Instinct posts through Ofer's own account (Ofergr15), so GitHub cannot tell the two
@@ -35,16 +35,10 @@ concurrency:
   group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
   cancel-in-progress: false
 
-env:
-  # GitHub logins allowed to trigger Claude. Instinct uses Ofergr15 too (see above).
-  # Do not widen this (e.g. to bots) before a connection test shows how Instinct's
-  # comments actually arrive.
-  ALLOWED_ACTORS: '["Ofergr15"]'
-
 jobs:
   claude:
     if: >-
-      contains(fromJSON(env.ALLOWED_ACTORS), github.actor) && (
+      github.actor == 'Ofergr15' && (
         (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
         (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
         (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
