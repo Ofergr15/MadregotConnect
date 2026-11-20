@@ -39,7 +39,26 @@ Public, no auth header. Field rules live in `src/lib/u21/intake.ts` (`U21_FIELDS
 1. **No duplicate protection on the server.** Two identical submits store two rows and
    both return 200. The client must lock the send button after the first tap and not
    auto-retry a request that may have reached the server.
-2. **503 is the normal answer from production and from any non-approved environment**,
-   by design — not an outage. Show a neutral "not available" state.
+2. **INTENTIONAL: 503 from the env guard.** Production and every environment other than the
+   one approved dev Supabase project answer 503 `{ "error": "Service unavailable" }` on purpose
+   (this route stores minors' details). It is not an outage and not a bug: show a neutral
+   "not available yet" state, don't retry in a loop, and don't report it as a failure.
 3. Use the `errors` keys to place messages on fields; the messages are Hebrew and display-ready.
 4. Synthetic data only until the guardian/medical flow is approved.
+
+## Admin list: GET /api/u21/registrations
+
+Pinned by `src/__tests__/trackAReadContract.test.ts` and `u21RegistrationsRoute.test.ts`.
+`Authorization: Bearer <Supabase access token>`; **admin or super user only**.
+
+| Status | Body |
+|---|---|
+| 200 | `{ "data": [Row], "ready": true }` — newest first, max 500 |
+| 200 | `{ "data": [], "ready": false }` — migration 180 not applied |
+| 401 | `{ "error": "..." }` — no/invalid session |
+| 403 | `{ "error": "forbidden" }` — signed in, not admin (a coach gets this too) |
+| 500 | `{ "error": "Could not load" }` / `{ "error": "Server error" }` |
+| 503 | `{ "error": "Service unavailable" }` — env guard, checked before auth (intentional, as above) |
+
+`Row` has exactly: `id, first_name, last_name, age_band, track, red_flag, status, created_at`
+(snake_case). No contact, guardian, birth date, medical answers or intake — by design.

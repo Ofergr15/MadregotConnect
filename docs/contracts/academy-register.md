@@ -50,6 +50,27 @@ mirroring the web form's field list.
 1. **No environment guard.** Unlike U21, this route writes the real `athletes` table and sends
    real emails (applicant + staff) and a real staff push on whatever server it points at.
    Never exercise it from a build pointed at production with test data.
-2. Status 200 never tells you whether the address belonged to an existing member — by design.
-3. GET `/api/academy/register?i=<token>` → `{ "prefill": { name, email, phone } | null }`
-   for prefilling from a personal link.
+2. **INTENTIONAL: one uniform 200.** A new applicant, a re-submit, an address that already
+   belongs to a club member (whose row is left untouched), and a honeypot hit all answer
+   `{ "success": true }`. This is anti-enumeration: the public form must not reveal whose
+   address is on the roster. Don't try to infer membership from it, and don't ask the server
+   to differ. Only `letIn` / `alreadyIn` vary, and only for the holder of that card.
+
+## Prefill: GET /api/academy/register?i=<token>
+
+Pinned by `src/__tests__/trackAReadContract.test.ts`. Public; the token (32 lowercase hex,
+from the coach's personal link) is the credential. Always 200:
+
+```json
+{ "prefill": { "name": "", "email": "", "phone": "", "existing": false } }
+{ "prefill": { ..., "existing": true, "imported": true, "fields": { "<key>": "<value>" } } }
+{ "prefill": null }
+```
+
+- Missing values come back as `""`, never `null`.
+- `existing: true` = someone already training with the club updating details.
+  `imported` + `fields` appear only for a card opened from the academy's file.
+- `null` for no token, a malformed token, an unknown or expired invite (older than the invite TTL),
+  or any server error — open the form empty.
+- Note: an **archived** card whose invite is still inside the TTL still returns its prefill
+  (`archived_at` is read but not checked here; the POST's closed-door check does check it).
