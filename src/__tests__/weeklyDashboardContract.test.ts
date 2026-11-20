@@ -118,10 +118,10 @@ describe('GET /api/dashboard/weekly — shape', () => {
     expect(body.weeklyVolumes).toEqual([{ week: '2026-11-01', volume: 10, weekNum: 1 }]);
   });
 
-  it('no plan this week but one LAST week → weekDelta -100 (not 0): gate the delta pill on hasPlan', async () => {
+  it('no plan this week but one LAST week → weekDelta 0 (no comparison), not -100', async () => {
     at('2026-11-18T09:00:00Z');
     plans = [plan('2026-11-08', [run(2, 10000)])];
-    expect(await (await weekly.GET(req())).json()).toMatchObject({ hasPlan: false, prevWeekTotal: 10, weekDelta: -100 });
+    expect(await (await weekly.GET(req())).json()).toMatchObject({ hasPlan: false, prevWeekTotal: 10, weekDelta: 0 });
   });
 
   it('a draft plan is not shown to a runner (hasPlan:false)', async () => {

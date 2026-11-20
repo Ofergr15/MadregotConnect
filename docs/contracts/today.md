@@ -17,8 +17,8 @@ weekTotalMax, weekDelta, prevWeekTotal, trainingDays, typeDistribution, weeklyVo
   yet", not a rest week. The route never substitutes another week's plan. `hasClubPlan`: a real
   weekly plan exists (as opposed to only one-day sessions).
 - `publishedAt`: the plan's `created_at` only when its status is `pushed`, else `null`.
-- `weekDelta`: % against the previous week's plan; 0 when there was no previous plan. **With no
-  plan this week but one last week it is -100**, so hide the delta when `hasPlan` is false.
+- `weekDelta`: % against the previous week's plan; 0 when there was no previous plan, and 0
+  when there is no plan this week (no comparison, never -100).
 - `weeklyVolumes` `[{ week, volume, weekNum }]` / `longRunProgression` `[{ week, distance }]`:
   up to the last 20 planned weeks, ascending.
 - 500 `{ error: "Failed to fetch weekly data" }`.

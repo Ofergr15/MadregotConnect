@@ -139,7 +139,9 @@ export async function GET(request: Request) {
 
     // Week-over-week delta
     const currentAvg = (weekTotalMin + weekTotalMax) / 2;
-    const weekDelta = prevWeekTotal > 0 ? Math.round(((currentAvg - prevWeekTotal) / prevWeekTotal) * 100) : 0;
+    // No plan this week is no comparison (0, the pill hides) — not a -100% "drop" against last week.
+    const hasCurrent = !!currentPlan || dayWorkouts.length > 0;
+    const weekDelta = hasCurrent && prevWeekTotal > 0 ? Math.round(((currentAvg - prevWeekTotal) / prevWeekTotal) * 100) : 0;
 
     return NextResponse.json({
       dailyDistances,
