@@ -160,6 +160,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ items, nextCursor });
   } catch (err: unknown) {
     console.error('Feed fetch error:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed to load feed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load feed' }, { status: 500 });
   }
 }

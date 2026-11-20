@@ -79,6 +79,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ liked, likeCount: item?.like_count ?? 0, likePreview });
   } catch (err: unknown) {
     console.error('Feed like error:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
