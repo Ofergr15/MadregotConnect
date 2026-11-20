@@ -12,7 +12,14 @@
 | `POST /api/u21/register` | yes | **no (absent)** |
 | `POST /api/public/signup`, `GET /api/public/groups` (club registration, off outside production by design) | **no** | yes |
 | Refresh: `POST {SUPABASE_URL}/auth/v1/token` | n/a (straight to Supabase) | n/a |
-Not used yet but needed later: `/api/notifications/*` (V6 inbox + `seen`), events / club-updates / surveys (Valencia).
+Added to the allowlist in `6c4b47d6` (not in deployments before it):
+| `GET /api/notifications/inbox`, `GET /api/notifications/unread`, `POST /api/notifications/seen` | JWT self-or-staff (`seen`: self only) |
+| `GET /api/events`, `GET /api/events/:id`, `GET /api/events/:id/forecast` | public reads (`:id` = one UUID segment) |
+| `GET /api/club-updates`, `GET /api/club-updates/topics` | JWT, club-updates gate |
+| `GET /api/surveys/open`, `GET /api/surveys/:id`, `POST /api/surveys/:id/respond` | JWT |
+Still closed: every staff write (events POST/PATCH/DELETE, club-updates POST), `/api/notifications/approvals`,
+`/api/events/:id/register(s)`, `/api/public/*`. Email on the dev surface never reaches the fixed staff inboxes
+(`devSurfaceBlocks`, `src/lib/email/send.ts`).
 
 ## Options
 **A. Scoped exception for the one preview domain** `madregot-connect-git-u21-personal-coach-st-d1c4461c.vercel.app`
