@@ -113,31 +113,36 @@ export async function GET(request: Request) {
 
     // Weekly volume history + long run progression, on the SAME basis as this week's range
     // and the previous week: buildWeekBreakdown (plan-derived pace bands) over each week's plan
-    // merged with that week's published one-day sessions, read once for the whole span.
-    // Shape unchanged: { week, volume, weekNum } and { week, distance }. A week whose plan has
-    // no workouts is still skipped, as before.
+    // merged with that week's published one-day sessions, read once (paged) for the whole span.
+    // A week with published one-day sessions but NO weekly plan is included (it used to be
+    // dropped). If the one-day sessions could not be read, the history is plan-only and
+    // `historyCoverage.daySessions` says 'unavailable': absence is never reported as zero.
+    // Coverage is bounded to [first plan week, last plan week] ∪ weeks that have plans; one-day
+    // sessions outside that span are not read here (`historyCoverage.span`).
     const weeklyVolumes: Array<{ week: string; volume: number; weekNum: number }> = [];
     const longRunProgression: Array<{ week: string; distance: number }> = [];
-    const historyWeeks = uniquePlans.map((p) => p.week_start_date).sort();
-    const historyDays = academyOnly || historyWeeks.length === 0
-      ? new Map<string, ParsedWorkout[]>()
-      : await daySessionWorkoutsByWeek(historyWeeks[0], historyWeeks[historyWeeks.length - 1]);
-    for (const plan of uniquePlans) {
-      if (extractWorkouts(plan.parsed_workouts).length === 0) continue;
-      const days = historyDays.get(plan.week_start_date) ?? [];
-      const b = buildWeekBreakdown(days.length ? mergeDaySessions(plan.parsed_workouts, days) : plan.parsed_workouts);
+    const planByWeek = new Map(uniquePlans.map((p) => [p.week_start_date, p]));
+    const planWeeks = [...planByWeek.keys()].sort();
+    const span = planWeeks.length ? { from: planWeeks[0], to: planWeeks[planWeeks.length - 1] } : null;
+    const daySpan = academyOnly || !span
+      ? ({ ok: true, byWeek: new Map<string, ParsedWorkout[]>() } as const)
+      : await daySessionWorkoutsByWeek(span.from, span.to);
+    const historyDays = daySpan.ok ? daySpan.byWeek : new Map<string, ParsedWorkout[]>();
+    const historyWeeks = [...new Set([...planWeeks, ...historyDays.keys()])].sort();
+    for (const week of historyWeeks) {
+      const plan = planByWeek.get(week);
+      const days = historyDays.get(week) ?? [];
+      if (extractWorkouts(plan?.parsed_workouts).length === 0 && days.length === 0) continue;
+      const b = buildWeekBreakdown(days.length ? mergeDaySessions(plan?.parsed_workouts, days) : plan?.parsed_workouts);
       const vol = (b.weekTotalMin + b.weekTotalMax) / 2;
       const maxDist = b.sessions.reduce((m, x) => Math.max(m, (x.kmMin + x.kmMax) / 2), 0);
-      weeklyVolumes.push({
-        week: plan.week_start_date,
-        volume: Math.round(vol * 10) / 10,
-        weekNum: weeklyVolumes.length + 1,
-      });
-      longRunProgression.push({
-        week: plan.week_start_date,
-        distance: Math.round(maxDist * 10) / 10,
-      });
+      weeklyVolumes.push({ week, volume: Math.round(vol * 10) / 10, weekNum: weeklyVolumes.length + 1 });
+      longRunProgression.push({ week, distance: Math.round(maxDist * 10) / 10 });
     }
+    const historyCoverage = {
+      daySessions: academyOnly ? 'not_applicable' : daySpan.ok ? 'included' : 'unavailable',
+      span,
+    } as const;
 
     // Week-over-week delta
     const currentAvg = (weekTotalMin + weekTotalMax) / 2;
@@ -157,6 +162,7 @@ export async function GET(request: Request) {
       hasClubPlan: !!currentPlan,
       weeklyVolumes,
       longRunProgression,
+      historyCoverage,
       sessions,
       typeDistribution,
       currentWeekStart,

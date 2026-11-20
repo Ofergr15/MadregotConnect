@@ -11,10 +11,10 @@ let db: ReturnType<typeof createMemoryDb>;
 vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => db.client }));
 const who = vi.hoisted(() => ({ id: '' }));
 vi.mock('@/lib/auth/self-or-staff', async (orig) => ({ ...(await orig<object>()), resolveVerifiedCaller: async () => ({ denied: null, caller: { athleteId: who.id } }) }));
-const h = vi.hoisted(() => ({ byWeek: {} as Record<string, unknown[]> }));
+const h = vi.hoisted(() => ({ byWeek: {} as Record<string, unknown[]>, spanFails: false }));
 vi.mock('@/lib/day-session/week-merge', async (orig) => ({ ...(await orig<object>()),
   daySessionWorkouts: async (w: string) => h.byWeek[w] ?? [],
-  daySessionWorkoutsByWeek: async () => new Map(Object.entries(h.byWeek)),
+  daySessionWorkoutsByWeek: async () => (h.spanFails ? { ok: false } : { ok: true, byWeek: new Map(Object.entries(h.byWeek)) }),
 }));
 const weekly = await import('@/app/api/dashboard/weekly/route');
 
@@ -33,6 +33,7 @@ const prevDay = [{ dayOfWeek: 6, name: 'Saturday session', workoutKey: `day:${ad
 beforeEach(() => {
   who.id = ME;
   h.byWeek = { [prevStart]: prevDay };
+  h.spanFails = false;
   db = createMemoryDb({ schema: {
     athletes: ['id', 'name', 'garmin_auth', 'is_academy', 'group_id', 'groups'],
     weekly_plans: ['id', 'coach_id', 'athlete_id', 'week_start_date', 'parsed_workouts', 'status', 'created_at'],
@@ -61,5 +62,24 @@ describe('weekly: previous week on the same basis as this week', () => {
     const long = new Map(body.longRunProgression.map((v: { week: string; distance: number }) => [v.week, v.distance]));
     expect(long.get(prevStart)).toBeGreaterThanOrEqual(12); // the longest planned session that week
     expect(body.weeklyVolumes.map((v: { weekNum: number }) => v.weekNum)).toEqual(body.weeklyVolumes.map((_: unknown, i: number) => i + 1));
+  });
+  it('the span read failing is SAID: historyCoverage.daySessions = unavailable, history plan-only (not silently the same)', async () => {
+    h.spanFails = true;
+    const body = await (await weekly.GET(new Request('http://x/api/dashboard/weekly'))).json();
+    expect(body.historyCoverage).toMatchObject({ daySessions: 'unavailable', span: { from: prevStart, to: cur } });
+    const vol = new Map(body.weeklyVolumes.map((v: { week: string; volume: number }) => [v.week, v.volume]));
+    const planOnly = buildWeekBreakdown(prevPlan as never);
+    expect(vol.get(prevStart)).toBe(Math.round(((planOnly.weekTotalMin + planOnly.weekTotalMax) / 2) * 10) / 10);
+  });
+  it('a week with published one-day sessions but NO weekly plan appears in the history', async () => {
+    const midWeek = addDays(prevStart, -7);
+    db.tables.weekly_plans.push({ id: uid(), coach_id: COACH_ID, athlete_id: null, week_start_date: addDays(prevStart, -14), parsed_workouts: planOf([10]), status: 'pushed', created_at: '2026-10-25T00:00:00Z' });
+    h.byWeek[midWeek] = [{ dayOfWeek: 3, name: 'Standalone', workoutKey: `day:${addDays(midWeek, 3)}`, steps: [step(11000)] }];
+    const body = await (await weekly.GET(new Request('http://x/api/dashboard/weekly'))).json();
+    const weeks = body.weeklyVolumes.map((v: { week: string }) => v.week);
+    expect(weeks).toContain(midWeek);
+    expect(body.weeklyVolumes.find((v: { week: string }) => v.week === midWeek).volume).toBeGreaterThan(10.9);
+    expect(weeks).toEqual([...weeks].sort());
+    expect(body.historyCoverage.daySessions).toBe('included');
   });
 });
