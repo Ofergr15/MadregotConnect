@@ -14,6 +14,7 @@ import {
 import { KUDOS_ACTION_LABEL, teammateActivityCopy } from '@/lib/notifications/copy';
 import { duplicateInstalls, siblingGhosts, type SubDevice, type SubHealth } from '@/lib/push-ghosts';
 import { apnsConfig } from '@/lib/apns';
+import { isDevSurface } from '@/lib/dev-api-allowlist';
 
 /**
  * Given the maintenance allowlist (lowercased emails) and the athlete rows for
@@ -507,6 +508,11 @@ export async function sendPushDetailed(
 ): Promise<{ sent: number; byAthlete: Record<string, number> }> {
   const empty = { sent: 0, byAthlete: {} as Record<string, number> };
   if (subs.length === 0) return empty;
+  // Dev surface: no web push to anyone (the dev DB may hold a real person's old subscription).
+  if (isDevSurface()) {
+    console.warn(`[push] dev surface — suppressed "${payload.title}" for ${subs.length} subscription(s)`);
+    return empty;
+  }
   // This push's own number, the same on every device (lib/push-deliveries, migration 171): each
   // device's row says whether the push service took it, and the phone stamps it when shown.
   const nid = randomUUID();

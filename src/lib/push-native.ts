@@ -8,6 +8,7 @@ import {
   type DeliveryRow,
   type PushPayload,
 } from '@/lib/push';
+import { isDevSurface } from '@/lib/dev-api-allowlist';
 import { apnsConfig, sendApns, type ApnsConfig, type ApnsTransport } from '@/lib/apns';
 import { clearApnsTokens, nativeDevicesForAthletes, type NativePushDevice } from '@/lib/watch/devices';
 
@@ -48,6 +49,8 @@ export async function sendPushNative(
 ): Promise<NativeSendResult> {
   const cfg = opts.config === undefined ? apnsConfig() : opts.config;
   if (devices.length === 0) return EMPTY(!!cfg);
+  // Dev surface: no APNs to anyone, whatever is configured.
+  if (isDevSurface()) return EMPTY(false);
   if (!cfg) {
     console.warn(`[push-native] APNs not configured — dropped "${payload.title}" for ${devices.length} device(s)`);
     return EMPTY(false);

@@ -76,6 +76,10 @@ export function isDevSurface(env: Env = process.env): boolean {
 
 /** On the dev surface: may this API request through? (Callers check isDevSurface first.) */
 export function isDevApiRequestAllowed(method: string, pathname: string, env: Env = process.env): boolean {
+  // Fail closed on the DATABASE as well as the flag: a deployment of the dev branch that is wired to
+  // any other Supabase project (production by mistake) opens nothing — every route 404s. The same
+  // pin U21 has (lib/u21/env-guard.ts), now for every allowlisted route.
   return env[DEV_API_ALLOWLIST_FLAG] === '1'
+    && supabaseRef(env) === DEV_SUPABASE_REF
     && DEV_API_ALLOWLIST.some(([m, p]) => m === method && pathMatches(p, pathname));
 }

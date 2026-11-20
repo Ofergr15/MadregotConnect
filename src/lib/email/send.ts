@@ -3,7 +3,6 @@ import { createServerClient } from '@/lib/supabase/server';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { readEmailConfig } from './config';
 import { isDevSurface } from '@/lib/dev-api-allowlist';
-import { APPROVER_EMAILS } from '@/lib/constants';
 
 /**
  * THE ONE PLACE AN EMAIL LEAVES THIS APP.
@@ -103,16 +102,17 @@ function recipients(to: string | string[]): string[] {
  * everything else about sending lives in this file.
  */
 /**
- * On the dev surface (the u21-personal-coach preview, `lib/dev-api-allowlist.ts`) never mail the
- * club's fixed staff inboxes: APPROVER_EMAILS and ADMIN_EMAIL are real people whatever database the
- * deployment uses. Everyone else there is a synthetic dev-DB member. Production and local dev are
- * unaffected; `MC_OUTBOUND=all` lifts it deliberately.
+ * On the dev surface (the u21-personal-coach preview, `lib/dev-api-allowlist.ts`) mail goes ONLY to
+ * the controlled test identities listed in MC_DEV_MAIL_ALLOW; everyone else (staff inboxes included)
+ * is skipped as `dev-surface-guard`. No list → no mail at all (fail closed). Production, other
+ * previews and local dev are unaffected.
  */
 export function devSurfaceBlocks(address: string, env: Record<string, string | undefined> = process.env): boolean {
-  if (!isDevSurface(env) || env.MC_OUTBOUND === 'all') return false;
-  const a = address.toLowerCase().trim();
-  const fixed = [...APPROVER_EMAILS, env.ADMIN_EMAIL || 'madregot.club@gmail.com'].map((x) => x.toLowerCase().trim());
-  return fixed.includes(a);
+  if (!isDevSurface(env)) return false;
+  // Dev surface: deny by default. Only the explicitly approved, controlled test identities in
+  // MC_DEV_MAIL_ALLOW (exact addresses, comma-separated) may receive mail; missing → nobody.
+  const allow = (env.MC_DEV_MAIL_ALLOW || '').split(',').map((x) => x.toLowerCase().trim()).filter(Boolean);
+  return !allow.includes(address.toLowerCase().trim());
 }
 
 function isSynthetic(address: string): boolean {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { DEV_API_ALLOWLIST, isDevApiRequestAllowed } from '@/lib/dev-api-allowlist';
+import { DEV_API_ALLOWLIST, DEV_SUPABASE_REF, isDevApiRequestAllowed } from '@/lib/dev-api-allowlist';
 
 /** The e2e path (owner go-ahead 2026-11-20): sign-in + U21 submit open on the dev surface; nothing else added. */
-const ON = { MC_DEV_API_ALLOWLIST: '1' };
+const ON = { MC_DEV_API_ALLOWLIST: '1', NEXT_PUBLIC_SUPABASE_URL: `https://${DEV_SUPABASE_REF}.supabase.co` };
 describe('dev allowlist for the native e2e path', () => {
   it('is exactly the seven native routes plus POST /api/u21/register', () => {
     expect(DEV_API_ALLOWLIST.map(([m, p]) => `${m} ${p}`)).toEqual([
