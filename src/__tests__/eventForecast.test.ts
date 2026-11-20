@@ -200,6 +200,35 @@ describe('cache', () => {
   });
 });
 
+describe('v1 compatibility (docs/contracts/valencia.md parsers keep working)', () => {
+  it('v1 fields: status ok + one day per race date, with the v1 per-day statuses', async () => {
+    eventRow = race('2026-12-05', '2026-12-07');
+    fetchMock.mockResolvedValue(ok(payload('2026-11-21')));
+    const b = await (await call()).json();
+    expect(b.version).toBe(2);
+    expect(b.status).toBe('ok');
+    expect(b.days).toEqual([
+      { date: '2026-12-05', status: 'available', tMaxC: 18, tMinC: 9, precipProbPct: 20, windMaxKmh: 15, weatherCode: 3 },
+      { date: '2026-12-06', status: 'available', tMaxC: 18, tMinC: 9, precipProbPct: 20, windMaxKmh: 15, weatherCode: 3 },
+      { date: '2026-12-07', status: 'not_yet_available' },
+    ]);
+  });
+  it('v1: a past race → past; no coordinates → status no_location, days []', async () => {
+    eventRow = race('2026-11-01');
+    fetchMock.mockResolvedValue(ok(payload('2026-11-20')));
+    expect((await (await call()).json()).days).toEqual([{ date: '2026-11-01', status: 'past' }]);
+    eventRow = { id: 'e1', date: '2026-12-06', end_date: null, lat: null, lng: null };
+    expect(await (await call()).json()).toMatchObject({ status: 'no_location', days: [] });
+  });
+  it('v1: provider down with no cache → 200, status ok, every day error (was 502 in v1)', async () => {
+    eventRow = race();
+    fetchMock.mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
+    const r = await call();
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ status: 'ok', days: [{ date: '2026-12-06', status: 'error' }] });
+  });
+});
+
 describe('pure helpers', () => {
   it('eventDateRange is inclusive and capped', () => {
     expect(eventDateRange('2026-12-05', '2026-12-07')).toEqual(['2026-12-05', '2026-12-06', '2026-12-07']);

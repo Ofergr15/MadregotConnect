@@ -55,7 +55,18 @@ export interface VenueForecast {
   hourly: HourlyWeather[];
 }
 
+/** The v1 per-day shape (docs/contracts/valencia.md), still emitted for parsers built on it. */
+export type LegacyDay =
+  | { date: string; status: 'available'; tMaxC: number | null; tMinC: number | null; precipProbPct: number | null; windMaxKmh: number | null; weatherCode: number | null }
+  | { date: string; status: 'not_yet_available' | 'past' | 'error' };
+
 export interface EventForecastDTO {
+  /** 2 = this shape. v1 fields `status` and `days` are kept below so a v1 parser keeps working. */
+  version: 2;
+  /** v1: 'no_location' without coordinates, else 'ok' (a provider failure shows as days with status 'error'). */
+  status: 'ok' | 'no_location';
+  /** v1: one entry per race date. */
+  days: LegacyDay[];
   provider: typeof PROVIDER;
   attribution: typeof ATTRIBUTION;
   eventId: string;
@@ -180,7 +191,18 @@ export function buildDTO(args: {
   const f = args.forecast;
   const race = f ? raceDayOf(args.raceDates, f) : { status: 'unavailable' as const, reason: null };
   const raceSet = new Set(args.raceDates);
+  const byDate = new Map((f?.daily ?? []).map((x) => [x.date, x]));
+  const days: LegacyDay[] = args.raceDates.map((date): LegacyDay => {
+    const d = byDate.get(date);
+    if (d) return { status: 'available', ...d };
+    if (f?.validThrough && date > f.validThrough) return { date, status: 'not_yet_available' };
+    if (f?.validFrom && date < f.validFrom) return { date, status: 'past' };
+    return { date, status: 'error' };
+  });
   return {
+    version: 2,
+    status: args.unavailableReason === 'no_location' ? 'no_location' : 'ok',
+    days: args.unavailableReason === 'no_location' ? [] : days,
     provider: PROVIDER,
     attribution: ATTRIBUTION,
     eventId: args.eventId,

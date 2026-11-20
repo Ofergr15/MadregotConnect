@@ -1,0 +1,172 @@
+{
+  "_note": "Synthetic weather. GET /api/events/:id/forecast v2 on 2026-11-20 for a race on 2026-12-06 (out of range). daily[4].precipProbPct null = provider did not report it.",
+  "version": 2,
+  "status": "ok",
+  "days": [
+    {
+      "date": "2026-12-06",
+      "status": "not_yet_available"
+    }
+  ],
+  "provider": "open-meteo",
+  "attribution": {
+    "name": "Open-Meteo",
+    "url": "https://open-meteo.com/"
+  },
+  "eventId": "00000000-0000-4000-8000-00000000e001",
+  "location": {
+    "lat": 39.4699,
+    "lng": -0.3763
+  },
+  "timezone": "Europe/Madrid",
+  "fetchedAt": "2026-11-20T10:00:00.000Z",
+  "stale": false,
+  "validFrom": "2026-11-20",
+  "validThrough": "2026-12-05",
+  "current": {
+    "time": "2026-11-20T11:00",
+    "temperatureC": 17.2,
+    "apparentC": 16.1,
+    "precipitationMm": 0,
+    "windKmh": 9.4,
+    "weatherCode": 1
+  },
+  "daily": [
+    {
+      "date": "2026-11-20",
+      "tMaxC": 18,
+      "tMinC": 9,
+      "precipProbPct": 20,
+      "windMaxKmh": 15,
+      "weatherCode": 3
+    },
+    {
+      "date": "2026-11-21",
+      "tMaxC": 17,
+      "tMinC": 9,
+      "precipProbPct": 20,
+      "windMaxKmh": 15,
+      "weatherCode": 3
+    },
+    {
+      "date": "2026-11-22",
+      "tMaxC": 16,
+      "tMinC": 9,
+      "precipProbPct": 20,
+      "windMaxKmh": 15,
+      "weatherCode": 3
+    },
+    {
+      "date": "2026-11-23",
+      "tMaxC": 18,
+      "tMinC": 9,
+      "precipProbPct": 20,
+      "windMaxKmh": 15,
+      "weatherCode": 3
+    },
+    {
+      "date": "2026-11-24",
+      "tMaxC": 17,
+      "tMinC": 9,
+      "precipProbPct": null,
+      "windMaxKmh": 15,
+      "weatherCode": 3
+    },
+    {
+      "date": "2026-11-25",
+      "tMaxC": 16,
+      "tMinC": 9,
+      "precipProbPct": 20,
+      "windMaxKmh": 15,
+      "weatherCode": 3
+    },
+    {
+      "date": "2026-11-26",
+      "tMaxC": 18,
+      "tMinC": 9,
+      "precipProbPct": 20,
+      "windMaxKmh": 15,
+      "weatherCode": 3
+    },
+    {
+      "date": "2026-11-27",
+      "tMaxC": 17,
+      "tMinC": 9,
+      "precipProbPct": 20,
+      "windMaxKmh": 15,
+      "weatherCode": 3
+    },
+    {
+      "date": "2026-11-28",
+      "tMaxC": 16,
+      "tMinC": 9,
+      "precipProbPct": 20,
+      "windMaxKmh": 15,
+      "weatherCode": 3
+    },
+    {
+      "date": "2026-11-29",
+      "tMaxC": 18,
+      "tMinC": 9,
+      "precipProbPct": 20,
+      "windMaxKmh": 15,
+      "weatherCode": 3
+    },
+    {
+      "date": "2026-11-30",
+      "tMaxC": 17,
+      "tMinC": 9,
+      "precipProbPct": 20,
+      "windMaxKmh": 15,
+      "weatherCode": 3
+    },
+    {
+      "date": "2026-12-01",
+      "tMaxC": 16,
+      "tMinC": 9,
+      "precipProbPct": 20,
+      "windMaxKmh": 15,
+      "weatherCode": 3
+    },
+    {
+      "date": "2026-12-02",
+      "tMaxC": 18,
+      "tMinC": 9,
+      "precipProbPct": 20,
+      "windMaxKmh": 15,
+      "weatherCode": 3
+    },
+    {
+      "date": "2026-12-03",
+      "tMaxC": 17,
+      "tMinC": 9,
+      "precipProbPct": 20,
+      "windMaxKmh": 15,
+      "weatherCode": 3
+    },
+    {
+      "date": "2026-12-04",
+      "tMaxC": 16,
+      "tMinC": 9,
+      "precipProbPct": 20,
+      "windMaxKmh": 15,
+      "weatherCode": 3
+    },
+    {
+      "date": "2026-12-05",
+      "tMaxC": 18,
+      "tMinC": 9,
+      "precipProbPct": 20,
+      "windMaxKmh": 15,
+      "weatherCode": 3
+    }
+  ],
+  "raceDate": "2026-12-06",
+  "raceDates": [
+    "2026-12-06"
+  ],
+  "raceDayStatus": "out_of_range",
+  "raceDayReason": "after_horizon",
+  "raceHourly": [],
+  "unavailableReason": null
+}

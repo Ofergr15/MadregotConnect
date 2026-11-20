@@ -6,8 +6,10 @@ Terms/eligibility for this use are **unverified** (docs, pricing and licence pag
 Pinned by `eventForecast.test.ts` (20 tests, synthetic payloads).
 
 ## Response (200 for every outcome except an unknown event → 404)
+Exact example: `fixtures/event-forecast.v2.example.json`. v1 fields kept for existing parsers: `status`, `days[]` (see `valencia.md`).
 ```json
 {
+  "version": 2, "status": "ok" | "no_location", "days": [ /* v1 per-race-date */ ],
   "provider": "open-meteo",
   "attribution": { "name": "Open-Meteo", "url": "https://open-meteo.com/" },
   "eventId": "…", "location": { "lat": 39.4699, "lng": -0.3763 } | null,

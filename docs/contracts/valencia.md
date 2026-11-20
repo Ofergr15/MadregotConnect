@@ -10,15 +10,16 @@ Tests: `valenciaContract.test.ts`, `eventForecast.test.ts`, `clubUpdatesTopics.t
 - `Event.course_gpx_url`: https URL of the course GPX, or `null` / absent (absent until migration 181
   is applied). No map → fall back to `lat`/`lng`, `waze_url`, `distances`.
 
-## Forecast: `GET /api/events/{id}/forecast`
-- 200 `{ status: "ok", eventId, days: Day[] }`, or `{ status: "no_location", eventId, days: [] }`.
-- `Day` is `{ date, status: "available", tMaxC, tMinC, precipProbPct, windMaxKmh, weatherCode }`
-  (numbers may be `null`), or `{ date, status: "past" | "not_yet_available" | "error" }`.
-  Forecast covers today (UTC) + 15 days; outside that it is `not_yet_available`, never invented.
-- 404 event not found · 502 `{ error: "Forecast unavailable" }` (provider down and no good answer in the last 6 h) · 500 on DB error.
-- Provider down but a good answer from ≤ 6 h ago exists on that server instance → 200 with `stale: true` and
-  `fetchedAt` (ISO), `Cache-Control: no-store`. Show "updated <time>". Upstream timeout is 5 s, no retry.
-- `Cache-Control: public, max-age=1800`. `weatherCode` is the WMO code from Open-Meteo.
+## Forecast: `GET /api/events/{id}/forecast` — v2 (local branch `u21-manager-events`, not deployed)
+Full contract: `event-forecast.md`; exact example: `fixtures/event-forecast.v2.example.json`.
+- **v1 parsers keep working:** `status` (`ok` | `no_location`), `eventId` and `days[]` (per race date:
+  `available` with numbers, or `past` | `not_yet_available` | `error`) are still in every 200, now read from the
+  provider's returned window in the venue timezone. `stale` + `fetchedAt` as before.
+- **One v1 behaviour changed:** provider down with no cached answer is now **200** (`days[].status: "error"`,
+  `unavailableReason` set) instead of **502**. 404 stays for an unknown event; 500 for a DB error.
+- **New in v2 (`version: 2`):** `current`, `daily` (all 16 returned days), `validFrom`/`validThrough`, `timezone`,
+  `raceDayStatus` + `raceDayReason`, `raceHourly`, `unavailableReason`, `provider`, `attribution`.
+- Cache: `public, max-age=1800` for a fresh answer; `no-store` for stale or unavailable.
 
 ## Updates for this event
 - `GET /api/club-updates?event={eventId}` (or `?topic={topicId}`) →
