@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { fetchWeekTargets } from '@/lib/plans/week-target-history';
-import { fetchWeeklyVolume } from '@/lib/athletes/weekly-volume';
+import { fetchWeeklyVolume, weekAxis } from '@/lib/athletes/weekly-volume';
 import { israelDateAnchor, SUNDAY_WEEK, weekStartOn } from '@/lib/utils';
 import { readWeekStartDay } from '@/lib/athletes/week-pref';
 import { COACH_ID } from '@/lib/constants';
@@ -54,12 +54,19 @@ export async function GET(request: Request) {
     const startDay = await readWeekStartDay(supabase, athleteId);
 
     const fetchWeeks = granularity === 'week' ? weeks : granularity === 'month' ? periods * 5 + 8 : periods * 53 + 8;
-    const { byAthlete } = await fetchWeeklyVolume(supabase, {
-      athleteIds: [athleteId],
-      weeks: fetchWeeks,
-      currentWeekStart: weekStartOn(israelDateAnchor(), startDay),
-      startDay,
-    });
+    const currentWeekStart = weekStartOn(israelDateAnchor(), startDay);
+    // The axis is generated, not collected (weekly-volume.ts), so the plan weeks
+    // the target lookup needs are known before a single activity row is read.
+    // Run the two reads together instead of one after the other.
+    const planWeekOf = new Map(
+      weekAxis(currentWeekStart, fetchWeeks).map((w) => [w, weekStartOn(new Date(`${w}T12:00:00`), SUNDAY_WEEK)]),
+    );
+    const [{ byAthlete }, targets] = await Promise.all([
+      fetchWeeklyVolume(supabase, { athleteIds: [athleteId], weeks: fetchWeeks, currentWeekStart, startDay }),
+      granularity === 'week'
+        ? fetchWeekTargets(supabase, COACH_ID, [...new Set(planWeekOf.values())])
+        : Promise.resolve(null),
+    ]);
 
     const round1 = (n: number) => Math.round(n * 10) / 10;
     const weekRows = (byAthlete.get(athleteId) || []).map((b) => ({
@@ -81,12 +88,8 @@ export async function GET(request: Request) {
       // conventions re-split on 2026-09-09 the target band has silently not been
       // drawn on this chart at all. Translate to the plan week that covers six of
       // the seven days, then key the answer back onto the column it belongs to.
-      const planWeekOf = new Map(
-        weekRows.map((w) => [w.weekStart, weekStartOn(new Date(`${w.weekStart}T12:00:00`), SUNDAY_WEEK)]),
-      );
-      const targets = await fetchWeekTargets(supabase, COACH_ID, [...new Set(planWeekOf.values())]);
       series = weekRows.map((w) => {
-        const t = targets.get(planWeekOf.get(w.weekStart)!);
+        const t = targets!.get(planWeekOf.get(w.weekStart)!);
         return t ? { ...w, target: { min: t.min, max: t.max } } : w;
       });
     }
