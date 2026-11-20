@@ -13,7 +13,7 @@ vi.mock('@/lib/supabase/server', () => ({
 
 import { GET } from '@/app/api/events/[id]/forecast/route';
 import { eventDateRange, parseOpenMeteo, raceDayOf } from '@/lib/events/forecast';
-import { FRESH_MS, STALE_MAX_ENTRIES, STALE_MAX_MS, forecastCacheSize, rememberForecast, resetForecastCache } from '@/lib/events/forecast-cache';
+import { FRESH_MS, STALE_MAX_ENTRIES, STALE_MAX_MS, forecastCacheSize, rememberForecast, resetForecastCache, venueKey } from '@/lib/events/forecast-cache';
 
 const call = (id = 'e1') => GET(new Request(`http://x/api/events/${id}/forecast`), { params: Promise.resolve({ id }) });
 const fetchMock = vi.fn();
@@ -193,6 +193,30 @@ describe('cache', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect((await ra.json()).validThrough).toBe('2026-12-05');
     expect((await rb.json()).eventId).toBe('e2');
+  });
+  it('venues never share an answer: two venues in flight at once → two requests, each its own payload', async () => {
+    const rows: Record<string, Record<string, unknown>> = {
+      a: { id: 'a', date: '2026-12-06', end_date: null, ...VALENCIA },
+      b: { id: 'b', date: '2026-12-06', end_date: null, lat: 32.0853, lng: 34.7818 },
+    };
+    const releases: Array<() => void> = [];
+    fetchMock.mockImplementation((url: string) => new Promise((r) => {
+      const lat = new URL(url).searchParams.get('latitude');
+      releases.push(() => r(ok({ ...payload('2026-11-20'), timezone: lat === '39.4699' ? 'Europe/Madrid' : 'Asia/Jerusalem' })));
+    }));
+    eventRow = rows.a; const pa = call('a');
+    await new Promise((r) => setTimeout(r, 0));
+    eventRow = rows.b; const pb = call('b');
+    await new Promise((r) => setTimeout(r, 0));
+    releases.forEach((f) => f());
+    const [ba, bb] = await Promise.all([pa, pb].map(async (p) => (await p).json()));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(ba.timezone).toBe('Europe/Madrid');
+    expect(bb.timezone).toBe('Asia/Jerusalem');
+  });
+  it('the venue key is the coordinates to 4 decimals (~11 m): a 5th-decimal difference shares, a 4th does not', () => {
+    expect(venueKey(39.46991, -0.37631)).toBe(venueKey(39.46994, -0.37634));
+    expect(venueKey(39.4699, -0.3763)).not.toBe(venueKey(39.4700, -0.3763));
   });
   it('is bounded', () => {
     for (let i = 0; i < STALE_MAX_ENTRIES + 50; i++) rememberForecast(`k${i}`, parseOpenMeteo({}));
