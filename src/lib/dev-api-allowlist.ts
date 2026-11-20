@@ -36,20 +36,17 @@ export const DEV_API_ALLOWLIST: ReadonlyArray<readonly [string, string]> = [
   // web /u21 form: no auth, its own env guard (pinned to this dev project, 503 elsewhere),
   // per-IP rate limit, honeypot, validated fields, stores pending_review only — no mail, no push.
   ['POST', '/api/u21/register'],
+  ['GET', '/api/feed/highlight'],        // feed highlight card — requireSession, own runs only
   // Inbox (V6) — self-or-staff via the JWT (mayActFor); seen stamps only the caller's own row.
   ['GET', '/api/notifications/inbox'],
   ['GET', '/api/notifications/unread'],
   ['POST', '/api/notifications/seen'],
-  // Valencia tab — reads only. Events/forecast are public reads; club updates use their own
-  // member gate; surveys resolve the caller from the JWT. `:id` matches a UUID segment only.
+  // Valencia tab — reads only. events + forecast are public reads; club updates use their
+  // own member gate; surveys/open resolves the caller from the JWT. `:id` = one UUID segment.
   ['GET', '/api/events'],
-  ['GET', '/api/events/:id'],
   ['GET', '/api/events/:id/forecast'],
   ['GET', '/api/club-updates'],
-  ['GET', '/api/club-updates/topics'],
   ['GET', '/api/surveys/open'],
-  ['GET', '/api/surveys/:id'],
-  ['POST', '/api/surveys/:id/respond'],
 ];
 
 const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
