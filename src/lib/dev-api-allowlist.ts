@@ -36,7 +36,30 @@ export const DEV_API_ALLOWLIST: ReadonlyArray<readonly [string, string]> = [
   // web /u21 form: no auth, its own env guard (pinned to this dev project, 503 elsewhere),
   // per-IP rate limit, honeypot, validated fields, stores pending_review only — no mail, no push.
   ['POST', '/api/u21/register'],
+  // Inbox (V6) — self-or-staff via the JWT (mayActFor); seen stamps only the caller's own row.
+  ['GET', '/api/notifications/inbox'],
+  ['GET', '/api/notifications/unread'],
+  ['POST', '/api/notifications/seen'],
+  // Valencia tab — reads only. Events/forecast are public reads; club updates use their own
+  // member gate; surveys resolve the caller from the JWT. `:id` matches a UUID segment only.
+  ['GET', '/api/events'],
+  ['GET', '/api/events/:id'],
+  ['GET', '/api/events/:id/forecast'],
+  ['GET', '/api/club-updates'],
+  ['GET', '/api/club-updates/topics'],
+  ['GET', '/api/surveys/open'],
+  ['GET', '/api/surveys/:id'],
+  ['POST', '/api/surveys/:id/respond'],
 ];
+
+const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Exact segment match; `:id` matches exactly one UUID segment, nothing else. */
+export function pathMatches(template: string, pathname: string): boolean {
+  const t = template.split('/');
+  const p = pathname.split('/');
+  if (t.length !== p.length) return false;
+  return t.every((seg, i) => (seg === ':id' ? UUID_SEGMENT.test(p[i]) : seg === p[i]));
+}
 
 type Env = Record<string, string | undefined>;
 
@@ -57,5 +80,5 @@ export function isDevSurface(env: Env = process.env): boolean {
 /** On the dev surface: may this API request through? (Callers check isDevSurface first.) */
 export function isDevApiRequestAllowed(method: string, pathname: string, env: Env = process.env): boolean {
   return env[DEV_API_ALLOWLIST_FLAG] === '1'
-    && DEV_API_ALLOWLIST.some(([m, p]) => m === method && p === pathname);
+    && DEV_API_ALLOWLIST.some(([m, p]) => m === method && pathMatches(p, pathname));
 }

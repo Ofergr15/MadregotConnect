@@ -22,7 +22,8 @@ const req = (path: string, method = 'GET') => new NextRequest(new URL(path, 'htt
 const passes = (r: Response) => r.headers.get('x-middleware-next') === '1';
 const DEV_DB = `https://${DEV_SUPABASE_REF}.supabase.co`;
 const devPreview = () => setEnv({ VERCEL: '1', VERCEL_ENV: 'preview', NEXT_PUBLIC_SUPABASE_URL: DEV_DB });
-const SEVEN = DEV_API_ALLOWLIST;
+// Templates made concrete: `:id` → a UUID, so the proxy sees a real request path.
+const SEVEN = DEV_API_ALLOWLIST.map(([m, p]) => [m, p.replace(/:id/g, '3f2a9c1e-1b2c-4d5e-8f90-a1b2c3d4e5f6')] as const);
 // Every kind of non-API path the deployment can serve: pages, the app shell, Next
 // assets, image optimisation, public files, the service worker, a Server Action POST.
 const NON_API = [
@@ -153,7 +154,7 @@ describe('matcher and the native app', () => {
     expect(src).toContain(`{ source: '/:path*', has: [{ type: 'host', value: '${VERCEL_APP_HOST.replace(/\\/g, '\\\\')}' }] }`);
   });
   it('every allowed path is a real route', () => {
-    for (const [, p] of SEVEN) expect(existsSync(join(ROOT, 'src', 'app', p, 'route.ts')), p).toBe(true);
+    for (const [, p] of DEV_API_ALLOWLIST) expect(existsSync(join(ROOT, 'src', 'app', p.replace(/:id/g, '[id]'), 'route.ts')), p).toBe(true);
   });
   it('the seven are what the iOS app calls, minus registration (public, kept closed)', () => {
     const iosDir = join(ROOT, 'ios', 'Madregot');
