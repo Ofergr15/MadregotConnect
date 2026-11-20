@@ -17,6 +17,10 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      # tsc (typecheck, and next build's own type-check) outgrows Node's default ~4 GB heap and
+      # dies with "JavaScript heap out of memory"; locally the same flag is needed.
+      NODE_OPTIONS: --max-old-space-size=6144
     steps:
       - uses: actions/checkout@v4
 
@@ -42,9 +46,6 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # next build type-checks the whole program again; at Node's default ~4 GB heap it
-          # dies with "JavaScript heap out of memory" (same reason local typecheck needs it).
-          NODE_OPTIONS: --max-old-space-size=6144
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
           SUPABASE_SERVICE_ROLE_KEY: placeholder
