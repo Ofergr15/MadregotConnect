@@ -87,7 +87,14 @@ export async function POST(request: Request) {
       capacity,
       registration_deadline,
       course_gpx_url,
+      notify,
     } = body || {};
+
+    // `notify: false` creates the event silently: no push to anyone (manager drafts,
+    // synthetic test events). Absent = the original behaviour, so old clients are unchanged.
+    if (notify !== undefined && typeof notify !== 'boolean') {
+      return NextResponse.json({ error: 'notify must be a boolean' }, { status: 400 });
+    }
 
     if (!kind || !name || !date || !location) {
       return NextResponse.json(
@@ -143,7 +150,7 @@ export async function POST(request: Request) {
     // the event exists (this schema has no separate "opens later" concept —
     // see registration_deadline for the only other date involved), so one
     // push covers both "there's a new event" and "you can register now."
-    try {
+    if (notify !== false) try {
       const subs = await resolveAudience('all', null);
       if (subs.length > 0) {
         await sendPushLocalized(subs, (locale) => ({
@@ -157,7 +164,7 @@ export async function POST(request: Request) {
       // best-effort — never let a push failure affect event creation
     }
 
-    return NextResponse.json({ event: data });
+    return NextResponse.json({ event: data, notified: notify !== false });
   } catch (error) {
     console.error('Failed to create event:', error);
     return NextResponse.json({ error: 'Failed to create event' }, { status: 500 });
