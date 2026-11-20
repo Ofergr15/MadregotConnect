@@ -12,6 +12,7 @@ import {
 } from '@/lib/notifications/locale';
 import { KUDOS_ACTION_LABEL, teammateActivityCopy } from '@/lib/notifications/copy';
 import { duplicateInstalls, siblingGhosts, type SubDevice, type SubHealth } from '@/lib/push-ghosts';
+import { apnsConfig } from '@/lib/apns';
 
 /**
  * Given the maintenance allowlist (lowercased emails) and the athlete rows for
@@ -1059,7 +1060,22 @@ export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<NotifyR
   try {
     const subs = await subscriptionsForAthletes([opts.athleteId]);
     subscriptions = subs.length;
-    if (subs.length > 0) {
+    // iPhone app (APNs), alongside web push. OFF unless every APNS_* setting is present
+    // (lib/apns.ts apnsConfig): with no config this branch reads nothing and sends nothing,
+    // so behaviour is exactly the web-only path. Dynamic import: push-native imports this file.
+    let native: Record<string, number> = {};
+    if (apnsConfig()) {
+      try {
+        const { sendPushNativeToAthletes } = await import('@/lib/push-native');
+        ({ byAthlete: native } = await sendPushNativeToAthletes([opts.athleteId], {
+          kind: opts.kind, title, body, url: opts.url, tag: opts.tag, category: opts.category,
+        }));
+      } catch { /* best-effort, like web push */ }
+    }
+    const nativeSent = native[opts.athleteId] ?? 0;
+    if (subs.length === 0 && nativeSent > 0) {
+      byAthlete = { [opts.athleteId]: nativeSent };
+    } else if (subs.length > 0) {
       ({ byAthlete } = await sendPushDetailed(subs, {
         kind: opts.kind,
         title,
@@ -1069,6 +1085,7 @@ export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<NotifyR
         category: opts.category,
         ...(opts.icon ? { icon: opts.icon } : {}),
       }));
+      if (nativeSent > 0 && byAthlete) byAthlete[opts.athleteId] = (byAthlete[opts.athleteId] ?? 0) + nativeSent;
     } else {
       // No subscription at all: the row below is inbox-only by definition, and
       // saying so beats recording a phantom delivery.

@@ -26,9 +26,10 @@ import { clearApnsTokens, nativeDevicesForAthletes, type NativePushDevice } from
  *   6. dead tokens (410 / BadDeviceToken / DeviceTokenNotForTopic) cleared via the devices lib
  *      (web: the dead subscription row is deleted)
  *
- * NOT wired into notifyAthlete/sendPushLocalized yet: turning native push on is a separate,
- * explicit step (with the APNs key, the app's aps-environment entitlement and its bundle id in
- * place). Until then nothing calls this outside its tests.
+ * Wired into notifyAthlete (lib/push.ts) only, and only when apnsConfig() is set: with no APNS_*
+ * configuration the call is skipped before this module is even loaded. Turning it on needs the
+ * APNs key in the server env, the app's aps-environment entitlement and its bundle id. Broadcasts
+ * (sendPushLocalized) are not wired yet.
  */
 export interface NativeSendResult {
   sent: number;
