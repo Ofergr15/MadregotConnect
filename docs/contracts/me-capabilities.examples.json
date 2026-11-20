@@ -1,0 +1,56 @@
+{
+  "_schema": {
+    "viewingAs": "boolean",
+    "events": { "manage": "boolean" },
+    "messages": "\"publish\" | \"draft\" | \"none\"",
+    "clubUpdates": { "read": "boolean", "write": "boolean", "admin": "boolean" },
+    "people": { "read": "boolean", "admin": "boolean" },
+    "approve": "boolean",
+    "viewAs": "boolean"
+  },
+  "admin": {
+    "viewingAs": false,
+    "events": { "manage": true },
+    "messages": "publish",
+    "clubUpdates": { "read": true, "write": true, "admin": true },
+    "people": { "read": true, "admin": true },
+    "approve": true,
+    "viewAs": true
+  },
+  "coach": {
+    "viewingAs": false,
+    "events": { "manage": true },
+    "messages": "none",
+    "clubUpdates": { "read": false, "write": false, "admin": false },
+    "people": { "read": true, "admin": false },
+    "approve": false,
+    "viewAs": false
+  },
+  "runnerWithMessagesDraftGrant": {
+    "viewingAs": false,
+    "events": { "manage": false },
+    "messages": "draft",
+    "clubUpdates": { "read": false, "write": false, "admin": false },
+    "people": { "read": false, "admin": false },
+    "approve": false,
+    "viewAs": false
+  },
+  "runnerAllFalse": {
+    "viewingAs": false,
+    "events": { "manage": false },
+    "messages": "none",
+    "clubUpdates": { "read": false, "write": false, "admin": false },
+    "people": { "read": false, "admin": false },
+    "approve": false,
+    "viewAs": false
+  },
+  "adminViewingAsRunner": {
+    "viewingAs": true,
+    "events": { "manage": false },
+    "messages": "none",
+    "clubUpdates": { "read": false, "write": false, "admin": false },
+    "people": { "read": false, "admin": false },
+    "approve": false,
+    "viewAs": false
+  }
+}
