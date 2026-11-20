@@ -48,7 +48,7 @@ vi.mock('@/lib/supabase/server', () => ({
         eq: (c: string, v: unknown) => { eqs[c] = v; return chain; },
         lt: () => chain, gte: () => chain, not: () => chain, order: () => chain, limit: () => chain,
         maybeSingle: async () => {
-          reads.push(table);
+          reads.push(table === 'login_codes' ? 'login_codes:select' : table);
           if (dbDelayMs) await sleep(dbDelayMs);
           if (table === 'athletes') {
             return { data: eqs.email === MEMBER ? { id: 'a1', email: MEMBER, name: 'M', approved: true, status: 'active' } : null, error: null };
@@ -63,7 +63,7 @@ vi.mock('@/lib/supabase/server', () => ({
             codes.push({ id: `c${codes.length}`, attempts: 0, created_at: new Date().toISOString(), ...payload });
             return Promise.resolve({ error: null }).then(res);
           }
-          if (op === 'update') { const r = rowsFor(); r.forEach((x) => Object.assign(x, payload)); return Promise.resolve({ data: r.map((x) => ({ id: x.id })), error: null }).then(res); }
+          if (op === 'update') { reads.push(`${table}:update`); const r = rowsFor(); r.forEach((x) => Object.assign(x, payload)); return Promise.resolve({ data: r.map((x) => ({ id: x.id })), error: null }).then(res); }
           if (op === 'delete') { codes = codes.filter((c) => !rowsFor().includes(c)); return Promise.resolve({ error: null }).then(res); }
           if (head) return Promise.resolve({ count: rowsFor().length, error: null }).then(res);
           return Promise.resolve({ data: rowsFor(), error: null }).then(res);
@@ -78,7 +78,8 @@ vi.mock('@/lib/onboarding/events', () => ({ recordOnbEvent: vi.fn(), deviceFromU
 vi.mock('@/lib/auth/synthetic-session', () => ({ createSyntheticSession: vi.fn() }));
 vi.mock('@/lib/auth/email-code', async (orig) => ({
   ...(await orig<typeof import('@/lib/auth/email-code')>()),
-  hashCode: (...a: unknown[]) => { hashed.push(String(a[0])); return 'h'; }, codeMatches: () => false,
+  hashCode: (...a: unknown[]) => { hashed.push(String(a[0])); return 'h'; }, // The real codeMatches is an HMAC (hashCode) plus a constant-time compare.
+  codeMatches: (...a: unknown[]) => { hashed.push(String(a[0])); return false; },
 }));
 
 import { POST } from '@/app/api/auth/email-code/route';
@@ -174,5 +175,21 @@ describe('email-code is not a membership oracle', () => {
     const member = await shape(MEMBER, '198.51.103.2');
     expect(stranger).toEqual({ reads: ['athletes', 'login_codes:count'], hashed: 1 });
     expect(member).toEqual(stranger); // a member additionally inserts and mails, after these
+  });
+
+  it('verify has the same work shape with no code as with a live code: select, CAS update, one code HMAC', async () => {
+    const shape = async (email: string, ip: string) => {
+      reads.length = 0; hashed.length = 0;
+      const r = await call(ip, { action: 'verify', email, code: '123456' });
+      return { status: r.status, body: await r.text(), reads: [...reads], hmacs: hashed.length };
+    };
+    const stranger = await shape(STRANGER, '198.51.104.1'); // no row at all
+    // A member with a live code: one send, drained, then a wrong code.
+    await call('198.51.104.2', { action: 'send', email: MEMBER });
+    await drain();
+    expect(codes).toHaveLength(1);
+    const member = await shape(MEMBER, '198.51.104.3');
+    expect(stranger).toEqual({ status: 401, body: JSON.stringify({ error: 'wrong-code' }), reads: ['login_codes:select', 'login_codes:update'], hmacs: 1 });
+    expect(member).toEqual(stranger);
   });
 });

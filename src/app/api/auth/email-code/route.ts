@@ -34,6 +34,8 @@ const allowFromIp = createRateLimiter(40, 60_000);
 
 /** Every failed verify answers this, whatever the reason: no code, expired, used up or wrong. */
 const BAD_CODE = { error: 'wrong-code' } as const;
+/** The nil uuid: never issued as a login_codes id, so a CAS against it matches nothing. */
+const NO_SUCH_CODE_ID = '00000000-0000-0000-0000-000000000000';
 const badCode = () => NextResponse.json(BAD_CODE, { status: 401 });
 
 async function memberFor(supabase: Db, email: string) {
@@ -145,7 +147,14 @@ export async function POST(request: Request) {
         .maybeSingle();
       // No code, expired, used up and wrong all answer badCode(): told apart, they said
       // "this address is a member who asked for a code".
-      if (!row || Date.parse(row.expires_at) < Date.now() || row.attempts >= MAX_ATTEMPTS) return badCode();
+      // Same work shape as a live code (one select, one CAS update, one HMAC of the code), so a
+      // no-code verify is not a round trip faster than a wrong code: the CAS targets an id
+      // that cannot exist (login_codes.id is a uuid; the nil uuid is never issued).
+      if (!row || Date.parse(row.expires_at) < Date.now() || row.attempts >= MAX_ATTEMPTS) {
+        await supabase.from('login_codes').update({ attempts: MAX_ATTEMPTS }).eq('id', NO_SUCH_CODE_ID).eq('attempts', 0).lt('attempts', MAX_ATTEMPTS).select('id');
+        hashCode(email, code); // the HMAC a live code's compare costs; compared against nothing
+        return badCode();
+      }
       // Claim the attempt BEFORE comparing the code, atomically: the UPDATE matches only
       // while `attempts` still holds the value read above. Read-then-write let N parallel
       // guesses all pass the gate on the same count and try N codes against a limit of
