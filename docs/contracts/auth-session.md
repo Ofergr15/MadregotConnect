@@ -16,11 +16,11 @@ How the server mints it (`createSyntheticSession`, `:51`):
 - `auth.admin.createUser` (or find the existing user) → `auth.admin.generateLink({type:'magiclink'})` →
   `verifyOtp({type:'email', token_hash})` with the anon client. The result is an ordinary GoTrue session,
   and minting it **does not touch the user's other sessions** (measured 2026-09-05, comment at `:15-46`).
-- ⚠️ **Fallback branch** (only if `generateLink` fails, logged as `[auth] generateLink failed, falling back`):
-  it rotates the user's password and signs in with it (`:117-123`). **That revokes every other session
-  of the account on every device.** It is the one server path that can force a logged-in phone back to
-  the login screen without a logout. To meet "never see login again", that warning must be monitored,
-  or the fallback removed.
+- **No fallback (since `c21dbc18`, this branch only).** Production (`462b4a11`) still has a password-rotation
+  fallback when `generateLink` fails or the link does not redeem (`synthetic-session.ts:101-125` there): it rotates
+  the password and signs in with it, which **revokes the account's sessions on every other device**. On this
+  branch a mint failure now returns an error (`generate_link:` / `magic_link_verify:`) and the caller answers 500,
+  which is retryable. Pinned by `syntheticSessionFailClosed.test.ts`.
 
 ## 3. Refresh: straight to Supabase, never through our API
 `POST {SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, header `apikey: <anon key>`,
