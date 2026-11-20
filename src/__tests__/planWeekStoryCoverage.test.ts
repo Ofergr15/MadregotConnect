@@ -16,7 +16,7 @@ const h = vi.hoisted(() => ({ fail: false, days: [] as unknown[], calls: 0 }));
 vi.mock('@/lib/day-session/week-merge', async (orig) => ({ ...(await orig<object>()),
   daySessionWorkoutsChecked: async () => { h.calls++; return h.fail ? { ok: false } : { ok: true, workouts: h.days }; } }));
 const weekRoute = await import('@/app/api/plans/week/route');
-const { planBreakdownFor, planWeekFor } = await import('@/lib/week-story/server');
+const { planBreakdownFor, planWeekFor, safePlanWeek, planCoverageOf } = await import('@/lib/week-story/server');
 
 const WEEK = '2026-11-15';
 const step = (m: number) => ({ order: 1, type: 'active', durationType: 'distance', durationValue: m, targetType: 'pace', targetPaceMinPerKm: 300, targetPaceMaxPerKm: 320 });
@@ -102,5 +102,27 @@ describe('week story planWeekFor: coverage survives when there are no numbers', 
   it('planBreakdownFor (numbers only) is planWeekFor().breakdown', async () => {
     seed(false); h.fail = true;
     expect(await planBreakdownFor(db.client as never, ME, WEEK)).toBeNull();
+  });
+});
+
+describe('week story planCoverage mapping, including a read that THROWS', () => {
+  it('a plan-week read that throws is unavailable, never null ("no plan")', async () => {
+    const r = await safePlanWeek(Promise.reject(new Error('plan query failed')));
+    expect(r).toEqual({ breakdown: null, daySessionCoverage: 'unavailable' });
+    expect(planCoverageOf(r)).toBe('unavailable');
+  });
+  it('maps every outcome: numbers carry their own coverage; no numbers → unavailable or null', async () => {
+    expect(planCoverageOf({ breakdown: null, daySessionCoverage: 'unavailable' })).toBe('unavailable');
+    expect(planCoverageOf({ breakdown: null, daySessionCoverage: 'included' })).toBeNull();
+    expect(planCoverageOf({ breakdown: null, daySessionCoverage: 'not_applicable' })).toBeNull();
+    const withNumbers = await planWeekFor(db.client as never, ME, WEEK);
+    expect(planCoverageOf(withNumbers)).toBe('included');
+    h.fail = true;
+    expect(planCoverageOf(await planWeekFor(db.client as never, ME, WEEK))).toBe('unavailable');
+  });
+  it('a successful read passes through safePlanWeek unchanged', async () => {
+    const r = await safePlanWeek(planWeekFor(db.client as never, ME, WEEK));
+    expect(r.daySessionCoverage).toBe('included');
+    expect(r.breakdown).not.toBeNull();
   });
 });
