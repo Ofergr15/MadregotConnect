@@ -12,6 +12,7 @@ Each note is backed by tests that run the real route handlers against a fake dat
 | Sign-in, session, refresh | `auth-session.md` | `devAllowlistE2E`, `syntheticSessionFailClosed` |
 | Outbound egress map (mail, push, APNs, staff, Garmin, AI) | `egress-map.md` | — |
 | Proposal: default-deny outbound outside production | `outbound-policy.md` | `outboundPolicy` |
+| Logging redaction audit (auth, registration) | `logging-redaction.md` | — |
 | Cache-key privacy audit | `cache-privacy.md` | — |
 | Auth errors: definitive vs transient | `auth-errors.md` | `authErrorContract` |
 | Inbox and unread count | `inbox.md` | `inboxContract` |
