@@ -99,15 +99,18 @@ describe('PUT /api/athletes contract', () => {
     session = as('me', false);
     expect((await put({ id: 'other', pendingGroupId: 'g3' })).status).toBe(403);
   });
-  it('FINDING: an athlete of another coach is 500 "Failed to update athlete", not 404', async () => {
+  it('FIXED (B27): an athlete of another coach is 403 "Athlete not in this club", not 500', async () => {
     session = as('coach', true);
     const r = await put({ id: 'foreign', groupId: 'g2' });
-    expect(r).toEqual({ status: 500, body: { error: 'Failed to update athlete' } });
+    expect(r).toEqual({ status: 403, body: { error: 'Athlete not in this club' } });
     expect(row('foreign').group_id).toBe('g1');
   });
-  it('malformed JSON body is 500, not 400', async () => {
+  it('FIXED (B26): a malformed or non-object JSON body is 400', async () => {
     session = as('me', false);
     const { PUT } = await import('@/app/api/athletes/route');
-    expect((await PUT(new Request('http://x/api/athletes', { method: 'PUT', body: '{' }))).status).toBe(500);
+    for (const raw of ['{', 'null', '7']) {
+      const res = await PUT(new Request('http://x/api/athletes', { method: 'PUT', body: raw }));
+      expect(res.status).toBe(400);
+    }
   });
 });

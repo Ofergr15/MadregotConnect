@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMemoryDb } from './helpers/memory-db';
 import { COACH_ID } from '@/lib/constants';
 
-const FULL = ['id', 'coach_id', 'name', 'email', 'status', 'created_at', 'garmin_auth', 'strava_auth', 'data_source', 'strava_enabled', 'onboarding_status', 'is_academy', 'group_id'];
+const BASE = ['id', 'coach_id', 'name', 'email', 'status', 'created_at', 'garmin_auth', 'strava_auth', 'data_source', 'strava_enabled', 'onboarding_status', 'is_academy', 'group_id'];
+const FULL = [...BASE, 'garmin_last_sync_at', 'strava_last_sync_at'];
 let db = createMemoryDb({ schema: { athletes: FULL, groups: ['id', 'name'] } });
 vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => db.client }));
 let session: any = null;
@@ -13,7 +14,7 @@ const seed = (cols = FULL) => {
   db = createMemoryDb({ schema: { athletes: cols, groups: ['id', 'name'] } });
   db.tables.groups.push({ id: 'g1', name: 'קבוצה 1' });
   const rows = [
-    { id: 'a', coach_id: COACH_ID, name: 'A', email: 'a@example.test', status: 'active', created_at: '2026-01-02', garmin_auth: 'enc', strava_auth: null, data_source: 'garmin', strava_enabled: false, onboarding_status: null, is_academy: false, group_id: 'g1' },
+    { id: 'a', coach_id: COACH_ID, name: 'A', email: 'a@example.test', status: 'active', created_at: '2026-01-02', garmin_auth: 'enc', strava_auth: null, data_source: 'garmin', strava_enabled: false, onboarding_status: null, is_academy: false, group_id: 'g1', garmin_last_sync_at: '2026-11-19T05:00:00.000Z', strava_last_sync_at: '2026-11-20T05:00:00.000Z' },
     { id: 'b', coach_id: COACH_ID, name: 'B', email: 'b@example.test', status: 'invited', created_at: '2026-01-03', garmin_auth: null, strava_auth: 'enc-s', data_source: 'strava', strava_enabled: true, onboarding_status: 'x', is_academy: true, group_id: null },
     { id: 'z', coach_id: 'other-coach', name: 'Z', email: 'z@example.test', status: 'active', created_at: '2026-01-04', garmin_auth: null, strava_auth: null, data_source: null, strava_enabled: false, onboarding_status: null, is_academy: false, group_id: null },
   ];
@@ -53,15 +54,27 @@ describe('GET /api/athletes roster contract', () => {
     const r = await get('?coach_id=other-coach');
     expect(r.body.athletes.map((a: any) => a.id)).toEqual(['z']);
   });
-  it('FINDING: lastSynced is "now" for anyone connected, not a real sync time', async () => {
-    const before = Date.now();
+  it('FIXED (B24): lastSynced is the latest REAL stamp of a CONNECTED provider, else null', async () => {
     const r = await get();
-    for (const a of r.body.athletes) expect(Date.parse(a.lastSynced)).toBeGreaterThanOrEqual(before - 1000);
+    const a = r.body.athletes.find((x: any) => x.id === 'a');
+    const b = r.body.athletes.find((x: any) => x.id === 'b');
+    // a: Garmin connected (stamp 19th); its Strava stamp is ignored because Strava is not connected.
+    expect(a.lastSynced).toBe('2026-11-19T05:00:00.000Z');
+    // b: Strava connected but no stamp recorded -> unknown, not "now".
+    expect(b.lastSynced).toBeNull();
   });
-  it('FINDING: on the fallback query (a column missing) dataSource defaults to garmin and Strava/academy read false', async () => {
+  it('B24: a database without the sync-stamp columns keeps the full roster (middle fallback), lastSynced null', async () => {
+    seed(BASE);
+    const r = await get();
+    const b = r.body.athletes.find((x: any) => x.id === 'b');
+    expect(b).toMatchObject({ dataSource: 'strava', hasStrava: true, isAcademy: true, lastSynced: null });
+  });
+  it('FIXED (B25): on the core fallback the provider is reported as unknown (null), not "garmin"/false', async () => {
     seed(['id', 'coach_id', 'name', 'email', 'status', 'created_at', 'garmin_auth', 'strava_auth', 'group_id']);
     const r = await get();
-    const b = r.body.athletes.find((a: any) => a.id === 'b');
-    expect(b).toMatchObject({ dataSource: 'garmin', hasStrava: false, isAcademy: false, stravaEnabled: false });
+    const a = r.body.athletes.find((x: any) => x.id === 'a');
+    const b = r.body.athletes.find((x: any) => x.id === 'b');
+    expect(a).toMatchObject({ dataSource: 'garmin', hasGarmin: true, hasStrava: null, stravaEnabled: null });
+    expect(b).toMatchObject({ dataSource: null, hasGarmin: false, hasStrava: null, stravaEnabled: null });
   });
 });
