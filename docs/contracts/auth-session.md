@@ -7,6 +7,8 @@
 2. `{ "action": "verify", "email": "...", "code": "123456" }` →
    `200 { ok, email, name, athleteId, groupId, role, isAcademy, session }` (`route.ts:188-197`).
    A wrong or expired code → `401`. More than 5 attempts → the code is spent (`MAX_ATTEMPTS`).
+   **`500 { error: "failed" }` on verify means the code was already consumed** (deleted at `route.ts:174`, before the
+   session mint at `:182`): show "request a new code" and call `send` again. Never re-send verify with that code.
    Verify also flips an `invited` member to `active` (`route.ts:118`), so it is not read-only.
 3. Every API call sends `Authorization: Bearer <session.access_token>`.
 
