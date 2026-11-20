@@ -7,6 +7,7 @@ import { CODE_TTL_MS, MAX_ATTEMPTS, MAX_SENDS, SEND_WINDOW_MS, codeMatches, hash
 import { isLikelyEmail, normaliseEmail } from '@/lib/signup';
 import { notifyLoginCode } from '@/lib/email';
 import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
+import { clientIp, createRateLimiter } from '@/lib/academy/intake';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,17 @@ export const dynamic = 'force-dynamic';
 // with us, a code is on its way", which is true either way.
 
 type Db = ReturnType<typeof createServerClient>;
+
+// Rate limits that run BEFORE anything looks at membership, so they bite a member and a
+// stranger alike (the old per-address counter only ever counted members, and its 429
+// was the membership oracle). Keyed per person and, much higher, per IP — a club event
+// shares one Wi-Fi. Best effort per instance, the same as academy/register.
+const allowPerson = createRateLimiter(5, 60_000);
+const allowFromIp = createRateLimiter(40, 60_000);
+
+/** Every failed verify answers this, whatever the reason: no code, expired, used up or wrong. */
+const BAD_CODE = { error: 'wrong-code' } as const;
+const badCode = () => NextResponse.json(BAD_CODE, { status: 401 });
 
 async function memberFor(supabase: Db, email: string) {
   const { data } = await supabase
@@ -76,19 +88,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ firstName: name.split(/\s+/)[0] || null, maskedEmail: maskEmail(email) });
   }
 
+  if (body?.action === 'send' || body?.action === 'verify') {
+    const ip = clientIp(request.headers);
+    if (!allowFromIp(ip) || !allowPerson(`${body.action}|${ip}|${email}`)) {
+      return NextResponse.json({ error: 'too-many' }, { status: 429 });
+    }
+  }
+
   try {
     if (body?.action === 'send') {
+      // From here on every outcome answers the same {ok:true}: a member, a stranger, a
+      // member past the per-address cap and a server-side fault must not be told apart.
+      const ok = () => NextResponse.json({ ok: true });
       const member = await memberFor(supabase, email);
-      if (!member) return NextResponse.json({ ok: true });
+      if (!member) return ok();
       const since = new Date(Date.now() - SEND_WINDOW_MS).toISOString();
       const { count } = await supabase.from('login_codes').select('id', { count: 'exact', head: true }).eq('email', email).gte('created_at', since);
-      if ((count ?? 0) >= MAX_SENDS) return NextResponse.json({ error: 'too-many' }, { status: 429 });
+      // Past the cap: no new code and no mail (each probe used to mail a real member).
+      if ((count ?? 0) >= MAX_SENDS) { console.warn('[email-code] send cap reached'); return ok(); }
       const code = newCode();
       const hash = hashCode(email, code);
-      if (!hash) return NextResponse.json({ error: 'not-configured' }, { status: 500 });
+      if (!hash) { console.error('[email-code] not configured (no hash secret)'); return ok(); }
       const { error } = await supabase.from('login_codes').insert({ email, code_hash: hash, expires_at: new Date(Date.now() + CODE_TTL_MS).toISOString() });
-      // Migration 132 not pasted yet: say so, rather than fail as if the address were wrong.
-      if (error && (error.code === '42P01' || error.code === 'PGRST205')) return NextResponse.json({ error: 'not-ready' }, { status: 503 });
+      // Migration 132 not pasted yet: logged, never told to the caller (members only reach it).
+      if (error && (error.code === '42P01' || error.code === 'PGRST205')) { console.error('[email-code] login_codes missing'); return ok(); }
       if (error) throw error;
       const mail = await notifyLoginCode({ email, code, name: member.name, athleteId: member.id });
       if (!mail.ok) console.error('[email-code] mail not sent', mail.code, mail.reason);
@@ -106,9 +129,9 @@ export async function POST(request: Request) {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (!row || Date.parse(row.expires_at) < Date.now() || row.attempts >= MAX_ATTEMPTS) {
-        return NextResponse.json({ error: 'expired' }, { status: 401 });
-      }
+      // No code, expired, used up and wrong all answer badCode(): told apart, they said
+      // "this address is a member who asked for a code".
+      if (!row || Date.parse(row.expires_at) < Date.now() || row.attempts >= MAX_ATTEMPTS) return badCode();
       // Claim the attempt BEFORE comparing the code, atomically: the UPDATE matches only
       // while `attempts` still holds the value read above. Read-then-write let N parallel
       // guesses all pass the gate on the same count and try N codes against a limit of
@@ -120,14 +143,10 @@ export async function POST(request: Request) {
         .eq('attempts', row.attempts)
         .lt('attempts', MAX_ATTEMPTS)
         .select('id');
-      if (!claimed || claimed.length === 0) {
-        return NextResponse.json({ error: 'too-many' }, { status: 429 });
-      }
-      if (!codeMatches(email, code, row.code_hash)) {
-        return NextResponse.json({ error: 'wrong-code', left: Math.max(0, MAX_ATTEMPTS - row.attempts - 1) }, { status: 401 });
-      }
+      if (!claimed || claimed.length === 0) return badCode();
+      if (!codeMatches(email, code, row.code_hash)) return badCode();
       const member = await memberFor(supabase, email);
-      if (!member) return NextResponse.json({ error: 'expired' }, { status: 401 });
+      if (!member) return badCode();
       // One use: every code for this address goes.
       await supabase.from('login_codes').delete().eq('email', email);
       // Approved but still 'invited' reads as "access removed" once inside; signing
