@@ -43,8 +43,8 @@ describe('an academy-only trainee\'s week is only their own', () => {
     const route = readFileSync('src/app/api/plans/week/route.ts', 'utf8');
     expect(route).toMatch(/rowsForReader\(withoutOwnRows\(rowsRaw, ownCounts\), whose, academyOnly\)/);
     // Read alongside the plan (one wave), dropped for an academy-only reader.
-    expect(route).toMatch(/daySessionWorkouts\(weekStart\)/);
-    expect(route).toMatch(/academyOnly \? \[\] : daySessionsAll/);
+    expect(route).toMatch(/daySessionWorkoutsChecked\(weekStart\)/);
+    expect(route).toMatch(/academyOnly \|\| !daySessionsAll\.ok \? \[\] : daySessionsAll\.workouts/);
   });
 });
 

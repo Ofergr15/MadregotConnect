@@ -8,7 +8,7 @@ import { buildWeekBreakdown } from '@/lib/plans/workout-parsing';
 import { ownPlanRowsCount, withoutOwnRows } from '@/lib/plans/scope-server';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
-import { daySessionWorkouts, mergeDaySessions } from '@/lib/day-session/week-merge';
+import { daySessionWorkoutsChecked, mergeDaySessions } from '@/lib/day-session/week-merge';
 import { requireTraineeAccess } from '@/lib/academy/pairing-server';
 
 /**
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
       // A trainee who left the academy reads the club's week again (scope-server.ts).
       ownPlanRowsCount(whose),
       laneParam ? supabase.from('athletes').select('is_academy, group_id').eq('id', whose).maybeSingle().then((r) => r.data) : Promise.resolve(null),
-      daySessionWorkouts(weekStart),
+      daySessionWorkoutsChecked(weekStart),
       laneOf ? groupNumberForAthlete(supabase, laneOf, weekStart) : Promise.resolve(null),
     ]);
     // An academy-only trainee's "my week" (their own card, or their coach's `&academy=1` read)
@@ -81,12 +81,15 @@ export async function GET(req: NextRequest) {
     const plan = pickPlan(rows, whose);
 
     // One-day sessions on days the plan leaves empty are the week's too (lib/day-session/week-merge.ts).
-    const dayWorkouts = academyOnly ? [] : daySessionsAll;
+    // Checked read: 'unavailable' = the one-day sessions could not be read, so the numbers below are plan-only
+    // and a "no plan" answer means "no plan row", not "nothing that week". Additive `coverage` on every 200.
+    const dayWorkouts = academyOnly || !daySessionsAll.ok ? [] : daySessionsAll.workouts;
+    const coverage = { daySessions: academyOnly ? 'not_applicable' : daySessionsAll.ok ? 'included' : 'unavailable' } as const;
     if (!plan) {
       if (dayWorkouts.length) {
-        return NextResponse.json({ hasPlan: true, hasClubPlan: false, weekStart, publishedAt: null, lane: null, ownPlan: false, ...buildWeekBreakdown({ workouts: dayWorkouts }) });
+        return NextResponse.json({ hasPlan: true, hasClubPlan: false, weekStart, publishedAt: null, lane: null, ownPlan: false, ...buildWeekBreakdown({ workouts: dayWorkouts }), coverage });
       }
-      return NextResponse.json({ hasPlan: false, hasClubPlan: false, weekStart, dailyDistances: [], sessions: [], typeDistribution: {}, weekTotalMin: 0, weekTotalMax: 0, trainingDays: 0 });
+      return NextResponse.json({ hasPlan: false, hasClubPlan: false, weekStart, dailyDistances: [], sessions: [], typeDistribution: {}, weekTotalMin: 0, weekTotalMax: 0, trainingDays: 0, coverage });
     }
 
     let parsed = plan.parsed_workouts;
@@ -103,7 +106,7 @@ export async function GET(req: NextRequest) {
     // Lets the frontend show a "New" badge for a couple of days after the
     // plan first went out — not athlete-specific (no per-athlete read state
     // exists), but a reasonable proxy since a coach typically pushes once.
-    return NextResponse.json({ hasPlan: true, hasClubPlan: true, weekStart, publishedAt: plan.status === 'pushed' ? plan.created_at : null, lane, ownPlan: !!plan.athlete_id, ...breakdown });
+    return NextResponse.json({ hasPlan: true, hasClubPlan: true, weekStart, publishedAt: plan.status === 'pushed' ? plan.created_at : null, lane, ownPlan: !!plan.athlete_id, ...breakdown, coverage });
   } catch (error) {
     console.error('Plan week error:', error);
     return NextResponse.json({ error: 'Failed to fetch week plan' }, { status: 500 });

@@ -9,7 +9,7 @@ import { ownPlanRowsCount, withoutOwnRows } from '@/lib/plans/scope-server';
 import { buildWeekBreakdown } from '@/lib/plans/workout-parsing';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
-import { daySessionWorkouts, mergeDaySessions } from '@/lib/day-session/week-merge';
+import { daySessionWorkoutsChecked, mergeDaySessions } from '@/lib/day-session/week-merge';
 import { parseRecordUrl, BUCKET_LABEL } from '@/lib/publish/model';
 import { loadQualitySession, loadQualityWorkout } from '@/lib/quality-session/server';
 import { mainSet, parseParts, partLabel, targetFor } from '@/lib/quality-session/parts';
@@ -53,6 +53,8 @@ export interface WeekStory {
   numbers: WeekNumbers;
   /** Planned per day (km, 0 = rest), Sunday first, and which planned days were dropped. */
   plannedKm: number[] | null;
+  /** Whether the week's one-day sessions are in plannedKm: 'unavailable' = the read failed, plan-only. null = no plan. Additive. */
+  planCoverage?: DaySessionCoverage | null;
   missed: boolean[];
   biggestInWeeks: number;
   /** The plan weeks' km, oldest first, this one last — for the streak on the cards. */
@@ -84,6 +86,9 @@ async function runsBetween(db: Db, athleteId: string, from: string, to: string):
 }
 
 /** The plan this athlete was asked to run that week: their own academy week, else their pack's lane. */
+/** Whether a week's published one-day sessions are in its plan numbers. */
+export type DaySessionCoverage = 'included' | 'unavailable' | 'not_applicable';
+
 export async function planBreakdownFor(db: Db, athleteId: string, weekStart: string, opts: { ownOnly?: boolean } = {}) {
   const [{ data: rowsRaw }, own] = await Promise.all([
     db.from('weekly_plans').select('parsed_workouts, status, created_at, athlete_id')
@@ -93,15 +98,18 @@ export async function planBreakdownFor(db: Db, athleteId: string, weekStart: str
   const rows = withoutOwnRows(rowsRaw, own);
   const plan = pickPlan(rows, athleteId);
   if (opts.ownOnly && !plan?.athlete_id) return null;
-  const dayWorkouts = opts.ownOnly ? [] : await daySessionWorkouts(weekStart);
-  if (!plan) return dayWorkouts.length ? buildWeekBreakdown({ workouts: dayWorkouts }) : null;
+  // Checked: a failed read is carried as daySessionCoverage 'unavailable' (plan-only numbers), never as "none".
+  const days = opts.ownOnly ? null : await daySessionWorkoutsChecked(weekStart);
+  const dayWorkouts = days?.ok ? days.workouts : [];
+  const daySessionCoverage: DaySessionCoverage = days === null ? 'not_applicable' : days.ok ? 'included' : 'unavailable';
+  if (!plan) return dayWorkouts.length ? { ...buildWeekBreakdown({ workouts: dayWorkouts }), daySessionCoverage } : null;
   let parsed = plan.parsed_workouts;
   if (!plan.athlete_id) {
     const lane = (await groupNumberForAthlete(db as never, athleteId, weekStart)) as Lane;
     const workouts = laneWorkouts(plan.parsed_workouts, lane);
     if (workouts.length) parsed = { workouts };
   }
-  return buildWeekBreakdown(dayWorkouts.length ? mergeDaySessions(parsed, dayWorkouts) : parsed);
+  return { ...buildWeekBreakdown(dayWorkouts.length ? mergeDaySessions(parsed, dayWorkouts) : parsed), daySessionCoverage };
 }
 
 /** The Israeli wall clock of the story week's last moment that counts: now on Saturday, else Saturday night. */
@@ -394,6 +402,7 @@ export async function loadWeekStory(db: Db, athleteId: string, today: string, ho
       packRank: pack ? { rank: pack.rank, of: pack.of, lastRank: pack.lastRank } : null,
     },
     plannedKm: sum.plannedKm > 0 ? sum.days.map((d) => d.planned) : null,
+    planCoverage: plan ? plan.daySessionCoverage : null,
     missed: sum.days.map((d) => d.missed),
     biggestInWeeks: biggest,
     weeksKm: pw.weeks.map((x) => x.km),
