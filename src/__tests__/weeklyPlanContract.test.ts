@@ -10,8 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * fake Supabase client. Only auth, the DB, the trainee-pairing check and the pace-lane
  * lookup (groupNumberForAthlete, its own pack-history tables) are faked.
  *
- * Tests named "KNOWN GAP" pin today's behaviour where it differs from the intended rule
- * ("a draft is never shown to a runner"); fixing the route should flip them.
+ * "a draft is never shown to a runner" is enforced since 2026-11-20 (scope.ts withoutDraftsFor);
+ * /api/plans/weeks still lists draft weeks (dates only) — the one remaining KNOWN GAP.
  */
 
 type Row = Record<string, any>;
@@ -136,19 +136,20 @@ describe('GET /api/plans/week?weekStart=YYYY-MM-DD', () => {
     tables.weekly_plans = [plan({ status: 'partial', km: 11 })];
     expect(await (await getWeek()).json()).toMatchObject({ hasPlan: true, weekTotalMax: 11, publishedAt: null });
   });
-  it('KNOWN GAP: a week whose ONLY row is a draft is served to a runner as the plan', async () => {
+  it('a week whose ONLY row is a draft is no plan for a runner', async () => {
     tables.weekly_plans = [plan({ status: 'draft', km: 33 })];
-    const body = await (await getWeek()).json();
-    expect(body).toMatchObject({ hasPlan: true, weekTotalMax: 33, publishedAt: null });
+    expect((await (await getWeek()).json()).hasPlan).toBe(false);
   });
-  it('KNOWN GAP: draft vs partial tie on rank — the later row wins, so a draft can beat a sent partial week', async () => {
+  it('a draft never beats a sent partial week', async () => {
     tables.weekly_plans = [plan({ status: 'partial', km: 11 }), plan({ status: 'draft', km: 44 })];
-    expect(km(await (await getWeek()).json())).toBe(44);
+    expect(km(await (await getWeek()).json())).toBe(11);
   });
-  it('my own academy row (athlete_id = me) beats the club plan — even my draft over the club\'s pushed', async () => {
+  it('my own academy row beats the club plan — but my DRAFT does not: the club\'s pushed week shows', async () => {
     tables.athletes[0].is_academy = true;
-    tables.weekly_plans = [plan({ km: 10 }), plan({ athlete_id: ME, status: 'draft', km: 20 })];
+    tables.weekly_plans = [plan({ km: 10 }), plan({ athlete_id: ME, km: 20 })];
     expect(await (await getWeek()).json()).toMatchObject({ ownPlan: true, weekTotalMax: 20 });
+    tables.weekly_plans = [plan({ km: 10 }), plan({ athlete_id: ME, status: 'draft', km: 20 })];
+    expect(await (await getWeek()).json()).toMatchObject({ ownPlan: false, weekTotalMax: 10 });
   });
   it('another trainee\'s personal row is never served, whatever its status', async () => {
     tables.weekly_plans = [plan({ km: 10 }), plan({ athlete_id: OTHER, km: 77 })];
@@ -188,9 +189,9 @@ describe('GET /api/dashboard/weekly (plan part)', () => {
     tables.weekly_plans.push(plan({ athlete_id: ME, km: 20 }));
     expect((await (await getWeekly()).json()).weekTotalMax).toBe(20);
   });
-  it('KNOWN GAP: a draft-only week is shown (hasPlan:true, publishedAt:null)', async () => {
+  it('a draft-only week is no plan for a runner (hasPlan:false)', async () => {
     tables.weekly_plans = [plan({ status: 'draft', km: 33 })];
-    expect(await (await getWeekly()).json()).toMatchObject({ hasPlan: true, weekTotalMax: 33, publishedAt: null });
+    expect((await (await getWeekly()).json()).hasPlan).toBe(false);
   });
 });
 

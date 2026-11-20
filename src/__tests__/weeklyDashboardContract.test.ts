@@ -124,10 +124,10 @@ describe('GET /api/dashboard/weekly — shape', () => {
     expect(await (await weekly.GET(req())).json()).toMatchObject({ hasPlan: false, prevWeekTotal: 10, weekDelta: -100 });
   });
 
-  it('a draft plan counts for hasPlan but publishedAt stays null (only "pushed" sets it)', async () => {
+  it('a draft plan is not shown to a runner (hasPlan:false)', async () => {
     at('2026-11-18T09:00:00Z');
     plans = [plan('2026-11-15', [run(1, 5000)], { status: 'draft' })];
-    expect(await (await weekly.GET(req())).json()).toMatchObject({ hasPlan: true, publishedAt: null });
+    expect(await (await weekly.GET(req())).json()).toMatchObject({ hasPlan: false });
   });
 
   it('DB/handler failure → 500 { error: "Failed to fetch weekly data" }', async () => {

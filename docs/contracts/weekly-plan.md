@@ -22,9 +22,9 @@ Tests: `src/__tests__/weeklyPlanContract.test.ts`. All reads need a session (`Au
 4. An academy-only trainee (no club group) gets only their own rows.
 
 ### Known gaps (pinned as "KNOWN GAP")
-- **Drafts are exposed.** A week whose only row is a `draft` is served as the plan (`publishedAt: null`).
-- `draft` and `partial` tie on rank, so whichever row comes later wins. A draft can beat a sent partial week.
-- Until this is fixed, the client cannot tell a draft from a partial week. Both have `publishedAt: null`.
+- **Drafts are never shown to a runner** (since 2026-11-20): draft rows are dropped before the week's row is
+  picked, so a draft-only week is `hasPlan: false` and a draft can't beat a sent `partial` week. Staff still see drafts.
+- `publishedAt` is set only for `pushed`; a runner's `partial` week has `publishedAt: null`.
 
 ## `GET /api/dashboard/weekly`
 - Same selection rules and the same breakdown fields, for the **displayed** week: `currentWeekStart` (Sunday).

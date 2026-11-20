@@ -1,3 +1,4 @@
+import { withoutDraftsFor } from '@/lib/plans/scope';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { WEEKLY_PLANS_TAG } from '@/lib/plans/cache';
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
       // An academy-only trainee (no club group) gets no club rows: their week is their own or none.
       academyOnlyReader(me),
     ]);
-    const plansDesc = plansDescRaw ? rowsForReader(withoutOwnRows(plansDescRaw, ownCounts), me, academyOnly) : plansDescRaw;
+    const plansDesc = plansDescRaw ? withoutDraftsFor(rowsForReader(withoutOwnRows(plansDescRaw, ownCounts), me, academyOnly), !!caller.isStaff || !!caller.isSuperUser) : plansDescRaw;
     const plans = plansDesc ? [...plansDesc].reverse() : plansDesc;
 
     // Deduplicate plans by week: the caller's own week first, then 'pushed'
