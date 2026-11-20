@@ -58,51 +58,46 @@ function extractPacesFromNotes(notes: string | undefined): { g1: { min: number; 
   };
 }
 
+/**
+ * A {min, max} range only if both ends are real: min a finite number > 0, max finite and >= min
+ * (a missing max means a single value, max = min). Anything else is no range at all.
+ */
+function validRange(r: { min: number; max?: number | null } | null | undefined): { min: number; max: number } | null {
+  if (!r || typeof r.min !== 'number' || !Number.isFinite(r.min) || r.min <= 0) return null;
+  const max = r.max == null ? r.min : r.max;
+  if (typeof max !== 'number' || !Number.isFinite(max) || max < r.min) return null;
+  return { min: r.min, max };
+}
+
 function splitStep(step: WorkoutStep, group: 1 | 2 | 3): WorkoutStep {
   const result = { ...step };
 
-  if (group === 2 && step.group2Pace) {
-    result.targetPaceMinPerKm = step.group2Pace.min;
-    result.targetPaceMaxPerKm = step.group2Pace.max;
-  } else if (group === 3 && step.group3Pace) {
-    result.targetPaceMinPerKm = step.group3Pace.min;
-    result.targetPaceMaxPerKm = step.group3Pace.max;
-  } else if (group !== 1 && !step.group2Pace && !step.group3Pace) {
-    // Fallback: extract paces from bracket notation in notes
-    const extracted = extractPacesFromNotes(step.notes);
-    if (group === 2 && extracted.g2) {
-      result.targetPaceMinPerKm = extracted.g2.min;
-      result.targetPaceMaxPerKm = extracted.g2.max;
-    } else if (group === 3 && extracted.g3) {
-      result.targetPaceMinPerKm = extracted.g3.min;
-      result.targetPaceMaxPerKm = extracted.g3.max;
-    }
+  // ONE pace per lane, resolved once and then used for both the pace and the target decision:
+  // the lane's own explicit pace if it is a valid range, else the coach's bracket in the notes,
+  // else none (the step keeps lane 1's pace, as it always has). Lane 1 is never touched here.
+  const lanePace = group === 1 ? null
+    : validRange(group === 2 ? step.group2Pace : step.group3Pace)
+      ?? validRange(group === 2 ? extractPacesFromNotes(step.notes).g2 : extractPacesFromNotes(step.notes).g3);
+  if (lanePace) {
+    result.targetPaceMinPerKm = lanePace.min;
+    result.targetPaceMaxPerKm = lanePace.max;
   }
 
-  // A lane's HR values become the step's target only when that lane has no pace of its own. A step
-  // with a real pace for this lane (its group pace, or the coach's bracket in the notes) stays a pace
-  // step and keeps no lane HR as a target, as lane 1 already does (segments.ts: "pace wins when a
-  // step carries both"); flipping it graded lanes 2/3 on HR for a session written in pace, and took
-  // the pace off their watch (converter.ts only emits pace for targetType 'pace'). A step that gives
-  // lane 1 a pace and lanes 2/3 only an HR, or one written in HR, stays HR for 2/3.
-  const validPace = (p: { min: number; max: number } | null | undefined) =>
-    !!p && Number.isFinite(p.min) && p.min > 0;
-  const lanePace = group === 2 ? (validPace(step.group2Pace) ? step.group2Pace : extractPacesFromNotes(step.notes).g2)
-    : group === 3 ? (validPace(step.group3Pace) ? step.group3Pace : extractPacesFromNotes(step.notes).g3) : null;
-  const pacePrescribed = step.targetType === 'pace' && validPace(lanePace);
-  const laneHr = group === 2 ? step.group2HeartRate : group === 3 ? step.group3HeartRate : undefined;
-  if (laneHr && !pacePrescribed && Number.isFinite(laneHr.min) && laneHr.min > 0) {
-    result.targetHrMinPct = laneHr.min;
-    result.targetHrMaxPct = laneHr.max;
-    result.targetType = 'heart_rate';
-  } else if (group === 3 && step.group3HeartRate) {
-    result.targetHrMinPct = step.group3HeartRate.min;
-    result.targetHrMaxPct = step.group3HeartRate.max;
-    if (!pacePrescribed) result.targetType = 'heart_rate';
-  } else if (group === 3 && step.group3HeartRate) {
-    result.targetHrMinPct = step.group3HeartRate.min;
-    result.targetHrMaxPct = step.group3HeartRate.max;
-    if (!pacePrescribed) result.targetType = 'heart_rate';
+  // ONE target decision for lanes 2 and 3. A step the coach wrote in pace, with a pace for this lane,
+  // stays a pace step and carries no HR target at all: neither this lane's HR nor lane 1's root HR,
+  // which would be stale here (segments.ts grades HR only for targetType 'heart_rate'; converter.ts
+  // emits pace only for targetType 'pace'). Otherwise a VALID lane HR makes HR the target, as before,
+  // and an invalid one (0 / null / NaN / max < min) is ignored and never becomes a target.
+  if (group !== 1) {
+    const laneHr = validRange(group === 2 ? step.group2HeartRate : step.group3HeartRate);
+    if (step.targetType === 'pace' && lanePace) {
+      delete result.targetHrMinPct;
+      delete result.targetHrMaxPct;
+    } else if (laneHr) {
+      result.targetHrMinPct = laneHr.min;
+      result.targetHrMaxPct = laneHr.max;
+      result.targetType = 'heart_rate';
+    }
   }
 
   result.notes = rewriteNotesForGroup(result.notes, group);
