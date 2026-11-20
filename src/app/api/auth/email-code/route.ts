@@ -180,20 +180,23 @@ export async function POST(request: Request) {
       if (!codeMatches(email, code, row.code_hash)) return badCode();
       const member = await memberFor(supabase, email);
       if (!member) return badCode();
-      // One use: every code for this address goes.
-      await supabase.from('login_codes').delete().eq('email', email);
-      // Approved but still 'invited' reads as "access removed" once inside; signing
-      // in IS joining, the same flip /api/athletes/connect makes.
-      if (member.status === 'invited') await supabase.from('athletes').update({ status: 'active' }).eq('id', member.id);
-
+      // Mint FIRST, consume after (2026-11-20). The code used to be deleted before the session
+      // was minted, so a mint failure (a Supabase hiccup) spent a correct code and forced a new
+      // send against the 3-per-15-min cap. Now a failed mint leaves the code valid until its TTL;
+      // the CAS above already charged this attempt, so retries stay inside MAX_ATTEMPTS.
       const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
         auth: { autoRefreshToken: false, persistSession: false },
       });
       const auth = await createSyntheticSession(admin, email, { athlete_id: member.id, name: member.name });
       if (auth.error || !auth.session) {
         console.error('[email-code] session mint failed:', auth.error);
-        return NextResponse.json({ error: 'failed' }, { status: 500 });
+        return NextResponse.json({ error: 'failed', retry: 'same-code' }, { status: 500 });
       }
+      // One use: every code for this address goes, now that the sign-in has succeeded.
+      await supabase.from('login_codes').delete().eq('email', email);
+      // Approved but still 'invited' reads as "access removed" once inside; signing
+      // in IS joining, the same flip /api/athletes/connect makes.
+      if (member.status === 'invited') await supabase.from('athletes').update({ status: 'active' }).eq('id', member.id);
       await recordOnbEvent({ step: 'code_verified', athleteId: member.id, device: deviceFromUa(request.headers.get('user-agent')) });
       const response = NextResponse.json({
         ok: true,

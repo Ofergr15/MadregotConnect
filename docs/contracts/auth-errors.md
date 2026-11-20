@@ -20,9 +20,9 @@ Refresh (`POST {SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`) answers:
 ## Sign-in failures are NOT generically retryable
 Since the session mint fails closed (`c21dbc18`), a mint failure answers 500, but what the caller may do next
 differs per route:
-- `POST /api/auth/email-code` verify → `500 { error: "failed" }`: the code was **already deleted**
-  (`route.ts:174`, before the mint at `:182`). Do **not** retry verify with the same code (it will 401). Ask the user
-  to request a new code (send is capped at 3 per address per 15 min).
+- `POST /api/auth/email-code` verify → `500 { error: "failed", retry: "same-code" }` (this branch): the code is still
+  valid (deleted only after a successful mint). Retry verify with the same code within its TTL; attempts still count
+  toward 5. On production (`462b4a11`) the 500 has no `retry` field and the code is already spent: request a new code.
 - `POST /api/auth/claim-login` → `500 "Login failed"`: the pending login row is already spent, deliberately
   (`route.ts:64-71`). Restart the sign-in flow.
 - `admin/login`, `auth/silent-session`: 500, restart the flow.

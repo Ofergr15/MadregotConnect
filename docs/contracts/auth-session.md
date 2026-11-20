@@ -7,9 +7,10 @@
 2. `{ "action": "verify", "email": "...", "code": "123456" }` →
    `200 { ok, email, name, athleteId, groupId, role, isAcademy, session }` (`route.ts:188-197`).
    A wrong or expired code → `401`. More than 5 attempts → the code is spent (`MAX_ATTEMPTS`).
-   **`500 { error: "failed" }` on verify means the code was already consumed** (deleted at `route.ts:174`, before the
-   session mint at `:182`): show "request a new code" and call `send` again. Never re-send verify with that code.
-   Verify also flips an `invited` member to `active` (`route.ts:118`), so it is not read-only.
+   **`500 { error: "failed", retry: "same-code" }` on verify** (since this branch, `route.ts`): the session mint
+   failed and the code was **not** consumed (the code is deleted only after a successful mint). Retry verify with the
+   same code while it is still within its 10-min TTL; each try counts toward the 5-attempt cap. A plain
+   `500 { error: "failed" }` without `retry` (production `462b4a11`) means the code was consumed: request a new one.
 3. Every API call sends `Authorization: Bearer <session.access_token>`.
 
 ## 2. What `session` is: a standard Supabase session, not a custom token
