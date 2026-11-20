@@ -49,7 +49,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
     }
     // `?scope=coach` narrows a manager in their coach view to their own trainees (launch N19).
-    const isManager = isAcademyManager(caller) && new URL(request.url).searchParams.get('scope') !== 'coach';
+    const params = new URL(request.url).searchParams;
+    const isManager = isAcademyManager(caller) && params.get('scope') !== 'coach';
+    // The manager self-join below is the one write this GET makes. Never while an admin is
+    // viewing as someone (it would add THEM to every thread), and not when a client asks for
+    // a pure read (`?join=0`: dev surface, native first integration).
+    const mayJoin = isManager && !caller.viewingAsBy && params.get('join') !== '0';
 
     const supabase = createServerClient();
     const { data: rows, error } = await supabase
@@ -118,7 +123,7 @@ export async function GET(request: Request) {
           // joins it here, so from the next read on their unread count is theirs and
           // new messages reach them. Idempotent and best-effort: a failure only means
           // this read shows no unread for that row.
-          if (isManager && asUser && !(ch.state?.members && asUser in ch.state.members)) {
+          if (mayJoin && asUser && !(ch.state?.members && asUser in ch.state.members)) {
             joining.push(ch);
           }
 
