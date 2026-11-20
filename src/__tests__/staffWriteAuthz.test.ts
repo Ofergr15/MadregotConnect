@@ -97,15 +97,15 @@ const CASES: Record<string, () => Promise<Response>> = {
 type Exp = 401 | 403 | 'allow';
 const staffOnly: Record<Who, Exp> = {
   none: 401, runner: 403, core_runner: 403, viewer: 403, coach: 'allow', academy_coach: 'allow', admin: 'allow',
-  // isStaff comes from the role alone; the super-user flag on a runner row does not make it staff.
-  super_user: 403, approver_runner: 403,
+  // Staff role, or the super-user flag (2026-11-20: a super user manages events too).
+  super_user: 'allow', approver_runner: 403,
 };
 const adminOnly: Record<Who, Exp> = {
   none: 401, runner: 403, core_runner: 403, viewer: 403, coach: 403, academy_coach: 403, admin: 'allow', super_user: 'allow', approver_runner: 403,
 };
 const approverOnly: Record<Who, Exp> = {
-  // canApprove (athletes.is_approver / APPROVER_EMAILS), not role: an admin without it is refused.
-  none: 401, runner: 403, core_runner: 403, viewer: 403, coach: 403, academy_coach: 403, admin: 403, super_user: 'allow', approver_runner: 'allow',
+  // canApprove, or the admin role (2026-11-20). A coach still needs the approver flag.
+  none: 401, runner: 403, core_runner: 403, viewer: 403, coach: 403, academy_coach: 403, admin: 'allow', super_user: 'allow', approver_runner: 'allow',
 };
 // club-updates with the feature ON and nobody on the writer list: only admin/super user write.
 const MATRIX: Record<string, Record<Who, Exp>> = {

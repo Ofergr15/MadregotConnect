@@ -58,7 +58,7 @@ export async function PATCH(
 ) {
   const auth = await requireSession(request);
   if (!auth.ok) return authError(auth);
-  if (!auth.user.isStaff) {
+  if (!auth.user.isStaff && !auth.user.isSuperUser) {
     return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
   }
 
@@ -117,7 +117,7 @@ export async function DELETE(
 ) {
   const auth = await requireSession(request);
   if (!auth.ok) return authError(auth);
-  if (!auth.user.isStaff) {
+  if (!auth.user.isStaff && !auth.user.isSuperUser) {
     return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
   }
 

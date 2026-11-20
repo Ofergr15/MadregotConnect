@@ -289,6 +289,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, ...(imported ? { letIn } : {}), ...(alreadyIn ? { alreadyIn } : {}) });
   } catch (error: any) {
     console.error('Academy register error:', error);
-    return NextResponse.json({ error: error.message || 'Registration failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Registration failed' }, { status: 500 });
   }
 }

@@ -35,7 +35,7 @@ mirroring the web form's field list.
 | 400 | `{ "error": "Please write your name", "code": "no-letters" }` | `name` has no letters. |
 | 403 | `{ "error": "Academy registration is currently closed.", "message": "ההרשמה לאקדמיה סגורה כרגע." }` | Manager closed registration and no live invite token. Show `message`. |
 | 429 | `{ "error": "Too many attempts, try again in a minute" }` | > 5 / minute per IP+email, or > 40 / minute per IP. |
-| 500 | `{ "error": "<message>" }` | **May contain raw server/DB text** — show a generic message, never this string. |
+| 500 | `{ "error": "Registration failed" }` | Server error. Fixed text; no server/DB detail. |
 
 ## Double submit
 

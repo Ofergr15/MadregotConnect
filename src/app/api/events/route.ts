@@ -61,7 +61,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const auth = await requireSession(request);
   if (!auth.ok) return authError(auth);
-  if (!auth.user.isStaff) {
+  if (!auth.user.isStaff && !auth.user.isSuperUser) {
     return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
   }
 

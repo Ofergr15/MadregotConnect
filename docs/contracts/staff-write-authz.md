@@ -59,3 +59,8 @@ Recorded 2026-11-20 from the code as it stands; this is a description, not a pol
 - **F4 — club-updates: writes are list-driven, not role-driven.** Any runner on
   `writerIds` may post and edit/delete their own updates; `coach`/`academy_coach` may not
   unless listed. React is a member write (any role) while the feature is on — by design.
+
+## Resolved 2026-11-20 (owner approval)
+- F2: `POST /api/admin/surveys` now also allows the admin role (`admin/surveys/route.ts:66`). A coach still needs the approver flag.
+- F3: events POST/PATCH/DELETE now also allow a super user (`isStaff || isSuperUser`).
+- F1 and F4 left as designed: content grants and the club-updates writer list are deliberate delegation.
