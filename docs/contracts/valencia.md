@@ -19,7 +19,8 @@ Full contract: `event-forecast.md`; exact example: `fixtures/event-forecast.v2.e
   `unavailableReason` set) instead of **502**. 404 stays for an unknown event; 500 for a DB error.
 - **New in v2 (`version: 2`):** `current`, `daily` (all 16 returned days), `validFrom`/`validThrough`, `timezone`,
   `raceDayStatus` + `raceDayReason`, `raceHourly`, `unavailableReason`, `provider`, `attribution`.
-- Cache: `public, max-age=1800` for a fresh answer; `no-store` for stale or unavailable.
+- Cache: `public, max-age=<freshness left, ≤ 1800>` for a fresh answer; `no-store` for stale or unavailable.
+- A race date with no usable values reads `error` in v1 `days[]` (never `available` with all nulls).
 
 ## Updates for this event
 - `GET /api/club-updates?event={eventId}` (or `?topic={topicId}`) →

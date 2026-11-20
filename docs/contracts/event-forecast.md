@@ -20,19 +20,25 @@ Exact example: `fixtures/event-forecast.v2.example.json`. v1 fields kept for exi
   "daily": [{ "date", "tMaxC", "tMinC", "precipProbPct", "windMaxKmh", "weatherCode" }],
   "raceDate": "2026-12-06", "raceDates": ["2026-12-06"],
   "raceDayStatus": "available" | "partial" | "out_of_range" | "unavailable",
-  "raceDayReason": "after_horizon" | "before_horizon" | null,
+  "raceDayReason": "after_horizon" | "before_horizon" | "no_data" | null,
   "raceHourly": [{ "time": "2026-12-06T08:00", "temperatureC", "precipProbPct", "windKmh", "weatherCode" }],
-  "unavailableReason": "no_location" | "provider_error" | "rate_limited" | "timeout" | null
+  "unavailableReason": "no_location" | "provider_error" | "invalid_payload" | "rate_limited" | "timeout" | null
 }
 ```
 - **Readiness comes from the dates the provider returned** (`validFrom`..`validThrough` = `daily.time`), never from this
   server's clock: the venue's "today" decides (a UTC server and a UTC+1 venue disagree for an hour each night).
+- A race date counts as `available` only when its day has at least one real value; a date with every field null is
+  `unavailable` / `no_data` (v1 day `error`), and one such day in a multi-day event makes it `partial` / `no_data`.
+- `timezone` is the provider's IANA name, or `null` if missing or malformed; no default zone is ever assumed.
+- Coordinates outside the globe (|lat| > 90, |lng| > 180) are treated as no location.
 - Unknown values are `null`, never `0`. Times in `raceHourly` / `current.time` are venue-local wall time.
 - Valencia: on Nov 20 the window is Nov 20 – Dec 5 → current + 16 days shown, race day `out_of_range`/`after_horizon`.
   From Nov 21 (venue date) it is `available` with its hours. Race start time is not stored here; the client picks hours.
 
 ## Failures
 - Cached per venue: fresh for 30 min (no provider call), concurrent misses share one request, 200 entries max.
+  `Cache-Control: public, max-age=<seconds of freshness left>` (1800 when just fetched), so no copy anywhere is older than 30 min.
+- A 200 with no usable weather (empty, junk, all null) is `invalid_payload`: never cached, never replaces a good answer.
 - Provider error / 429 / timeout: the last good copy up to 6 h old with `stale: true` (`no-store`), else an
   `unavailable` DTO with `unavailableReason` (`no-store`), current/daily empty. Upstream text never leaks.
 - The map must render regardless: weather failing never hides the course.

@@ -16,8 +16,8 @@ export const PROVIDER = 'open-meteo' as const;
 export const ATTRIBUTION = { name: 'Open-Meteo', url: 'https://open-meteo.com/' } as const;
 
 export type RaceDayStatus = 'available' | 'partial' | 'out_of_range' | 'unavailable';
-export type RaceDayReason = 'after_horizon' | 'before_horizon' | null;
-export type UnavailableReason = 'no_location' | 'provider_error' | 'rate_limited' | 'timeout' | null;
+export type RaceDayReason = 'after_horizon' | 'before_horizon' | 'no_data' | null;
+export type UnavailableReason = 'no_location' | 'provider_error' | 'invalid_payload' | 'rate_limited' | 'timeout' | null;
 
 export interface CurrentWeather {
   time: string | null;
@@ -125,6 +125,25 @@ export function buildForecastUrl(lat: number, lng: number): string {
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
 const at = (arr: unknown, i: number) => (Array.isArray(arr) ? arr[i] : undefined);
+/** An IANA zone name as the provider returns it ("Europe/Madrid", "UTC", "GMT"); anything else → null, never a default zone. */
+const TZ_RE = /^(?:[A-Za-z_]+(?:\/[A-Za-z0-9_+\-]+){1,2}|UTC|GMT)$/;
+const tz = (v: unknown): string | null => (typeof v === 'string' && TZ_RE.test(v) ? v : null);
+
+/** Real coordinates: finite and inside the globe. */
+export function validCoords(lat: unknown, lng: unknown): lat is number {
+  return typeof lat === 'number' && typeof lng === 'number' && Number.isFinite(lat) && Number.isFinite(lng)
+    && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+}
+/** A day carries usable weather when at least one of its fields is a real number; a date alone is not weather. */
+export const usableDay = (d: DailyWeather) =>
+  [d.tMaxC, d.tMinC, d.precipProbPct, d.windMaxKmh, d.weatherCode].some((v) => v != null);
+const usableCurrent = (c: CurrentWeather | null) =>
+  !!c && [c.temperatureC, c.apparentC, c.precipitationMm, c.windKmh, c.weatherCode].some((v) => v != null);
+/**
+ * Worth caching and serving: some usable current weather or at least one usable day. An empty or junk
+ * 200 is NOT a forecast, and must never replace a good one in the cache.
+ */
+export const usableForecast = (f: VenueForecast) => usableCurrent(f.current) || f.daily.some(usableDay);
 
 /** Provider JSON → VenueForecast. Days are exactly the dates returned; nothing is filled in. */
 export function parseOpenMeteo(json: unknown): VenueForecast {
@@ -161,7 +180,7 @@ export function parseOpenMeteo(json: unknown): VenueForecast {
     weatherCode: num(c.weather_code),
   } : null;
   return {
-    timezone: str(j.timezone),
+    timezone: tz(j.timezone),
     utcOffsetSec: num(j.utc_offset_seconds),
     validFrom: times[0] ?? null,
     validThrough: times[times.length - 1] ?? null,
@@ -171,14 +190,21 @@ export function parseOpenMeteo(json: unknown): VenueForecast {
   };
 }
 
-/** Race-day readiness from the RETURNED window, not from a promised horizon. */
+/**
+ * Race-day readiness from the RETURNED window and the weather actually in it: a race date counts only
+ * when its day carries usable fields. Dates present with every field null → 'unavailable' / 'no_data'.
+ */
 export function raceDayOf(raceDates: string[], f: Pick<VenueForecast, 'daily' | 'validFrom' | 'validThrough'>):
   { status: RaceDayStatus; reason: RaceDayReason } {
   if (raceDates.length === 0 || !f.validFrom || !f.validThrough) return { status: 'unavailable', reason: null };
-  const have = new Set(f.daily.map((x) => x.date));
-  const covered = raceDates.filter((x) => have.has(x)).length;
-  if (covered === raceDates.length) return { status: 'available', reason: null };
-  if (covered > 0) return { status: 'partial', reason: raceDates[raceDates.length - 1] > f.validThrough ? 'after_horizon' : null };
+  const byDate = new Map(f.daily.map((x) => [x.date, x]));
+  const present = raceDates.filter((x) => byDate.has(x));
+  const usable = present.filter((x) => usableDay(byDate.get(x)!));
+  if (usable.length === raceDates.length) return { status: 'available', reason: null };
+  if (usable.length > 0) {
+    return { status: 'partial', reason: raceDates[raceDates.length - 1] > f.validThrough ? 'after_horizon' : present.length > usable.length ? 'no_data' : null };
+  }
+  if (present.length > 0) return { status: 'unavailable', reason: 'no_data' };
   if (raceDates[0] > f.validThrough) return { status: 'out_of_range', reason: 'after_horizon' };
   if (raceDates[raceDates.length - 1] < f.validFrom) return { status: 'out_of_range', reason: 'before_horizon' };
   return { status: 'unavailable', reason: null }; // inside the window but the provider omitted it
@@ -194,7 +220,8 @@ export function buildDTO(args: {
   const byDate = new Map((f?.daily ?? []).map((x) => [x.date, x]));
   const days: LegacyDay[] = args.raceDates.map((date): LegacyDay => {
     const d = byDate.get(date);
-    if (d) return { status: 'available', ...d };
+    if (d && usableDay(d)) return { status: 'available', ...d };
+    if (d) return { date, status: 'error' };
     if (f?.validThrough && date > f.validThrough) return { date, status: 'not_yet_available' };
     if (f?.validFrom && date < f.validFrom) return { date, status: 'past' };
     return { date, status: 'error' };

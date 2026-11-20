@@ -253,6 +253,73 @@ describe('v1 compatibility (docs/contracts/valencia.md parsers keep working)', (
   });
 });
 
+describe('review 17:39: weather correctness', () => {
+  const nullDay = (p: ReturnType<typeof payload>, date: string) => {
+    const i = p.daily.time.indexOf(date);
+    for (const k of ['temperature_2m_max', 'temperature_2m_min', 'precipitation_probability_max', 'wind_speed_10m_max', 'weather_code'] as const) {
+      if (p.daily[k]) (p.daily[k] as (number | null)[])[i] = null;
+    }
+    return p;
+  };
+  it('a race date present with every field null is NOT available: unavailable / no_data, v1 day error', async () => {
+    eventRow = race();
+    fetchMock.mockResolvedValue(ok(nullDay(payload('2026-11-21'), '2026-12-06')));
+    const b = await (await call()).json();
+    expect(b).toMatchObject({ raceDayStatus: 'unavailable', raceDayReason: 'no_data' });
+    expect(b.days).toEqual([{ date: '2026-12-06', status: 'error' }]);
+  });
+  it('a multi-day race with one null-only day is partial / no_data', async () => {
+    eventRow = race('2026-12-05', '2026-12-06');
+    fetchMock.mockResolvedValue(ok(nullDay(payload('2026-11-21'), '2026-12-06')));
+    expect(await (await call()).json()).toMatchObject({ raceDayStatus: 'partial', raceDayReason: 'no_data' });
+  });
+  it('an empty / junk 200 with no cache → unavailable invalid_payload, nothing cached', async () => {
+    eventRow = race();
+    for (const junk of [{}, { daily: { time: [] } }, { daily: { time: ['2026-11-20'] } }]) {
+      resetForecastCache();
+      fetchMock.mockResolvedValueOnce(ok(junk));
+      const r = await call();
+      expect(r.headers.get('cache-control')).toBe('no-store');
+      expect(await r.json()).toMatchObject({ unavailableReason: 'invalid_payload', stale: false, daily: [] });
+      expect(forecastCacheSize()).toBe(0);
+    }
+  });
+  it('a junk 200 never overwrites the last good answer: stale good weather is served, and still is next time', async () => {
+    eventRow = race();
+    fetchMock.mockResolvedValueOnce(ok(payload('2026-11-20')));
+    await call();
+    vi.setSystemTime(new Date(Date.now() + FRESH_MS + 1));
+    fetchMock.mockResolvedValueOnce(ok({}));
+    expect(await (await call()).json()).toMatchObject({ stale: true, validThrough: '2026-12-05', unavailableReason: null });
+    fetchMock.mockResolvedValueOnce(ok({ daily: { time: [] } }));
+    const again = await (await call()).json();
+    expect(again).toMatchObject({ stale: true, validThrough: '2026-12-05' });
+    expect(again.daily).toHaveLength(16);
+  });
+  it.each([['missing', undefined], ['malformed', 'not a zone!'], ['number', 3600]])(
+    'timezone %s → null, never a default zone', async (_n, value) => {
+      eventRow = race();
+      const p: Record<string, unknown> = { ...payload('2026-11-20') };
+      if (value === undefined) delete p.timezone; else p.timezone = value;
+      fetchMock.mockResolvedValue(ok(p));
+      expect((await (await call()).json()).timezone).toBeNull();
+    });
+  it.each([[95, 0], [-91, 0], [0, 181], [0, -180.5]])('coordinates out of bounds (%d, %d) → no_location, no request', async (lat, lng) => {
+    eventRow = { id: 'e1', date: '2026-12-06', end_date: null, lat, lng };
+    expect(await (await call()).json()).toMatchObject({ unavailableReason: 'no_location', location: null });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('downstream max-age is what is left of freshness: 1800 when just fetched, 180 when served 27 min later', async () => {
+    eventRow = race();
+    fetchMock.mockResolvedValue(ok(payload('2026-11-20')));
+    expect((await call()).headers.get('cache-control')).toBe('public, max-age=1800');
+    vi.setSystemTime(new Date(Date.now() + 27 * 60_000));
+    const r = await call();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(r.headers.get('cache-control')).toBe('public, max-age=180');
+  });
+});
+
 describe('pure helpers', () => {
   it('eventDateRange is inclusive and capped', () => {
     expect(eventDateRange('2026-12-05', '2026-12-07')).toEqual(['2026-12-05', '2026-12-06', '2026-12-07']);
