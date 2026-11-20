@@ -116,7 +116,7 @@ describe('GET /api/activities/details — errors', () => {
     answer = (q) => (q.table === 'athlete_activities' ? { data: null, error: { message: 'boom' } } : dbAnswer(q));
     const res = await get(`?activityId=${ACT_ID}`);
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'boom' });
+    expect(await res.json()).toEqual({ error: 'Failed to fetch' }); // never the DB text
   });
 });
 
@@ -134,7 +134,7 @@ describe('GET /api/activities/details — shape', () => {
     // plus three flattened names.
     const { gps_points: _g, laps: _l, splits: _s, athletes: _a, shoes: _sh, ...rest } = ROW;
     expect(body.activity).toEqual({ ...rest, athlete_name: 'הבעלים', athlete_avatar_url: 'https://cdn/a.jpg', shoe_name: 'Pegasus' });
-    // HR summary numbers are NOT masked here (unlike the feed's hiddenFields).
+    // No hiddenFields on this run's feed item → nothing masked (masking is maskDetailForViewer).
     expect(body.activity).toMatchObject({ average_hr: 150, max_hr: 170, calories: 150, average_pace: 300 });
     // start_time is the stored wall-clock-as-UTC string, untouched.
     expect(body.activity.start_time).toBe('2026-11-19T06:10:00+00:00');

@@ -27,9 +27,9 @@ Needs `Authorization: Bearer`. Any verified club member can read any member's ru
 ## Errors
 400 `{ error: "activityId required" }` (checked before auth) · 401 with no session or an expired one · 403 when
 signed in but not an approved member · 404 `{ error: "Activity not found" }`, which a pending runner's run also
-returns · 500 `{ error }`.
+returns · 500 `{ error: "Failed to fetch" }` (never DB text).
 
 ## Caveat
-This screen does **not** apply the feed's `payload.hiddenFields`. A teammate who opens the detail sees the heart
-rate, pace and calories that the runner hid on their card. This is a known server gap. Don't count on this screen
-to hide anything.
+For anyone but the runner, this screen applies the feed's `payload.hiddenFields` (`maskDetailForViewer`):
+hidden `heart_rate` nulls `average_hr`/`max_hr` and each split's `averageHR`; hidden `pace` nulls `average_pace`
+and empties `splits`; hidden `calories` nulls `calories`. The runner always sees their own full numbers.
