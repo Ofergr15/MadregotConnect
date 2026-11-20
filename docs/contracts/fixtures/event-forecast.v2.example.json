@@ -19,6 +19,7 @@
     "lng": -0.3763
   },
   "timezone": "Europe/Madrid",
+  "utcOffsetSec": 3600,
   "fetchedAt": "2026-11-20T10:00:00.000Z",
   "stale": false,
   "validFrom": "2026-11-20",

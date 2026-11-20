@@ -72,6 +72,9 @@ export interface EventForecastDTO {
   eventId: string;
   location: { lat: number; lng: number } | null;
   timezone: string | null;
+  /** The venue's UTC offset in seconds as the provider returned it; null when not reported. Lets a client place
+   *  venue-local times (`current.time`, `raceHourly[].time`) even when `timezone` is null. */
+  utcOffsetSec: number | null;
   fetchedAt: string | null;
   stale: boolean;
   validFrom: string | null;
@@ -198,7 +201,8 @@ export function parseOpenMeteo(json: unknown): VenueForecast {
   } : null;
   return {
     timezone: tz(j.timezone),
-    utcOffsetSec: num(j.utc_offset_seconds),
+    // Real offsets run from UTC−12 to UTC+14; anything else is not an offset.
+    utcOffsetSec: (() => { const o = num(j.utc_offset_seconds); return o != null && Math.abs(o) <= 14 * 3600 ? o : null; })(),
     validFrom: times[0] ?? null,
     validThrough: times[times.length - 1] ?? null,
     current,
@@ -252,6 +256,7 @@ export function buildDTO(args: {
     eventId: args.eventId,
     location: args.lat != null && args.lng != null ? { lat: args.lat, lng: args.lng } : null,
     timezone: f?.timezone ?? null,
+    utcOffsetSec: f?.utcOffsetSec ?? null,
     fetchedAt: args.fetchedAt != null ? new Date(args.fetchedAt).toISOString() : null,
     stale: args.stale,
     validFrom: f?.validFrom ?? null,

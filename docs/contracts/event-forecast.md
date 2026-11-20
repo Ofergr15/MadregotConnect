@@ -13,7 +13,7 @@ Exact example: `fixtures/event-forecast.v2.example.json`. v1 fields kept for exi
   "provider": "open-meteo",
   "attribution": { "name": "Open-Meteo", "url": "https://open-meteo.com/" },
   "eventId": "…", "location": { "lat": 39.4699, "lng": -0.3763 } | null,
-  "timezone": "Europe/Madrid" | null,
+  "timezone": "Europe/Madrid" | null, "utcOffsetSec": 3600 | null,
   "fetchedAt": "2026-11-20T10:00:00.000Z" | null, "stale": false,
   "validFrom": "2026-11-20" | null, "validThrough": "2026-12-05" | null,
   "current": { "time", "temperatureC", "apparentC", "precipitationMm", "windKmh", "weatherCode" } | null,
@@ -29,7 +29,11 @@ Exact example: `fixtures/event-forecast.v2.example.json`. v1 fields kept for exi
   server's clock: the venue's "today" decides (a UTC server and a UTC+1 venue disagree for an hour each night).
 - A race date counts as `available` only when its day has at least one real value; a date with every field null is
   `unavailable` / `no_data` (v1 day `error`), and one such day in a multi-day event makes it `partial` / `no_data`.
-- `timezone` is the provider's IANA name, or `null` if missing or malformed; no default zone is ever assumed.
+- `timezone` is the provider's IANA name if the runtime knows it, else `null` (missing, malformed, or a made-up
+  zone like `Fake/Zone`); no default zone is ever assumed. `utcOffsetSec` is the provider's offset (−12 h…+14 h) or
+  `null`; with `timezone` null a client can still place the venue-local times with it. Additive in v2.
+- Impossible dates (`2026-99-99`, `2026-02-30`) in the event or the payload are ignored, never a crash.
+- Exact bodies for every state the client must render: `fixtures/event-forecast.v2.states.json`.
 - Coordinates outside the globe (|lat| > 90, |lng| > 180) are treated as no location.
 - Unknown values are `null`, never `0`. Times in `raceHourly` / `current.time` are venue-local wall time.
 - Valencia: on Nov 20 the window is Nov 20 – Dec 5 → current + 16 days shown, race day `out_of_range`/`after_horizon`.
