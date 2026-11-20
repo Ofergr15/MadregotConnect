@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
-import { EVENT_KINDS, isEventKind } from '@/lib/events';
+import { EVENT_KINDS, isCourseGpxUrl, isEventKind } from '@/lib/events';
+import { isMissingColumn } from '@/lib/supabase/schema-drift';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +27,7 @@ const UPDATABLE_FIELDS = [
   'faqs',
   'capacity',
   'registration_deadline',
+  'course_gpx_url',
 ] as const;
 
 // GET /api/events/[id] — single event; powers the dedicated event detail
@@ -71,6 +73,10 @@ export async function PATCH(
       );
     }
 
+    if (body?.course_gpx_url !== undefined && !isCourseGpxUrl(body.course_gpx_url)) {
+      return NextResponse.json({ error: 'course_gpx_url must be an https URL or null' }, { status: 400 });
+    }
+
     const updates: Record<string, unknown> = {};
     for (const field of UPDATABLE_FIELDS) {
       if (body?.[field] !== undefined) updates[field] = body[field];
@@ -88,7 +94,12 @@ export async function PATCH(
       .select()
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      if (updates.course_gpx_url !== undefined && isMissingColumn(error)) {
+        return NextResponse.json({ error: 'migration 181 not applied' }, { status: 503 });
+      }
+      throw error;
+    }
     if (!data) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
     return NextResponse.json({ event: data });

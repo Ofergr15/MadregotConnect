@@ -22,6 +22,17 @@ export function isEventKind(value: unknown): value is EventKind {
   return typeof value === 'string' && (EVENT_KINDS as readonly string[]).includes(value);
 }
 
+/** A course map is an https link to a GPX file (migration 181), or null to clear it. */
+export function isCourseGpxUrl(value: unknown): value is string | null {
+  if (value === null) return true;
+  if (typeof value !== 'string' || value.length > 2000) return false;
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export type EventRegistrationStatus = 'registered' | 'waitlisted' | 'cancelled';
 
 /** Hebrew label + emoji per kind, for the "new event" push and any future calendar UI that wants one place to stay in sync with EVENT_KINDS. */
