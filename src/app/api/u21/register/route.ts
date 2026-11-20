@@ -11,6 +11,20 @@ export const dynamic = 'force-dynamic';
 // response is identical for flagged and unflagged submits.
 const allowFromIp = createRateLimiter(10, 60_000);
 
+/** Same email + track inside this window = the same submit (no second row). */
+export const U21_RESUBMIT_WINDOW_MS = 10 * 60_000;
+
+async function submittedRecently(db: any, email: string, track: string, now = Date.now()): Promise<boolean> {
+  try {
+    const { data, error } = await db.from('u21_registrations').select('id')
+      .eq('email', email).eq('track', track)
+      .gte('created_at', new Date(now - U21_RESUBMIT_WINDOW_MS).toISOString()).limit(1);
+    return !error && Array.isArray(data) && data.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: Request) {
   try {
     // Before rate limit, auth or any DB access: refuse unless wired to the approved dev project.
@@ -35,11 +49,16 @@ export async function POST(request: Request) {
     const minor = band === '16-17';
 
     const supabase = createServerClient();
+    const email = String(clean.email).toLowerCase();
+    // A double tap, a retry, a "did it go?" re-send: the same email + track inside the window is
+    // the same registration. Answer exactly as for the first (nothing to tell apart, nothing to
+    // enumerate) and store nothing. Best effort: a failed read falls through to the insert.
+    if (await submittedRecently(supabase, email, body.track)) return NextResponse.json({ ok: true, status: 'pending_review' });
     const { error } = await supabase.from('u21_registrations').insert({
       track: body.track,
       first_name: String(clean.firstName),
       last_name: String(clean.lastName),
-      email: String(clean.email).toLowerCase(),
+      email,
       phone: String(clean.phone),
       birth_date: String(clean.birthDate),
       age_band: band,

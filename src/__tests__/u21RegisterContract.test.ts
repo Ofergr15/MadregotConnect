@@ -21,7 +21,15 @@ const env = (over: Record<string, string | undefined> = {}) => {
 let rows: Record<string, unknown>[] = [];
 let dbError: unknown = null;
 vi.mock('@/lib/supabase/server', () => ({
-  createServerClient: () => ({ from: (table: string) => ({ insert: async (r: Record<string, unknown>) => { if (!dbError) rows.push({ table, ...r }); return { error: dbError }; } }) }),
+  createServerClient: () => ({ from: (table: string) => {
+    const f: Record<string, unknown> = {};
+    const q: any = {
+      select: () => q, eq: (k: string, v: unknown) => { f[k] = v; return q; }, gte: () => q,
+      limit: async () => ({ data: rows.filter((r) => r.email === f.email && r.track === f.track), error: null }),
+      insert: async (r: Record<string, unknown>) => { if (!dbError) rows.push({ table, ...r }); return { error: dbError }; },
+    };
+    return q;
+  } }),
 }));
 const { POST } = await import('@/app/api/u21/register/route');
 
@@ -113,16 +121,21 @@ describe('validation → 400 { error: "validation", errors: { [field]: hebrew me
   });
 });
 
-describe('repeat submits (TODAY: no dedupe)', () => {
-  it('the same answers twice store TWO rows and both answer 200 — the client must prevent double-send', async () => {
+describe('repeat submits', () => {
+  it('the same email + track inside 10 minutes stores ONE row; both answer the same 200', async () => {
     const a = await send({ track: 'basic', answers: ADULT }, '7.7.7.7');
-    const b = await send({ track: 'basic', answers: ADULT }, '7.7.7.7');
-    expect([a.status, b.status]).toEqual([200, 200]);
+    const b = await send({ track: 'basic', answers: { ...ADULT, email: 'NOA@example.com' } }, '7.7.7.8');
+    expect([await a.json(), await b.json()]).toEqual([{ ok: true, status: 'pending_review' }, { ok: true, status: 'pending_review' }]);
+    expect(rows).toHaveLength(1);
+  });
+  it('a different track is a different registration', async () => {
+    await send({ track: 'basic', answers: ADULT });
+    await send({ track: 'pro', answers: ADULT });
     expect(rows).toHaveLength(2);
   });
   it('the only server brake: the 11th request in a minute from one IP → 429 { error: "Too many attempts" }', async () => {
     const from = '8.8.8.8';
-    for (let i = 0; i < 10; i++) expect((await send({ track: 'basic', answers: ADULT }, from)).status).toBe(200);
+    for (let i = 0; i < 10; i++) expect((await send({ track: 'basic', answers: { ...ADULT, email: `n${i}@example.com` } }, from)).status).toBe(200);
     const res = await send({ track: 'basic', answers: ADULT }, from);
     expect(res.status).toBe(429);
     expect(await res.json()).toEqual({ error: 'Too many attempts' });

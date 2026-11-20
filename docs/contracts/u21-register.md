@@ -36,9 +36,9 @@ Public, no auth header. Field rules live in `src/lib/u21/intake.ts` (`U21_FIELDS
 
 ## Must-know for the client
 
-1. **No duplicate protection on the server.** Two identical submits store two rows and
-   both return 200. The client must lock the send button after the first tap and not
-   auto-retry a request that may have reached the server.
+1. **Duplicate protection (since 2026-11-20):** the same email + track within 10 minutes stores
+   no second row and answers the same 200. Still lock the send button after the first tap;
+   a different track, or the same one after 10 minutes, is a new registration.
 2. **INTENTIONAL: 503 from the env guard.** Production and every environment other than the
    one approved dev Supabase project answer 503 `{ "error": "Service unavailable" }` on purpose
    (this route stores minors' details). It is not an outage and not a bug: show a neutral
