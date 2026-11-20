@@ -8,10 +8,12 @@ import {
   todayUtc,
   type ForecastDay,
 } from '@/lib/events/forecast';
+import { rememberForecast, staleForecast } from '@/lib/events/forecast-cache';
 
 export const dynamic = 'force-dynamic';
 
 const CACHE = { 'Cache-Control': 'public, max-age=1800' };
+
 
 // GET /api/events/[id]/forecast — daily Open-Meteo forecast for the event's
 // dates. Public read, same convention as GET /api/events/[id].
@@ -41,16 +43,24 @@ export async function GET(
     const inRange = dates.filter((d) => classifyDate(d, today) === 'in_range');
 
     let fetched: ForecastDay[] = [];
+    let staleAt: number | null = null;
     if (inRange.length > 0) {
+      const key = `${id}|${lat}|${lng}|${inRange[0]}|${inRange[inRange.length - 1]}`;
       try {
         const res = await fetch(buildForecastUrl(lat, lng, inRange[0], inRange[inRange.length - 1]), {
           signal: AbortSignal.timeout(5000),
         });
         if (!res.ok) throw new Error(`open-meteo ${res.status}`);
         fetched = mapOpenMeteoDaily(await res.json(), inRange);
+        rememberForecast(key, fetched);
       } catch (e) {
-        console.error('Event forecast fetch failed:', e);
-        return NextResponse.json({ error: 'Forecast unavailable' }, { status: 502 });
+        console.error('Event forecast fetch failed:', e instanceof Error ? e.message : 'unknown');
+        const prev = staleForecast(key);
+        if (!prev) {
+          return NextResponse.json({ error: 'Forecast unavailable' }, { status: 502 });
+        }
+        fetched = prev.days;
+        staleAt = prev.at;
       }
     }
 
@@ -61,6 +71,11 @@ export async function GET(
       return { date, status: cls };
     });
 
+    if (staleAt !== null) {
+      // A fallback must not be cached downstream as if it were fresh.
+      return NextResponse.json({ status: 'ok', eventId: id, days, stale: true, fetchedAt: new Date(staleAt).toISOString() },
+        { headers: { 'Cache-Control': 'no-store' } });
+    }
     return NextResponse.json({ status: 'ok', eventId: id, days }, { headers: CACHE });
   } catch (error) {
     console.error('Failed to build event forecast:', error);

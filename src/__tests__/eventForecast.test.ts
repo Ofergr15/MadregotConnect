@@ -11,6 +11,7 @@ vi.mock('@/lib/supabase/server', () => ({
 
 import { GET } from '@/app/api/events/[id]/forecast/route';
 import { classifyDate, eventDateRange, mapOpenMeteoDaily } from '@/lib/events/forecast';
+import { forecastCacheSize, rememberForecast, resetForecastCache, STALE_MAX_ENTRIES, STALE_MAX_MS } from '@/lib/events/forecast-cache';
 
 const call = () => GET(new Request('http://x/api/events/e1/forecast'), { params: Promise.resolve({ id: 'e1' }) });
 const fetchMock = vi.fn();
@@ -19,6 +20,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-11-20T10:00:00Z'));
   fetchMock.mockReset();
+  resetForecastCache();
   vi.stubGlobal('fetch', fetchMock);
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
@@ -120,5 +122,34 @@ describe('GET /api/events/[id]/forecast', () => {
     eventRow = { id: 'e1', date: '2026-11-22', end_date: null, lat: 32.1, lng: 34.8 };
     fetchMock.mockRejectedValue(new Error('network down'));
     expect((await call()).status).toBe(502);
+  });
+});
+
+describe('stale fallback when the provider fails', () => {
+  const good = { ok: true, json: async () => ({ daily: { time: ['2026-11-22'], temperature_2m_max: [24], temperature_2m_min: [15],
+    precipitation_probability_max: [10], wind_speed_10m_max: [12], weather_code: [1] } }) };
+  it('serves the last good answer (≤ 6 h) with stale:true and no-store', async () => {
+    eventRow = { id: 'e1', date: '2026-11-22', end_date: null, lat: 32.1, lng: 34.8 };
+    fetchMock.mockResolvedValueOnce(good);
+    expect((await (await call()).json()).stale).toBeUndefined();
+    fetchMock.mockRejectedValueOnce(new Error('down'));
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    const body = await res.json();
+    expect(body).toMatchObject({ status: 'ok', stale: true, fetchedAt: '2026-11-20T10:00:00.000Z' });
+    expect(body.days[0]).toMatchObject({ date: '2026-11-22', status: 'available', tMaxC: 24 });
+  });
+  it('older than 6 h → 502, never stale data forever', async () => {
+    eventRow = { id: 'e1', date: '2026-11-22', end_date: null, lat: 32.1, lng: 34.8 };
+    fetchMock.mockResolvedValueOnce(good);
+    await call();
+    vi.setSystemTime(new Date(Date.now() + STALE_MAX_MS + 1));
+    fetchMock.mockRejectedValueOnce(new Error('down'));
+    expect((await call()).status).toBe(502);
+  });
+  it('the cache is bounded', () => {
+    for (let i = 0; i < STALE_MAX_ENTRIES + 50; i++) rememberForecast(`k${i}`, []);
+    expect(forecastCacheSize()).toBe(STALE_MAX_ENTRIES);
   });
 });

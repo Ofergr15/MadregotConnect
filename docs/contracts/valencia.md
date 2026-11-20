@@ -15,7 +15,9 @@ Tests: `valenciaContract.test.ts`, `eventForecast.test.ts`, `clubUpdatesTopics.t
 - `Day` is `{ date, status: "available", tMaxC, tMinC, precipProbPct, windMaxKmh, weatherCode }`
   (numbers may be `null`), or `{ date, status: "past" | "not_yet_available" | "error" }`.
   Forecast covers today (UTC) + 15 days; outside that it is `not_yet_available`, never invented.
-- 404 event not found · 502 `{ error: "Forecast unavailable" }` (provider down) · 500 on DB error.
+- 404 event not found · 502 `{ error: "Forecast unavailable" }` (provider down and no good answer in the last 6 h) · 500 on DB error.
+- Provider down but a good answer from ≤ 6 h ago exists on that server instance → 200 with `stale: true` and
+  `fetchedAt` (ISO), `Cache-Control: no-store`. Show "updated <time>". Upstream timeout is 5 s, no retry.
 - `Cache-Control: public, max-age=1800`. `weatherCode` is the WMO code from Open-Meteo.
 
 ## Updates for this event
