@@ -65,7 +65,9 @@ vi.mock('@/lib/supabase/server', () => ({
           }
           if (op === 'update') { reads.push(`${table}:update`); const r = rowsFor(); r.forEach((x) => Object.assign(x, payload)); return Promise.resolve({ data: r.map((x) => ({ id: x.id })), error: null }).then(res); }
           if (op === 'delete') { codes = codes.filter((c) => !rowsFor().includes(c)); return Promise.resolve({ error: null }).then(res); }
-          if (head) return Promise.resolve({ count: rowsFor().length, error: null }).then(res);
+          // A count reads its snapshot when the statement runs, and answers later: under a
+          // delay, concurrent senders all see the same count before any of them inserts.
+          if (head) { const n = rowsFor().length; return (dbDelayMs ? sleep(dbDelayMs) : Promise.resolve()).then(() => ({ count: n, error: null })).then(res); }
           return Promise.resolve({ data: rowsFor(), error: null }).then(res);
         },
       };
@@ -114,6 +116,19 @@ describe('email-code is not a membership oracle', () => {
   it('a member past the per-address cap gets no further code mail', async () => {
     await probe(MEMBER, '198.51.100.3');
     expect(mailed).toHaveBeenCalledTimes(3); // MAX_SENDS; the 4th answered ok and mailed nobody
+  });
+
+  it('concurrent sends (one per instance/IP, so no in-memory limiter bites) never mail past MAX_SENDS', async () => {
+    // The pre-insert count is read-then-insert: all six read 0 before any insert lands.
+    // The post-insert recount withdraws a racer's row and its mail once the window is over the cap.
+    dbDelayMs = 5;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    for (let n = 0; n < 6; n++) expect((await call(`198.51.110.${n}`, { action: 'send', email: MEMBER })).status).toBe(200);
+    const jobs = deferred.splice(0);
+    await Promise.all(jobs.map((f) => f()));
+    expect(mailed.mock.calls.length).toBeLessThanOrEqual(3);
+    expect(codes.length).toBeLessThanOrEqual(3);
+    warn.mockRestore();
   });
 
   it('the rate limit runs before membership: the 6th send in a minute is 429 for both', async () => {
@@ -174,7 +189,9 @@ describe('email-code is not a membership oracle', () => {
     const stranger = await shape(STRANGER, '198.51.103.1');
     const member = await shape(MEMBER, '198.51.103.2');
     expect(stranger).toEqual({ reads: ['athletes', 'login_codes:count'], hashed: 1 });
-    expect(member).toEqual(stranger); // a member additionally inserts and mails, after these
+    // A member additionally inserts, recounts (the concurrent-cap check) and mails, after
+    // these — all deferred past the response, so none of it is visible to the caller.
+    expect(member).toEqual({ ...stranger, reads: [...stranger.reads, 'login_codes:count'] });
   });
 
   it('verify has the same work shape with no code as with a live code: select, CAS update, one code HMAC', async () => {

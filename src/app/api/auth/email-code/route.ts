@@ -69,6 +69,16 @@ async function sendCodeIfMember(supabase: Db, email: string, ua: string | null):
   // Migration 132 not pasted yet.
   if (error && (error.code === '42P01' || error.code === 'PGRST205')) { console.error('[email-code] login_codes missing'); return; }
   if (error) throw error;
+  // The count above is read-then-insert: N concurrent sends (N instances, or one instance
+  // under a burst) all read count < MAX_SENDS and would all insert and mail. Recount after
+  // our own insert; if the window now holds more than the cap, withdraw OUR row and send
+  // nothing. Under a race every racer may withdraw (fail-closed: fewer mails, never more).
+  const { count: after_ } = await supabase.from('login_codes').select('id', { count: 'exact', head: true }).eq('email', email).gte('created_at', since);
+  if ((after_ ?? 0) > MAX_SENDS) {
+    await supabase.from('login_codes').delete().eq('email', email).eq('code_hash', hash);
+    console.warn('[email-code] send cap reached (concurrent)');
+    return;
+  }
   const mail = await notifyLoginCode({ email, code, name: member.name, athleteId: member.id });
   if (!mail.ok) console.error('[email-code] mail not sent', mail.code, mail.reason);
   await recordOnbEvent({ step: 'code_sent', athleteId: member.id, device: deviceFromUa(ua), meta: { mailed: mail.ok } });

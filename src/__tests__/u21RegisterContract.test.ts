@@ -25,8 +25,8 @@ vi.mock('@/lib/supabase/server', () => ({
     const f: Record<string, unknown> = {};
     const q: any = {
       select: () => q, eq: (k: string, v: unknown) => { f[k] = v; return q; }, gte: () => q,
-      limit: async () => ({ data: rows.filter((r) => r.email === f.email && r.track === f.track), error: null }),
-      insert: async (r: Record<string, unknown>) => { if (!dbError) rows.push({ table, ...r }); return { error: dbError }; },
+      limit: async () => ({ data: rows.filter((r) => r.email === f.email), error: null }),
+      insert: async (r: Record<string, unknown>) => { if (!dbError) rows.push({ table, ...r, created_at: new Date().toISOString() }); return { error: dbError }; },
     };
     return q;
   } }),

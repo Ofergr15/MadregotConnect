@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { assertU21ServerEnv } from '@/lib/u21/env-guard';
 import { clientIp, createRateLimiter, isBotSubmit } from '@/lib/academy/intake';
+import {
+  U21_MAX_PER_EMAIL_PER_HOUR, isMissingDedupeColumn, isDedupeConflict, recentSubmits, serializeByKey, u21DedupeKey,
+} from '@/lib/u21/register-guard';
 import { ageBand, isAnswersObject, pickKnownAnswers, screenSafety, validateU21Intake, type U21Answers } from '@/lib/u21/intake';
 
 export const dynamic = 'force-dynamic';
@@ -11,19 +14,7 @@ export const dynamic = 'force-dynamic';
 // response is identical for flagged and unflagged submits.
 const allowFromIp = createRateLimiter(10, 60_000);
 
-/** Same email + track inside this window = the same submit (no second row). */
-export const U21_RESUBMIT_WINDOW_MS = 10 * 60_000;
-
-async function submittedRecently(db: any, email: string, track: string, now = Date.now()): Promise<boolean> {
-  try {
-    const { data, error } = await db.from('u21_registrations').select('id')
-      .eq('email', email).eq('track', track)
-      .gte('created_at', new Date(now - U21_RESUBMIT_WINDOW_MS).toISOString()).limit(1);
-    return !error && Array.isArray(data) && data.length > 0;
-  } catch {
-    return false;
-  }
-}
+const RECEIVED = { ok: true, status: 'pending_review' } as const;
 
 export async function POST(request: Request) {
   try {
@@ -36,7 +27,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== 'object' || Array.isArray(body)) return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
     // A filled honeypot gets the same "received" a person would, and nothing is stored.
-    if (isBotSubmit(body)) return NextResponse.json({ ok: true, status: 'pending_review' });
+    if (isBotSubmit(body)) return NextResponse.json(RECEIVED);
 
     if (!isAnswersObject(body.answers)) return NextResponse.json({ error: 'validation', errors: { answers: 'ערך לא תקין' } }, { status: 400 });
     const answers: U21Answers = body.answers;
@@ -50,12 +41,9 @@ export async function POST(request: Request) {
 
     const supabase = createServerClient();
     const email = String(clean.email).toLowerCase();
-    // A double tap, a retry, a "did it go?" re-send: the same email + track inside the window is
-    // the same registration. Answer exactly as for the first (nothing to tell apart, nothing to
-    // enumerate) and store nothing. Best effort: a failed read falls through to the insert.
-    if (await submittedRecently(supabase, email, body.track)) return NextResponse.json({ ok: true, status: 'pending_review' });
-    const { error } = await supabase.from('u21_registrations').insert({
-      track: body.track,
+    const track: string = body.track;
+    const row = {
+      track,
       first_name: String(clean.firstName),
       last_name: String(clean.lastName),
       email,
@@ -73,13 +61,29 @@ export async function POST(request: Request) {
       red_flag: safety.flagged,
       intake: clean,
       status: 'pending_review',
+    };
+    // Same email + track on this instance: one at a time, so a double tap's second request
+    // reads the first one's row instead of racing it (see lib/u21/register-guard).
+    const error = await serializeByKey(`${email}|${track}`, async () => {
+      // A double tap, a retry, a "did it go?" re-send: the same email + track inside the window is
+      // the same registration. Past the per-email hourly cap: stored nothing. Both answer exactly
+      // as for the first (nothing to tell apart, nothing to enumerate). Best effort: a failed
+      // read falls through to the insert.
+      const recent = await recentSubmits(supabase, email, track);
+      if (recent && (recent.sameTrackRecent || recent.lastHour >= U21_MAX_PER_EMAIL_PER_HOUR)) return null;
+      let { error } = await supabase.from('u21_registrations').insert({ ...row, dedupe_key: u21DedupeKey(email, track) });
+      // Migration 183 not pasted yet: store without the key, as before.
+      if (error && isMissingDedupeColumn(error)) ({ error } = await supabase.from('u21_registrations').insert(row));
+      // A concurrent identical submit on another instance won the unique index: same registration.
+      if (error && isDedupeConflict(error)) return null;
+      return error;
     });
     if (error) {
       // Logged here only: a DB message names tables/columns/constraints and never leaves the server.
       console.error('u21 register insert failed', error);
       return NextResponse.json({ error: 'Could not save' }, { status: 500 });
     }
-    return NextResponse.json({ ok: true, status: 'pending_review' });
+    return NextResponse.json(RECEIVED);
   } catch (error) {
     console.error('u21 register failed', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
