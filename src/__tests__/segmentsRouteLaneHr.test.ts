@@ -126,11 +126,20 @@ describe('segments route, lane 2, pace step with a stray lane HR', () => {
     const body = await (await call(`athleteId=${ATHLETE}&date=${DATE}`)).json();
     for (const s of body.segments.filter((x: { type: string }) => x.type === 'interval')) expect(s.plannedPaceMin).toBe(225);
   });
-  it('error path: a failed plan read does not 500 into a fabricated verdict, and writes nothing', async () => {
+  it('error path: a failed plan read is answered as "no plan that day" — exact body, no grading, no run read, no writes', async () => {
     stub('Group B - SUB 2:35', { code: 'XX000', message: 'boom' });
     const res = await call(`athleteId=${ATHLETE}&date=${DATE}&verdict=1&activityId=act-1`);
-    const body = await res.json().catch(() => ({}));
-    expect(body.verdict ?? null).toBeNull();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ verdict: null, reason: 'no planned workout for this day' });
+    expect(ops.some(o => o.table === 'athlete_activities')).toBe(false);
+    expect(writes()).toEqual([]);
+  });
+  it('error path, per-segment mode: the same failure gives no segments and no efforts', async () => {
+    stub('Group B - SUB 2:35', { code: 'XX000', message: 'boom' });
+    const res = await call(`athleteId=${ATHLETE}&date=${DATE}`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ segments: [], aligned: false, reason: 'no planned workout for this day' });
+    expect(ops.some(o => o.table === 'athlete_activities')).toBe(false);
     expect(writes()).toEqual([]);
   });
   it('unauthenticated → the gate\'s denial, no DB read', async () => {
