@@ -16,6 +16,11 @@ import { weekTargetRange, type WeekTarget } from '@/lib/plans/week-target';
  * then draws no zone over them, which is the truth: there is no target on record
  * for that week.
  */
+/** The plan read failed: the targets are UNKNOWN, which is not the same as "no plan that week". */
+export class WeekTargetsUnavailable extends Error {
+  constructor(message: string) { super(message); this.name = 'WeekTargetsUnavailable'; }
+}
+
 export async function fetchWeekTargets(
   supabase: { from: (t: string) => any },
   coachId: string,
@@ -24,11 +29,14 @@ export async function fetchWeekTargets(
   const out = new Map<string, WeekTarget>();
   if (weekStarts.length === 0) return out;
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('weekly_plans')
     .select('week_start_date, parsed_workouts, status')
     .eq('coach_id', coachId)
     .in('week_start_date', weekStarts);
+  // A failed read used to come back as an empty map, which a chart draws as "no target on record"
+  // for every week. Throwing lets the caller say the targets are unavailable instead.
+  if (error) throw new WeekTargetsUnavailable(String((error as { message?: string }).message ?? error));
 
   // A week can hold more than one row (a draft alongside the pushed version).
   // The pushed one is what the athletes were actually given, so it wins — the

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { fetchWeekTargets } from '@/lib/plans/week-target-history';
+import { WeekTargetsUnavailable, fetchWeekTargets } from '@/lib/plans/week-target-history';
 import { fetchWeeklyVolume } from '@/lib/athletes/weekly-volume';
 import { israelDateAnchor, SUNDAY_WEEK, weekStartOn } from '@/lib/utils';
 import { readWeekStartDay } from '@/lib/athletes/week-pref';
@@ -70,6 +70,9 @@ export async function GET(request: Request) {
     }));
 
     let series: Array<(typeof weekRows)[number] & { target?: { min: number; max: number } }> = weekRows;
+    // Whether `target` could be read at all. 'unavailable' = the plan read failed, so a column
+    // with no `target` means UNKNOWN, not "no plan that week". Additive field.
+    let targetCoverage: 'included' | 'unavailable' | 'not_applicable' = granularity === 'week' ? 'included' : 'not_applicable';
     if (granularity === 'week') {
       // Each week's own target band, so the chart can show whether that week
       // landed on the plan THAT WEEK. Only at week granularity: a month has no
@@ -84,7 +87,14 @@ export async function GET(request: Request) {
       const planWeekOf = new Map(
         weekRows.map((w) => [w.weekStart, weekStartOn(new Date(`${w.weekStart}T12:00:00`), SUNDAY_WEEK)]),
       );
-      const targets = await fetchWeekTargets(supabase, COACH_ID, [...new Set(planWeekOf.values())]);
+      let targets = new Map<string, { min: number; max: number }>();
+      try {
+        targets = await fetchWeekTargets(supabase, COACH_ID, [...new Set(planWeekOf.values())]);
+      } catch (e) {
+        if (!(e instanceof WeekTargetsUnavailable)) throw e;
+        console.error('volume-history: week targets unavailable:', e.message);
+        targetCoverage = 'unavailable';
+      }
       series = weekRows.map((w) => {
         const t = targets.get(planWeekOf.get(w.weekStart)!);
         return t ? { ...w, target: { min: t.min, max: t.max } } : w;
@@ -110,7 +120,7 @@ export async function GET(request: Request) {
     const peakKm = series.reduce((m, s) => (s.km > m ? s.km : m), 0);
     const avgKm = ran.length ? round1(ran.reduce((a, s) => a + s.km, 0) / ran.length) : 0;
 
-    return NextResponse.json({ series, weeksReturned: series.length, peakKm, avgKm, granularity });
+    return NextResponse.json({ series, weeksReturned: series.length, peakKm, avgKm, granularity, targetCoverage });
   } catch (err: any) {
     console.error('volume-history error:', err);
     return NextResponse.json({ error: err.message || 'Failed' }, { status: 500 });
