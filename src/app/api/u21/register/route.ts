@@ -80,12 +80,13 @@ export async function POST(request: Request) {
     });
     if (error) {
       // Logged here only: a DB message names tables/columns/constraints and never leaves the server.
-      console.error('u21 register insert failed', error);
+      // Code only: a constraint error's `detail` echoes row values (a minor's email).
+      console.error('u21 register insert failed', (error as { code?: string }).code ?? 'unknown');
       return NextResponse.json({ error: 'Could not save' }, { status: 500 });
     }
     return NextResponse.json(RECEIVED);
   } catch (error) {
-    console.error('u21 register failed', error);
+    console.error('u21 register failed', error instanceof Error ? error.name : 'unknown');
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
