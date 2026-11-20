@@ -1,4 +1,3 @@
-import { randomBytes } from 'crypto';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 
 type SyntheticSessionResult =
@@ -44,9 +43,9 @@ type SyntheticSessionResult =
  *
  * An older comment here claimed admin magic-link hashes were unreliable (fresh
  * ones returning `otp_expired`). That was a sandbox observation; verified working
- * on production. The password path is kept only as a fallback below, so a
- * regression in `generateLink` degrades to the old behaviour rather than locking
- * everyone out — it is the worse branch, not the default.
+ * on production. The password path that used to sit below as a fallback is GONE
+ * (2026-11-20): a generateLink failure now fails the sign-in (retryable) instead of
+ * rotating the password and silently logging the account out everywhere else.
  */
 export async function createSyntheticSession(
   admin: SupabaseClient,
@@ -105,25 +104,15 @@ export async function createSyntheticSession(
     if (verified.data.session && verified.data.user) {
       return { session: pickSession(verified.data.session), user: verified.data.user };
     }
-    console.warn('[auth] magic-link mint failed, falling back', verified.error?.message);
-  } else {
-    console.warn('[auth] generateLink failed, falling back', link.error?.message);
+    console.warn('[auth] magic-link mint failed', verified.error?.message);
+    return { error: `magic_link_verify:${verified.error?.message || 'missing_session'}` };
   }
-
-  // ⚠️ FALLBACK ONLY. This rotates the password, which revokes this account's
-  // sessions on every other device — see the note at the top of this file. It is
-  // here so a Supabase-side change to generateLink degrades logins instead of
-  // breaking them, and the warnings above are how you find out it is being used.
-  const password = randomBytes(32).toString('base64url');
-  const updated = await admin.auth.admin.updateUserById(user.id, { password, email_confirm: true });
-  if (updated.error) return { error: `update_password:${updated.error.message}` };
-
-  const signedIn = await authClient.auth.signInWithPassword({ email, password });
-  if (signedIn.error || !signedIn.data.session || !signedIn.data.user) {
-    return { error: `password_sign_in:${signedIn.error?.message || 'missing_session'}` };
-  }
-
-  return { session: pickSession(signedIn.data.session), user: signedIn.data.user };
+  console.warn('[auth] generateLink failed', link.error?.message);
+  // FAIL CLOSED (2026-11-20). There used to be a password-rotation fallback here; rotating
+  // the password revokes the account's sessions on every other device, which signs a
+  // logged-in phone out with no logout. A failed sign-in is retryable; a silent mass
+  // logout is not. So: no fallback, no password mutation, the caller reports a failure.
+  return { error: `generate_link:${link.error?.message || 'no_hashed_token'}` };
 }
 
 /** The four fields callers put in the URL fragment, and nothing else. */
