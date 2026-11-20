@@ -7,10 +7,10 @@ vi.mock('@/lib/auth-session', () => ({
   requireSession: async () => auth,
   authError: (r: { status: number; error: string }) => new Response(JSON.stringify({ error: r.error }), { status: r.status }),
 }));
-const writes: Array<{ patch: Record<string, unknown>; id: unknown }> = [];
+const writes: Array<{ patch: Record<string, unknown>; id: unknown; guard?: string }> = [];
 let dbError: unknown = null;
 vi.mock('@/lib/supabase/server', () => ({
-  createServerClient: () => ({ from: () => ({ update: (patch: Record<string, unknown>) => ({ eq: async (_k: string, id: unknown) => { writes.push({ patch, id }); return { error: dbError }; } }) }) }),
+  createServerClient: () => ({ from: () => ({ update: (patch: Record<string, unknown>) => ({ eq: (_k: string, id: unknown) => ({ or: async (guard: string) => { writes.push({ patch, id, guard }); return { error: dbError }; } }) }) }) }),
 }));
 const { POST } = await import('@/app/api/notifications/seen/route');
 const post = (body?: unknown) => POST(new Request('http://x/api/notifications/seen', { method: 'POST', body: body ? JSON.stringify(body) : undefined }));
@@ -23,7 +23,7 @@ describe('POST /api/notifications/seen', () => {
     expect(res.status).toBe(200);
     const { seenAt } = await res.json();
     expect(Number.isFinite(Date.parse(seenAt))).toBe(true);
-    expect(writes).toEqual([{ patch: { last_seen_at: seenAt }, id: 'me' }]);
+    expect(writes).toEqual([{ patch: { last_seen_at: seenAt }, id: 'me', guard: `last_seen_at.is.null,last_seen_at.lt.${seenAt}` }]);
   });
   it('ignores any athleteId in the body: identity is the session only', async () => {
     await post({ athleteId: 'someone-else' });
@@ -43,6 +43,11 @@ describe('POST /api/notifications/seen', () => {
     auth = { ok: true, user: { athleteId: 'them', viewingAsBy: 'admin@x' } };
     expect((await post()).status).toBe(204);
     expect(writes).toEqual([]);
+  });
+  it('only moves last_seen_at forward (guarded update), and repeat calls are harmless', async () => {
+    await post(); await post();
+    expect(writes).toHaveLength(2);
+    for (const w of writes) expect(w.guard).toMatch(/^last_seen_at\.is\.null,last_seen_at\.lt\./);
   });
   it('DB error → 500 with a generic message', async () => {
     dbError = { message: 'secret detail' };

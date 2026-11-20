@@ -24,7 +24,9 @@ export async function POST(request: Request) {
     if (!athleteId) return NextResponse.json({ error: 'No athlete profile' }, { status: 403 });
 
     const seenAt = new Date().toISOString();
-    const { error } = await createServerClient().from('athletes').update({ last_seen_at: seenAt }).eq('id', athleteId);
+    // Monotonic: only ever moves forward, so a delayed request can't resurrect older unread.
+    const { error } = await createServerClient().from('athletes').update({ last_seen_at: seenAt })
+      .eq('id', athleteId).or(`last_seen_at.is.null,last_seen_at.lt.${seenAt}`);
     if (error) {
       console.error('notifications/seen update failed:', error);
       return NextResponse.json({ error: 'Failed to mark seen' }, { status: 500 });
