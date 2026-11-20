@@ -23,7 +23,8 @@ Body `{ body (≤280 visible chars), topicId?, imageUrl? (https), breaking?, pin
 - Unknown `topicId` → `400`; table missing → `503 "migration 154 not applied"`.
 - Synthetic fixtures must use non-breaking, mention-free bodies.
 
-## Gap: no route creates a topic
-Nothing in `src/app/api` inserts into `club_update_topics`; a Valencia topic (`event_id` = the event) exists only if
-inserted in the DB. Options, each needs authority: (a) staff `POST /api/club-updates/topics { eventId, name }`
-(admin-gated, no push); (b) a one-row SQL insert by the owner. Until then the native screen must handle `topics: []`.
+## Create a topic: `POST /api/club-updates/topics` (branch `u21-manager-events`, local)
+Body `{ name (1–80), eventId? (existing event uuid), pinnedText? (≤280) }`. **Admin only** (`clubUpdates.admin`;
+a writer gets 403). Sends nothing. `200 { topic: { id, eventId, name, pinnedText, opensAt, closesAt } }`.
+`400` invalid / unknown event, `503 "migration 154 not applied"`. Pinned by `clubUpdatesTopicCreate.test.ts`.
+Until it ships, the native screen must handle `topics: []`. No edit/close route yet.
