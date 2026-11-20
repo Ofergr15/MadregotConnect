@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { ParsedWorkout } from '@/lib/ai/types';
 import { createServerClient } from '@/lib/supabase/server';
 import { WEEKLY_PLANS_TAG } from '@/lib/plans/cache';
 import { COACH_ID } from '@/lib/constants';
@@ -7,7 +8,7 @@ import { planRowsFilter, prefersPlan, rowsForReader } from '@/lib/plans/scope';
 import { rethrowIfDynamicBailout } from '@/lib/dynamic-bailout';
 import { getDisplayWeekStart, extractWorkouts, getWorkoutKm, buildWeekBreakdown, dedupeWorkoutsByDay } from '@/lib/plans/workout-parsing';
 import { academyOnlyReader, ownPlanRowsCount, withoutOwnRows } from '@/lib/plans/scope-server';
-import { daySessionWorkouts, mergeDaySessions } from '@/lib/day-session/week-merge';
+import { daySessionWorkouts, daySessionWorkoutsByWeek, mergeDaySessions } from '@/lib/day-session/week-merge';
 
 // A coach pushes a new plan roughly once a week (weekly_plans has only 10
 // rows total, live-verified), so a few minutes of staleness is invisible to
@@ -110,22 +111,23 @@ export async function GET(request: Request) {
       : prevPlan?.parsed_workouts);
     const prevWeekTotal = (prev.weekTotalMin + prev.weekTotalMax) / 2;
 
-    // Weekly volume history + long run progression (longest workout each
-    // week) — merged into a single pass over uniquePlans since both derive
-    // from the same per-plan extractWorkouts/getWorkoutKm work.
+    // Weekly volume history + long run progression, on the SAME basis as this week's range
+    // and the previous week: buildWeekBreakdown (plan-derived pace bands) over each week's plan
+    // merged with that week's published one-day sessions, read once for the whole span.
+    // Shape unchanged: { week, volume, weekNum } and { week, distance }. A week whose plan has
+    // no workouts is still skipped, as before.
     const weeklyVolumes: Array<{ week: string; volume: number; weekNum: number }> = [];
     const longRunProgression: Array<{ week: string; distance: number }> = [];
+    const historyWeeks = uniquePlans.map((p) => p.week_start_date).sort();
+    const historyDays = academyOnly || historyWeeks.length === 0
+      ? new Map<string, ParsedWorkout[]>()
+      : await daySessionWorkoutsByWeek(historyWeeks[0], historyWeeks[historyWeeks.length - 1]);
     for (const plan of uniquePlans) {
-      const workouts = dedupeWorkoutsByDay(extractWorkouts(plan.parsed_workouts));
-      if (workouts.length === 0) continue;
-      let vol = 0;
-      let maxDist = 0;
-      for (const w of workouts) {
-        const km = getWorkoutKm(w);
-        const avg = (km.min + km.max) / 2;
-        vol += avg;
-        if (avg > maxDist) maxDist = avg;
-      }
+      if (extractWorkouts(plan.parsed_workouts).length === 0) continue;
+      const days = historyDays.get(plan.week_start_date) ?? [];
+      const b = buildWeekBreakdown(days.length ? mergeDaySessions(plan.parsed_workouts, days) : plan.parsed_workouts);
+      const vol = (b.weekTotalMin + b.weekTotalMax) / 2;
+      const maxDist = b.sessions.reduce((m, x) => Math.max(m, (x.kmMin + x.kmMax) / 2), 0);
       weeklyVolumes.push({
         week: plan.week_start_date,
         volume: Math.round(vol * 10) / 10,

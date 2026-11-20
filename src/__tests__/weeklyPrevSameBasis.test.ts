@@ -12,7 +12,10 @@ vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => db.client })
 const who = vi.hoisted(() => ({ id: '' }));
 vi.mock('@/lib/auth/self-or-staff', async (orig) => ({ ...(await orig<object>()), resolveVerifiedCaller: async () => ({ denied: null, caller: { athleteId: who.id } }) }));
 const h = vi.hoisted(() => ({ byWeek: {} as Record<string, unknown[]> }));
-vi.mock('@/lib/day-session/week-merge', async (orig) => ({ ...(await orig<object>()), daySessionWorkouts: async (w: string) => h.byWeek[w] ?? [] }));
+vi.mock('@/lib/day-session/week-merge', async (orig) => ({ ...(await orig<object>()),
+  daySessionWorkouts: async (w: string) => h.byWeek[w] ?? [],
+  daySessionWorkoutsByWeek: async () => new Map(Object.entries(h.byWeek)),
+}));
 const weekly = await import('@/app/api/dashboard/weekly/route');
 
 const step = (m: number) => ({ order: 1, type: 'active', durationType: 'distance', durationValue: m, targetType: 'pace', targetPaceMinPerKm: 300, targetPaceMaxPerKm: 320 });
@@ -49,5 +52,14 @@ describe('weekly: previous week on the same basis as this week', () => {
     const expected = buildWeekBreakdown(mergeDaySessions(prevPlan as never, prevDay as never));
     expect(body.prevWeekTotal).toBe(Math.round(((expected.weekTotalMin + expected.weekTotalMax) / 2) * 10) / 10);
     expect(body.prevWeekTotal).toBeGreaterThan(30 + 9 - 0.01); // includes the 9 km one-day session
+  });
+  it('the 20-week history is on the same basis: last week\'s volume == prevWeekTotal, this week\'s == the range midpoint', async () => {
+    const body = await (await weekly.GET(new Request('http://x/api/dashboard/weekly'))).json();
+    const vol = new Map(body.weeklyVolumes.map((v: { week: string; volume: number }) => [v.week, v.volume]));
+    expect(vol.get(prevStart)).toBe(body.prevWeekTotal);
+    expect(vol.get(cur)).toBe(Math.round(((body.weekTotalMin + body.weekTotalMax) / 2) * 10) / 10);
+    const long = new Map(body.longRunProgression.map((v: { week: string; distance: number }) => [v.week, v.distance]));
+    expect(long.get(prevStart)).toBeGreaterThanOrEqual(12); // the longest planned session that week
+    expect(body.weeklyVolumes.map((v: { weekNum: number }) => v.weekNum)).toEqual(body.weeklyVolumes.map((_: unknown, i: number) => i + 1));
   });
 });
