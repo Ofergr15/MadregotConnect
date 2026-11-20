@@ -1,0 +1,136 @@
+{
+  "_note": "Synthetic. sessions[] of GET /api/dashboard/weekly. Paces are seconds per km. groupPaces = [G1, G2, G3], null = no machine target (read notes).",
+  "sessions": [
+    {
+      "key": "day-2-part-1",
+      "dayOfWeek": 2,
+      "name": "Easy 10 km",
+      "type": "easy",
+      "kind": null,
+      "partIndex": 1,
+      "partCount": 2,
+      "optional": false,
+      "kmMin": 10,
+      "kmMax": 10,
+      "kmFrom": "measured",
+      "durationSec": 3150,
+      "steps": [
+        {
+          "order": 1,
+          "type": "active",
+          "durationType": "distance",
+          "durationValue": 10000,
+          "targetType": "pace",
+          "targetPaceMinPerKm": 300,
+          "targetPaceMaxPerKm": 330,
+          "groupPaces": [
+            {
+              "min": 300,
+              "max": 330
+            },
+            {
+              "min": 310,
+              "max": 340
+            },
+            {
+              "min": 320,
+              "max": 350
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "day-2-part-2",
+      "dayOfWeek": 2,
+      "name": "WU + 5×1 km + CD",
+      "type": "intervals",
+      "kind": null,
+      "partIndex": 2,
+      "partCount": 2,
+      "optional": false,
+      "kmMin": 9.8,
+      "kmMax": 10.1,
+      "kmFrom": "assumed",
+      "durationSec": 2755,
+      "steps": [
+        {
+          "order": 1,
+          "type": "warmup",
+          "durationType": "distance",
+          "durationValue": 2000,
+          "targetType": "no_target",
+          "notes": "easy",
+          "groupPaces": [
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "order": 2,
+          "type": "interval",
+          "durationType": "open",
+          "targetType": "no_target",
+          "repeatCount": 5,
+          "repeatSteps": [
+            {
+              "order": 1,
+              "type": "interval",
+              "durationType": "distance",
+              "durationValue": 1000,
+              "targetType": "pace",
+              "targetPaceMinPerKm": 225,
+              "targetPaceMaxPerKm": 225,
+              "groupPaces": [
+                {
+                  "min": 225,
+                  "max": 225
+                },
+                {
+                  "min": 235,
+                  "max": 235
+                },
+                {
+                  "min": 245,
+                  "max": 245
+                }
+              ]
+            },
+            {
+              "order": 2,
+              "type": "recovery",
+              "durationType": "time",
+              "durationValue": 90,
+              "targetType": "no_target",
+              "notes": "jog",
+              "groupPaces": [
+                null,
+                null,
+                null
+              ]
+            }
+          ],
+          "groupPaces": [
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "order": 3,
+          "type": "cooldown",
+          "durationType": "distance",
+          "durationValue": 2000,
+          "targetType": "no_target",
+          "notes": "4:30 (4:40) ((4:50))",
+          "groupPaces": [
+            null,
+            null,
+            null
+          ]
+        }
+      ]
+    }
+  ]
+}
