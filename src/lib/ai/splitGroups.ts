@@ -79,18 +79,22 @@ function splitStep(step: WorkoutStep, group: 1 | 2 | 3): WorkoutStep {
     }
   }
 
-  // A lane's HR values are carried over, but they make HR the step's TARGET only when that lane
-  // has no pace of its own. A step with a pace for this lane (its group pace, or the bracket in the
-  // notes) stays a pace step, as it already does in lane 1 (segments.ts: "pace wins when a step
-  // carries both"); flipping it graded lanes 2/3 on HR for a session written in pace. A step that
-  // gives lane 1 a pace and lanes 2/3 only an HR is still HR for 2/3.
-  const lanePace = group === 2 ? step.group2Pace || extractPacesFromNotes(step.notes).g2
-    : group === 3 ? step.group3Pace || extractPacesFromNotes(step.notes).g3 : null;
-  const pacePrescribed = step.targetType === 'pace' && !!lanePace;
-  if (group === 2 && step.group2HeartRate) {
-    result.targetHrMinPct = step.group2HeartRate.min;
-    result.targetHrMaxPct = step.group2HeartRate.max;
-    if (!pacePrescribed) result.targetType = 'heart_rate';
+  // A lane's HR values become the step's target only when that lane has no pace of its own. A step
+  // with a real pace for this lane (its group pace, or the coach's bracket in the notes) stays a pace
+  // step and keeps no lane HR as a target, as lane 1 already does (segments.ts: "pace wins when a
+  // step carries both"); flipping it graded lanes 2/3 on HR for a session written in pace, and took
+  // the pace off their watch (converter.ts only emits pace for targetType 'pace'). A step that gives
+  // lane 1 a pace and lanes 2/3 only an HR, or one written in HR, stays HR for 2/3.
+  const validPace = (p: { min: number; max: number } | null | undefined) =>
+    !!p && Number.isFinite(p.min) && p.min > 0;
+  const lanePace = group === 2 ? (validPace(step.group2Pace) ? step.group2Pace : extractPacesFromNotes(step.notes).g2)
+    : group === 3 ? (validPace(step.group3Pace) ? step.group3Pace : extractPacesFromNotes(step.notes).g3) : null;
+  const pacePrescribed = step.targetType === 'pace' && validPace(lanePace);
+  const laneHr = group === 2 ? step.group2HeartRate : group === 3 ? step.group3HeartRate : undefined;
+  if (laneHr && !pacePrescribed && Number.isFinite(laneHr.min) && laneHr.min > 0) {
+    result.targetHrMinPct = laneHr.min;
+    result.targetHrMaxPct = laneHr.max;
+    result.targetType = 'heart_rate';
   } else if (group === 3 && step.group3HeartRate) {
     result.targetHrMinPct = step.group3HeartRate.min;
     result.targetHrMaxPct = step.group3HeartRate.max;
