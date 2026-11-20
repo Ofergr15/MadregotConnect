@@ -18,9 +18,10 @@ describe('exposed routes return no raw error text', () => {
   for (const route of EXPOSED) {
     it(`${route}: no NextResponse.json carries an error's .message or details`, () => {
       const src = read(route);
-      const responses = src.match(/NextResponse\.json\([^;]*?\{\s*status:\s*5\d\d\s*\}\)/gs) ?? [];
-      for (const r of responses) {
-        expect(r, r).not.toMatch(/\.message|details:/);
+      // Each NextResponse.json( … ); call on its own, and only the 5xx ones.
+      const calls = src.split('NextResponse.json(').slice(1).map((c) => c.slice(0, c.indexOf(');')));
+      for (const c of calls.filter((x) => /status:\s*5\d\d/.test(x))) {
+        expect(c, c).not.toMatch(/\.message|details:/);
       }
       // Belt and braces: no response anywhere in the file builds on an error's message.
       expect(src).not.toMatch(/NextResponse\.json\(\{[^}]*\b(err|error|e)\b[^}]*\.message/);
