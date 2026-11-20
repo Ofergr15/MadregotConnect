@@ -12,8 +12,8 @@
  *   - not on Vercel (local next dev) → never the dev surface (untouched)
  *   - otherwise: dev Supabase ref, or the dev branch → dev surface
  * On the dev surface every /api request is 404 unless MC_DEV_API_ALLOWLIST=1 AND the
- * exact method + path is one of the seven routes the native app calls (each of which
- * authenticates the caller itself, or is sign-in). Flag unset there → everything 404s.
+ * exact method + path is one of the routes the native app calls (each authenticates the
+ * caller itself, or is sign-in, or is the env-guarded public U21 submit). Flag unset there → everything 404s.
  *
  * Not an auth boundary on its own; exposing that deployment is a separate decision.
  */
@@ -32,6 +32,10 @@ export const DEV_API_ALLOWLIST: ReadonlyArray<readonly [string, string]> = [
   ['GET', '/api/athletes/me'],          // profile — self-or-staff; PUT stays closed
   ['GET', '/api/athletes/summary'],     // profile stats — self-or-staff
   ['GET', '/api/activities/details'],   // run detail — requireMember, hidden fields masked
+  // U21 questionnaire submit (owner go-ahead 2026-11-20, e2e path). Public by design, like the
+  // web /u21 form: no auth, its own env guard (pinned to this dev project, 503 elsewhere),
+  // per-IP rate limit, honeypot, validated fields, stores pending_review only — no mail, no push.
+  ['POST', '/api/u21/register'],
 ];
 
 type Env = Record<string, string | undefined>;
