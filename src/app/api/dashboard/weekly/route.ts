@@ -99,15 +99,12 @@ export async function GET(request: Request) {
     const { dailyDistances, sessions, typeDistribution, weekTotalMin, weekTotalMax, trainingDays } =
       buildWeekBreakdown(dayWorkouts.length ? mergeDaySessions(currentPlan?.parsed_workouts, dayWorkouts) : currentPlan?.parsed_workouts);
 
-    // Previous week volume
-    let prevWeekTotal = 0;
-    const prevWorkouts = dedupeWorkoutsByDay(extractWorkouts(prevPlan?.parsed_workouts));
-    if (prevWorkouts.length > 0) {
-      for (const w of prevWorkouts) {
-        const km = getWorkoutKm(w);
-        prevWeekTotal += (km.min + km.max) / 2;
-      }
-    }
+    // Previous week volume, on the SAME basis as this week's range: buildWeekBreakdown's
+    // estimator (plan-derived pace bands). It used getWorkoutKm without them, so the
+    // week-over-week % compared two different estimators. One-day sessions of the
+    // previous week are still not included (they are not read for that week).
+    const prev = buildWeekBreakdown(prevPlan?.parsed_workouts);
+    const prevWeekTotal = (prev.weekTotalMin + prev.weekTotalMax) / 2;
 
     // Weekly volume history + long run progression (longest workout each
     // week) — merged into a single pass over uniquePlans since both derive

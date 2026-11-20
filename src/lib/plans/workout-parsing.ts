@@ -520,14 +520,14 @@ export function buildWeekBreakdown(parsedWorkouts: any): WeekBreakdown {
   const weekRequiredMin = round1(rawWeekReqMin);
   const weekRequiredMax = round1(rawWeekReqMax);
 
+  // From `sessions`, not re-estimated: the sessions carry the plan-derived pace bands
+  // (planEstimateOptions), and re-running getWorkoutKm WITHOUT them priced every
+  // estimated session differently, so the type bars summed to a number the week's
+  // own range did not contain (140.3 vs a 141.15 midpoint on the owner's 15.11 week).
+  // Same estimator as the totals: the bars now sum to (weekTotalMin + weekTotalMax) / 2.
   const typeDistribution: Record<string, number> = {};
-  for (const w of workouts) {
-    const t = classifyWorkout(w);
-    const km = getWorkoutKm(w);
-    // Rounded once at the end, not per workout: rounding each session first lost
-    // up to 500 m a time, so a week of five sessions could report 2 km less
-    // across the type split than `weekTotalMin/Max` say for the same week.
-    typeDistribution[t] = (typeDistribution[t] || 0) + (km.min + km.max) / 2;
+  for (const s of sessions) {
+    typeDistribution[s.type] = (typeDistribution[s.type] || 0) + (s.kmMin + s.kmMax) / 2;
   }
   for (const t of Object.keys(typeDistribution)) {
     typeDistribution[t] = Math.round(typeDistribution[t] * 10) / 10;
