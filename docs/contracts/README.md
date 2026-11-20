@@ -9,6 +9,7 @@ Each note is backed by tests that run the real route handlers against a fake dat
 | U21 field list (what `answers` must hold) | `u21-fields.md` | `u21FieldSpecContract.test.ts` |
 | Academy form: submit, prefill, open/closed check | `academy-register.md` | `academyRegisterContract.test.ts`, `trackAReadContract.test.ts` |
 | Valencia tab: events, forecast, course map, updates by event, surveys | `valencia.md` | `valenciaContract`, `eventForecast`, `clubUpdatesTopics`, `eventCourseGpx` |
+| Sign-in, session, refresh | `auth-session.md` | `devAllowlistE2E` |
 | Inbox and unread count | `inbox.md` | `inboxContract` |
 | Today screen (weekly dashboard) | `today.md` | `weeklyDashboardContract` |
 | Weekly plan (drafts never reach a runner) | `weekly-plan.md` | `weeklyPlanContract` |
