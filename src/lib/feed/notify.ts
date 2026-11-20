@@ -2,6 +2,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
 import { feedInteractionCopy, kudosCopy, mentionCopy } from '@/lib/notifications/copy';
 import { uniqueMentionedAthleteIds } from '@/lib/feed/mentions';
+import { isTestAccount } from '@/lib/athletes/test-accounts';
 
 export interface FeedInteractionInput {
   authorAthleteId: string | null;
@@ -82,6 +83,8 @@ export async function notifyFeedInteraction(opts: {
 }): Promise<void> {
   const { feedItemId, authorAthleteId, actorAthleteId, actorName, kind, commentBody, itemType } = opts;
   if (!shouldNotifyFeedInteraction(opts)) return;
+  // A test account's likes/comments never reach a real member (migration 182).
+  if (await isTestAccount(createServerClient(), actorAthleteId)) return;
 
   const { isKudos, historyKind } = likeAnnouncement(itemType);
   const asKudos = kind === 'like' && isKudos;

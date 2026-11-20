@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { isTestAccount } from '@/lib/athletes/test-accounts';
 import webpush from 'web-push';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID, isStaffRole } from '@/lib/constants';
@@ -852,6 +853,8 @@ export async function notifyTeammatesOfActivity(activity: {
   if (!athlete) return 0;
   // Not approved yet (#77): the club doesn't hear about their runs until they're in.
   if ((athlete as { approved?: boolean | null }).approved === false) return 0;
+  // A test account's runs never notify followers (migration 182).
+  if (await isTestAccount(supabase, activity.athleteId)) return 0;
 
   const { data: followerLinks } = await supabase
     .from('athlete_follows')
