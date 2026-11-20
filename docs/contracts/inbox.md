@@ -45,3 +45,9 @@ Tests: `inboxContract.test.ts`. All three routes need `Authorization: Bearer <su
   `audience` are pre-formatted Hebrew display strings.
 - `POST { date, action: "approve" | "skip" | "reset" }` and `PUT { mode }` return the same view;
   bad input → 400 `{ error }`. These two are not pinned by the contract test.
+
+## Mark seen: POST /api/notifications/seen (since 2026-11-20)
+`Authorization: Bearer`, no body. Stamps the caller's own `athletes.last_seen_at`, which is what
+clears the unread count. Call it when the inbox screen opens.
+200 `{ seenAt }` · 401 no session · 403 no athlete row · 204 while viewing as someone else (nothing
+changed) · 500 `{ error: "Failed to mark seen" }`. Not on the dev allowlist yet (pending decision).
