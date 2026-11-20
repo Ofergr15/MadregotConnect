@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { NextRequest } from 'next/server';
-import { proxy, config } from '@/proxy';
+import { proxy, config, VERCEL_APP_HOST } from '@/proxy';
 import { DEV_API_ALLOWLIST, DEV_BRANCH, DEV_SUPABASE_REF, isDevSurface } from '@/lib/dev-api-allowlist';
 
 /**
@@ -23,6 +23,15 @@ const passes = (r: Response) => r.headers.get('x-middleware-next') === '1';
 const DEV_DB = `https://${DEV_SUPABASE_REF}.supabase.co`;
 const devPreview = () => setEnv({ VERCEL: '1', VERCEL_ENV: 'preview', NEXT_PUBLIC_SUPABASE_URL: DEV_DB });
 const SEVEN = DEV_API_ALLOWLIST;
+// Every kind of non-API path the deployment can serve: pages, the app shell, Next
+// assets, image optimisation, public files, the service worker, a Server Action POST.
+const NON_API = [
+  '/', '/feed', '/login', '/join/abc', '/dashboard', '/academy-register', '/u21',
+  '/_next/static/chunks/main.js', '/_next/static/css/app.css', '/_next/image?url=%2Flogo.svg&w=64&q=75',
+  '/_next/data/build/index.json', '/images/logo.png', '/logo.svg', '/manifest.json', '/offline.html',
+  '/app-map.html', '/pdf.worker.min.mjs', '/serwist/sw.js', '/favicon.ico', '/robots.txt',
+  '/f/x-tophqed7nf9q', '/plans/training-program',
+];
 const OTHERS: Array<[string, string]> = [
   ['POST', '/api/public/signup'], ['GET', '/api/admin/people'], ['GET', '/api/feed/like'],
   ['GET', '/api/feed/'], ['PUT', '/api/athletes/me'], ['GET', '/api/public/groups'],
@@ -45,11 +54,9 @@ describe('2. dev surface, flag UNSET: fail closed', () => {
     devPreview();
     for (const [m, p] of [...SEVEN, ...OTHERS]) expect(proxy(req(p, m)).status, `${m} ${p}`).toBe(404);
   });
-  it('pages are untouched (locale cookie as before)', () => {
+  it('web pages and assets are closed too', () => {
     devPreview();
-    const r = proxy(req('/feed'));
-    expect(passes(r)).toBe(true);
-    expect(r.cookies.get('NEXT_LOCALE')?.value).toBe('he');
+    for (const p of NON_API) expect(proxy(req(p)).status, p).toBe(404);
   });
   it('the dev branch alone is enough to be the dev surface', () => {
     setEnv({ VERCEL: '1', VERCEL_ENV: 'preview', VERCEL_GIT_COMMIT_REF: DEV_BRANCH, NEXT_PUBLIC_SUPABASE_URL: 'https://otherproj.supabase.co' });
@@ -71,6 +78,14 @@ describe('3. dev surface, flag=1: exactly the seven', () => {
   it('wrong method, trailing slash, look-alikes and every other route 404', () => {
     devPreview(); setEnv({ MC_DEV_API_ALLOWLIST: '1' });
     for (const [m, p] of OTHERS) expect(proxy(req(p, m)).status, `${m} ${p}`).toBe(404);
+  });
+  it('every page, asset and public file 404s, whatever the method', () => {
+    devPreview(); setEnv({ MC_DEV_API_ALLOWLIST: '1' });
+    for (const p of NON_API) for (const m of ['GET', 'HEAD', 'POST']) expect(proxy(req(p, m)).status, `${m} ${p}`).toBe(404);
+  });
+  it('HEAD and OPTIONS on the seven paths 404 (exact method)', () => {
+    devPreview(); setEnv({ MC_DEV_API_ALLOWLIST: '1' });
+    for (const [, p] of SEVEN) for (const m of ['HEAD', 'OPTIONS']) expect(proxy(req(p, m)).status, `${m} ${p}`).toBe(404);
   });
   it('a flag value other than "1" stays closed', () => {
     devPreview(); setEnv({ MC_DEV_API_ALLOWLIST: 'true' });
@@ -97,9 +112,45 @@ describe('5. not on Vercel (local next dev) is untouched', () => {
   });
 });
 
+describe('outside the dev surface nothing changes', () => {
+  it('production: pages keep the locale cookie; assets reached via the vercel.app matcher pass untouched', () => {
+    setEnv({ VERCEL: '1', VERCEL_ENV: 'production', NEXT_PUBLIC_SUPABASE_URL: DEV_DB, VERCEL_GIT_COMMIT_REF: DEV_BRANCH, MC_DEV_API_ALLOWLIST: '1' });
+    const page = proxy(req('/feed'));
+    expect(passes(page)).toBe(true);
+    expect(page.cookies.get('NEXT_LOCALE')?.value).toBe('he');
+    // (/_next/data/… is normalised by Next into its page path, so it is a page here — as before.)
+    for (const p of NON_API.filter((x) => !x.startsWith('/_next/data') && (x.includes('.') || x.startsWith('/_next') || x.startsWith('/serwist') || x.startsWith('/images')))) {
+      const r = proxy(req(p));
+      expect(passes(r), p).toBe(true);
+      expect(r.headers.get('set-cookie'), p).toBeNull();
+    }
+  });
+  it('another preview and local dev serve pages and assets as before', () => {
+    setEnv({ VERCEL: '1', VERCEL_ENV: 'preview', VERCEL_GIT_COMMIT_REF: 'some-feature', NEXT_PUBLIC_SUPABASE_URL: 'https://otherproj.supabase.co' });
+    for (const p of NON_API) expect(passes(proxy(req(p))), p).toBe(true);
+    KEYS.forEach((k) => delete process.env[k]);
+    for (const p of NON_API) expect(passes(proxy(req(p))), p).toBe(true);
+  });
+});
+
 describe('matcher and the native app', () => {
   it('matcher covers /api alongside pages', () => {
     expect(config.matcher).toContain('/api/:path*');
+  });
+  it('a third entry sends EVERY path on *.vercel.app hosts through the proxy, never the production domain', () => {
+    const entry = (config.matcher as unknown[]).find((m) => typeof m === 'object') as { source: string; has: Array<{ type: string; value: string }> };
+    expect(entry.source).toBe('/:path*');
+    expect(entry.has).toEqual([{ type: 'host', value: VERCEL_APP_HOST }]);
+    // Next anchors the value: new RegExp(`^${value}$`) against the lowercased host.
+    const host = new RegExp(`^${VERCEL_APP_HOST}$`);
+    for (const h of ['madregot-connect-git-u21-personal-coach-st-d1c4461c.vercel.app', 'madregot-connect-d1makpjf8-st-d1c4461c.vercel.app', 'madregot-connect.vercel.app'])
+      expect(host.test(h), h).toBe(true);
+    for (const h of ['madregot.app', 'www.madregot.app', 'vercel.app.evil.example', 'xvercel.app', 'localhost'])
+      expect(host.test(h), h).toBe(false);
+  });
+  it('the matcher literal in proxy.ts is the exported constant (Next reads it statically)', () => {
+    const src = readFileSync(join(ROOT, 'src', 'proxy.ts'), 'utf8');
+    expect(src).toContain(`{ source: '/:path*', has: [{ type: 'host', value: '${VERCEL_APP_HOST.replace(/\\/g, '\\\\')}' }] }`);
   });
   it('every allowed path is a real route', () => {
     for (const [, p] of SEVEN) expect(existsSync(join(ROOT, 'src', 'app', p, 'route.ts')), p).toBe(true);
