@@ -74,3 +74,17 @@ from the coach's personal link) is the credential. Always 200:
   or any server error — open the form empty.
 - Note: an **archived** card whose invite is still inside the TTL still returns its prefill
   (`archived_at` is read but not checked here; the POST's closed-door check does check it).
+
+## Order of calls (do what the web page does)
+
+1. `GET /api/academy/registration?i=<token>` → read `canRegister`. If it is `false`, show
+   "registration is closed" and stop — do **not** show a form, prefilled or not.
+2. Only then `GET /api/academy/register?i=<token>` for the prefill.
+3. `POST /api/academy/register`.
+
+Why: the prefill does not check whether registration is open, so on its own it can fill a form
+whose POST then answers 403. The web page avoids this by checking `canRegister` first
+(`src/app/academy-register/page.tsx:301`). An archived card follows the same rule: with
+registration open it still prefills, and submitting brings the card back onto the board
+(`src/lib/academy/intake-server.ts:96-100`). With registration closed, an archived card's
+invite no longer opens it (`src/lib/academy/registration.ts:30-40`).
