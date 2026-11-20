@@ -47,7 +47,7 @@ describe('rep completion: current vs proposed', () => {
     expect(r).toMatchObject({ currentComplete: false, reps: 'all_done', run: '5/5' });
     expect(r.skipped).toHaveLength(1);
   });
-  it('a rep missing: current says complete; proposal says missing', () => {
+  it('a rep missing (all laps stamped, none long): current says complete; proposal says missing', () => {
     expect(both(run([ON, ON, ON, ON]))).toMatchObject({ currentComplete: true, reps: 'missing', run: '4/5' });
   });
   it('lap loss: a rep run in an unstamped lap → unknown, never counted as missing or done', () => {

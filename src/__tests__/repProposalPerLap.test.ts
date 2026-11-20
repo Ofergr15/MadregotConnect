@@ -24,29 +24,42 @@ const rep = () => [lap(1000, 225, 1), lap(250, 90, 2)];
 const say = (laps: StoredLap[]) => {
   const report = gradeWatchSteps(workout, laps, 1);
   const p = proposedRepCompletion(report, laps);
-  return p && { reps: p.reps, run: `${p.repsRun}/${p.repsPlanned}`, skipped: p.skipped.length, currentComplete: report!.complete };
+  return p && { reps: p.reps, reason: p.reason, run: `${p.repsRun}/${p.repsPlanned}`, skipped: p.skipped.length, currentComplete: report!.complete };
 };
 
 describe('rep proposal: per-lap cases (characterization)', () => {
   it('a manual lap press inside a rep (two consecutive laps, same step) is ONE rep', () => {
     const laps = [lap(2000, 620, 0), lap(500, 112, 1), lap(500, 113, 1), lap(250, 90, 2), ...Array.from({ length: 4 }, rep).flat(), lap(2000, 640, 4)];
-    expect(say(laps)).toEqual({ reps: 'all_done', run: '5/5', skipped: 0, currentComplete: true });
+    expect(say(laps)).toEqual({ reps: 'all_done', reason: null, run: '5/5', skipped: 0, currentComplete: true });
   });
   it('an unstamped lap that is not a rep (a stray auto-lap before the warm-up) does not cast doubt when nothing is short', () => {
     const laps = [lap(300, 100), lap(2000, 620, 0), ...Array.from({ length: 5 }, rep).flat(), lap(2000, 640, 4)];
-    expect(say(laps)).toEqual({ reps: 'all_done', run: '5/5', skipped: 0, currentComplete: true });
+    expect(say(laps)).toEqual({ reps: 'all_done', reason: null, run: '5/5', skipped: 0, currentComplete: true });
   });
-  it('short AND an unstamped lap anywhere → unknown (it cannot tell where the unstamped lap sits)', () => {
+  it('short AND an unstamped lap anywhere → unknown / unstamped_laps (it cannot tell where the unstamped lap sits)', () => {
     const laps = [lap(2000, 620, 0), ...Array.from({ length: 4 }, rep).flat(), lap(2000, 640, 4), lap(400, 150)];
-    expect(say(laps)).toMatchObject({ reps: 'unknown', run: '4/5' });
+    expect(say(laps)).toMatchObject({ reps: 'unknown', reason: 'unstamped_laps', run: '4/5' });
   });
-  it('GAP, recorded: a sixth rep (over-run) reads all_done 6/5; over-counting is not flagged', () => {
+  it('a sixth rep (over-run) is flagged: extra / more_than_planned, 6/5, extraReps 1', () => {
     const laps = [lap(2000, 620, 0), ...Array.from({ length: 6 }, rep).flat(), lap(2000, 640, 4)];
-    expect(say(laps)).toEqual({ reps: 'all_done', run: '6/5', skipped: 0, currentComplete: true });
+    const report = gradeWatchSteps(workout, laps, 1);
+    expect(proposedRepCompletion(report, laps)).toMatchObject({ reps: 'extra', reason: 'more_than_planned', repsRun: 6, repsPlanned: 5, extraReps: 1 });
   });
-  it('GAP, recorded: a recovery skipped with the lap button merges two reps into one stamped run → 4/5 missing', () => {
-    // rep, rep back-to-back with no recovery lap between them: consecutive laps of step 1 are ONE occurrence.
+  it('a recovery skipped with the lap button (two reps merged into one 2 km occurrence) → unknown / possible_merged_reps, never missing', () => {
     const laps = [lap(2000, 620, 0), lap(1000, 225, 1), lap(1000, 226, 1), lap(250, 90, 2), ...Array.from({ length: 3 }, rep).flat(), lap(2000, 640, 4)];
+    expect(say(laps)).toMatchObject({ reps: 'unknown', reason: 'possible_merged_reps', run: '4/5' });
+  });
+  it('INDISTINGUISHABLE: one rep run long (2 km in one lap) and a cut set give the same laps → the same unknown', () => {
+    const merged = [lap(2000, 620, 0), lap(1000, 225, 1), lap(1000, 226, 1), lap(250, 90, 2), ...Array.from({ length: 3 }, rep).flat(), lap(2000, 640, 4)];
+    const oneLong = [lap(2000, 620, 0), lap(2000, 451, 1), lap(250, 90, 2), ...Array.from({ length: 3 }, rep).flat(), lap(2000, 640, 4)];
+    expect(say(oneLong)).toEqual(say(merged));
+  });
+  it('a plainly short set (4 normal reps, every lap stamped, nothing long) → missing', () => {
+    const laps = [lap(2000, 620, 0), ...Array.from({ length: 4 }, rep).flat(), lap(2000, 640, 4)];
+    expect(say(laps)).toMatchObject({ reps: 'missing', reason: null, run: '4/5' });
+  });
+  it('a slightly long rep (1.3 km, under the 1.5× line) on a short set is still missing, not unknown', () => {
+    const laps = [lap(2000, 620, 0), lap(1300, 300, 1), lap(250, 90, 2), ...Array.from({ length: 3 }, rep).flat(), lap(2000, 640, 4)];
     expect(say(laps)).toMatchObject({ reps: 'missing', run: '4/5' });
   });
   it('no stamped laps at all (watch did not stamp) → no answer, never a count', () => {
@@ -55,6 +68,6 @@ describe('rep proposal: per-lap cases (characterization)', () => {
   });
   it('cooldown cut short but run: reps all_done and nothing named skipped (truncation is not skipping)', () => {
     const laps = [lap(2000, 620, 0), ...Array.from({ length: 5 }, rep).flat(), lap(300, 100, 4)];
-    expect(say(laps)).toEqual({ reps: 'all_done', run: '5/5', skipped: 0, currentComplete: true });
+    expect(say(laps)).toEqual({ reps: 'all_done', reason: null, run: '5/5', skipped: 0, currentComplete: true });
   });
 });
