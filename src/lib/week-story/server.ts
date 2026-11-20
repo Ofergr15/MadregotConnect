@@ -89,7 +89,12 @@ async function runsBetween(db: Db, athleteId: string, from: string, to: string):
 /** Whether a week's published one-day sessions are in its plan numbers. */
 export type DaySessionCoverage = 'included' | 'unavailable' | 'not_applicable';
 
-export async function planBreakdownFor(db: Db, athleteId: string, weekStart: string, opts: { ownOnly?: boolean } = {}) {
+/**
+ * The week's plan numbers AND whether its one-day sessions are in them, kept apart so the coverage survives even
+ * when there are no numbers: no plan row + a failed one-day read → { breakdown: null, daySessionCoverage: 'unavailable' },
+ * which is not the same as "no plan" ({ breakdown: null, daySessionCoverage: 'included' }). Nothing is fabricated.
+ */
+export async function planWeekFor(db: Db, athleteId: string, weekStart: string, opts: { ownOnly?: boolean } = {}) {
   const [{ data: rowsRaw }, own] = await Promise.all([
     db.from('weekly_plans').select('parsed_workouts, status, created_at, athlete_id')
       .eq('coach_id', COACH_ID).or(planRowsFilter(athleteId)).eq('week_start_date', weekStart),
@@ -97,19 +102,24 @@ export async function planBreakdownFor(db: Db, athleteId: string, weekStart: str
   ]);
   const rows = withoutOwnRows(rowsRaw, own);
   const plan = pickPlan(rows, athleteId);
-  if (opts.ownOnly && !plan?.athlete_id) return null;
+  if (opts.ownOnly && !plan?.athlete_id) return { breakdown: null, daySessionCoverage: 'not_applicable' as DaySessionCoverage };
   // Checked: a failed read is carried as daySessionCoverage 'unavailable' (plan-only numbers), never as "none".
   const days = opts.ownOnly ? null : await daySessionWorkoutsChecked(weekStart);
   const dayWorkouts = days?.ok ? days.workouts : [];
   const daySessionCoverage: DaySessionCoverage = days === null ? 'not_applicable' : days.ok ? 'included' : 'unavailable';
-  if (!plan) return dayWorkouts.length ? { ...buildWeekBreakdown({ workouts: dayWorkouts }), daySessionCoverage } : null;
+  if (!plan) return { breakdown: dayWorkouts.length ? { ...buildWeekBreakdown({ workouts: dayWorkouts }), daySessionCoverage } : null, daySessionCoverage };
   let parsed = plan.parsed_workouts;
   if (!plan.athlete_id) {
     const lane = (await groupNumberForAthlete(db as never, athleteId, weekStart)) as Lane;
     const workouts = laneWorkouts(plan.parsed_workouts, lane);
     if (workouts.length) parsed = { workouts };
   }
-  return { ...buildWeekBreakdown(dayWorkouts.length ? mergeDaySessions(parsed, dayWorkouts) : parsed), daySessionCoverage };
+  return { breakdown: { ...buildWeekBreakdown(dayWorkouts.length ? mergeDaySessions(parsed, dayWorkouts) : parsed), daySessionCoverage }, daySessionCoverage };
+}
+
+/** The week's plan numbers, or null when there are none (callers that only need the numbers: next week's preview, longFor). */
+export async function planBreakdownFor(db: Db, athleteId: string, weekStart: string, opts: { ownOnly?: boolean } = {}) {
+  return (await planWeekFor(db, athleteId, weekStart, opts)).breakdown;
 }
 
 /** The Israeli wall clock of the story week's last moment that counts: now on Saturday, else Saturday night. */
@@ -366,7 +376,8 @@ export async function loadWeekStory(db: Db, athleteId: string, today: string, ho
   const full = pw.weeks.slice(0, -1).map((x) => x.km);
   const biggest = full.length && pw.km > Math.max(...full) ? full.length + 1 : 0;
 
-  const planP = planBreakdownFor(db, athleteId, w.weekStart).catch(() => null);
+  const weekP = planWeekFor(db, athleteId, w.weekStart).catch(() => ({ breakdown: null, daySessionCoverage: null }));
+  const planP = weekP.then((r) => r.breakdown);
   const weekRuns = filterQualifyingRuns(acts).filter((r) => r.start_time.slice(0, 10) >= w.weekStart);
   const [name, plan, records, quality, pack, club, academy, long, layout, more] = await Promise.all([
     greetName(db, athleteId, athlete.name),
@@ -402,7 +413,8 @@ export async function loadWeekStory(db: Db, athleteId: string, today: string, ho
       packRank: pack ? { rank: pack.rank, of: pack.of, lastRank: pack.lastRank } : null,
     },
     plannedKm: sum.plannedKm > 0 ? sum.days.map((d) => d.planned) : null,
-    planCoverage: plan ? plan.daySessionCoverage : null,
+    // null only when there is truly no plan; 'unavailable' when there is no plan row AND the one-day read failed.
+    planCoverage: plan ? plan.daySessionCoverage : (await weekP).daySessionCoverage === 'unavailable' ? 'unavailable' : null,
     missed: sum.days.map((d) => d.missed),
     biggestInWeeks: biggest,
     weeksKm: pw.weeks.map((x) => x.km),

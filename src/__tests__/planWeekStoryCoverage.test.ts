@@ -12,11 +12,11 @@ vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => db.client })
 const who = vi.hoisted(() => ({ id: '' }));
 vi.mock('@/lib/auth/self-or-staff', async (orig) => ({ ...(await orig<object>()),
   resolveVerifiedCaller: async () => ({ denied: null, caller: { athleteId: who.id, isStaff: false, isSuperUser: false } }) }));
-const h = vi.hoisted(() => ({ fail: false, days: [] as unknown[] }));
+const h = vi.hoisted(() => ({ fail: false, days: [] as unknown[], calls: 0 }));
 vi.mock('@/lib/day-session/week-merge', async (orig) => ({ ...(await orig<object>()),
-  daySessionWorkoutsChecked: async () => (h.fail ? { ok: false } : { ok: true, workouts: h.days }) }));
+  daySessionWorkoutsChecked: async () => { h.calls++; return h.fail ? { ok: false } : { ok: true, workouts: h.days }; } }));
 const weekRoute = await import('@/app/api/plans/week/route');
-const { planBreakdownFor } = await import('@/lib/week-story/server');
+const { planBreakdownFor, planWeekFor } = await import('@/lib/week-story/server');
 
 const WEEK = '2026-11-15';
 const step = (m: number) => ({ order: 1, type: 'active', durationType: 'distance', durationValue: m, targetType: 'pace', targetPaceMinPerKm: 300, targetPaceMaxPerKm: 320 });
@@ -35,7 +35,7 @@ function seed(withPlan: boolean) {
   db.tables.athletes.push({ id: ME, name: 'Me', is_academy: false, group_id: null, groups: null, garmin_auth: null });
   if (withPlan) db.tables.weekly_plans.push({ id: uid(), coach_id: COACH_ID, athlete_id: null, week_start_date: WEEK, parsed_workouts: plan, status: 'pushed', created_at: '2026-11-14T00:00:00Z' });
 }
-beforeEach(() => { who.id = ME; h.fail = false; h.days = day; seed(true); });
+beforeEach(() => { who.id = ME; h.fail = false; h.days = day; h.calls = 0; seed(true); });
 
 describe('GET /api/plans/week: coverage', () => {
   it('included: plan + one-day session merged, coverage included', async () => {
@@ -67,5 +67,40 @@ describe('week story planBreakdownFor: coverage', () => {
     expect(r?.daySessionCoverage).toBe('unavailable');
     expect(r?.weekTotalMax).toBeLessThan(23);
     expect(await planBreakdownFor(db.client as never, ME, WEEK, { ownOnly: true })).toBeNull(); // club row, ownOnly → null
+  });
+});
+
+describe('week story planWeekFor: coverage survives when there are no numbers', () => {
+  it('NO plan row + the one-day read FAILS → { breakdown: null, unavailable }, not "no plan"', async () => {
+    seed(false); h.fail = true;
+    expect(await planWeekFor(db.client as never, ME, WEEK)).toEqual({ breakdown: null, daySessionCoverage: 'unavailable' });
+  });
+  it('NO plan row + the read SUCCEEDS with no sessions → { breakdown: null, included }: truly nothing that week', async () => {
+    seed(false); h.days = [];
+    expect(await planWeekFor(db.client as never, ME, WEEK)).toEqual({ breakdown: null, daySessionCoverage: 'included' });
+  });
+  it('NO plan row + sessions read → numbers from the sessions, included', async () => {
+    seed(false);
+    const r = await planWeekFor(db.client as never, ME, WEEK);
+    expect(r.daySessionCoverage).toBe('included');
+    expect(r.breakdown?.weekTotalMax).toBeGreaterThan(8.9);
+  });
+  it('ownOnly with the athlete\'s OWN plan row: numbers, not_applicable, and the one-day read is never made', async () => {
+    seed(false);
+    // Own rows count only for an academy athlete (scope-server ownPlanRowsCount); a club runner's own rows are dropped.
+    db.tables.athletes[0].is_academy = true;
+    db.tables.weekly_plans.push({ id: uid(), coach_id: COACH_ID, athlete_id: ME, week_start_date: WEEK, parsed_workouts: plan, status: 'pushed', created_at: '2026-11-14T00:00:00Z' });
+    const r = await planWeekFor(db.client as never, ME, WEEK, { ownOnly: true });
+    expect(r.daySessionCoverage).toBe('not_applicable');
+    expect(r.breakdown?.weekTotalMax).toBeGreaterThan(21.9);
+    expect(h.calls).toBe(0);
+  });
+  it('ownOnly with only a club row: no numbers, not_applicable, no read', async () => {
+    expect(await planWeekFor(db.client as never, ME, WEEK, { ownOnly: true })).toEqual({ breakdown: null, daySessionCoverage: 'not_applicable' });
+    expect(h.calls).toBe(0);
+  });
+  it('planBreakdownFor (numbers only) is planWeekFor().breakdown', async () => {
+    seed(false); h.fail = true;
+    expect(await planBreakdownFor(db.client as never, ME, WEEK)).toBeNull();
   });
 });
