@@ -9,6 +9,13 @@ Each note is backed by tests that run the real route handlers against a fake dat
 | U21 field list (what `answers` must hold) | `u21-fields.md` | `u21FieldSpecContract.test.ts` |
 | Academy form: submit, prefill, open/closed check | `academy-register.md` | `academyRegisterContract.test.ts`, `trackAReadContract.test.ts` |
 | Valencia tab: events, forecast, course map, updates by event, surveys | `valencia.md` | `valenciaContract`, `eventForecast`, `clubUpdatesTopics`, `eventCourseGpx` |
+| Inbox and unread count | `inbox.md` | `inboxContract` |
+| Today screen (weekly dashboard) | `today.md` | `weeklyDashboardContract` |
+| Weekly plan (drafts never reach a runner) | `weekly-plan.md` | `weeklyPlanContract` |
+| Feed, likes | `feed.md` | `feedContract` |
+| Run details (GPS, splits, owner-only HR trace) | `run-details.md` | `activityDetailsContract` |
+| Apple Watch device API (`/api/device/*`) | `watch-device.md` | `deviceApiContract` |
+| Staff write permissions by role | `staff-write-authz.md` | `staffWriteAuthz` |
 
 ## Not built on the server (no contract possible yet)
 

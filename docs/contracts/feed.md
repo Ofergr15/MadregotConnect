@@ -13,7 +13,7 @@ Every call needs `Authorization: Bearer <supabase jwt>`.
 - Optional filters: `types=announcement,post` (unknown values are ignored), `squad=<groupId|academy|favorites|mine>`,
   `athlete=<uuid>` (a bad uuid gets 400 `{ error: "Invalid athlete" }`).
 - Errors: 401/403 `{ error }` come from the session gate (403 means pending, inactive or no membership).
-  An unparseable cursor gets 400 `{ error: "Invalid cursor" }`. Anything else is 500 `{ error }`.
+  An unparseable cursor gets 400 `{ error: "Invalid cursor" }`. Anything else is 500 `{ error: "Failed to load feed" }` (never DB text).
 
 `FeedItem` = `{ id, type: "activity"|"post"|"achievement"|"announcement"|"new_plan", author: { athleteId|null, name,
 avatarUrl|null, groupName|null }, body|null, media: [{ path, url, w|null, h|null }], payload|null, occurredAt,
@@ -40,6 +40,6 @@ planVerdict|null, qualityName|null }`.
 - This is a **toggle**. 200 `{ liked: boolean, likeCount, likePreview: Liker[] }`. Replace the card's like state
   with what comes back.
 - 400 `{ error: "itemId required" }` · 404 `{ error: "Feed item not found" }` · 401 with no session ·
-  403 for a session with no active athlete row (for example a coach-only account) · 500 `{ error }`.
+  403 for a session with no active athlete row (for example a coach-only account) · 500 `{ error: "Failed" }`.
 - If a double tap races, the result is still `liked: true`. Debounce anyway, because two taps that don't race
   turn the like back off.
