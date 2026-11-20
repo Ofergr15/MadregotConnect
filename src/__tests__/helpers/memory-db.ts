@@ -143,6 +143,10 @@ export function createMemoryDb(opts: MemoryDbOptions) {
     eq(c: string, v: unknown) { return this.add(`${c}=eq.${v}`, (r) => r[c] === v); }
     neq(c: string, v: unknown) { return this.add(`${c}=neq.${v}`, (r) => r[c] !== v); }
     is(c: string, v: unknown) { return this.add(`${c}=is.${v}`, (r) => (v === null ? r[c] == null : r[c] === v)); }
+    ilike(c: string, pattern: string) {
+      const re = new RegExp('^' + pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.') + '$', 'i');
+      return this.add(`${c}=ilike.${pattern}`, (r) => typeof r[c] === 'string' && re.test(r[c]));
+    }
     in(c: string, vs: unknown[]) { return this.add(`${c}=in.(${vs.join(',')})`, (r) => vs.includes(r[c])); }
     contains(c: string, vs: unknown[]) { return this.add(`${c}=cs.{${vs.join(',')}}`, (r) => Array.isArray(r[c]) && vs.every((v) => (r[c] as unknown[]).includes(v))); }
     gte(c: string, v: any) { return this.add(`${c}=gte.${v}`, (r) => r[c] != null && r[c] >= v); }
