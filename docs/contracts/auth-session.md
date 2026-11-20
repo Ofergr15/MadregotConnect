@@ -21,5 +21,5 @@ involved, which is why none is on the allowlist.
   activities/details, u21/register (`src/lib/dev-api-allowlist.ts`). Requires `MC_DEV_API_ALLOWLIST=1`.
 - **Not** allowlisted (404 there): `/api/auth/me`, `/api/notifications/*` including
   `POST /api/notifications/seen`.
-- The preview is behind Vercel Deployment Protection: every request also needs the
-  `x-vercel-protection-bypass` header, or Vercel answers 401 before our code runs.
+- The preview is behind Vercel Deployment Protection, so Vercel answers 401 before our code runs.
+  Access is pending a scoped domain-exception decision. No bypass secret goes into the app.
