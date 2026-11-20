@@ -7,6 +7,7 @@ import { encrypt } from '@/lib/encryption';
 import { COACH_ID } from '@/lib/constants';
 import { resolveAppOrigin, stravaAuthEmail } from '@/lib/strava/client';
 import { createSyntheticSession } from '@/lib/auth/synthetic-session';
+import { verifyLinkState } from '@/lib/strava/link-state';
 import {
   duplicatesToFold,
   isSyntheticAuthEmail,
@@ -327,13 +328,20 @@ export async function GET(request: Request) {
 
     // ── Coach link mode ──────────────────────────────────────────────────────
     if (!isLogin) {
+      // Only a state this server signed for this athlete (lib/strava/link-state.ts).
+      // A bare id — or anything else — is refused before any write.
+      const linkAthleteId = verifyLinkState(state);
+      if (!linkAthleteId) {
+        console.warn(`[auth-debug:${debugId}] callback:link_state_rejected`);
+        return NextResponse.redirect(new URL('/dashboard/athletes?strava=error&reason=bad_state', origin));
+      }
       const supabase = createServerClient();
       // Whether Garmin is already connected decides one field below, so it is read
       // before the write rather than after.
       const { data: linkTarget } = await supabase
         .from('athletes')
         .select('garmin_auth')
-        .eq('id', state)
+        .eq('id', linkAthleteId)
         .maybeSingle();
       const { error } = await supabase
         .from('athletes')
@@ -350,7 +358,7 @@ export async function GET(request: Request) {
           ...(linkTarget?.garmin_auth ? {} : { data_source: 'strava' }),
           ...(avatar ? { avatar_url: avatar } : {}),
         })
-        .eq('id', state);
+        .eq('id', linkAthleteId);
       if (error) {
         console.error('Failed to save Strava auth:', error);
         return NextResponse.redirect(

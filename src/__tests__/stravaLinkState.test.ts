@@ -1,0 +1,46 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { signLinkState, verifyLinkState, isLinkState, LINK_STATE_MAX_AGE_SECONDS } from '@/lib/strava/link-state';
+import { parseLoginState } from '@/lib/auth/login-handoff';
+
+const KEY = 'k'.repeat(40);
+let saved: string | undefined;
+beforeEach(() => { saved = process.env.ENCRYPTION_KEY; process.env.ENCRYPTION_KEY = KEY; });
+afterEach(() => { process.env.ENCRYPTION_KEY = saved; });
+
+describe('Strava link state', () => {
+  const id = '00000000-0000-4000-8000-000000000001';
+  it('round-trips the athlete id', () => {
+    const st = signLinkState(id, 1000)!;
+    expect(isLinkState(st)).toBe(true);
+    expect(verifyLinkState(st, 1000 + 5)).toBe(id);
+  });
+  it('a bare athlete id (the old state) is refused', () => {
+    expect(verifyLinkState(id)).toBeNull();
+  });
+  it('a tampered id or signature is refused', () => {
+    const st = signLinkState(id, 1000)!;
+    const [p, b, t, n, sig] = st.split('.');
+    const otherId = Buffer.from('00000000-0000-4000-8000-000000000002').toString('base64url');
+    expect(verifyLinkState([p, otherId, t, n, sig].join('.'), 1001)).toBeNull();
+    expect(verifyLinkState([p, b, t, n, sig.slice(0, -2) + 'AA'].join('.'), 1001)).toBeNull();
+  });
+  it('expires after 10 minutes and refuses a state issued in the future', () => {
+    const st = signLinkState(id, 1000)!;
+    expect(verifyLinkState(st, 1000 + LINK_STATE_MAX_AGE_SECONDS)).toBe(id);
+    expect(verifyLinkState(st, 1000 + LINK_STATE_MAX_AGE_SECONDS + 1)).toBeNull();
+    expect(verifyLinkState(signLinkState(id, 5000)!, 1000)).toBeNull();
+  });
+  it('a different key refuses it, and no usable key fails closed both ways', () => {
+    const st = signLinkState(id, 1000)!;
+    process.env.ENCRYPTION_KEY = 'x'.repeat(40);
+    expect(verifyLinkState(st, 1001)).toBeNull();
+    process.env.ENCRYPTION_KEY = 'short';
+    expect(signLinkState(id)).toBeNull();
+    expect(verifyLinkState(st)).toBeNull();
+  });
+  it('login and join states are still parsed as before, and a link state is not login', () => {
+    expect(parseLoginState('login').isLogin).toBe(true);
+    expect(parseLoginState('join:' + 'a'.repeat(32)).isLogin).toBe(false);
+    expect(parseLoginState(signLinkState(id)!).isLogin).toBe(false);
+  });
+});
