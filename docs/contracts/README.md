@@ -10,6 +10,8 @@ Each note is backed by tests that run the real route handlers against a fake dat
 | Academy form: submit, prefill, open/closed check | `academy-register.md` | `academyRegisterContract.test.ts`, `trackAReadContract.test.ts` |
 | Valencia tab: events, forecast, course map, updates by event, surveys | `valencia.md` | `valenciaContract`, `eventForecast`, `clubUpdatesTopics`, `eventCourseGpx` |
 | Sign-in, session, refresh | `auth-session.md` | `devAllowlistE2E`, `syntheticSessionFailClosed` |
+| Outbound egress map (mail, push, APNs, staff, Garmin, AI) | `egress-map.md` | — |
+| Proposal: default-deny outbound outside production | `outbound-policy.md` | `outboundPolicy` |
 | Auth errors: definitive vs transient | `auth-errors.md` | `authErrorContract` |
 | Inbox and unread count | `inbox.md` | `inboxContract` |
 | Today screen (weekly dashboard) | `today.md` | `weeklyDashboardContract` |
