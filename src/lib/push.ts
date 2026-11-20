@@ -35,7 +35,7 @@ export function computeMaintenanceAllowedIds(
  * maintenance allowlist (or an approver) may receive push. Returns the subs
  * unchanged when maintenance is off. Fails OPEN (returns all) on error.
  */
-async function filterForMaintenance(subs: SubRow[]): Promise<SubRow[]> {
+export async function filterForMaintenance<T extends { athlete_id: string }>(subs: T[]): Promise<T[]> {
   try {
     const supabase = createServerClient();
     const { data } = await supabase.from('app_settings').select('key, value').in('key', ['maintenance_mode', 'maintenance_allow']);
@@ -129,12 +129,12 @@ export function actionScopeFor(payload: PushPayload): string | null {
 
 type SubRow = { id: string; endpoint: string; p256dh: string; auth: string; athlete_id: string };
 
-type DeliveryRow = { nid: string; athlete_id: string | null; subscription_id: string | null; kind: string | null; title: string; accepted: boolean; error: string | null };
+export type DeliveryRow = { nid: string; athlete_id: string | null; subscription_id: string | null; kind: string | null; title: string; accepted: boolean; error: string | null };
 /**
  * One row per push per device (migration 171, lib/push-deliveries). Best effort: a missing
  * table (171 not pasted) or a failed write never touches the send itself.
  */
-async function recordDeliveries(rows: DeliveryRow[]): Promise<void> {
+export async function recordDeliveries(rows: DeliveryRow[]): Promise<void> {
   if (!rows.length) return;
   try {
     await createServerClient().from('push_deliveries').insert(rows);
@@ -175,7 +175,7 @@ export function computeMutedAthleteIds(
  * has ever opened the notification settings, would keep receiving the social
  * firehose this change exists to quiet.
  */
-async function filterByCategory(subs: SubRow[], category?: NotificationCategory): Promise<SubRow[]> {
+export async function filterByCategory<T extends { athlete_id: string }>(subs: T[], category?: NotificationCategory): Promise<T[]> {
   if (!category || subs.length === 0) return subs;
   try {
     const supabase = createServerClient();
@@ -378,7 +378,7 @@ export async function sendPushLocalized(
   return { sent, byAthlete };
 }
 
-async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string, number>> {
+export async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
   if (athleteIds.length === 0) return counts;
   const supabase = createServerClient();
