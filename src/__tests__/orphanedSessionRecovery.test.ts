@@ -171,13 +171,11 @@ describe('synthetic-session mints without revoking other devices', () => {
     );
   };
 
-  it('reaches for a magic link before it reaches for a password', () => {
+  it('mints with a magic link and NEVER rotates a password (no fallback since 2026-11-20)', () => {
     const src = source();
-    const magicLink = src.indexOf('generateLink');
-    const rotation = src.indexOf('randomBytes(32)');
-    expect(magicLink).toBeGreaterThan(-1);
-    expect(rotation).toBeGreaterThan(-1);
-    expect(magicLink).toBeLessThan(rotation);
+    expect(src.indexOf('generateLink')).toBeGreaterThan(-1);
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(code).not.toMatch(/randomBytes\(|signInWithPassword\(|password:/);
   });
 
   it('redeems the link server-side and never puts a password in the result', () => {
@@ -197,7 +195,7 @@ describe('synthetic-session mints without revoking other devices', () => {
     expect(call).not.toContain('password');
   });
 
-  it('still documents the fallback as the harmful branch', () => {
-    expect(source()).toMatch(/FALLBACK ONLY/);
+  it('documents why it fails closed instead of falling back', () => {
+    expect(source()).toMatch(/FAIL CLOSED/);
   });
 });
