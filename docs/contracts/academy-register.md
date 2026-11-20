@@ -77,7 +77,8 @@ from the coach's personal link) is the credential. Always 200:
 
 ## Order of calls (do what the web page does)
 
-1. `GET /api/academy/registration?i=<token>` → read `canRegister`. If it is `false`, show
+1. `GET /api/academy/registration?invite=<token>` (note: `invite`, not `i`) → `{ open, canRegister }`.
+   If `canRegister` is `false`, show
    "registration is closed" and stop — do **not** show a form, prefilled or not.
 2. Only then `GET /api/academy/register?i=<token>` for the prefill.
 3. `POST /api/academy/register`.
