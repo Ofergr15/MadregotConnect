@@ -35,7 +35,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { maskDetailForViewer, readHiddenFields, type HiddenFieldKey } from '@/lib/feed/project';
-import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
+import { hiddenFromCaller } from '@/lib/athletes/test-accounts';
 import { displaySplits } from '@/lib/activities/km-splits';
 import { perKmFromStream } from '@/lib/activities/stream-per-km';
 import { loadActivityStream } from '@/lib/garmin/stream-store';
@@ -105,7 +105,7 @@ export async function GET(request: Request) {
 
     const r = row as any;
     // A pending runner's activity reads as not there to the rest of the club (#77).
-    if (r.athlete_id && !seesPending(caller, r.athlete_id) && (await isPendingAthlete(supabase, r.athlete_id))) {
+    if (r.athlete_id && (await hiddenFromCaller(supabase, caller, r.athlete_id))) {
       return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
     }
     // The splits the UI draws, on the kilometre grid it labels them with — from

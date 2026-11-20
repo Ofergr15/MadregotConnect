@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
+import { hiddenFromCaller } from '@/lib/athletes/test-accounts';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +48,7 @@ export async function GET(request: Request) {
     // A runner the club hasn't approved yet stays theirs and staff's (#77).
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
-    if (!seesPending(caller, athleteId) && (await isPendingAthlete(createServerClient(), athleteId))) {
+    if ((await hiddenFromCaller(createServerClient(), caller, athleteId))) {
       return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
     }
 

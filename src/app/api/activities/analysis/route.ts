@@ -14,7 +14,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
+import { hiddenFromCaller } from '@/lib/athletes/test-accounts';
 import { loadActivityStream } from '@/lib/garmin/stream-store';
 import { normalizeStoredLaps } from '@/lib/garmin/laps';
 import { mayViewHrTrace, readHrTracePublic } from '@/lib/athletes/hr-trace-privacy';
@@ -79,7 +79,7 @@ export async function GET(request: Request) {
       .eq('id', activityId).maybeSingle();
     if (error) throw error;
     if (!row) return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
-    if (row.athlete_id && !seesPending(caller, row.athlete_id) && (await isPendingAthlete(supabase, row.athlete_id))) {
+    if (row.athlete_id && (await hiddenFromCaller(supabase, caller, row.athlete_id))) {
       return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
     }
     const hrOk = mayActFor(caller, row.athlete_id) || mayViewHrTrace({ isSelfOrStaff: false, runnerAllows: await readHrTracePublic(supabase, row.athlete_id), hiddenOnThisRun: false });

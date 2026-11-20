@@ -50,7 +50,7 @@ describe('GET /api/athletes/[id]/runs', () => {
     expect(route).not.toMatch(/x-user-email/);
   });
   it('hides a pending runner, bounds the window and selects no credential column', () => {
-    expect(route).toMatch(/isPendingAthlete/);
+    expect(route).toMatch(/isPendingAthlete|hiddenFromCaller/);
     expect(route).toMatch(/parseRunsRange/);
     expect(route).toMatch(/status: 400/);
     expect(route).toMatch(/\.select\('id, activity_name, activity_type, start_time, distance, duration, route_preview'\)/);

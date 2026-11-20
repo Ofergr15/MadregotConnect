@@ -7,6 +7,7 @@ import { ParsedWorkout } from '@/lib/ai/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
+import { isTestAccount } from '@/lib/athletes/test-accounts';
 import { assessWorkout, buildPlannedWorkout } from '@/lib/academy/adherence';
 import {
   flattenPlannedSteps,
@@ -99,7 +100,7 @@ export async function GET(request: Request) {
     // caller already renders — it's what a day with no plan returns.
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
-    if (pendingRead && !seesPending(caller, athleteId) && (await pendingRead)) {
+    if (pendingRead && !seesPending(caller, athleteId) && ((await pendingRead) || (await isTestAccount(createServerClient(), athleteId)))) {
       return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
     }
     const mayReadVerdict = mayActFor(caller, athleteId);

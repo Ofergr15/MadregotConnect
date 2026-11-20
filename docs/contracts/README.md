@@ -13,6 +13,7 @@ Each note is backed by tests that run the real route handlers against a fake dat
 | Outbound egress map (mail, push, APNs, staff, Garmin, AI) | `egress-map.md` | — |
 | Proposal: default-deny outbound outside production | `outbound-policy.md` | `outboundPolicy` |
 | Logging redaction audit (auth, registration) | `logging-redaction.md` | — |
+| Test-account isolation by surface | `test-account-isolation.md` | `testAccountReadPaths`, `testAccountIsolation`, `testActorNotifications` |
 | Cache-key privacy audit | `cache-privacy.md` | — |
 | Auth errors: definitive vs transient | `auth-errors.md` | `authErrorContract` |
 | Inbox and unread count | `inbox.md` | `inboxContract` |

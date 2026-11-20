@@ -1,5 +1,6 @@
 import type { createServerClient } from '@/lib/supabase/server';
 import { pendingAthleteIds } from '@/lib/auth/pending-athletes';
+import { testAccountIds, hiddenTestAccountsFor } from '@/lib/athletes/test-accounts';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { containsPattern, quoteFilterValue } from '@/lib/db/like';
 import { israelToday } from '@/lib/utils';
@@ -46,7 +47,8 @@ export async function searchRuns(supabase: Db, q: string, caller: { athleteId?: 
   const ids = [...new Set(rows.map((r) => r.athlete_id))];
   const [{ data: people }, pending] = await Promise.all([
     supabase.from('athletes').select('id, name').in('id', ids).eq('status', 'active'),
-    pendingAthleteIds(supabase as never).catch(() => new Set<string>()),
+    Promise.all([pendingAthleteIds(supabase as never), testAccountIds(supabase as never)])
+      .then(([p, t]) => new Set([...p, ...hiddenTestAccountsFor(t, caller)])).catch(() => new Set<string>()),
   ]);
   const name = new Map(((people || []) as Array<{ id: string; name: string | null }>).map((p) => [p.id, p.name || '']));
   const me = caller.athleteId ?? null;

@@ -10,6 +10,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
+import { isPendingAthlete } from '@/lib/auth/pending-athletes';
 
 export async function testAccountIds(db: SupabaseClient): Promise<Set<string>> {
   try {
@@ -46,4 +47,19 @@ export function hiddenTestAccountsFor(
   const hidden = new Set(testIds);
   if (viewer.athleteId) hidden.delete(viewer.athleteId);
   return hidden;
+}
+
+/**
+ * Whether `targetId`'s content reads as "not there" for this caller: a pending
+ * runner (#77) or a test account, unless the caller is that athlete or staff.
+ * The single gate the per-athlete read routes use, so the two rules can't drift.
+ */
+export async function hiddenFromCaller(
+  db: SupabaseClient,
+  caller: { athleteId?: string | null; isStaff?: boolean },
+  targetId: string | null | undefined,
+): Promise<boolean> {
+  if (!targetId || caller.isStaff || caller.athleteId === targetId) return false;
+  const [pending, test] = await Promise.all([isPendingAthlete(db, targetId), isTestAccount(db, targetId)]);
+  return pending || test;
 }
