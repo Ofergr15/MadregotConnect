@@ -20,7 +20,9 @@ Tests: `src/__tests__/testAccountIsolation.test.ts` (feed, notifications) and
 
 | Surface | Route / file:line | Filtered | Rule | Test |
 |---|---|---|---|---|
-| Club feed | `api/feed/route.ts:147` | yes | hidden authors join the pending set | testAccountIsolation › feed filtering |
+| Club feed | `api/feed/route.ts:147` | yes | hidden authors join the pending set; filtered after the slice, so `nextCursor` walks the raw order (an emptied page still returns a cursor) | testAccountIsolation › feed filtering; testAccountGaps › feed paging |
+| Feed likes/comments (card preview + counts) | `lib/feed/context.ts`, `lib/feed/project.ts` (`likeCount`/`commentCount`) | yes | test account's likes/comments dropped for other non-staff; counts = stored total − hidden rows | testAccountGaps › likes and comments |
+| Like list / comment thread | `api/feed/likes`, `api/feed/comments` (GET + POST/DELETE `commentCount`), `api/feed/like` (`likeCount`, preview) | yes | same, via `lib/feed/test-account-filter.ts` | testAccountGaps › full lists |
 | Single feed item | `api/feed/items/[id]/route.ts:57` | yes | 404 via `hiddenFromCaller` | RP › routes apply the gate; hiddenFromCaller member/self/staff |
 | Feed highlight | `api/feed/highlight/route.ts:88` | n/a | caller's own runs only (`auth.user.athleteId`) | — |
 | Run detail | `api/activities/details/route.ts:108` | yes | 404, mirrors pending path | RP |
@@ -41,7 +43,7 @@ Tests: `src/__tests__/testAccountIsolation.test.ts` (feed, notifications) and
 | Challenges | `api/challenges/route.ts:31` | n/a | self-or-staff (`mayActFor`), one athlete's own progress | — |
 | Weekly recap push | `api/cron/tick/route.ts:~560` | n/a | each runner gets only their own km; `packRank: null` | — |
 | U21 registrations | `api/u21/registrations/route.ts:22` | no (by design) | admin-only staff view, unchanged | — |
-| Club records | `api/club/records` → `getClubRecords` | **no — gap** | see below | — |
+| Club records | `api/club/records` → `computeClubRecordsSnapshot` (`lib/prs/club-records-store.ts`) | yes (for everyone) | shared cached snapshot, so test accounts are excluded when it is computed — staff lose them too | testAccountGaps › club records snapshot |
 | Run chat | `api/run-chat/**`, `lib/run-chat/access.ts` | n/a | `canAccessChat`: owner, assigned coach, staff only — no member path | — |
 | Avatars / storage URLs | public bucket | **no — gap** | see below | — |
 | Realtime (Stream chat, academy threads) | Stream channels | **gap** | see below | — |
@@ -49,9 +51,10 @@ Tests: `src/__tests__/testAccountIsolation.test.ts` (feed, notifications) and
 ## Gaps and design notes
 
 - **Club records** (`getClubRecords`) is one shared, cached snapshot for every viewer,
-  so it cannot be viewer-scoped. Fix: exclude `testAccountIds` when the snapshot is
-  computed (staff then also lose test rows there, acceptable for a members' honours
-  board) and force a `?refresh=1` once migration 182 is applied.
+  so it cannot be viewer-scoped: `testAccountIds` are excluded when the snapshot is
+  computed (staff also lose test rows there, acceptable for a members' honours board).
+  A snapshot cached before migration 182 is applied still holds them until its TTL
+  (6 h) — force a `?refresh=1` once the migration is pasted.
 - **Avatars / storage**: objects live in a public bucket; a URL, once known, is readable
   by anyone. Every server route above stops handing the URL out, which is the only
   lever without changing bucket permissions (out of scope). Real isolation would need a
@@ -62,6 +65,8 @@ Tests: `src/__tests__/testAccountIsolation.test.ts` (feed, notifications) and
   route here; if a test account is ever added to a shared channel, its messages are
   visible there. Guard at channel-membership time (don't add test accounts to shared
   channels) if that path appears.
-- Feed **comments/likes** written by a test account on a real member's post are not
-  filtered from that post's comment list here (only their notifications are suppressed,
-  b2a2ebb1). Next candidate: `lib/feed/context.ts` likers/comment authors.
+- Feed **comments/likes** by a test account are filtered from other non-staff viewers'
+  previews, lists and counts (`lib/feed/test-account-filter.ts`); counts are the trigger
+  total minus that item's hidden rows (one extra query, only when a test account exists).
+  Still open: `GET /api/activities/[id]/kudos` reads `feed_likes` likers + `like_count`
+  directly and is not yet filtered — next candidate (reuse the same helpers).

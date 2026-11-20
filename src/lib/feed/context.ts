@@ -12,6 +12,7 @@ import {
 } from '@/lib/feed/comments';
 import { loadFeedPlanVerdicts, type VerdictActivityRow } from '@/lib/feed/plan-verdicts';
 import { qualityNames } from '@/lib/activities/quality-name';
+import { hiddenInteractorsFor, hiddenCountsByItem, withoutHiddenInteractors } from '@/lib/feed/test-account-filter';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
@@ -71,6 +72,9 @@ export async function loadFeedContext(
   // Likes, comment previews and plan verdicts are independent reads against
   // different tables, so they go out together rather than one after the other —
   // the feed is the app's landing page and this is on its critical path.
+  // Test accounts' likes/comments are hidden from other non-staff viewers, and the
+  // counts drop them too (lib/feed/test-account-filter.ts). Fails open.
+  const hiddenRead = hiddenInteractorsFor(supabase as never, viewer);
   const [likesRes, commentsRes, verdicts, qualityNameByActivity] = await Promise.all([
     // Newest-first so the preview names match what the like sheet shows at the top.
     supabase
@@ -109,19 +113,27 @@ export async function loadFeedContext(
   if (likesRes.error) throw likesRes.error;
   if (commentsRes.error) throw commentsRes.error;
 
-  const likes = buildLikeIndex(likesRes.data || [], viewer.athleteId, LIKE_PREVIEW_COUNT);
+  const hidden = await hiddenRead;
+  const [hiddenLikeCountByItem, hiddenCommentCountByItem] = await Promise.all([
+    hiddenCountsByItem(supabase as never, 'feed_likes', itemIds, hidden),
+    hiddenCountsByItem(supabase as never, 'feed_comments', itemIds, hidden),
+  ]);
+
+  const likes = buildLikeIndex(withoutHiddenInteractors(likesRes.data || [], hidden), viewer.athleteId, LIKE_PREVIEW_COUNT);
 
   return {
     ...base,
     likedItemIds: likes.likedItemIds,
     likersByItem: likes.likersByItem,
     commentsByItem: buildCommentPreviewIndex(
-      commentsRes.data || [],
+      withoutHiddenInteractors(commentsRes.data || [], hidden),
       viewer.athleteId,
       viewer.isStaff,
       COMMENT_PREVIEW_COUNT,
     ),
     planVerdictsByActivity: verdicts,
     qualityNameByActivity,
+    hiddenLikeCountByItem,
+    hiddenCommentCountByItem,
   };
 }
