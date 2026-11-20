@@ -109,7 +109,6 @@ export default function U21Page() {
             >
               <div className="mb-1 flex items-baseline justify-between">
                 <span className="text-xl font-bold">{t.name}</span>
-                <span className="text-lg font-semibold">₪{t.priceIls} <span className="text-sm font-normal text-gray-500">לחודש</span></span>
               </div>
               <p className="mb-3 text-sm text-gray-600">{t.tagline}</p>
               <ul className="list-inside list-disc space-y-1 text-sm">
@@ -132,7 +131,7 @@ export default function U21Page() {
         ← חזרה לבחירת מסלול
       </button>
       <h1 className="mb-1 text-2xl font-bold">שאלון היכרות</h1>
-      <p className="mb-6 text-sm text-gray-600">מסלול נבחר: <b>{chosen?.name}</b> (₪{chosen?.priceIls} לחודש)</p>
+      <p className="mb-6 text-sm text-gray-600">מסלול נבחר: <b>{chosen?.name}</b></p>
       {errCount > 0 && (
         <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">יש {errCount} שדות שצריך לתקן</div>
       )}
