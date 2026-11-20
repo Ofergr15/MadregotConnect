@@ -93,7 +93,7 @@ describe("email-code 'verify' cannot be raced past MAX_ATTEMPTS", () => {
     expect(res.every((r) => r.status === 401)).toBe(true);
   });
 
-  it('sequential guesses still count down and then stop', async () => {
+  it('sequential guesses are refused once MAX_ATTEMPTS are spent', async () => {
     for (let n = 0; n < MAX_ATTEMPTS; n++) {
       const r = await verify('111111');
       expect(r.status).toBe(401);

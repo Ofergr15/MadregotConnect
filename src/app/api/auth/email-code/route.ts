@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
 import { createSyntheticSession } from '@/lib/auth/synthetic-session';
@@ -44,6 +44,29 @@ async function memberFor(supabase: Db, email: string) {
     .maybeSingle();
   if (!data || data.approved !== true || data.status === 'removed' || data.status === 'disconnected') return null;
   return data;
+}
+
+/**
+ * The member half of `send`, run after the response. Every early return is silent: past
+ * the cap no new code and no mail (each probe used to mail a real member), and a missing
+ * hash secret or login_codes table is logged for us, never told to the caller.
+ */
+async function sendCodeIfMember(supabase: Db, email: string, ua: string | null): Promise<void> {
+  const member = await memberFor(supabase, email);
+  if (!member) return;
+  const since = new Date(Date.now() - SEND_WINDOW_MS).toISOString();
+  const { count } = await supabase.from('login_codes').select('id', { count: 'exact', head: true }).eq('email', email).gte('created_at', since);
+  if ((count ?? 0) >= MAX_SENDS) { console.warn('[email-code] send cap reached'); return; }
+  const code = newCode();
+  const hash = hashCode(email, code);
+  if (!hash) { console.error('[email-code] not configured (no hash secret)'); return; }
+  const { error } = await supabase.from('login_codes').insert({ email, code_hash: hash, expires_at: new Date(Date.now() + CODE_TTL_MS).toISOString() });
+  // Migration 132 not pasted yet.
+  if (error && (error.code === '42P01' || error.code === 'PGRST205')) { console.error('[email-code] login_codes missing'); return; }
+  if (error) throw error;
+  const mail = await notifyLoginCode({ email, code, name: member.name, athleteId: member.id });
+  if (!mail.ok) console.error('[email-code] mail not sent', mail.code, mail.reason);
+  await recordOnbEvent({ step: 'code_sent', athleteId: member.id, device: deviceFromUa(ua), meta: { mailed: mail.ok } });
 }
 
 /**
@@ -97,25 +120,13 @@ export async function POST(request: Request) {
 
   try {
     if (body?.action === 'send') {
-      // From here on every outcome answers the same {ok:true}: a member, a stranger, a
-      // member past the per-address cap and a server-side fault must not be told apart.
-      const ok = () => NextResponse.json({ ok: true });
-      const member = await memberFor(supabase, email);
-      if (!member) return ok();
-      const since = new Date(Date.now() - SEND_WINDOW_MS).toISOString();
-      const { count } = await supabase.from('login_codes').select('id', { count: 'exact', head: true }).eq('email', email).gte('created_at', since);
-      // Past the cap: no new code and no mail (each probe used to mail a real member).
-      if ((count ?? 0) >= MAX_SENDS) { console.warn('[email-code] send cap reached'); return ok(); }
-      const code = newCode();
-      const hash = hashCode(email, code);
-      if (!hash) { console.error('[email-code] not configured (no hash secret)'); return ok(); }
-      const { error } = await supabase.from('login_codes').insert({ email, code_hash: hash, expires_at: new Date(Date.now() + CODE_TTL_MS).toISOString() });
-      // Migration 132 not pasted yet: logged, never told to the caller (members only reach it).
-      if (error && (error.code === '42P01' || error.code === 'PGRST205')) { console.error('[email-code] login_codes missing'); return ok(); }
-      if (error) throw error;
-      const mail = await notifyLoginCode({ email, code, name: member.name, athleteId: member.id });
-      if (!mail.ok) console.error('[email-code] mail not sent', mail.code, mail.reason);
-      await recordOnbEvent({ step: 'code_sent', athleteId: member.id, device: deviceFromUa(request.headers.get('user-agent')), meta: { mailed: mail.ok } });
+      // The answer is decided before anything looks at the address: every send gets the
+      // same {ok:true} at the same moment. The member lookup, the cap, the code and the
+      // mail all run after the response (after()), so a member and a stranger differ in
+      // nothing the caller can see — status, body or time — and a database fault there
+      // is logged, never answered (it used to be a 500 only a member could reach).
+      const ua = request.headers.get('user-agent');
+      after(() => sendCodeIfMember(supabase, email, ua).catch((err) => console.error('[email-code] send failed:', err)));
       return NextResponse.json({ ok: true });
     }
 

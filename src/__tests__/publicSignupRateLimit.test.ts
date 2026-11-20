@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { COACH_ID } from '@/lib/constants';
 
 /**
  * POST /api/public/signup is public and every accepted submission writes a row and mails

@@ -6,9 +6,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * Before: `send` returned {ok:true} for a non-member before any limit, while a member's
  * 4th send in 15 minutes got 429 — and `verify` said 'expired' with no code row but
  * 'wrong-code' + `left` with one. Here a member and a non-member get the same 4 sends and
- * the same wrong verify, and every status and body must be byte-identical.
+ * the same wrong verify, and every status and body must be byte-identical. The member work
+ * runs in after(), which the harness collects and drains, so the response is shown not to
+ * wait on it (timing) and a database fault there to be logged, not answered.
  * Synthetic data only; the DB is an in-memory fake.
  */
+
+// after() callbacks are held, not started, until drain(): what the response contains
+// cannot depend on work that has not run yet.
+const deferred: Array<() => unknown> = [];
+vi.mock('next/server', async (orig) => ({
+  ...(await orig<typeof import('next/server')>()),
+  after: (fn: () => unknown) => { deferred.push(fn); },
+}));
+const drain = async () => { while (deferred.length) await deferred.shift()!(); };
+let failDb = false;
 
 const MEMBER = 'member@example.com';
 const STRANGER = 'stranger@example.com';
@@ -18,6 +30,7 @@ const mailed = vi.fn(async () => ({ ok: true }));
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: () => ({
     from(table: string) {
+      if (failDb) throw new Error('relation "login_codes" connection reset');
       const eqs: Record<string, unknown> = {};
       let op: 'select' | 'insert' | 'update' | 'delete' = 'select';
       let head = false;
@@ -69,13 +82,17 @@ const call = (ip: string, body: Record<string, unknown>) => POST(new Request('ht
 
 async function probe(email: string, ip: string) {
   const out: Array<[number, string]> = [];
-  for (let n = 0; n < 4; n++) { const r = await call(ip, { action: 'send', email }); out.push([r.status, await r.text()]); }
+  for (let n = 0; n < 4; n++) {
+    const r = await call(ip, { action: 'send', email });
+    out.push([r.status, await r.text()]);
+    await drain(); // the member's code row lands before the next send, as it would in production
+  }
   const v = await call(ip, { action: 'verify', email, code: '123456' });
   out.push([v.status, await v.text()]);
   return out;
 }
 
-beforeEach(() => { codes = []; mailed.mockClear(); });
+beforeEach(() => { codes = []; mailed.mockClear(); deferred.length = 0; failDb = false; });
 
 describe('email-code is not a membership oracle', () => {
   it('4 sends + a wrong verify: identical status and body for a member and a non-member', async () => {
@@ -97,5 +114,25 @@ describe('email-code is not a membership oracle', () => {
       const sixth = await call(ip, { action: 'send', email });
       expect([sixth.status, await sixth.text()]).toEqual([429, JSON.stringify({ error: 'too-many' })]);
     }
+  });
+
+  it('the response does not wait for the member work: nothing has run when it returns', async () => {
+    const r = await call('198.51.100.6', { action: 'send', email: MEMBER });
+    expect([r.status, await r.text()]).toEqual([200, JSON.stringify({ ok: true })]);
+    expect(codes).toEqual([]);           // no code row yet
+    expect(mailed).not.toHaveBeenCalled();
+    await drain();
+    expect(codes).toHaveLength(1);
+    expect(mailed).toHaveBeenCalledTimes(1);
+  });
+
+  it('a database exception during send still answers 200 {ok:true} and is logged', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    failDb = true;
+    const r = await call('198.51.100.7', { action: 'send', email: MEMBER });
+    expect([r.status, await r.text()]).toEqual([200, JSON.stringify({ ok: true })]);
+    await drain();
+    expect(logged).toHaveBeenCalledWith('[email-code] send failed:', expect.any(Error));
+    logged.mockRestore();
   });
 });
