@@ -9,6 +9,7 @@ Each note is backed by tests that run the real route handlers against a fake dat
 | U21 field list (what `answers` must hold) | `u21-fields.md` | `u21FieldSpecContract.test.ts` |
 | Academy form: submit, prefill, open/closed check | `academy-register.md` | `academyRegisterContract.test.ts`, `trackAReadContract.test.ts` |
 | Valencia tab: events, forecast, course map, updates by event, surveys | `valencia.md` | `valenciaContract`, `eventForecast`, `clubUpdatesTopics`, `eventCourseGpx` |
+| JWT binding, athlete states, APNs env separation | `jwt-and-apns-audit.md` | `authErrorContract`, `apnsSender` |
 | Schema dependencies per path (dev / prod) | `schema-dependencies.md` | — |
 | Remote phone backend: options + exact route coverage | `remote-native-backend.md` | `devAllowlistE2E` |
 | Sign-in, session, refresh | `auth-session.md` | `devAllowlistE2E`, `syntheticSessionFailClosed` |
