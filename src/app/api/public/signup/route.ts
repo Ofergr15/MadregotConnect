@@ -9,6 +9,13 @@ import { signupRequestCopy } from '@/lib/notifications/copy';
 import { groupDisplayName } from '@/lib/utils';
 import { isLikelyEmail, normaliseEmail, signupAlertName } from '@/lib/signup';
 import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
+import { clientIp, createRateLimiter } from '@/lib/academy/intake';
+
+// Every submission writes a row and fires the approver mail, a staff push and a mail to
+// the typed address, so an unthrottled public POST is a spam cannon. Same limits and the
+// same per-person + per-IP keying as academy/register (a club event shares one Wi-Fi).
+const allowSubmit = createRateLimiter(5, 60_000);
+const allowFromIp = createRateLimiter(40, 60_000);
 
 export const dynamic = 'force-dynamic';
 
@@ -83,6 +90,10 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as { email?: string; groupId?: string; fullName?: string; phone?: string; onb?: string; intake?: unknown };
     const email = normaliseEmail(body.email || '');
+    const ip = clientIp(request.headers);
+    if (!allowFromIp(ip) || !allowSubmit(`${ip}|${email}`)) {
+      return NextResponse.json({ error: 'Too many attempts, try again in a minute' }, { status: 429 });
+    }
     const groupId = body.groupId?.trim() || null;
     // Onboarding v2 (lib/install/flag): the form also asks a name and, optionally,
     // a phone — for the queue and the WhatsApp send, never written onto athletes
