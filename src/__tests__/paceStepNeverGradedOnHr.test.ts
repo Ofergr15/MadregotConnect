@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { laneWorkouts } from '@/lib/academy/group-lane';
 import { flattenPlannedSteps } from '@/lib/academy/segments';
+import { convertToGarminWorkout } from '@/lib/garmin/converter';
 
 /**
  * A step the coach prescribed by PACE must be graded on pace in every lane. Heart rate is judged
@@ -58,5 +59,50 @@ describe('pace-only steps are never graded on heart rate', () => {
     const seg = flattenPlannedSteps(laneWorkouts(notesOnly, 2)[0])[0];
     expect(seg.metric).toBe('pace');
     expect(seg.paceMin).toBe(235);
+  });
+
+  it('pace wins: the lane HR is not left on the step as a stale target', () => {
+    const [w] = laneWorkouts(plan, 2);
+    expect(w.steps[0]).toMatchObject({ targetType: 'pace', targetPaceMinPerKm: 235 });
+    expect(w.steps[0].targetHrMinPct).toBeUndefined();
+  });
+  it('a 0 / null / non-numeric lane pace is not a pace: HR applies', () => {
+    for (const bad of [{ min: 0, max: 0 }, null, { min: Number.NaN, max: Number.NaN }]) {
+      const p = { workouts: [{ dayOfWeek: 5, name: 'Bad', steps: [{
+        order: 1, type: 'active', durationType: 'time', durationValue: 600, targetType: 'pace',
+        targetPaceMinPerKm: 270, group2Pace: bad, group2HeartRate: { min: 150, max: 160 },
+      }] }] };
+      const seg = flattenPlannedSteps(laneWorkouts(p as any, 2)[0])[0];
+      expect(seg.metric).toBe('hr');
+      expect(seg.hrTarget?.min).toBe(150);
+    }
+  });
+  it('a 0 / missing lane HR never becomes a target', () => {
+    const p = { workouts: [{ dayOfWeek: 5, name: 'NoHr', steps: [{
+      order: 1, type: 'active', durationType: 'time', durationValue: 600, targetType: 'no_target',
+      group2HeartRate: { min: 0, max: 0 },
+    }] }] };
+    const [w] = laneWorkouts(p as any, 2);
+    expect(w.steps[0].targetType).toBe('no_target');
+    expect(flattenPlannedSteps(w)[0].metric).toBe('none');
+  });
+  it('nested repeat: each rep stays on pace in lanes 2/3; an HR-only recovery inside stays HR', () => {
+    const p = { workouts: [{ dayOfWeek: 6, name: 'Reps', steps: [{
+      order: 1, type: 'interval', durationType: 'open', targetType: 'no_target', repeatCount: 3, repeatSteps: [
+        { ...paceStepWithStrayHr, order: 1 },
+        { order: 2, type: 'active', durationType: 'time', durationValue: 120, targetType: 'heart_rate',
+          targetHrMinPct: 120, targetHrMaxPct: 130, group2HeartRate: { min: 118, max: 128 } },
+      ] }] }] };
+    const segs = flattenPlannedSteps(laneWorkouts(p as any, 2)[0]);
+    expect(segs).toHaveLength(6);
+    expect(segs.filter((_, i) => i % 2 === 0).map(s => [s.metric, s.paceMin])).toEqual([['pace', 235], ['pace', 235], ['pace', 235]]);
+    expect(segs.filter((_, i) => i % 2 === 1).map(s => [s.metric, s.hrTarget?.min])).toEqual([['hr', 118], ['hr', 118], ['hr', 118]]);
+  });
+
+  it('watch side (academy pace targets on): the lane-2 pace step is pushed as a pace zone, not dropped to no target', () => {
+    const [w] = laneWorkouts({ workouts: [{ dayOfWeek: 2, name: 'Synthetic', steps: [paceStepWithStrayHr] }] }, 2);
+    const g = convertToGarminWorkout(w as any, null as any, { paceTarget: true });
+    const step = (g.workoutSegments[0].workoutSteps as any[])[0];
+    expect(step.targetType.workoutTargetTypeKey).toBe('pace.zone');
   });
 });
