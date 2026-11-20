@@ -87,6 +87,13 @@ export interface EventForecastDTO {
   unavailableReason: UnavailableReason;
 }
 
+/** YYYY-MM-DD that is a real calendar day ("2026-02-30" and "2026-99-99" are not). */
+export function isCalendarDate(v: unknown): v is string {
+  if (typeof v !== 'string' || !DATE_RE.test(v)) return false;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+}
+
 function addDays(iso: string, n: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
@@ -96,10 +103,10 @@ function addDays(iso: string, n: number): string {
 /** Inclusive list of YYYY-MM-DD dates from start..end (end missing/earlier → just start). Capped. */
 export function eventDateRange(start: string, end?: string | null): string[] {
   const s = String(start).slice(0, 10);
-  if (!DATE_RE.test(s)) return [];
+  if (!isCalendarDate(s)) return [];
   const e = end ? String(end).slice(0, 10) : s;
   const out = [s];
-  if (!DATE_RE.test(e) || e <= s) return out;
+  if (!isCalendarDate(e) || e <= s) return out;
   let cur = s;
   while (out.length < MAX_RANGE_DAYS) {
     cur = addDays(cur, 1);
@@ -125,9 +132,19 @@ export function buildForecastUrl(lat: number, lng: number): string {
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
 const at = (arr: unknown, i: number) => (Array.isArray(arr) ? arr[i] : undefined);
-/** An IANA zone name as the provider returns it ("Europe/Madrid", "UTC", "GMT"); anything else → null, never a default zone. */
-const TZ_RE = /^(?:[A-Za-z_]+(?:\/[A-Za-z0-9_+\-]+){1,2}|UTC|GMT)$/;
-const tz = (v: unknown): string | null => (typeof v === 'string' && TZ_RE.test(v) ? v : null);
+/**
+ * An IANA zone name the runtime actually knows ("Europe/Madrid", "UTC"); anything else → null, never a
+ * default zone. Validated by Intl itself, not by shape: "Fake/Zone" looks like a zone and is not one.
+ */
+const tz = (v: unknown): string | null => {
+  if (typeof v !== 'string' || v.length === 0 || v.length > 64) return null;
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: v });
+    return v;
+  } catch {
+    return null;
+  }
+};
 
 /** Real coordinates: finite and inside the globe. */
 export function validCoords(lat: unknown, lng: unknown): lat is number {
@@ -149,7 +166,7 @@ export const usableForecast = (f: VenueForecast) => usableCurrent(f.current) || 
 export function parseOpenMeteo(json: unknown): VenueForecast {
   const j = (json ?? {}) as Record<string, any>;
   const d = j.daily ?? {};
-  const times: string[] = Array.isArray(d.time) ? d.time.filter((t: unknown) => typeof t === 'string' && DATE_RE.test(t)) : [];
+  const times: string[] = Array.isArray(d.time) ? d.time.filter(isCalendarDate) : [];
   const daily: DailyWeather[] = times.map((date) => {
     const i = (d.time as unknown[]).indexOf(date);
     return {
@@ -163,7 +180,7 @@ export function parseOpenMeteo(json: unknown): VenueForecast {
   });
   const h = j.hourly ?? {};
   const htimes: unknown[] = Array.isArray(h.time) ? h.time : [];
-  const hourly: HourlyWeather[] = htimes.flatMap((t, i) => (typeof t === 'string' ? [{
+  const hourly: HourlyWeather[] = htimes.flatMap((t, i) => (typeof t === 'string' && isCalendarDate(t.slice(0, 10)) ? [{
     time: t,
     temperatureC: num(at(h.temperature_2m, i)),
     precipProbPct: num(at(h.precipitation_probability, i)),
