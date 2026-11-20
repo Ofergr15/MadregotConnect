@@ -11,9 +11,10 @@ let db: ReturnType<typeof createMemoryDb>;
 vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => db.client }));
 const who = vi.hoisted(() => ({ id: '' }));
 vi.mock('@/lib/auth/self-or-staff', async (orig) => ({ ...(await orig<object>()), resolveVerifiedCaller: async () => ({ denied: null, caller: { athleteId: who.id } }) }));
-const h = vi.hoisted(() => ({ byWeek: {} as Record<string, unknown[]>, spanFails: false }));
+const h = vi.hoisted(() => ({ byWeek: {} as Record<string, unknown[]>, spanFails: false, weekFails: new Set<string>() }));
 vi.mock('@/lib/day-session/week-merge', async (orig) => ({ ...(await orig<object>()),
   daySessionWorkouts: async (w: string) => h.byWeek[w] ?? [],
+  daySessionWorkoutsChecked: async (w: string) => (h.weekFails.has(w) ? { ok: false } : { ok: true, workouts: h.byWeek[w] ?? [] }),
   daySessionWorkoutsByWeek: async () => (h.spanFails ? { ok: false } : { ok: true, byWeek: new Map(Object.entries(h.byWeek)) }),
 }));
 const weekly = await import('@/app/api/dashboard/weekly/route');
@@ -34,6 +35,7 @@ beforeEach(() => {
   who.id = ME;
   h.byWeek = { [prevStart]: prevDay };
   h.spanFails = false;
+  h.weekFails = new Set();
   db = createMemoryDb({ schema: {
     athletes: ['id', 'name', 'garmin_auth', 'is_academy', 'group_id', 'groups'],
     weekly_plans: ['id', 'coach_id', 'athlete_id', 'week_start_date', 'parsed_workouts', 'status', 'created_at'],
@@ -94,5 +96,17 @@ describe('weekly: previous week on the same basis as this week', () => {
     const reqSum = body.dailyDistances.reduce((a: number, d: { requiredMax: number }) => a + d.requiredMax, 0);
     expect(Math.abs(reqSum - body.weekRequiredMax)).toBeLessThanOrEqual(0.05 * 7);
     expect(body.dailyDistances[0].sessions.some((s: { optional: boolean }) => s.optional)).toBe(true);
+  });
+  it('this week and last week say when their one-day sessions could not be read (weekCoverage), instead of counting them as none', async () => {
+    let body = await (await weekly.GET(new Request('http://x/api/dashboard/weekly'))).json();
+    expect(body.weekCoverage).toEqual({ current: 'included', previous: 'included' });
+    h.weekFails = new Set([prevStart]);
+    body = await (await weekly.GET(new Request('http://x/api/dashboard/weekly'))).json();
+    expect(body.weekCoverage).toEqual({ current: 'included', previous: 'unavailable' });
+    const planOnly = buildWeekBreakdown(prevPlan as never);
+    expect(body.prevWeekTotal).toBe(Math.round(((planOnly.weekTotalMin + planOnly.weekTotalMax) / 2) * 10) / 10);
+    h.weekFails = new Set([cur]);
+    body = await (await weekly.GET(new Request('http://x/api/dashboard/weekly'))).json();
+    expect(body.weekCoverage.current).toBe('unavailable');
   });
 });

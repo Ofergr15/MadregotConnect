@@ -8,7 +8,7 @@ import { planRowsFilter, prefersPlan, rowsForReader } from '@/lib/plans/scope';
 import { rethrowIfDynamicBailout } from '@/lib/dynamic-bailout';
 import { getDisplayWeekStart, extractWorkouts, getWorkoutKm, buildWeekBreakdown, dedupeWorkoutsByDay } from '@/lib/plans/workout-parsing';
 import { academyOnlyReader, ownPlanRowsCount, withoutOwnRows } from '@/lib/plans/scope-server';
-import { daySessionWorkouts, daySessionWorkoutsByWeek, mergeDaySessions } from '@/lib/day-session/week-merge';
+import { daySessionWorkoutsByWeek, daySessionWorkoutsChecked, mergeDaySessions } from '@/lib/day-session/week-merge';
 
 // A coach pushes a new plan roughly once a week (weekly_plans has only 10
 // rows total, live-verified), so a few minutes of staleness is invisible to
@@ -82,7 +82,9 @@ export async function GET(request: Request) {
     // A one-day session the coach typed for a date this week, on a day the plan leaves empty,
     // is a session of the week like any other (lib/day-session/week-merge.ts).
     // The club's one-day sessions are not an academy-only trainee's either.
-    const dayWorkouts = academyOnly ? [] : await daySessionWorkouts(currentWeekStart);
+    // Checked, so a failed read is SAID (weekCoverage) instead of counted as "no one-day sessions".
+    const curDays = academyOnly ? null : await daySessionWorkoutsChecked(currentWeekStart);
+    const dayWorkouts = curDays?.ok ? curDays.workouts : [];
 
     // Previous week = 7 days before the DISPLAYED week (keeps the delta correct
     // after the Saturday-evening rollover).
@@ -105,7 +107,8 @@ export async function GET(request: Request) {
     // merged with that week's published one-day sessions, read the same read-only way).
     // It used getWorkoutKm without the bands and without one-day sessions, so the
     // week-over-week % compared two different estimators over two different sets.
-    const prevDayWorkouts = academyOnly ? [] : await daySessionWorkouts(previousWeekStartStr);
+    const prevDays = academyOnly ? null : await daySessionWorkoutsChecked(previousWeekStartStr);
+    const prevDayWorkouts = prevDays?.ok ? prevDays.workouts : [];
     const prev = buildWeekBreakdown(prevDayWorkouts.length
       ? mergeDaySessions(prevPlan?.parsed_workouts, prevDayWorkouts)
       : prevPlan?.parsed_workouts);
@@ -168,6 +171,12 @@ export async function GET(request: Request) {
       weeklyVolumes,
       longRunProgression,
       historyCoverage,
+      // Same honesty for this week and last week: 'unavailable' = their one-day sessions could not be read,
+      // so weekTotal*/dailyDistances/typeDistribution (current) or prevWeekTotal/weekDelta (previous) are plan-only.
+      weekCoverage: {
+        current: (curDays === null ? 'not_applicable' : curDays.ok ? 'included' : 'unavailable') as 'included' | 'unavailable' | 'not_applicable',
+        previous: (prevDays === null ? 'not_applicable' : prevDays.ok ? 'included' : 'unavailable') as 'included' | 'unavailable' | 'not_applicable',
+      },
       sessions,
       typeDistribution,
       currentWeekStart,

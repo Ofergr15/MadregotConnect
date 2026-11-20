@@ -21,15 +21,24 @@ function toWorkouts(data: Record<string, unknown>[]): ParsedWorkout[] {
   }));
 }
 
-/** The week's published one-day sessions as planner workouts, oldest first. */
-export async function daySessionWorkouts(weekStart: string): Promise<ParsedWorkout[]> {
+/**
+ * The week's published one-day sessions, saying whether they could be read at all.
+ * `ok: false` = the read failed: the week's one-day sessions are UNKNOWN, not absent.
+ */
+export async function daySessionWorkoutsChecked(weekStart: string): Promise<{ ok: true; workouts: ParsedWorkout[] } | { ok: false }> {
   const db = createServerClient();
   const { data, error } = await db.from('day_sessions').select('*')
     .gte('session_date', weekStart).lte('session_date', addDaysToDateStr(weekStart, 6))
     .not('published_at', 'is', null)
     .order('session_date', { ascending: true });
-  if (error || !data) return [];
-  return toWorkouts(data as Record<string, unknown>[]);
+  if (error || !data) return { ok: false };
+  return { ok: true, workouts: toWorkouts(data as Record<string, unknown>[]) };
+}
+
+/** The week's published one-day sessions as planner workouts, oldest first. [] on a read error (existing callers). */
+export async function daySessionWorkouts(weekStart: string): Promise<ParsedWorkout[]> {
+  const r = await daySessionWorkoutsChecked(weekStart);
+  return r.ok ? r.workouts : [];
 }
 
 /** The span read's answer. `ok: false` means the sessions could NOT be read: never "there were none". */

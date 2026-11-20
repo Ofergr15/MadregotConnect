@@ -8,6 +8,7 @@ vi.mock('@/lib/supabase/server', () => ({
       const c: any = {};
       for (const m of ['select', 'gte', 'lte', 'not']) c[m] = () => c;
       c.order = (col: string) => { h.orders.push(col); return c; };
+      c.then = (res: (v: unknown) => unknown) => Promise.resolve(h.fail ? { data: null, error: { message: 'boom' } } : { data: h.rows, error: null }).then(res);
       c.range = async (from: number, to: number) => {
         h.ranges.push([from, to]);
         return h.fail ? { data: null, error: { message: 'boom' } } : { data: h.rows.slice(from, to + 1), error: null };
@@ -16,7 +17,7 @@ vi.mock('@/lib/supabase/server', () => ({
     },
   }),
 }));
-const { daySessionWorkoutsByWeek } = await import('@/lib/day-session/week-merge');
+const { daySessionWorkoutsByWeek, daySessionWorkoutsChecked, daySessionWorkouts } = await import('@/lib/day-session/week-merge');
 
 const row = (date: string, i = 0) => ({ id: `s${date}-${i}`, session_date: date, title: `Session ${date}`, published_at: '2026-11-01T00:00:00Z',
   start_time: '06:30:00', place: 'Park', quality: true, nutrition: [], description: 'desc',
@@ -51,5 +52,13 @@ describe('daySessionWorkoutsByWeek', () => {
   it('an empty or reversed span asks nothing and answers ok with no weeks', async () => {
     expect(await daySessionWorkoutsByWeek('2026-11-15', '2026-11-08')).toMatchObject({ ok: true });
     expect(h.ranges).toHaveLength(0);
+  });
+  it('per-week checked read: ok with the same mapping; a read error is { ok: false }; the old helper still answers []', async () => {
+    h.rows = [row('2026-11-21')];
+    const ok = await daySessionWorkoutsChecked('2026-11-15');
+    expect(ok.ok && ok.workouts.map((w) => w.workoutKey)).toEqual(['day:2026-11-21']);
+    h.fail = true;
+    expect(await daySessionWorkoutsChecked('2026-11-15')).toEqual({ ok: false });
+    expect(await daySessionWorkouts('2026-11-15')).toEqual([]);
   });
 });
