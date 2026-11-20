@@ -82,4 +82,17 @@ describe('weekly: previous week on the same basis as this week', () => {
     expect(weeks).toEqual([...weeks].sort());
     expect(body.historyCoverage.daySessions).toBe('included');
   });
+  it('sends the required-only week next to the full week: optional sessions are counted only in weekTotal*', async () => {
+    const row = db.tables.weekly_plans.find((p) => p.week_start_date === cur)!;
+    row.parsed_workouts = { workouts: [
+      ...curPlan.workouts,
+      { dayOfWeek: 0, partIndex: 2, name: 'ערב - אופציה', steps: [timed(1800)] },
+    ] };
+    const body = await (await weekly.GET(new Request('http://x/api/dashboard/weekly'))).json();
+    expect(body.weekRequiredMax).toBeLessThan(body.weekTotalMax);
+    expect(body.weekRequiredMin).toBeLessThanOrEqual(body.weekTotalMin);
+    const reqSum = body.dailyDistances.reduce((a: number, d: { requiredMax: number }) => a + d.requiredMax, 0);
+    expect(Math.abs(reqSum - body.weekRequiredMax)).toBeLessThanOrEqual(0.05 * 7);
+    expect(body.dailyDistances[0].sessions.some((s: { optional: boolean }) => s.optional)).toBe(true);
+  });
 });

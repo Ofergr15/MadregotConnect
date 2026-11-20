@@ -97,7 +97,7 @@ export async function GET(request: Request) {
     // Per-day distances/types + every session of the displayed week — shared
     // with /api/plans/week so the Program page's arbitrary-week view can never
     // disagree with this dashboard chart's math.
-    const { dailyDistances, sessions, typeDistribution, weekTotalMin, weekTotalMax, trainingDays } =
+    const { dailyDistances, sessions, typeDistribution, weekTotalMin, weekTotalMax, weekRequiredMin, weekRequiredMax, trainingDays } =
       buildWeekBreakdown(dayWorkouts.length ? mergeDaySessions(currentPlan?.parsed_workouts, dayWorkouts) : currentPlan?.parsed_workouts);
 
     // Previous week volume, on the SAME basis as this week's range: the same function
@@ -152,6 +152,11 @@ export async function GET(request: Request) {
       dailyDistances,
       weekTotalMin: Math.round(weekTotalMin * 10) / 10,
       weekTotalMax: Math.round(weekTotalMax * 10) / 10,
+      // The week WITHOUT its optional sessions (ParsedWorkout.optional, or "אופציה" in the name):
+      // the band a member is "on plan" inside. weekTotalMin/Max above include the optional ones.
+      // Additive: computed by buildWeekBreakdown all along, it was simply never sent.
+      weekRequiredMin: Math.round(weekRequiredMin * 10) / 10,
+      weekRequiredMax: Math.round(weekRequiredMax * 10) / 10,
       weekDelta,
       prevWeekTotal: Math.round(prevWeekTotal * 10) / 10,
       // Whether the displayed week actually HAS a plan. Everything above is
