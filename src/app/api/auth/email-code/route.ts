@@ -47,18 +47,21 @@ async function memberFor(supabase: Db, email: string) {
 }
 
 /**
- * The member half of `send`, run after the response. Every early return is silent: past
+ * The deferred half of `send`, run after the response. It does the same work for any
+ * address — the member lookup, the recent-codes count, a fresh code and its hash — and
+ * only then stops short for a non-member, so the two differ in nothing but the write
+ * and the mail that must not happen for a stranger. Every early return is silent: past
  * the cap no new code and no mail (each probe used to mail a real member), and a missing
  * hash secret or login_codes table is logged for us, never told to the caller.
  */
 async function sendCodeIfMember(supabase: Db, email: string, ua: string | null): Promise<void> {
   const member = await memberFor(supabase, email);
-  if (!member) return;
   const since = new Date(Date.now() - SEND_WINDOW_MS).toISOString();
   const { count } = await supabase.from('login_codes').select('id', { count: 'exact', head: true }).eq('email', email).gte('created_at', since);
-  if ((count ?? 0) >= MAX_SENDS) { console.warn('[email-code] send cap reached'); return; }
   const code = newCode();
   const hash = hashCode(email, code);
+  if (!member) return;
+  if ((count ?? 0) >= MAX_SENDS) { console.warn('[email-code] send cap reached'); return; }
   if (!hash) { console.error('[email-code] not configured (no hash secret)'); return; }
   const { error } = await supabase.from('login_codes').insert({ email, code_hash: hash, expires_at: new Date(Date.now() + CODE_TTL_MS).toISOString() });
   // Migration 132 not pasted yet.

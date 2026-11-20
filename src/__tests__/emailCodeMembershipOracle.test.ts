@@ -21,10 +21,14 @@ vi.mock('next/server', async (orig) => ({
 }));
 const drain = async () => { while (deferred.length) await deferred.shift()!(); };
 let failDb = false;
+let dbDelayMs = 0;
+const reads: string[] = [];
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const MEMBER = 'member@example.com';
 const STRANGER = 'stranger@example.com';
 let codes: Array<{ id: string; email: string; code_hash: string; expires_at: string; attempts: number; created_at: string }>;
+const hashed: string[] = [];
 const mailed = vi.fn(async () => ({ ok: true }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -44,6 +48,8 @@ vi.mock('@/lib/supabase/server', () => ({
         eq: (c: string, v: unknown) => { eqs[c] = v; return chain; },
         lt: () => chain, gte: () => chain, not: () => chain, order: () => chain, limit: () => chain,
         maybeSingle: async () => {
+          reads.push(table);
+          if (dbDelayMs) await sleep(dbDelayMs);
           if (table === 'athletes') {
             return { data: eqs.email === MEMBER ? { id: 'a1', email: MEMBER, name: 'M', approved: true, status: 'active' } : null, error: null };
           }
@@ -51,6 +57,7 @@ vi.mock('@/lib/supabase/server', () => ({
           return { data: null, error: null };
         },
         then: (res: (v: unknown) => unknown) => {
+          if (head) reads.push(`${table}:count`);
           if (table !== 'login_codes') return Promise.resolve({ data: null, error: null }).then(res);
           if (op === 'insert') {
             codes.push({ id: `c${codes.length}`, attempts: 0, created_at: new Date().toISOString(), ...payload });
@@ -71,7 +78,7 @@ vi.mock('@/lib/onboarding/events', () => ({ recordOnbEvent: vi.fn(), deviceFromU
 vi.mock('@/lib/auth/synthetic-session', () => ({ createSyntheticSession: vi.fn() }));
 vi.mock('@/lib/auth/email-code', async (orig) => ({
   ...(await orig<typeof import('@/lib/auth/email-code')>()),
-  hashCode: () => 'h', codeMatches: () => false,
+  hashCode: (...a: unknown[]) => { hashed.push(String(a[0])); return 'h'; }, codeMatches: () => false,
 }));
 
 import { POST } from '@/app/api/auth/email-code/route';
@@ -92,7 +99,7 @@ async function probe(email: string, ip: string) {
   return out;
 }
 
-beforeEach(() => { codes = []; mailed.mockClear(); deferred.length = 0; failDb = false; });
+beforeEach(() => { codes = []; mailed.mockClear(); deferred.length = 0; failDb = false; dbDelayMs = 0; reads.length = 0; hashed.length = 0; });
 
 describe('email-code is not a membership oracle', () => {
   it('4 sends + a wrong verify: identical status and body for a member and a non-member', async () => {
@@ -134,5 +141,38 @@ describe('email-code is not a membership oracle', () => {
     await drain();
     expect(logged).toHaveBeenCalledWith('[email-code] send failed:', expect.any(Error));
     logged.mockRestore();
+  });
+
+  it('timing: with slow DB reads (60 ms each), member and non-member responses are equally fast (within 20 ms)', async () => {
+    dbDelayMs = 60;
+    const time = async (email: string, ip: string) => {
+      const t0 = performance.now();
+      const r = await call(ip, { action: 'send', email });
+      await r.text();
+      return performance.now() - t0;
+    };
+    const m: number[] = [], s: number[] = [];
+    for (let n = 0; n < 3; n++) {
+      m.push(await time(MEMBER, `198.51.101.${n}`));
+      s.push(await time(STRANGER, `198.51.102.${n}`));
+    }
+    const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[1];
+    // The response waits on no DB read for either address, so both stay well under one read.
+    expect(Math.max(...m, ...s)).toBeLessThan(dbDelayMs);
+    expect(Math.abs(median(m) - median(s))).toBeLessThan(20);
+    deferred.length = 0;
+  });
+
+  it('the deferred work has the same shape for both: same reads, a code hashed for each', async () => {
+    const shape = async (email: string, ip: string) => {
+      reads.length = 0; hashed.length = 0;
+      await call(ip, { action: 'send', email });
+      await drain();
+      return { reads: [...reads], hashed: hashed.length };
+    };
+    const stranger = await shape(STRANGER, '198.51.103.1');
+    const member = await shape(MEMBER, '198.51.103.2');
+    expect(stranger).toEqual({ reads: ['athletes', 'login_codes:count'], hashed: 1 });
+    expect(member).toEqual(stranger); // a member additionally inserts and mails, after these
   });
 });
