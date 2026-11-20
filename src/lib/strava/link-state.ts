@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 
 // The OAuth `state` for "connect Strava to THIS athlete" (link mode).
 //
@@ -17,9 +17,18 @@ import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 // Signed with ENCRYPTION_KEY under its own label (the action-token approach), so no
 // new environment variable is needed; an unusable key fails closed.
 //
-// Not one-use: a state replayed within its 10 minutes re-links the SAME athlete the
-// legitimate caller already chose, to whatever Strava account completes the flow.
-// Making it single-use needs a store (a nonce table); left for review.
+// Browser binding (OAuth CSRF): GET /api/strava also sets an HttpOnly, Secure,
+// SameSite=Lax cookie holding sha256(nonce), scoped to the callback path for the same
+// 10 minutes. The callback accepts the state only together with that cookie and
+// clears it, so a state captured in transit cannot be completed from another browser,
+// and one browser cannot complete it twice. This is NOT a server-side one-use store:
+// a browser that kept a copy of the cookie could replay within 10 minutes; a nonce
+// table would be needed for that.
+//
+// Known cost: the cookie is set on the response to the app's fetch of /api/strava and
+// must come back on Strava's redirect to the callback. If the authorize page opens in
+// a DIFFERENT cookie jar (e.g. an iOS home-screen app handing off to Safari) the
+// cookie is missing and the link is refused (bad_state) — fail closed, needs a device check.
 
 const PREFIX = 'link.';
 const LABEL = 'strava-link-state-v1';
@@ -39,6 +48,27 @@ export function signLinkState(athleteId: string, nowSeconds = Math.floor(Date.no
   if (!s || !athleteId) return null;
   const body = `${Buffer.from(athleteId, 'utf8').toString('base64url')}.${nowSeconds}.${randomBytes(9).toString('base64url')}`;
   return `${PREFIX}${body}.${mac(s, body)}`;
+}
+
+export const LINK_COOKIE = 'mc_strava_link';
+
+/** sha256(nonce) of a link state, for the binding cookie; null if not a link state. */
+export function linkBindingOf(state: string | null | undefined): string | null {
+  if (!state || !state.startsWith(PREFIX)) return null;
+  const parts = state.slice(PREFIX.length).split('.');
+  if (parts.length !== 4 || !parts[2]) return null;
+  return createHash('sha256').update(parts[2]).digest('base64url');
+}
+
+/** The state is valid AND the request carries the cookie bound to it. */
+export function verifyBoundLinkState(state: string | null | undefined, cookieValue: string | null | undefined, nowSeconds?: number): string | null {
+  const id = verifyLinkState(state, nowSeconds);
+  if (!id) return null;
+  const want = linkBindingOf(state);
+  if (!want || !cookieValue) return null;
+  const a = Buffer.from(want); const b = Buffer.from(cookieValue);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  return id;
 }
 
 export function isLinkState(state: string | null | undefined): boolean {

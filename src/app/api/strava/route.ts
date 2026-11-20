@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { resolveStravaRedirectUri } from '@/lib/strava/client';
 import { loginState, joinState } from '@/lib/auth/login-handoff';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
-import { signLinkState } from '@/lib/strava/link-state';
+import { LINK_COOKIE, LINK_STATE_MAX_AGE_SECONDS, linkBindingOf, signLinkState } from '@/lib/strava/link-state';
 
 /**
  * GET /api/strava?mode=login[&challenge=<base64url sha256>]
@@ -127,5 +127,13 @@ export async function GET(request: Request) {
     `&approval_prompt=${approvalPrompt}` +
     `&state=${encodeURIComponent(state)}`;
 
-  return NextResponse.json({ authUrl });
+  const res = NextResponse.json({ authUrl });
+  // Link mode: bind the state to this browser (lib/strava/link-state.ts).
+  const binding = linkBindingOf(state);
+  if (binding) {
+    res.cookies.set(LINK_COOKIE, binding, {
+      httpOnly: true, secure: true, sameSite: 'lax', path: '/api/strava/callback', maxAge: LINK_STATE_MAX_AGE_SECONDS,
+    });
+  }
+  return res;
 }

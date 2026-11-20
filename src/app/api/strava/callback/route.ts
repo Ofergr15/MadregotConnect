@@ -7,7 +7,7 @@ import { encrypt } from '@/lib/encryption';
 import { COACH_ID } from '@/lib/constants';
 import { resolveAppOrigin, stravaAuthEmail } from '@/lib/strava/client';
 import { createSyntheticSession } from '@/lib/auth/synthetic-session';
-import { verifyLinkState } from '@/lib/strava/link-state';
+import { LINK_COOKIE, verifyBoundLinkState } from '@/lib/strava/link-state';
 import {
   duplicatesToFold,
   isSyntheticAuthEmail,
@@ -127,6 +127,19 @@ export async function GET(request: Request) {
   if (!process.env.STRAVA_CLIENT_ID || !process.env.STRAVA_CLIENT_SECRET) {
     console.error(`[auth-debug:${debugId}] callback:not_configured`);
     return NextResponse.redirect(new URL('/?strava=error&reason=not_configured', origin));
+  }
+
+  // Link mode (neither login nor join): only a state this server signed for one
+  // athlete in the last 10 minutes (lib/strava/link-state.ts). Checked BEFORE the
+  // code is exchanged, so a forged or bare-id state never reaches Strava's token
+  // endpoint or any write.
+  const linkCookie = request.headers.get('cookie')?.split(/;\s*/).find((c) => c.startsWith(`${LINK_COOKIE}=`))?.slice(LINK_COOKIE.length + 1) ?? null;
+  const linkAthleteId = !isLogin && !joinToken ? verifyBoundLinkState(state, linkCookie) : null;
+  if (!isLogin && !joinToken && !linkAthleteId) {
+    console.warn(`[auth-debug:${debugId}] callback:link_state_rejected`);
+    const refused = NextResponse.redirect(new URL('/dashboard/athletes?strava=error&reason=bad_state', origin));
+    refused.cookies.delete({ name: LINK_COOKIE, path: '/api/strava/callback' });
+    return refused;
   }
 
   try {
@@ -328,13 +341,8 @@ export async function GET(request: Request) {
 
     // ── Coach link mode ──────────────────────────────────────────────────────
     if (!isLogin) {
-      // Only a state this server signed for this athlete (lib/strava/link-state.ts).
-      // A bare id — or anything else — is refused before any write.
-      const linkAthleteId = verifyLinkState(state);
-      if (!linkAthleteId) {
-        console.warn(`[auth-debug:${debugId}] callback:link_state_rejected`);
-        return NextResponse.redirect(new URL('/dashboard/athletes?strava=error&reason=bad_state', origin));
-      }
+      // linkAthleteId was verified before the code exchange, above.
+      if (!linkAthleteId) throw new Error('unreachable: link state not verified');
       const supabase = createServerClient();
       // Whether Garmin is already connected decides one field below, so it is read
       // before the write rather than after.
@@ -365,7 +373,9 @@ export async function GET(request: Request) {
           new URL('/dashboard/athletes?strava=error&reason=save_failed', origin),
         );
       }
-      return NextResponse.redirect(new URL('/dashboard/athletes?strava=connected', origin));
+      const linked = NextResponse.redirect(new URL('/dashboard/athletes?strava=connected', origin));
+      linked.cookies.delete({ name: LINK_COOKIE, path: '/api/strava/callback' });
+      return linked;
     }
 
     // ── Login mode ───────────────────────────────────────────────────────────
