@@ -79,3 +79,24 @@ describe('POST /api/admin/approve contract', () => {
     expect(outbound()).toBe(sent);
   });
 });
+
+describe('POST /api/admin/approve concurrency (B30)', () => {
+  it('two approvals at once: one flips the row and notifies; the other answers "Already approved" and sends nothing', async () => {
+    session = approver;
+    const [a, b] = await Promise.all([call({ athleteId: 'p' }), call({ athleteId: 'p' })]);
+    expect([a.status, b.status]).toEqual([200, 200]);
+    const already = [a, b].filter((r) => r.body.message === 'Already approved');
+    expect(already).toHaveLength(1);
+    expect((fx.mailUser ?? 0) + (fx.push ?? 0) + (fx.mailAcademy ?? 0)).toBeLessThanOrEqual(2);
+    expect(fx.onb ?? 0).toBe(1);
+  });
+});
+
+describe('POST /api/admin/approve with a legacy NULL approved (B30 guard)', () => {
+  it('a row whose approved is NULL is still approved, not mistaken for already approved', async () => {
+    db.tables.athletes.push({ id: 'legacy', name: 'L', email: 'l@example.test', approved: null, is_academy: false, group_id: 'g1', status: 'active' });
+    const r = await call({ athleteId: 'legacy' });
+    expect(r.body.message).not.toBe('Already approved');
+    expect(db.tables.athletes.find((x) => x.id === 'legacy')!.approved).toBe(true);
+  });
+});
