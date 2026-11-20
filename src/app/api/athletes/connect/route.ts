@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sendWaitingAfterReconnect, withinMs } from '@/lib/watch/reconnect';
 import { createServerClient } from '@/lib/supabase/server';
 import { encrypt } from '@/lib/encryption';
+import { isTestAccount } from '@/lib/athletes/test-accounts';
 import { COACH_ID } from '@/lib/constants';
 import { syncClubFollows } from '@/lib/follows/club-sync';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
@@ -122,7 +123,7 @@ export async function POST(req: NextRequest) {
       if (athlete.status !== 'active') {
         try {
           const { notifyAdminNewUser } = await import('@/lib/email');
-          await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updateData.onboarding_status, hasGarmin: !!encryptedAuth });
+          if (!(await isTestAccount(supabase, athlete.id))) await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updateData.onboarding_status, hasGarmin: !!encryptedAuth });
         } catch {}
       }
 
@@ -188,7 +189,7 @@ export async function POST(req: NextRequest) {
       if (existing.status !== 'active') {
         try {
           const { notifyAdminNewUser } = await import('@/lib/email');
-          await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updatePayload.onboarding_status, hasGarmin: !!encryptedAuth });
+          if (!(await isTestAccount(supabase, existing.id))) await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updatePayload.onboarding_status, hasGarmin: !!encryptedAuth });
         } catch {}
       }
 

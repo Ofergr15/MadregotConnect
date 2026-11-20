@@ -1047,6 +1047,9 @@ export interface NotifyResult {
 }
 
 export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<NotifyResult> {
+  // A QA test account (migration 182) acting on someone else notifies nobody: no push,
+  // no inbox row. What it does to itself, and anything with no actor, is untouched.
+  if (await suppressedForTestActor(opts.actorAthleteId, opts.athleteId)) return { subscriptions: 0, delivered: 0 };
   // The recipient's language, resolved once and used for both the push and the
   // history row — they must agree, or opening the app would undo the setting.
   const { title, body } = opts.copy
@@ -1106,6 +1109,19 @@ export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<NotifyR
     url: opts.url,
   }], byAthlete);
   return { subscriptions, delivered: byAthlete ? byAthlete[opts.athleteId] ?? 0 : null };
+}
+
+/**
+ * True when `actorAthleteId` is a test account and the recipient is somebody else.
+ * Fails open (isTestAccount → false on a missing column or any error).
+ */
+export async function suppressedForTestActor(actorAthleteId: string | null | undefined, recipientId: string): Promise<boolean> {
+  if (!actorAthleteId || actorAthleteId === recipientId) return false;
+  try {
+    return await isTestAccount(createServerClient(), actorAthleteId);
+  } catch {
+    return false;
+  }
 }
 
 /** All athlete ids of the club (for computing non-responders). */
