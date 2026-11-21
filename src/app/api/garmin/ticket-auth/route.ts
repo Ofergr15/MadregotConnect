@@ -1,44 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GarminConnect } from 'garmin-connect';
-import { encrypt } from '@/lib/encryption';
+import { createServerClient } from '@/lib/supabase/server';
+import { resolveGarminTarget, storeGarminAuth } from '@/lib/garmin/store-auth';
 
+export const dynamic = 'force-dynamic';
+
+/**
+ * Garmin SSO ticket → credential stored on the caller's row. Same contract as
+ * /api/garmin/authenticate: a status only, the blob stays on the server.
+ */
 export async function POST(req: NextRequest) {
   try {
-    const { ticket } = await req.json();
-
-    if (!ticket) {
-      return NextResponse.json(
-        { error: 'Ticket is required' },
-        { status: 400 }
-      );
+    const body = await req.json().catch(() => ({}));
+    const ticket = body?.ticket;
+    if (!ticket || typeof ticket !== 'string') {
+      return NextResponse.json({ error: 'Ticket is required' }, { status: 400 });
     }
 
-    // Use garmin-connect to exchange ticket for OAuth tokens
-    const gc = new GarminConnect({ username: '', password: '' });
+    const supabase = createServerClient();
+    const resolved = await resolveGarminTarget(req, supabase, body);
+    if ('denied' in resolved) return resolved.denied;
 
-    // Access internal client to exchange ticket directly
+    const gc = new GarminConnect({ username: '', password: '' });
     const client = (gc as any).client;
     const oauth1 = await client.getOauth1Token(ticket);
     await client.getOauth2Token(oauth1);
-    const tokens = gc.exportToken();
+    const tokens = gc.exportToken() as unknown as Record<string, unknown>;
 
-    const auth = {
-      email: 'sso-login',
-      tokens: tokens as unknown as Record<string, unknown>,
-      lastAuth: new Date().toISOString(),
-    };
-
-    const encryptedAuth = encrypt(auth);
-
-    return NextResponse.json({
-      success: true,
-      auth: encryptedAuth,
-    });
+    const saved = await storeGarminAuth(req, supabase, resolved.target, { email: 'sso-login', tokens });
+    if (!saved.ok) return NextResponse.json({ error: 'Failed to save connection' }, { status: 500 });
+    return NextResponse.json({ connected: true, watchResent: saved.watchResent });
   } catch (error: any) {
-    console.error('Garmin ticket auth error:', error);
-    return NextResponse.json(
-      { error: 'Failed to authenticate with Garmin ticket.' },
-      { status: 401 }
-    );
+    // Never the error object: it carries the ticket in the request config.
+    console.error('Garmin ticket auth error:', error?.name, error?.response?.status);
+    return NextResponse.json({ error: 'Failed to authenticate with Garmin ticket.' }, { status: 401 });
   }
 }

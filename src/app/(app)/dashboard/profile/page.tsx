@@ -1167,14 +1167,14 @@ function ProfileContent() {
                         if (mfaRequired && mfaCode) {
                           authRes = await fetch('/api/garmin/authenticate', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: await apiHeaders(true),
                             body: JSON.stringify({ email: garminEmail, mfaCode, sessionId: mfaSessionId }),
                           });
                         } else {
                           if (!garminEmail || !garminPassword) { setGarminLoading(false); return; }
                           authRes = await fetch('/api/garmin/authenticate', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: await apiHeaders(true),
                             body: JSON.stringify({ email: garminEmail, password: garminPassword }),
                           });
                         }
@@ -1190,18 +1190,11 @@ function ProfileContent() {
                           setGarminLoading(false);
                           return;
                         }
-                        const connectRes = await fetch('/api/athletes/connect', {
-                          method: 'POST',
-                          // This is the token-less update path on an already-
-                          // active row, which now needs the session: it writes
-                          // garmin_auth, and the route can't otherwise tell this
-                          // athlete from anyone naming their email address.
-                          headers: await apiHeaders(true),
-                          body: JSON.stringify({ garminAuth: authData.auth, name: athleteName, email: athleteEmail }),
-                        });
-                        if (connectRes.ok) {
-                          const connected = await connectRes.json().catch(() => null) as { watchResent?: number } | null;
-                          setWatchResent(connected?.watchResent || 0);
+                        // The route stored the credential on this member's row
+                        // (session-gated, self only) and answers with a status —
+                        // nothing to post back.
+                        if (authData.connected) {
+                          setWatchResent(authData.watchResent || 0);
                           setHasGarmin(true);
                           // Re-read rather than trusting the local flip: a reconnect
                           // has to clear a `failed` state that only the server knows

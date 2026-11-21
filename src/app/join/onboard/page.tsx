@@ -127,28 +127,46 @@ function OnboardContent() {
     }
   };
 
+  // Garmin exchange. The route stores the credential on this person's row and
+  // answers with a status only — there is no session on this page, so the row is
+  // named by `signupEmail`, which the route accepts only for a not-yet-active row.
+  // A brand-new sign-up may have no row yet: create it (the same connect call the
+  // flow ends with) and ask once more.
+  const garminAuthenticate = async (payload: Record<string, unknown>) => {
+    const post = () => fetch('/api/garmin/authenticate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, signupEmail: email }),
+    });
+    let res = await post();
+    if (res.status === 404) {
+      const created = await fetch('/api/athletes/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, groupId: selectedGroup || undefined, weekStartDay }),
+      });
+      if (created.ok) res = await post();
+    }
+    return res;
+  };
+
   const handleMfaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStep('connecting');
     setError(null);
 
     try {
-      const authRes = await fetch('/api/garmin/authenticate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: garminEmail, mfaCode, sessionId: mfaSessionId }),
-      });
+      const authRes = await garminAuthenticate({ email: garminEmail, mfaCode, sessionId: mfaSessionId });
 
       const authData = await authRes.json();
       if (!authRes.ok) {
         throw new Error(authData.message || authData.error || t('verificationFailed'));
       }
 
-      const auth = authData.auth;
       const saveRes = await fetch('/api/athletes/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ garminAuth: auth, name, email, groupId: selectedGroup || undefined, weekStartDay }),
+        body: JSON.stringify({ name, email, groupId: selectedGroup || undefined, weekStartDay }),
       });
       if (!saveRes.ok) {
         const err = await saveRes.json();
@@ -174,11 +192,7 @@ function OnboardContent() {
     setError(null);
 
     try {
-      const authRes = await fetch('/api/garmin/authenticate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: garminEmail, password: garminPassword }),
-      });
+      const authRes = await garminAuthenticate({ email: garminEmail, password: garminPassword });
 
       const authData = await authRes.json();
 
@@ -193,13 +207,10 @@ function OnboardContent() {
         throw new Error(authData.message || authData.error || t('failedToConnectGarmin'));
       }
 
-      const auth = authData.auth;
-
       const saveRes = await fetch('/api/athletes/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          garminAuth: auth,
           name,
           email,
           groupId: selectedGroup || undefined,

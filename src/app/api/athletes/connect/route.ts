@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendWaitingAfterReconnect, withinMs } from '@/lib/watch/reconnect';
 import { createServerClient } from '@/lib/supabase/server';
-import { encrypt } from '@/lib/encryption';
 import { COACH_ID } from '@/lib/constants';
 import { syncClubFollows } from '@/lib/follows/club-sync';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
 
 /**
  * Public sign-up / invite redemption. Deliberately NOT session-gated as a
@@ -27,7 +24,7 @@ import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
 /**
  * The token-less update path, narrowed to the state onboarding is actually in.
  *
- * That branch overwrites `name`, `group_id` and `garmin_auth` on whatever row
+ * That branch overwrites `name` and `group_id` (and, until 2026-11-21, `garmin_auth`) on whatever row
  * matches the email in the body — and the email is just a string the caller
  * picks. Ungated, a POST naming an existing member could repoint their Garmin
  * credentials at another account, which doesn't lock them out so much as start
@@ -50,12 +47,12 @@ async function gateEstablishedMember(req: Request, athleteId: string): Promise<R
 
 export async function POST(req: NextRequest) {
   try {
-    const { inviteToken, garminAuth, name, email, groupId, weekStartDay } = await req.json();
+    // No `garminAuth` any more (2026-11-21): the Garmin credential is written by
+    // the exchange routes themselves (lib/garmin/store-auth.ts) and never
+    // round-trips through the browser. A body that still carries one is ignored.
+    const { inviteToken, name, email, groupId, weekStartDay } = await req.json();
 
     const supabase = createServerClient();
-    const encryptedAuth = garminAuth
-      ? (typeof garminAuth === 'string' ? garminAuth : encrypt(garminAuth))
-      : null;
 
     // If inviteToken provided, update existing athlete record
     if (inviteToken) {
@@ -84,13 +81,9 @@ export async function POST(req: NextRequest) {
       // watch-less in User Manager's Garmin filter while the credential is
       // still sitting on the row. Onboarding status only ever moves forward.
       const updateData: Record<string, any> = {
-        onboarding_status: encryptedAuth || athlete.garmin_auth ? 'garmin_authed' : 'google_authed',
+        onboarding_status: athlete.garmin_auth ? 'garmin_authed' : 'google_authed',
       };
       if (athlete.approved !== false) updateData.status = 'active';
-      if (encryptedAuth) {
-        updateData.garmin_auth = encryptedAuth;
-        updateData.garmin_authed_at = new Date().toISOString();
-      }
       if (name) updateData.name = name;
       if (email) updateData.email = email.toLowerCase().trim();
       if (groupId) updateData.group_id = groupId;
@@ -122,14 +115,10 @@ export async function POST(req: NextRequest) {
       if (athlete.status !== 'active') {
         try {
           const { notifyAdminNewUser } = await import('@/lib/email');
-          await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updateData.onboarding_status, hasGarmin: !!encryptedAuth });
+          await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updateData.onboarding_status, hasGarmin: !!athlete.garmin_auth });
         } catch {}
       }
-
-      if (updateData.garmin_authed_at) await recordOnbEvent({ step: 'garmin_connected', athleteId: athlete.id, device: deviceFromUa(req.headers.get('user-agent')) });
-      // What was waiting for their watch goes now (lib/watch/reconnect.ts).
-      const watchResent = updateData.garmin_authed_at ? await withinMs(sendWaitingAfterReconnect(athlete.id), 25000, 0) : 0;
-      return NextResponse.json({ success: true, athlete: updated, watchResent });
+      return NextResponse.json({ success: true, athlete: updated });
     }
 
     // No token — create new athlete (onboard flow from main page sign-in)
@@ -157,17 +146,13 @@ export async function POST(req: NextRequest) {
         name,
         // Same forward-only rule as the invite branch above: a returning member
         // signing in again must not be demoted to 'google_authed'.
-        onboarding_status: encryptedAuth || existing.garmin_auth ? 'garmin_authed' : 'google_authed',
+        onboarding_status: existing.garmin_auth ? 'garmin_authed' : 'google_authed',
         ...(groupId ? { group_id: groupId } : {}),
         ...(weekStartDay === 0 || weekStartDay === 1 ? { week_start_day: weekStartDay } : {}),
       };
       // Self-onboarding must not activate an unapproved user — coach approval
       // owns the active flip. Legacy rows (approved null) keep going active.
       if (existing.approved !== false) updatePayload.status = 'active';
-      if (encryptedAuth) {
-        updatePayload.garmin_auth = encryptedAuth;
-        updatePayload.garmin_authed_at = new Date().toISOString();
-      }
 
       const { data: updated, error: updateError } = await supabase
         .from('athletes')
@@ -188,14 +173,10 @@ export async function POST(req: NextRequest) {
       if (existing.status !== 'active') {
         try {
           const { notifyAdminNewUser } = await import('@/lib/email');
-          await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updatePayload.onboarding_status, hasGarmin: !!encryptedAuth });
+          await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updatePayload.onboarding_status, hasGarmin: !!existing.garmin_auth });
         } catch {}
       }
-
-      if (updatePayload.garmin_authed_at) await recordOnbEvent({ step: 'garmin_connected', athleteId: existing.id, device: deviceFromUa(req.headers.get('user-agent')) });
-      // A reconnect from the profile: what was waiting for their watch goes now (lib/watch/reconnect.ts).
-      const watchResent = updatePayload.garmin_authed_at ? await withinMs(sendWaitingAfterReconnect(existing.id), 25000, 0) : 0;
-      return NextResponse.json({ success: true, athlete: updated, watchResent });
+      return NextResponse.json({ success: true, athlete: updated });
     }
 
     // Create new athlete — a brand-new public sign-up. Start pending (not
@@ -208,14 +189,10 @@ export async function POST(req: NextRequest) {
       email: email.toLowerCase(),
       status: 'invited',
       approved: false,
-      onboarding_status: encryptedAuth ? 'garmin_authed' : 'google_authed',
+      onboarding_status: 'google_authed',
       ...(groupId ? { group_id: groupId } : {}),
       ...(weekStartDay === 0 || weekStartDay === 1 ? { week_start_day: weekStartDay } : {}),
     };
-    if (encryptedAuth) {
-      insertPayload.garmin_auth = encryptedAuth;
-      insertPayload.garmin_authed_at = new Date().toISOString();
-    }
 
     const { data: created, error: createError } = await supabase
       .from('athletes')
@@ -233,10 +210,8 @@ export async function POST(req: NextRequest) {
 
     try {
       const { notifyAdminNewUser } = await import('@/lib/email');
-      await notifyAdminNewUser({ name, email, onboardingStatus: insertPayload.onboarding_status, hasGarmin: !!encryptedAuth });
+      await notifyAdminNewUser({ name, email, onboardingStatus: insertPayload.onboarding_status, hasGarmin: false });
     } catch {}
-
-    if (insertPayload.garmin_authed_at) await recordOnbEvent({ step: 'garmin_connected', athleteId: created.id, device: deviceFromUa(req.headers.get('user-agent')) });
     return NextResponse.json({ success: true, athlete: created });
   } catch (error: any) {
     return NextResponse.json(

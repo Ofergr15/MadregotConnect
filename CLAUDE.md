@@ -496,6 +496,22 @@ pain report out to the whole club, so the screen won't offer it and the module w
 resolve it. Routing is the club's decision; the recipient's own `management` category
 preference still applies on top.
 
+Recorded exposure change, **2026-11-21** — a narrowing: the Garmin credential no
+longer reaches the browser. `/api/garmin/authenticate` and `/api/garmin/ticket-auth`
+used to return the encrypted `athletes.garmin_auth` blob (OAuth tokens for the
+athlete's Garmin account once decrypted) and the client posted it back to
+`/api/athletes/connect` — so any caller could also write arbitrary bytes into any
+non-active row's credential. Now both routes resolve the target row **before**
+calling Garmin (`resolveGarminTarget` in `src/lib/garmin/store-auth.ts`: invite token,
+or a verified JWT — self, or staff via `mayActFor` — or, with no session,
+`signupEmail` for a not-yet-active row only, which is the door `/join/onboard` and
+connect's token-less path already had), write the credential server-side
+(`storeGarminAuth`), and answer `{ connected, watchResent }` / `{ mfaRequired,
+sessionId }` / `{ error }`. `connect` ignores any `garminAuth` in the body. Garmin
+errors are logged as name + HTTP status only — an axios error carries the password
+or ticket in its request config. `garmin-callback` posts the ticket to its own origin
+instead of `'*'`. Pinned by `src/__tests__/garminCredentialServerSide.test.ts`.
+
 ## The AI parser — the accuracy-critical path
 
 `src/lib/ai/parser.ts` + `prompt.ts`. Two tiers:

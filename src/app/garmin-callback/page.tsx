@@ -17,7 +17,11 @@ export default function GarminCallbackPage() {
     }
 
     if (window.opener) {
-      window.opener.postMessage({ type: 'garmin-ticket', ticket }, '*');
+      // Own origin only: the ticket is exchangeable for the athlete's Garmin
+      // tokens, and '*' handed it to whatever page opened this window. The
+      // exchange itself (/api/garmin/ticket-auth) stores the credential
+      // server-side and returns a status, never the credential.
+      window.opener.postMessage({ type: 'garmin-ticket', ticket }, window.location.origin);
       setStatus('done');
       setTimeout(() => window.close(), 1000);
     } else {
