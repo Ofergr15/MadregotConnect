@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { resolveStravaRedirectUri } from '@/lib/strava/client';
 import { loginState, joinState } from '@/lib/auth/login-handoff';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
+import { reserveLinkState, signLinkState } from '@/lib/strava/link-state';
+import { createServerClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/strava?mode=login[&challenge=<base64url sha256>]
@@ -77,7 +79,15 @@ export async function GET(request: Request) {
     // is why this is `requireCallerForAthlete` and not a staff-only gate.
     const { denied } = await requireCallerForAthlete(request, athleteId);
     if (denied) return denied;
-    state = athleteId;
+    // Signed and short-lived (lib/strava/link-state.ts): the callback writes only
+    // onto the athlete this verified caller was allowed to act for.
+    const signed = signLinkState(athleteId);
+    if (!signed) return NextResponse.json({ error: 'Strava not configured' }, { status: 500 });
+    // One use (lib/strava/link-state.ts). No reservation, no link: fail closed.
+    if (!(await reserveLinkState(createServerClient(), signed, athleteId))) {
+      return NextResponse.json({ error: 'Could not start Strava linking' }, { status: 503 });
+    }
+    state = signed;
   } else {
     return NextResponse.json({ error: 'athleteId or mode=login required' }, { status: 400 });
   }
