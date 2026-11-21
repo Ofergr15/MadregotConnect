@@ -96,6 +96,16 @@ describe('render with real components', () => {
     expect(snaps['teammate-hidden-pace-byDistance']).toContain('heartRate');
     expect(snaps['teammate-hidden-pace-byDistance']).toContain('cadence');
     expect(snaps['teammate-hidden-pace-byDistance']).toContain('elevation');
+    // The fallback kilometre list (from /details splits) and the laps table keep every row
+    // with its distance and heart rate — only the pace is withheld (3 splits, 3 laps).
+    const hp = snaps['teammate-hidden-pace-byDistance'];
+    expect(hp).toContain('splitsTitle');
+    expect(hp).toContain('lapsTitle');
+    for (const hr of ['145', '150', '149', '170', '148']) expect(hp).toContain(`>${hr}<`);
+    expect(hp).toContain('>0.80<');                            // the partial 800 m split
+    expect(hp).toContain('>0.40<');                            // the 400 m lap
+    expect(snaps['teammate-unhidden-byDistance']).toContain('splitsTitle');
+    expect(snaps['teammate-unhidden-byDistance']).toContain('lapsTitle');
     // Nothing hidden: unchanged — the toggle is offered, the pace chart drawn, no note.
     expect(snaps['teammate-unhidden-hasTimeToggle']).toBe('true');
     expect(snaps['teammate-unhidden-byDistance']).not.toContain('paceNotShown');

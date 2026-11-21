@@ -134,7 +134,10 @@ export function lapsAreKm(laps: LapRow[]): boolean {
 export function Laps({ laps }: { laps: LapRow[] }) {
   const t = useTranslations('runPage');
   const [all, setAll] = useState(false);
-  const rows = laps.filter((l) => l.distance > 50 && l.pace);
+  // A lap with no pace used to be dropped as a non-lap. When NO lap has a pace (the runner hid
+  // it), keep them all: distance and heart rate are still the lap's, only the pace is withheld.
+  const paceHidden = laps.length > 0 && laps.every((l) => l.pace == null);
+  const rows = laps.filter((l) => l.distance > 50 && (paceHidden || l.pace));
   // 42 laps of 15 × 200 is a screen of numbers; the first ten, and the rest on a tap.
   const LIMIT = 10;
   if (rows.length < 2) return null;
@@ -143,8 +146,8 @@ export function Laps({ laps }: { laps: LapRow[] }) {
   // laps carry the bar, the easy ones only their numbers.
   const work = rows.filter((l) => !(l.intensity && EASY_STEPS.has(l.intensity)));
   const ref = work.length >= 2 ? work : rows;
-  const lo = Math.min(...ref.map((l) => l.pace as number));
-  const hi = Math.max(...ref.map((l) => l.pace as number));
+  const lo = paceHidden ? 0 : Math.min(...ref.map((l) => l.pace as number));
+  const hi = paceHidden ? 0 : Math.max(...ref.map((l) => l.pace as number));
   return (
     <Section title={t('lapsTitle')} aside={t('lapsCount', { n: rows.length })}>
       <table className="w-full text-sm">
@@ -164,9 +167,9 @@ export function Laps({ laps }: { laps: LapRow[] }) {
             return (
               <tr key={i} className={cn('border-t border-page', easy && 'text-ink-400')}>
                 <td className="py-2 tabular-nums text-ink-500">{i + 1}</td>
-                <td className={cn('py-2 tabular-nums', easy ? 'text-ink-400' : 'font-bold text-ink-700')}>{formatPace(l.pace as number)}</td>
+                <td className={cn('py-2 tabular-nums', easy ? 'text-ink-400' : 'font-bold text-ink-700')}>{l.pace == null ? '–' : formatPace(l.pace)}</td>
                 <td className="py-2">
-                  {!easy && <div dir="ltr"><div className="h-2 rounded-full bg-brand-600" style={{ width: `${35 + f * 65}%` }} /></div>}
+                  {!easy && <div dir="ltr"><div className={cn('h-2 rounded-full', l.pace == null ? 'bg-ink-300' : 'bg-brand-600')} style={{ width: `${l.pace == null ? 100 : 35 + f * 65}%` }} /></div>}
                 </td>
                 <td className="py-2 tabular-nums text-ink-500">{(l.distance / 1000).toFixed(2)}</td>
                 <td className="py-2 tabular-nums text-ink-700">{l.hr ?? '–'}</td>
@@ -199,7 +202,10 @@ function rowsFromStream(km: StreamKmSplit[]): KmRow[] {
 }
 
 function rowsFromSplits(splits: Split[]): KmRow[] {
-  return splits.filter((s) => s.averagePace).map((s, i) => ({
+  // As with laps: a split without a pace is dropped, unless NONE has one (the runner hid it) —
+  // then every kilometre stays, with its distance, heart rate and climb, and no pace.
+  const paceHidden = splits.length > 0 && splits.every((s) => s.averagePace == null);
+  return splits.filter((s) => paceHidden || s.averagePace).map((s, i) => ({
     label: s.distance < 950 ? (s.distance / 1000).toFixed(2) : String(i + 1),
     pace: s.averagePace,
     hr: s.averageHR,
