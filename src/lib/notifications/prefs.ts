@@ -133,6 +133,8 @@ export const KIND_CATEGORY: Record<string, Category> = {
   // every badge anyway.
   academy_morning: 'workouts',
   badge: 'achievements',
+  // Race-day live milestones (lib/race-live): a club runner started / passed halfway / finished.
+  race_live: 'events',
   plan_pushed: 'program',
   plan_ready: 'plan_ready',
   // "אימון ליום אחד" published (lib/day-session): a session the coach wrote without a week.

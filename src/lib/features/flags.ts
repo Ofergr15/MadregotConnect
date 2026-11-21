@@ -22,6 +22,12 @@
 export const FEATURES = {
   /** Post-workout feedback prompts + pain reports (design/feedback-prototype). */
   feedback_pain: { label: 'משוב ודיווח כאב', defaultEnabled: false },
+  /** שיאים tab: weekly board, champions, squad comparison (design/records-prototype). */
+  records_tab: { label: 'לשונית שיאים', defaultEnabled: false },
+  /** Native השבוע in the בריאות grammar: structure bar, squad switch, week chart (design/week-health). */
+  week_health: { label: 'השבוע — עיצוב בריאות', defaultEnabled: false },
+  /** Race-day live tracking + milestone pushes (lib/race-live, migration 196). */
+  race_live: { label: 'מעקב חי במרוץ', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;

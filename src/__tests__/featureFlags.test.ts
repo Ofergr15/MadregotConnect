@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allowedScopeTypes, coachesAthlete, mayToggle, resolveFeature, visibleToManager, type EnablementRow } from '@/lib/features/flags';
+import { FEATURE_KEYS, allowedScopeTypes, coachesAthlete, mayToggle, resolveFeature, visibleToManager, type EnablementRow } from '@/lib/features/flags';
 
 const row = (scope_type: EnablementRow['scope_type'], scope_id: string, enabled: boolean): EnablementRow =>
   ({ feature: 'feedback_pain', scope_type, scope_id, enabled, set_by: 'x', set_at: '2026-11-21T10:00:00Z' });
@@ -91,5 +91,12 @@ describe('coachesAthlete / visibleToManager', () => {
   it('manager lists academy trainees only', () => {
     expect(visibleToManager(manager, { isAcademy: true, academyCoachIds: [] })).toBe(true);
     expect(visibleToManager(manager, { isAcademy: false, academyCoachIds: [] })).toBe(false);
+  });
+});
+
+describe('week_health (native השבוע בריאות layout)', () => {
+  it('is a known key and off with no rows', () => {
+    expect(FEATURE_KEYS).toContain('week_health');
+    expect(resolveFeature('week_health', [], { id: 'a1', groupId: 'g1', role: 'runner', isAcademy: false }).enabled).toBe(false);
   });
 });

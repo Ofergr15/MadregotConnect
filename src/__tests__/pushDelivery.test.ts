@@ -84,10 +84,6 @@ let warn: ReturnType<typeof vi.spyOn>;
 const warnings = (): string[] => (warn.mock.calls as unknown[][]).map((c) => String(c[0]));
 
 beforeEach(() => {
-  // Quiet hours (22:00–07:00 Israel by default) drop the buzz, so pin the clock to
-  // midday or this suite fails whenever it runs at night.
-  vi.useFakeTimers({ toFake: ['Date'] });
-  vi.setSystemTime(new Date('2026-11-18T10:00:00Z'));
   sendNotification.mockReset();
   sendNotification.mockResolvedValue({ statusCode: 201 });
   writes = { updated: [], deleted: [], inserted: [] };
@@ -104,9 +100,17 @@ beforeEach(() => {
     push_subscriptions: [],
   };
   warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  // Quiet hours (22:00–07:00 Israel, on by default) read the wall clock, so these
+  // delivery tests failed whenever the suite ran at night. Pin the clock to midday;
+  // quiet-hours behaviour has its own tests.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-18T12:00:00+02:00'));
 });
 
-afterEach(() => { warn.mockRestore(); vi.useRealTimers(); });
+afterEach(() => {
+  warn.mockRestore();
+  vi.useRealTimers();
+});
 
 describe('sendPushDetailed — per-athlete delivery counts', () => {
   it('counts each athlete\'s own devices separately', async () => {

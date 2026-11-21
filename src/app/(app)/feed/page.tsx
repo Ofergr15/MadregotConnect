@@ -29,7 +29,7 @@ import { SquadStandings } from '@/components/SquadStandings';
  * "מלחמת הדבוקות" in the feed — hidden for now at Ofer's request (2026-10-17), to come
  * back later. One flag rather than a deletion, so bringing it back is flipping this.
  */
-const SHOW_SQUAD_STANDINGS = false;
+import { SHOW_SQUAD_STANDINGS } from '@/lib/records/board';
 import { UpcomingEvents } from '@/components/UpcomingEvents';
 import { SetupNudgeCard } from '@/components/onboarding/SetupNudgeCard';
 import { useSetupCohort } from '@/lib/setup/use-cohort';

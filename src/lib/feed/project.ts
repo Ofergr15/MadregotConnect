@@ -1,3 +1,4 @@
+import { maskClubRecordPayload } from '@/lib/records/club-record-card';
 import { seesFullRoute, trimRouteEnds } from '@/lib/privacy/route-trim';
 import { birthdayBodyAsOf } from '@/lib/feed/birthday';
 import { israelToday } from '@/lib/utils';
@@ -524,7 +525,8 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
     // A birthday post kept up for days says "אתמול" the day after (lib/feed/birthday.ts).
     body: birthdayBodyAsOf(row.body, (payload as Record<string, unknown> | null)?.date, israelToday()),
     media: toMedia(row.media),
-    payload,
+    // A club-record card whose pace is hidden carries no times (lib/records/club-record-card.ts).
+    payload: maskClubRecordPayload(payload),
     occurredAt: row.occurred_at,
     likeCount: row.like_count ?? 0,
     commentCount: row.comment_count ?? 0,
