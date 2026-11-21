@@ -90,7 +90,8 @@ describe('S2 at the callback (login mode)', () => {
     await login();
     expect(row('m')).toMatchObject({ strava_athlete_id: 1234, strava_auth: 'enc-old' });
   });
-  it('COMPATIBILITY: an ordinary unlinked member\'s FIRST Strava login still adopts their row by exact name', async () => {
+  it("GUARDED MODE ONLY (not the 'never' default): an ordinary unlinked member's first Strava login adopts their row by exact name", async () => {
+    mode = 'guarded';
     db.tables.athletes.push(member({ id: 'm', name: 'Dana Levi', email: 'm@example.test' }));
     await login();
     expect(row('m').strava_athlete_id).toBe(9001);

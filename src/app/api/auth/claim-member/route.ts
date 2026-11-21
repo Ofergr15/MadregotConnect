@@ -99,13 +99,15 @@ export async function POST(request: Request) {
         // editor — migrations here are applied by hand. This one does NOT hide
         // behind the uniform answer: the caller is a member who will otherwise
         // wait for an email that was never going to arrive.
+        // Logged, then the SAME answer as everything else: a distinct status here is
+        // only ever reached when the address IS a member, so it would tell anyone who
+        // types an address whether that person is in the club. The applicant's way
+        // out is the screen's "nothing arrived? ask your coach".
         console.error('claim-member: could not record the claim', insertError);
-        return NextResponse.json({ error: 'claim-unavailable' }, { status: 503 });
+        return NextResponse.json({ ok: true });
       }
-      // The mail is the whole feature, so its failure is reported. Everything else
-      // about this route is uniform on purpose; this is not, because a member
-      // staring at "check your email" with nothing in their inbox has no way to
-      // tell that the sender domain is unverified.
+      // Uniform on EVERY branch (see the two failures below): the status and body
+      // never depend on whether the address belongs to a member.
       const sent = await notifyAthleteClaim({
         email,
         token,
@@ -114,8 +116,10 @@ export async function POST(request: Request) {
         athleteId: target.id,
       });
       if (!sent.ok) {
+        // Same reasoning: a 502 only on this branch was a membership oracle. The
+        // failure stays in the log for staff; the caller gets the uniform answer.
         console.error('claim-member: the claim mail did not go out', sent.reason);
-        return NextResponse.json({ ok: false, error: 'email-failed', reason: sent.reason ?? null }, { status: 502 });
+        return NextResponse.json({ ok: true });
       }
     }
 
