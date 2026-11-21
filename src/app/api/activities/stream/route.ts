@@ -24,6 +24,7 @@ import { normalizeStoredLaps } from '@/lib/garmin/laps';
 import { streamHrZones, streamKmSplits, streamView } from '@/lib/activities/stream-view';
 import { mayViewHrTrace, readHrTracePublic } from '@/lib/athletes/hr-trace-privacy';
 import { DEFAULT_MAX_HR } from '@/components/activity/format';
+import { readHiddenStats, type MaskedStat } from '@/lib/activities/hidden-stats';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,33 +55,40 @@ export async function GET(request: Request) {
 
     const selfOrStaff = mayActFor(caller, row.athlete_id);
     let hrVisible = true;
+    // Stats the runner hid in the share sheet. Read once; a failed read hides them all
+    // (lib/activities/hidden-stats). The runner and staff are never masked.
+    let hidden = new Set<MaskedStat>();
     if (!selfOrStaff) {
-      const [runnerAllows, hiddenOnThisRun] = await Promise.all([
+      const [runnerAllows, hiddenStats] = await Promise.all([
         readHrTracePublic(supabase, row.athlete_id),
-        supabase
-          .from('feed_items')
-          .select('payload')
-          .eq('activity_id', row.id)
-          .limit(1)
-          .then(({ data }) => {
-            const hidden = (data?.[0]?.payload as { hiddenFields?: unknown } | null)?.hiddenFields;
-            return Array.isArray(hidden) && hidden.includes('heart_rate');
-          }),
+        readHiddenStats(supabase, row.id),
       ]);
-      hrVisible = mayViewHrTrace({ isSelfOrStaff: false, runnerAllows, hiddenOnThisRun });
+      hidden = hiddenStats;
+      hrVisible = mayViewHrTrace({ isSelfOrStaff: false, runnerAllows, hiddenOnThisRun: hidden.has('heart_rate') });
     }
+    const hidePace = hidden.has('pace');
+    const hideHr = hidden.has('heart_rate');
 
     const series = stream.series;
-    const view = streamView(series, { includeHr: hrVisible });
-    if (!view) return NextResponse.json({ stream: null });
+    const built = streamView(series, { includeHr: hrVisible });
+    if (!built) return NextResponse.json({ stream: null });
+    // Hidden pace: no pace line, and no elapsed-time axis (time over the shared distance
+    // axis is the pace). The distance axis, elevation and cadence stay.
+    const view = hidePace ? { ...built, t: [], pace: built.pace.map(() => null) } : built;
 
     const maxHr = Math.max(DEFAULT_MAX_HR, row.max_hr ?? 0);
-    const kmSplits = streamKmSplits(series);
+    // Per-km and per-lap averages follow the same hidden stats: a split's or lap's
+    // duration is its pace, so it goes with pace; distance stays.
+    const kmSplits = streamKmSplits(series).map((k) => ({
+      ...k,
+      ...(hidePace ? { duration: null, pace: null } : {}),
+      ...(hideHr ? { hr: null } : {}),
+    }));
     const laps = normalizeStoredLaps(stream.laps).map(l => ({
       distance: Math.round(l.distance),
-      duration: Math.round(l.duration),
-      pace: l.averagePace,
-      hr: l.averageHR,
+      duration: hidePace ? null : Math.round(l.duration),
+      pace: hidePace ? null : l.averagePace,
+      hr: hideHr ? null : l.averageHR,
       intensity: l.intensityType ?? null,
     }));
 

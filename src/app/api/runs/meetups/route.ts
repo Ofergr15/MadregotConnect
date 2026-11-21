@@ -40,27 +40,39 @@ export async function GET(request: Request) {
     if (error) throw error;
     const allRows = (rows || []) as MeetupRow[];
     const allIds = allRows.map((m) => m.id);
-    const [{ data: reqs }, { data: msgs }] = await Promise.all([
+    const pastRows = (past || []) as MeetupRow[];
+    const [{ data: reqs }, { data: msgs }, { data: mine }] = await Promise.all([
       allIds.length ? db.from('run_meetup_requests').select('meetup_id, athlete_id, status').in('meetup_id', allIds) : Promise.resolve({ data: [] }),
       allIds.length ? db.from('run_meetup_messages').select('meetup_id').in('meetup_id', allIds) : Promise.resolve({ data: [] }),
+      // The runs this viewer joined (accepted), for the past runs' places below. A failed read
+      // is no joins: the place is then offered only by the run's own audience — never wider.
+      viewerId && pastRows.length
+        ? db.from('run_meetup_requests').select('meetup_id').eq('athlete_id', viewerId).eq('status', 'accepted')
+        : Promise.resolve({ data: [] }),
     ]);
+    const joinedByViewer = new Set(((mine || []) as Array<{ meetup_id: string }>).map((r) => r.meetup_id));
     const joined = new Map<string, string[]>();
     for (const r of (reqs || []) as Array<{ meetup_id: string; athlete_id: string; status: string }>) {
       if (r.status === 'accepted') joined.set(r.meetup_id, [...(joined.get(r.meetup_id) || []), r.athlete_id]);
     }
     const viewerPerson = viewerId ? people.get(viewerId) : undefined;
     const viewer = viewerId ? { id: viewerId, pack: viewerPerson?.pack ?? null } : null;
-    const meetupRows = allRows.filter((m) => meetupVisibleTo({
+    const visible = (m: MeetupRow, goingIds: string[]) => meetupVisibleTo({
       hostId: m.host_athlete_id, audience: m.audience === 'pack' ? 'pack' : 'club',
-      hostPack: people.get(m.host_athlete_id)?.pack ?? null, goingIds: joined.get(m.id) || [],
-    }, viewer));
+      hostPack: people.get(m.host_athlete_id)?.pack ?? null, goingIds,
+    }, viewer);
+    const meetupRows = allRows.filter((m) => visible(m, joined.get(m.id) || []));
     const hidden = new Set(feedHiddenIds((me as { notification_prefs?: unknown } | null)?.notification_prefs));
     const msgCount = new Map<string, number>();
     for (const m of (msgs || []) as Array<{ meetup_id: string }>) msgCount.set(m.meetup_id, (msgCount.get(m.meetup_id) || 0) + 1);
 
-    // The post sheet's places: the club's spots, then any other named point a host used.
+    // The post sheet's places: the club's spots, then any other named point a host used —
+    // only from runs this viewer may see (the same meetupVisibleTo as the board: host,
+    // accepted joiners, and the run's own audience). A pack-only run's place no longer
+    // reaches members outside that pack.
     const spots = [...CLUB_SPOTS];
-    for (const m of (past || []) as MeetupRow[]) {
+    for (const m of pastRows) {
+      if (!visible(m, viewerId && joinedByViewer.has(m.id) ? [viewerId] : [])) continue;
       if (m.lat == null || m.lng == null || !m.location) continue;
       if (spots.some((s) => s.name === m.location || (Math.abs(s.lat - m.lat!) < 0.002 && Math.abs(s.lng - m.lng!) < 0.002))) continue;
       spots.push({ name: m.location, lat: m.lat, lng: m.lng });
