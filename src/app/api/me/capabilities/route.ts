@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
  * GET /api/me/capabilities: what the signed-in caller may do in the manager screens, so a client can
  * hide what the server would refuse. Read-only: two app_settings reads, no write, no push, no mail
  * (unlike /api/auth/me). Each flag mirrors the gate of the route it stands for, nothing broader:
- *   events.manage      POST/PATCH/DELETE /api/events     isStaff || isSuperUser
+ *   events.manage      POST/PATCH/DELETE /api/events     isStaff ONLY (those routes do not admit a super-user)
  *   messages           /api/admin/publish/message        canApprove or grant 3 → 'publish'; grant 2 → 'draft'
  *   clubUpdates        lib/club-updates/access            accessFor(config, athleteId, admin)
  *   people.read        GET /api/admin/people, /users      isStaff || isSuperUser
@@ -40,7 +40,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       viewingAs: viewing,
-      events: { manage: !viewing && staff },
+      // The events routes check isStaff alone: a super-user whose row is a runner (the
+      // club owner's) is refused there, so the flag must not promise it.
+      events: { manage: !viewing && u.isStaff },
       messages,
       clubUpdates: { read: cu.canRead, write: !viewing && cu.canWrite, admin: !viewing && cu.admin },
       people: { read: staff, admin: !viewing && admin },
