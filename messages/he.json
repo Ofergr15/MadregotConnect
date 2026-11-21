@@ -5981,6 +5981,7 @@
     "foodForThis": "תזונה לאימון הזה"
   },
   "runPage": {
+    "paceNotShown": "הקצב לא מוצג בריצה הזו",
     "power": "כוח",
     "byDistance": "מרחק",
     "byTime": "זמן",

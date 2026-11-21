@@ -186,7 +186,7 @@ export function Laps({ laps }: { laps: LapRow[] }) {
 
 // ── Kilometre splits ───────────────────────────────────────────────────────
 
-interface KmRow { label: string; pace: number; hr: number | null; elev: number | null; partial: boolean }
+interface KmRow { label: string; pace: number | null; hr: number | null; elev: number | null; partial: boolean }
 
 function rowsFromStream(km: StreamKmSplit[]): KmRow[] {
   return km.map((k) => ({
@@ -221,9 +221,10 @@ export function KmSplits({ streamKm, splits, maxHr }: { streamKm: StreamKmSplit[
   const [all, setAll] = useState(false);
   const rows = streamKm?.length ? rowsFromStream(streamKm) : rowsFromSplits(splits);
   if (rows.length < 2) return null;
-  const full = rows.filter((r) => !r.partial);
-  const lo = Math.min(...full.map((r) => r.pace));
-  const hi = Math.max(...full.map((r) => r.pace));
+  // A kilometre with no pace (the runner hid it) gets a plain full bar: no ranking, no "fastest".
+  const full = rows.filter((r): r is KmRow & { pace: number } => !r.partial && r.pace != null);
+  const lo = full.length ? Math.min(...full.map((r) => r.pace)) : 0;
+  const hi = full.length ? Math.max(...full.map((r) => r.pace)) : 0;
   const fastest = full.find((r) => r.pace === lo);
   const LIMIT = 10;
   const shown = all ? rows : rows.slice(0, LIMIT);
@@ -241,15 +242,15 @@ export function KmSplits({ streamKm, splits, maxHr }: { streamKm: StreamKmSplit[
         </thead>
         <tbody>
           {shown.map((r, i) => {
-            const w = r.partial ? 20 : 35 + (1 - (r.pace - lo) / ((hi - lo) || 1)) * 65;
+            const w = r.partial ? 20 : r.pace == null ? 100 : 35 + (1 - (r.pace - lo) / ((hi - lo) || 1)) * 65;
             return (
               <tr key={i} className={cn('border-t border-page', r === fastest && 'font-extrabold')}>
                 <td className="py-2 tabular-nums text-ink-500">{r.label}</td>
                 <td className="py-2 tabular-nums text-ink-700">
-                  {formatPace(r.pace)}
+                  {r.pace == null ? '–' : formatPace(r.pace)}
                   {r === fastest && <span className="ms-1.5 rounded-full bg-brand-600/10 px-1.5 py-0.5 text-3xs font-bold text-brand-700">{t('fastest')}</span>}
                 </td>
-                <td className="py-2"><div dir="ltr"><div className={cn('h-2 rounded-full', r.partial ? 'bg-primary-200' : zoneOf(r.hr) == null && 'bg-brand-600')} style={{ width: `${w}%`, ...(!r.partial && zoneOf(r.hr) != null ? { background: ZONE_FILL[zoneOf(r.hr)!] } : {}) }} /></div></td>
+                <td className="py-2"><div dir="ltr"><div className={cn('h-2 rounded-full', r.partial ? 'bg-primary-200' : zoneOf(r.hr) == null && (r.pace == null ? 'bg-ink-300' : 'bg-brand-600'))} style={{ width: `${w}%`, ...(!r.partial && zoneOf(r.hr) != null ? { background: ZONE_FILL[zoneOf(r.hr)!] } : {}) }} /></div></td>
                 <td className="py-2 tabular-nums text-ink-400"><Num>{r.elev == null ? '–' : `${r.elev > 0 ? '+' : ''}${Math.round(r.elev)}`}</Num></td>
                 <td className="py-2 tabular-nums text-ink-700">{r.hr ?? '–'}</td>
               </tr>

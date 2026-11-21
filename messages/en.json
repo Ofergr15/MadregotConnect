@@ -5981,6 +5981,7 @@
     "foodForThis": "Nutrition for this session"
   },
   "runPage": {
+    "paceNotShown": "Pace isn't shown for this run",
     "power": "Power",
     "byDistance": "Distance",
     "byTime": "Time",

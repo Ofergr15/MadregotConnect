@@ -384,18 +384,21 @@ export function KmSplitsList({ splits, maxHr }: { splits: StreamKmSplit[]; maxHr
   if (splits.length < 2) return null;
   const folded = splits.length > SPLITS_FOLD && !open;
   const full = splits.filter((s) => s.distance >= 900);
-  const ps = full.map((s) => s.pace); const lo = Math.min(...ps); const hi = Math.max(...ps);
+  // A kilometre with no pace (the runner hid it) gets a plain grey bar: no ranking, no "fast".
+  const ps = full.map((s) => s.pace).filter((p): p is number => p != null);
+  const lo = ps.length ? Math.min(...ps) : 0; const hi = ps.length ? Math.max(...ps) : 0;
   return (
     <Card title={t('splits')}>
       <div className="grid grid-cols-[22px_1fr_38px_34px] gap-2 pb-1.5 text-[10.5px] font-extrabold text-ink-400"><span className="text-center">{t('km')}</span><span>{t('pace')}</span><span className="text-center">{t('elev')}</span><span className="text-center">♥</span></div>
       {(folded ? splits.slice(0, SPLITS_PEEK) : splits).map((s) => {
-        const fast = s.pace <= lo + (hi - lo) * 0.35;
-        const w = hi > lo ? 30 + (1 - (s.pace - lo) / (hi - lo)) * 70 : 100;
+        const noPace = s.pace == null;
+        const fast = !noPace && s.pace <= lo + (hi - lo) * 0.35;
+        const w = !noPace && hi > lo ? 30 + (1 - (s.pace - lo) / (hi - lo)) * 70 : 100;
         const el = Math.round(s.elevationGain - s.elevationLoss);
         return (
           <div key={s.km} className="grid grid-cols-[22px_1fr_38px_34px] items-center gap-2 py-[3px] text-xs">
             <span className="text-center font-extrabold text-ink-400">{s.km}</span>
-            <span className="relative flex h-[18px] items-center"><i className="absolute inset-y-[2px] start-0 block rounded" style={{ width: `${w}%`, background: fast ? BLUE : '#AEB8FF' }} /><b className={cn('relative ps-1.5 text-[11.5px] font-black', fast ? 'text-white' : 'text-ink-900')}><B>{formatPace(s.pace)}</B></b></span>
+            <span className="relative flex h-[18px] items-center"><i className="absolute inset-y-[2px] start-0 block rounded" style={{ width: `${w}%`, background: noPace ? '#E5E7EB' : fast ? BLUE : '#AEB8FF' }} /><b className={cn('relative ps-1.5 text-[11.5px] font-black', fast ? 'text-white' : 'text-ink-900')}><B>{formatPace(s.pace)}</B></b></span>
             <span className="text-center text-[11px] text-ink-400"><B>{el > 0 ? `+${el}` : el}</B></span>
             <span className="text-center font-extrabold" style={{ color: s.hr ? ZONE_COLOR[zoneOf(s.hr, maxHr)] : undefined }}><B>{s.hr ?? '—'}</B></span>
           </div>
