@@ -56,18 +56,18 @@ const row = (id: string) => db.tables.athletes.find((a) => a.id === id)!;
 
 describe('S2 rule (unit)', () => {
   const base = { id: 'x', role: 'runner', strava_athlete_id: null };
-  it('guarded: an ordinary unlinked member may be adopted', () => expect(nameAdoptionRefusal(base, 1, false)).toBeNull());
+  it('guarded: an ordinary unlinked member may be adopted', () => expect(nameAdoptionRefusal(base, 1, false, 'guarded')).toBeNull());
   it('guarded: a row linked to ANOTHER Strava id is refused; the same id is fine', () => {
-    expect(nameAdoptionRefusal({ ...base, strava_athlete_id: 2 }, 1, false)).toBe('linked_to_other_strava');
-    expect(nameAdoptionRefusal({ ...base, strava_athlete_id: 1 }, 1, false)).toBeNull();
+    expect(nameAdoptionRefusal({ ...base, strava_athlete_id: 2 }, 1, false, 'guarded')).toBe('linked_to_other_strava');
+    expect(nameAdoptionRefusal({ ...base, strava_athlete_id: 1 }, 1, false, 'guarded')).toBeNull();
   });
   it('guarded: staff role, extra staff role, super-user, approver are refused', () => {
-    for (const role of ['admin', 'coach', 'academy_coach']) expect(nameAdoptionRefusal({ ...base, role }, 1, false)).toBe('privileged_row');
-    expect(nameAdoptionRefusal(base, 1, isPrivilegedRow({ extra_roles: ['coach'] }))).toBe('privileged_row');
-    expect(nameAdoptionRefusal(base, 1, isPrivilegedRow({ is_super_user: true }))).toBe('privileged_row');
-    expect(nameAdoptionRefusal(base, 1, isPrivilegedRow({ is_approver: true }))).toBe('privileged_row');
+    for (const role of ['admin', 'coach', 'academy_coach']) expect(nameAdoptionRefusal({ ...base, role }, 1, false, 'guarded')).toBe('privileged_row');
+    expect(nameAdoptionRefusal(base, 1, isPrivilegedRow({ extra_roles: ['coach'] }), 'guarded')).toBe('privileged_row');
+    expect(nameAdoptionRefusal(base, 1, isPrivilegedRow({ is_super_user: true }), 'guarded')).toBe('privileged_row');
+    expect(nameAdoptionRefusal(base, 1, isPrivilegedRow({ is_approver: true }), 'guarded')).toBe('privileged_row');
   });
-  it('guarded: unreadable privilege flags are refused (fail closed)', () => expect(nameAdoptionRefusal(base, 1, null)).toBe('privileges_unknown'));
+  it('guarded: unreadable privilege flags are refused (fail closed)', () => expect(nameAdoptionRefusal(base, 1, null, 'guarded')).toBe('privileges_unknown'));
   it('never: no name-only adoption at all', () => expect(nameAdoptionRefusal(base, 1, false, 'never')).toBe('name_only_disabled'));
 });
 

@@ -23,13 +23,15 @@ import { cn } from '@/lib/utils';
  * MAILBOX, and clicking it merges the two rows: the typed address is never trusted,
  * it only decides where the proof is sent. See /api/auth/claim-member.
  *
- * Folded shut by default. Most people on this screen really are new and waiting for
- * an approval, and an email field is the wrong thing to put in front of them —
- * opening it is one tap for the few who need it.
+ * OPEN by default. Since a Strava login no longer adopts a roster row by name
+ * (lib/auth/athlete-identity.ts NAME_ADOPTION_MODE 'never'), every existing member
+ * who was not yet linked lands on this screen on their first Strava sign-in, and this
+ * card is their way back. Folded shut, they read "wait for approval" and miss it.
+ * Someone who really is new can ignore it or close it.
  */
 export default function ClaimExistingAccount() {
   const t = useTranslations('claimAccount');
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
