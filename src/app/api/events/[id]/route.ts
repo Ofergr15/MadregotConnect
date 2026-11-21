@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
 import { EVENT_KINDS, isEventKind } from '@/lib/events';
+import {
+  editTarget, isMissingSchema, mergePending, normaliseBlocks, projectEvent, visibleBlocks, isVisibleTo,
+} from '@/lib/events/lifecycle';
+import { callerIsStaff, loadBlocks, optionalCaller, replaceBlocks } from '@/lib/events/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,12 +30,17 @@ const UPDATABLE_FIELDS = [
   'faqs',
   'capacity',
   'registration_deadline',
+  'cover_image_url',
+  'logo_url',
 ] as const;
 
-// GET /api/events/[id] — single event; powers the dedicated event detail
-// page (#8). No auth required, same public-read convention as GET /api/events.
+// GET /api/events/[id] — single event. The row stays public for a PUBLISHED event
+// (the pre-v2 convention); a draft / not-yet-live scheduled one is staff-only and
+// reads as 404 to anyone else. `blocks` (v2) are returned only to a verified
+// member — club_runners, questionnaire etc. are club-internal — and members get
+// enabled blocks only. Staff may pass ?pending=1 to read the pending version.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -39,9 +48,21 @@ export async function GET(
     const supabase = createServerClient();
     const { data, error } = await supabase.from('events').select('*').eq('id', id).maybeSingle();
     if (error) throw error;
-    if (!data) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
-
-    return NextResponse.json({ event: data });
+    const caller = await optionalCaller(request);
+    const staff = callerIsStaff(caller);
+    const now = new Date();
+    if (!data || !isVisibleTo(data, staff, now)) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+    let event = projectEvent(data, staff, now) as Record<string, unknown>;
+    let blocks = caller ? visibleBlocks(await loadBlocks(supabase, id), staff) : null;
+    const wantPending = new URL(request.url).searchParams.get('pending') === '1';
+    if (staff && wantPending && data.pending) {
+      const p = data.pending as { fields?: Record<string, unknown>; blocks?: typeof blocks };
+      event = { ...event, ...(p.fields ?? {}) };
+      if (p.blocks) blocks = p.blocks;
+    }
+    return NextResponse.json({ event, blocks });
   } catch (error) {
     console.error('Failed to fetch event:', error);
     return NextResponse.json({ error: 'Failed to fetch event' }, { status: 500 });
@@ -75,12 +96,42 @@ export async function PATCH(
     for (const field of UPDATABLE_FIELDS) {
       if (body?.[field] !== undefined) updates[field] = body[field];
     }
-    if (Object.keys(updates).length === 0) {
+    const blocks = body?.blocks !== undefined ? normaliseBlocks(body.blocks) : null;
+    if (body?.blocks !== undefined && blocks === null) {
+      return NextResponse.json({ error: 'blocks must be an array' }, { status: 400 });
+    }
+    if (Object.keys(updates).length === 0 && !blocks) {
       return NextResponse.json({ error: 'No updatable fields provided' }, { status: 400 });
     }
-    updates.updated_at = new Date().toISOString();
 
     const supabase = createServerClient();
+    const { data: current, error: curErr } = await supabase.from('events').select('*').eq('id', id).maybeSingle();
+    if (curErr) throw curErr;
+    if (!current) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+
+    // v2: an edit to a LIVE event becomes a pending version (goes live on
+    // POST /api/events/[id]/publish); a draft is edited in place.
+    if (editTarget(current, new Date()) === 'pending') {
+      const pending = mergePending(current.pending, { fields: updates, ...(blocks ? { blocks } : {}) });
+      const { data, error } = await supabase
+        .from('events')
+        .update({ pending, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      return NextResponse.json({ event: data, pending: true });
+    }
+
+    if (blocks) {
+      try { await replaceBlocks(supabase, id, blocks); } catch (e) {
+        if (!isMissingSchema(e as { message?: string })) throw e;
+        return NextResponse.json({ error: 'Blocks need migration 184' }, { status: 409 });
+      }
+    }
+    if (Object.keys(updates).length === 0) return NextResponse.json({ event: current, pending: false });
+    updates.updated_at = new Date().toISOString();
+
     const { data, error } = await supabase
       .from('events')
       .update(updates)
@@ -91,7 +142,7 @@ export async function PATCH(
     if (error) throw error;
     if (!data) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
-    return NextResponse.json({ event: data });
+    return NextResponse.json({ event: data, pending: false });
   } catch (error) {
     console.error('Failed to update event:', error);
     return NextResponse.json({ error: 'Failed to update event' }, { status: 500 });

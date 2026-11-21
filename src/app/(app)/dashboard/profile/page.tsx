@@ -30,7 +30,6 @@ import { ONBOARDING_KEY } from '@/lib/onboarding/use-onboarding';
 import { Sheet, SegmentedControl, BackNav } from '@/components/ui';
 import { PackTiles, dayMonth, laneOf } from '@/components/packs/PackSwitch';
 import { groupChangeDate } from '@/lib/groups/pending-change';
-import { WeekStartSetting } from '@/components/profile/WeekStartSetting';
 import { shareTextForDay } from '@/lib/workout-share';
 import { getDisplayWeekStart, formatPlanWeekRange } from '@/lib/plans/workout-parsing';
 import { fetchActivities } from '@/lib/activities-client';
@@ -894,15 +893,7 @@ function ProfileContent() {
                     <InsetRow icon={Share2} iconBg="bg-teal-500" label={t('shareWorkout')} onClick={() => setActiveTab('share')} />
                   )}
                 </InsetSection>
-                {/* Its own section: it changes how every weekly figure on this
-                    profile is cut (see WeekStartSetting). */}
-                {athleteId && (
-                  <WeekStartSetting
-                    athleteId={athleteId}
-                    value={meData?.athlete?.weekStartDay ?? MONDAY_WEEK}
-                    onSaved={() => mutateMe()}
-                  />
-                )}
+                {/* The personal week start was removed in settings rev 3 (Q7): weekly km is always the watch week. */}
                 <ShoeManager athleteId={athleteId} />
 
                 <InsetSection header={t('connections')}>

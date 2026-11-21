@@ -3,8 +3,9 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, authError } from '@/lib/auth-session';
 import { israelToday } from '@/lib/utils';
 import { waShareUrl, waPhone } from '@/lib/academy/manage';
-import { meetupWaText, meetupVisibleTo } from '@/lib/runs/meetups';
-import { roster } from '@/lib/runs/meetups-server';
+import { meetupWaText } from '@/lib/runs/meetups';
+import { rosterFull, factsFor, visibleTo, areaOf, type MeetupRow, type RequestRow } from '@/lib/runs/meetups-server';
+import { canSeeExact } from '@/lib/runs/together';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,23 +22,27 @@ export async function GET(request: Request, { params }: Params) {
   const to = new URL(request.url).searchParams.get('to') || '';
   if (!to || to === auth.user.athleteId) return NextResponse.json({ error: 'to required' }, { status: 400 });
   const db = createServerClient();
-  const [{ data: row }, { data: reqs }] = await Promise.all([
-    db.from('run_meetups').select('id, host_athlete_id, date, start_time, location, kind, audience').eq('id', id).maybeSingle(),
-    db.from('run_meetup_requests').select('athlete_id, status').eq('meetup_id', id),
+  const [{ data: row }, { data: reqs }, inv] = await Promise.all([
+    db.from('run_meetups').select('*').eq('id', id).maybeSingle(),
+    db.from('run_meetup_requests').select('meetup_id, athlete_id, status').eq('meetup_id', id),
+    db.from('run_meetup_invites').select('meetup_id, athlete_id').eq('meetup_id', id),
   ]);
   if (!row) return NextResponse.json({ error: 'No such run' }, { status: 404 });
-  const m = row as { id: string; host_athlete_id: string; date: string; start_time: string; location: string; kind: string | null; audience?: string | null };
-  const going = [m.host_athlete_id, ...((reqs || []) as Array<{ athlete_id: string; status: string }>).filter((r) => r.status === 'accepted').map((r) => r.athlete_id)];
+  const m = row as MeetupRow;
+  const me = auth.user.athleteId;
+  const f = factsFor(m, (reqs || []) as RequestRow[], inv.error ? [] : (inv.data || []) as Array<{ meetup_id: string; athlete_id: string }>, me);
+  const going = [m.host_athlete_id, ...f.joinedIds];
   // Only for someone who may see this run, and only to the run's own people: this is not a
   // way to look up any member's number.
-  const people = await roster(db);
-  const me = auth.user.athleteId;
-  if (!meetupVisibleTo({ hostId: m.host_athlete_id, audience: m.audience === 'pack' ? 'pack' : 'club', hostPack: people.get(m.host_athlete_id)?.pack ?? null, goingIds: going }, { id: me, pack: people.get(me)?.pack ?? null })) {
+  const ros = await rosterFull(db);
+  if (!visibleTo(m, f, { id: me, groupId: ros.groupOf.get(me) ?? null }, ros.groupOf.get(m.host_athlete_id))) {
     return NextResponse.json({ error: 'No such run' }, { status: 404 });
   }
+  // The prefilled text names the place: the exact one only for host + joiners (migration 190).
+  const place = canSeeExact({ hostId: m.host_athlete_id, joinedIds: f.joinedIds }, me) ? m.location : (areaOf(m).label || 'אזור המפגש');
   if (!going.includes(to)) return NextResponse.json({ error: 'Not in this run' }, { status: 403 });
   const { data: person } = await db.from('athletes').select('name, phone').eq('id', to).maybeSingle();
   const p = person as { name: string | null; phone: string | null } | null;
   if (!p || !waPhone(p.phone)) return NextResponse.json({ error: 'No WhatsApp' }, { status: 404 });
-  return NextResponse.json({ url: waShareUrl(p.phone, meetupWaText(p.name, m, israelToday())) });
+  return NextResponse.json({ url: waShareUrl(p.phone, meetupWaText(p.name, { ...m, location: place }, israelToday())) });
 }

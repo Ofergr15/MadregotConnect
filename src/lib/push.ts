@@ -1,5 +1,7 @@
 import { randomUUID } from 'crypto';
 import webpush from 'web-push';
+import { msUntilQuietEnds, quietDecision, readQuietHours, QUIET_DEFERRED_KIND } from '@/lib/notifications/quiet-hours';
+export { QUIET_DEFERRED_KIND };
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID, isStaffRole } from '@/lib/constants';
 import { streamUnreadForAthlete, streamUnreadForAthletes } from './stream/unread';
@@ -111,6 +113,8 @@ export interface PushPayload {
   kudosActivityId?: string;
   /** What kind of push this is, for its delivery rows (lib/push-deliveries); notifyAthlete fills it. */
   kind?: string;
+  /** Set by the quiet-hours re-send so it isn't deferred a second time. */
+  deferred?: boolean;
 }
 
 // The scope an action button on this payload is allowed to act within, or null
@@ -539,6 +543,41 @@ export async function sendPushDetailed(
     await recordDeliveries(deliveries);
     console.warn(`[push] category "${payload.category}" muted by all ${beforeCategory} recipient(s) of "${payload.title}"`);
     return empty;
+  }
+
+  // Quiet hours (lib/notifications/quiet-hours.ts): inside a recipient's window the
+  // buzz is dropped (the inbox row is still written by the sender), a direct coach
+  // message breaks through, and a staff pain alert is re-sent when THEIR window ends.
+  // Fails open: a failed read sends as before.
+  if (!payload.deferred) {
+    try {
+      const ids = [...new Set(subs.map((s) => s.athlete_id).filter(Boolean))];
+      const { data: qrows } = await supabase.from('athletes').select('id, notification_prefs').in('id', ids);
+      const now = Date.now();
+      const quietDrop = new Set<string>();
+      for (const r of (qrows || []) as Array<{ id: string; notification_prefs: unknown }>) {
+        const q = readQuietHours(r.notification_prefs);
+        const d = quietDecision(payload.kind, q, now);
+        if (d === 'send') continue;
+        quietDrop.add(r.id);
+        if (d === 'defer') {
+          await supabase.from('scheduled_notifications').insert({
+            kind: QUIET_DEFERRED_KIND,
+            title_he: payload.title, body_he: payload.body,
+            url: payload.url ?? null,
+            audience_type: 'athlete', audience_id: r.id,
+            schedule_type: 'once', status: 'scheduled',
+            next_run_at: new Date(now + msUntilQuietEnds(q, now)).toISOString(),
+          });
+        }
+      }
+      if (quietDrop.size > 0) {
+        const kept = subs.filter((s) => !quietDrop.has(s.athlete_id));
+        note(subs.filter((s) => quietDrop.has(s.athlete_id)), false, 'quiet');
+        subs = kept;
+        if (subs.length === 0) { await recordDeliveries(deliveries); return empty; }
+      }
+    } catch { /* fail open */ }
   }
 
   // Ghosts a working sibling exposes (lib/push-ghosts.ts): deleted, and not sent to.

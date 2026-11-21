@@ -28,9 +28,9 @@ export class EmptyParseError extends Error {
 
 // Time units the coach uses in notes (Hebrew + English). Presence of these is a
 // strong signal that a duration is genuinely time-based, not a distance.
-const TIME_UNIT_RE = /דקות|דק['׳]|שנ['׳]|שניות|שעות|שעה|\bmin\b|minute|\bhour\b|\bhr\b/i;
+export const TIME_UNIT_RE = /דקות|דק['׳]|שנ['׳]|שניות|שעות|שעה|\bmin\b|minute|\bhour\b|\bhr\b/i;
 // Distance units.
-const DIST_UNIT_RE = /ק["״']?\s*מ|קמ|קילומטר|\bkm\b|kilometer|מטר|מ['׳]/i;
+export const DIST_UNIT_RE = /ק["״']?\s*מ|קמ|קילומטר|\bkm\b|kilometer|מטר|מ['׳]/i;
 
 /**
  * The coach's notes are the source of truth for pace (the prompt tells the model

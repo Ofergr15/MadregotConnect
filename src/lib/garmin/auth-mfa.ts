@@ -283,7 +283,15 @@ export async function garminVerifyMfa(sessionId: string, code: string): Promise<
   }
 }
 
-async function exchangeTicketForTokens(ticket: string): Promise<{ oauth1: any; oauth2: any }> {
+/**
+ * Ticket → OAuth1 → OAuth2. `loginUrl` must be the `service=` the ticket was
+ * issued for: SSO tickets are bound to their service, so a ticket minted for the
+ * native app's return URL is exchanged with that URL, not with `sso/embed`.
+ */
+export async function exchangeTicketForTokens(
+  ticket: string,
+  loginUrl: string = SSO_EMBED,
+): Promise<{ oauth1: any; oauth2: any }> {
   // Fetch OAuth consumer credentials
   const consumerRes = await axios.get(OAUTH_CONSUMER_URL);
   const consumer = consumerRes.data;
@@ -300,7 +308,7 @@ async function exchangeTicketForTokens(ticket: string): Promise<{ oauth1: any; o
 
   const preAuthParams = {
     ticket,
-    'login-url': SSO_EMBED,
+    'login-url': loginUrl,
     'accepts-mfa-tokens': true,
   };
   const preAuthUrl = `${OAUTH_URL}/preauthorized?${qs.stringify(preAuthParams)}`;

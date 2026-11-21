@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, authError } from '@/lib/auth-session';
+import { isVisibleTo } from '@/lib/events/lifecycle';
 import type { EventRegistrationStatus } from '@/lib/events';
 
 export const dynamic = 'force-dynamic';
@@ -54,10 +55,14 @@ export async function POST(
 
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('id, capacity')
+      .select('*')
       .eq('id', eventId)
       .maybeSingle();
     if (eventError) throw eventError;
+    // v2: no RSVP to a draft / not-yet-live event (it reads as missing).
+    if (event && !isVisibleTo(event, !!auth.user.isStaff, new Date())) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
     const { count: othersRegistered, error: countError } = await supabase

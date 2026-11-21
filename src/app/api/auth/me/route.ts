@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
 import { membershipFor } from '@/lib/auth/membership';
 import { roleLevels } from '@/lib/access/grants';
+import { deriveSetup, type SetupProgress } from '@/lib/onboarding/native-setup';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -97,6 +98,21 @@ export async function GET(request: Request) {
     // Per-part Content levels (lib/access/grants.ts): the role, raised by this person's grant.
     const contentRead = import('@/lib/access/grants')
       .then(({ callerLevels }) => callerLevels(supabase, auth.user)).catch(() => null);
+    // The native first-run checklist (migration 189, lib/onboarding/native-setup):
+    // read in parallel with the row below, and on its own so an unapplied 189 costs
+    // only `setup_progress` — the derived half still answers. garmin_auth is reduced
+    // to a boolean here and never leaves the server.
+    type SetupRow = { name?: string | null; avatar_url?: string | null; garmin_auth?: unknown; strava_athlete_id?: unknown; setup_progress?: SetupProgress | null };
+    // Opt-in (`?setup=1`, the native app): this route gates every web page load, and
+    // the web has no use for the checklist, so it never pays for the extra read.
+    const wantsSetup = new URL(request.url).searchParams.get('setup') === '1';
+    const setupRead = !wantsSetup ? Promise.resolve(null) : (async () => {
+      const cols = 'name, avatar_url, garmin_auth, strava_athlete_id';
+      const withProgress = await supabase.from('athletes').select(`${cols}, setup_progress`).eq('id', athleteId).maybeSingle();
+      if (!withProgress.error) return withProgress.data as SetupRow | null;
+      const without = await supabase.from('athletes').select(cols).eq('id', athleteId).maybeSingle();
+      return without.data as SetupRow | null;
+    })().catch(() => null);
     const full = await supabase
       .from('athletes')
       .select('is_academy, approved, first_seen_at, is_story_editor, group_id')
@@ -165,7 +181,14 @@ export async function GET(request: Request) {
     // screen stays the super user's and the switch's, as before.
     const sharesByGrant = roleLevels(auth.user).share === 0 && (contentLevels?.share ?? 0) >= 3;
 
+    const setupRow = await setupRead;
+    const setup = setupRow
+      ? deriveSetup({ garminConnected: !!setupRow.garmin_auth, stravaConnected: setupRow.strava_athlete_id != null, avatarUrl: setupRow.avatar_url, progress: setupRow.setup_progress })
+      : null;
+
     return NextResponse.json({ role: auth.user.role || 'runner', roles, membership, isAcademy: !!row?.is_academy,
+      // Native onboarding: who to greet, their pack, and where the checklist stands.
+      ...(wantsSetup ? { athleteId, firstName: (setupRow?.name || '').trim().split(/\s+/)[0] || null, groupId: row?.group_id ?? null, setup } : {}),
       // In the academy and in no club group: the academy home only, never the club's week.
       academyOnly: !!row?.is_academy && row?.group_id == null, isSuper, canApprove: canApproveHere, isCoreRunner: isCore, qualitySession: qualitySessionFlag || sharesByGrant, isClubManager, contentLevels });
   } catch (error) {

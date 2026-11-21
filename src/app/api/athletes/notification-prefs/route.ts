@@ -6,6 +6,7 @@ import { isSupportedNotificationLocale } from '@/lib/notifications/locale';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { readReminderPatch, readReminderPref } from '@/lib/academy/morning-reminder';
 import { TRAINEE_V2_FOR_ALL } from '@/lib/trainee/flag';
+import { readQuietHours, readQuietPatch } from '@/lib/notifications/quiet-hours';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
     }
     const isStaff = isStaffRole(data?.role);
     const prefs = mergeWithDefaults(data?.notification_prefs as SavedPrefs | undefined, isStaff);
-    return NextResponse.json({ prefs, isStaff, morningReminder: readReminderPref(data?.notification_prefs, TRAINEE_V2_FOR_ALL) });
+    return NextResponse.json({ prefs, isStaff, morningReminder: readReminderPref(data?.notification_prefs, TRAINEE_V2_FOR_ALL), quietHours: readQuietHours(data?.notification_prefs) });
   } catch (err: unknown) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
@@ -121,7 +122,22 @@ export async function PATCH(request: Request) {
   try {
     const body = await request.json().catch(() => null);
     const athleteId = body && typeof body.athleteId === 'string' ? body.athleteId : '';
-    const patch = readReminderPatch(body);
+    // { athleteId, quietHours: { enabled, from, to } } — its own body, like the reminder.
+    const quiet = body && 'quietHours' in body ? readQuietPatch(body.quietHours) : undefined;
+    const patch = quiet === undefined ? readReminderPatch(body) : null;
+    if (athleteId && quiet) {
+      const denied = await gate(request, athleteId);
+      if (denied) return denied;
+      const supabase = createServerClient();
+      const cur = await supabase.from('athletes').select('role, notification_prefs').eq('id', athleteId).maybeSingle();
+      if (isMigrationMissing(cur.error)) return NextResponse.json({ error: 'notification_prefs not migrated (run migration 038)' }, { status: 501 });
+      if (cur.error) throw cur.error;
+      const next = { ...((cur.data?.notification_prefs || {}) as SavedPrefs), quietHours: quiet };
+      const { error } = await supabase.from('athletes').update({ notification_prefs: next }).eq('id', athleteId);
+      if (error) throw error;
+      return NextResponse.json({ prefs: mergeWithDefaults(next, isStaffRole(cur.data?.role)), quietHours: quiet });
+    }
+    if (quiet === null) return NextResponse.json({ error: 'quietHours { enabled: boolean, from: "HH:MM", to: "HH:MM" } required' }, { status: 400 });
     if (!athleteId || !patch) {
       return NextResponse.json({ error: 'athleteId and morningReminder { enabled: boolean, time: "HH:MM" } required' }, { status: 400 });
     }

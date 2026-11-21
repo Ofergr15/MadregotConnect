@@ -7,6 +7,7 @@ import { PROVIDER_HEALTH_COLUMNS_101, connectionState } from '@/lib/providers/he
 import { nameProblem, normalizeDisplayName } from '@/lib/names/latin';
 import { historyImportStatus, readHistoryCursors, type HistoryImportStatus } from '@/lib/garmin/history-schedule';
 import { weekStartDayOf } from '@/lib/utils';
+import { cleanHiddenList, readDefaultHidden, writeDefaultHidden } from '@/lib/athletes/default-hidden';
 
 const GENDERS = ['male', 'female'] as const;
 type Gender = (typeof GENDERS)[number];
@@ -182,6 +183,8 @@ export async function GET(req: NextRequest) {
       weekStartDay: weekStartDayOf((data as any).week_start_day),
       pendingGroup,
       hrTracePublic,
+      // Migration 193; null while unapplied (the Privacy screen then hides the switches).
+      defaultHiddenFields: await readDefaultHidden(supabase, id),
       ...(await bodyRead),
     },
   });
@@ -201,7 +204,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, name, birthDate, gender, shoeSize, phone, discoverable, weekStartDay, hrTracePublic } = body;
+    const { id, name, birthDate, gender, shoeSize, phone, discoverable, weekStartDay, hrTracePublic, defaultHiddenFields } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
@@ -269,8 +272,20 @@ export async function PUT(req: NextRequest) {
       if (res === 'error') throw new Error('hr_trace_public write failed');
       hrTraceSaved = res === 'ok';
     }
+    // Migration 193's list, also written on its own for the same reason.
+    let defaultHiddenSaved: string[] | undefined;
+    if (defaultHiddenFields !== undefined) {
+      const list = cleanHiddenList(defaultHiddenFields);
+      if (!list) return NextResponse.json({ error: 'defaultHiddenFields must be a subset of calories, heart_rate, pace' }, { status: 400 });
+      const res = await writeDefaultHidden(supabase, id, list);
+      if (res === 'unmigrated' && Object.keys(updates).length === 0 && hrTracePublic === undefined) {
+        return NextResponse.json({ error: 'default_hidden_fields not migrated yet (193)' }, { status: 503 });
+      }
+      if (res === 'error') throw new Error('default_hidden_fields write failed');
+      if (res === 'ok') defaultHiddenSaved = list;
+    }
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ athlete: { id, hrTracePublic: !!hrTracePublic, hrTraceSaved } });
+      return NextResponse.json({ athlete: { id, hrTracePublic: !!hrTracePublic, hrTraceSaved, defaultHiddenFields: defaultHiddenSaved } });
     }
     // PRE_101, not FULL: this handler neither writes nor returns the connection
     // health timestamps, so naming them here would only add a fourth way for a

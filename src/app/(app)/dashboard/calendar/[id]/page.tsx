@@ -66,6 +66,11 @@ interface EventRow {
   gear: string[] | null;
   faqs: FaqItem[] | null;
   capacity: number | null;
+  // Events v2 (migration 184) — all optional so a pre-migration row renders as before.
+  cover_image_url?: string | null;
+  logo_url?: string | null;
+  status?: 'draft' | 'scheduled' | 'published';
+  has_pending?: boolean;
 }
 
 interface Participant {
@@ -249,7 +254,27 @@ export default function EventDetailPage() {
       </button>
 
       {/* Hero */}
+      {event.cover_image_url && (
+        <div className="relative mb-8">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={event.cover_image_url} alt="" className="w-full aspect-[16/9] object-cover rounded-2xl" />
+          {event.logo_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={event.logo_url} alt="" className="absolute -bottom-6 start-4 h-14 w-14 rounded-xl bg-white object-contain p-1 shadow-md" />
+          )}
+        </div>
+      )}
       <Card>
+        {event.status && event.status !== 'published' && (
+          <span className="inline-block me-2 text-2xs font-bold px-2 py-0.5 rounded-md mb-2 bg-amber-100 text-amber-800">
+            {t(event.status === 'draft' ? 'statusDraft' : 'statusScheduled')}
+          </span>
+        )}
+        {event.has_pending && (
+          <span className="inline-block me-2 text-2xs font-bold px-2 py-0.5 rounded-md mb-2 bg-amber-100 text-amber-800">
+            {t('pendingUpdate')}
+          </span>
+        )}
         <span className={cn('inline-block text-2xs font-bold px-2 py-0.5 rounded-md mb-2', kindStyle.bg, kindStyle.text)}>
           {t(`kinds.${event.kind}`)}
         </span>

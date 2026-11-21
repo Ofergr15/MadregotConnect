@@ -188,9 +188,10 @@ describe('the things that rank people', () => {
 });
 
 describe('the setting itself', () => {
-  it('is offered on the profile and during sign-up', () => {
-    expect(read('app/(app)/dashboard/profile/page.tsx')).toMatch(/<WeekStartSetting/);
-    expect(read('app/join/onboard/page.tsx')).toMatch(/setWeekStartDay/);
+  it('is no longer offered — removed in settings rev 3 (Q7): the watch week everywhere', () => {
+    expect(read('app/(app)/dashboard/profile/page.tsx')).not.toMatch(/<WeekStartSetting/);
+    expect(read('app/join/onboard/page.tsx')).not.toMatch(/setWeekStartDay/);
+    expect(read('lib/athletes/week-pref.ts')).toMatch(/PERSONAL_WEEK_START_ENABLED = false/);
   });
 
   it('says out loud that the leaderboard does not follow it', () => {

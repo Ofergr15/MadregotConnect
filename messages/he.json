@@ -2357,7 +2357,10 @@
       "deleting": "מוחק…",
       "deleteConfirm": "למחוק את “{name}”? גם ההרשמות לאירוע יימחקו, ואי אפשר לבטל את זה.",
       "mapLinkCurrent": "סימון קיים במפה: {lat}, {lng}. השאירו ריק כדי לשמור אותו, או הדביקו קישור חדש כדי להזיז אותו."
-    }
+    },
+    "statusDraft": "טיוטה",
+    "statusScheduled": "מתוזמן",
+    "pendingUpdate": "יש עדכון ממתין"
   },
   "eventDetail": {
     "edit": "עריכת אירוע",
@@ -2385,7 +2388,10 @@
     "registerCta": "הרשמה לאירוע",
     "cancelRegistration": "ביטול הרשמה",
     "actionError": "משהו השתבש, נסו שוב",
-    "faqTitle": "שאלות נפוצות"
+    "faqTitle": "שאלות נפוצות",
+    "statusDraft": "טיוטה",
+    "statusScheduled": "מתוזמן",
+    "pendingUpdate": "יש עדכון ממתין"
   },
   "practice": {
     "title": "תרגול",
@@ -2594,7 +2600,8 @@
       "teammates": "אימוני חברי הקבוצה",
       "news": "עדכונים והודעות כלליות",
       "events": "תזכורות לאירועים ותחרויות",
-      "management": "ניהול המערכת"
+      "management": "ניהול המערכת",
+      "plan_ready": "כשהתוכנית לשבוע עולה"
     },
     "managementHint": "בקשות הרשמה, דיווחי תקלה והתראות מערכת",
     "morningHeader": "תזכורת בוקר"

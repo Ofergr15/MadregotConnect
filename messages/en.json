@@ -2357,7 +2357,10 @@
       "deleting": "Deleting…",
       "deleteConfirm": "Delete “{name}”? Registrations for it are deleted too, and this cannot be undone.",
       "mapLinkCurrent": "Pin on file: {lat}, {lng}. Leave empty to keep it, or paste a new link to move it."
-    }
+    },
+    "statusDraft": "Draft",
+    "statusScheduled": "Scheduled",
+    "pendingUpdate": "Pending update"
   },
   "eventDetail": {
     "edit": "Edit event",
@@ -2385,7 +2388,10 @@
     "registerCta": "Register for event",
     "cancelRegistration": "Cancel registration",
     "actionError": "Something went wrong, please try again",
-    "faqTitle": "FAQ"
+    "faqTitle": "FAQ",
+    "statusDraft": "Draft",
+    "statusScheduled": "Scheduled",
+    "pendingUpdate": "Pending update"
   },
   "practice": {
     "title": "Practice",
@@ -2594,7 +2600,8 @@
       "teammates": "Workouts from your teammates",
       "news": "Updates and announcements",
       "events": "Event and race reminders",
-      "management": "Running the club"
+      "management": "Running the club",
+      "plan_ready": "When the week's plan is published"
     },
     "managementHint": "Sign-up requests, problem reports and system alerts",
     "morningHeader": "Morning reminder"

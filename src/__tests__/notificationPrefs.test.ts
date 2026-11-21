@@ -43,7 +43,7 @@ describe('mergeWithDefaults', () => {
     const result = mergeWithDefaults({ news: false });
     expect(result.news).toBe(false);
     for (const cat of CATEGORIES) {
-      if (cat !== 'news') expect(result[cat]).toBe(true);
+      if (cat !== 'news') expect(result[cat]).toBe(DEFAULTS[cat]);
     }
   });
 
@@ -155,5 +155,13 @@ describe('isLedgerRow', () => {
 
   it('only matches at the start — "#ledger:" elsewhere in the url is a real url', () => {
     expect(isLedgerRow('/dashboard/feed?note=#ledger:x')).toBe(false);
+  });
+});
+
+describe('plan_ready (opt-in)', () => {
+  it('is off until the member asks for it', () => {
+    expect(DEFAULTS.plan_ready).toBe(false);
+    expect(mergeWithDefaults({}).plan_ready).toBe(false);
+    expect(mergeWithDefaults({ plan_ready: true }).plan_ready).toBe(true);
   });
 });

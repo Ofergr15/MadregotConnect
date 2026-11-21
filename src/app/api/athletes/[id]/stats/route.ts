@@ -85,7 +85,9 @@ export async function GET(
     // round). The pending check is in the same round and is decided before
     // anything is returned; the extra reads for an athlete the caller may not see
     // are discarded unread.
-    const self = caller.athleteId === id;
+    // `?as=member` (settings rev 3, "how members see me"): the owner previews the page as a
+    // teammate gets it — no owner-only reads — so the preview is the server's projection.
+    const self = caller.athleteId === id && new URL(request.url).searchParams.get('as') !== 'member';
     const reads = Promise.all([
       seesPending(caller, id) ? Promise.resolve(false) : isPendingAthlete(supabase, id),
       fetchAllRows<RunActivityRow>((from, to) =>
@@ -181,7 +183,7 @@ export async function GET(
       // rolls instead of following the Mon–Sun activity week.
       // Sleep and resting HR are health data: folded in for the athlete's own
       // profile only, never for a teammate or a coach browsing it (#69).
-      last7: caller.athleteId === id
+      last7: self
         ? withWellness(buildLast7Report(acts, israelToday()), wellness ?? [])
         : buildLast7Report(acts, israelToday()),
       recentRuns: buildRecentRuns(acts, runLimit),

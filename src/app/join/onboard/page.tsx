@@ -9,7 +9,7 @@ import { signOutEverywhere } from '@/lib/auth/sign-out';
 import { InsetSection, InsetRow, EmptyState, LoadingBlock, SegmentedControl } from '@/components/ui';
 import { ApprovalPushOptIn } from '@/components/PushOptIn';
 import { WhatsNewOnboardingCard } from '@/components/whats-new/WhatsNewOnboarding';
-import { cn, MONDAY_WEEK, SUNDAY_WEEK, type WeekStartDay, memberPackName } from '@/lib/utils';
+import { cn, MONDAY_WEEK, type WeekStartDay, memberPackName } from '@/lib/utils';
 
 // Local input primitive — see src/app/admin/login/page.tsx for why this is
 // duplicated locally instead of promoted to the shared ui/index.tsx.
@@ -60,7 +60,7 @@ function OnboardContent() {
   // as wrong — Monday matches their watch, Sunday matches the Israeli calendar, and
   // only they know which one they read. Monday is preselected because it is what
   // the watch says and what the club's leaderboard uses.
-  const [weekStartDay, setWeekStartDay] = useState<WeekStartDay>(MONDAY_WEEK);
+  const weekStartDay: WeekStartDay = MONDAY_WEEK;
   const [groups, setGroups] = useState<Group[]>([]);
   const [garminEmail, setGarminEmail] = useState(searchParams.get('email') || '');
   const [garminPassword, setGarminPassword] = useState('');
@@ -360,19 +360,7 @@ function OnboardContent() {
                 <p className="text-xs text-ink-400 -mt-3 mb-1">{t('groupAssignedLater')}</p>
               </div>
             )}
-            <div>
-              <label className="block text-sm font-medium text-ink-500 mb-1.5">{t('weekStartLabel')}</label>
-              <SegmentedControl<'monday' | 'sunday'>
-                value={weekStartDay === SUNDAY_WEEK ? 'sunday' : 'monday'}
-                onChange={(v) => setWeekStartDay(v === 'sunday' ? SUNDAY_WEEK : MONDAY_WEEK)}
-                options={[
-                  { value: 'monday', label: t('weekMonSun') },
-                  { value: 'sunday', label: t('weekSunSat') },
-                ]}
-                className="bg-page/50"
-              />
-              <p className="text-xs text-ink-400 mt-1.5">{t('weekStartHint')}</p>
-            </div>
+            {/* Week start choice removed (settings rev 3, Q7): weekly km is always the watch week. */}
             {error && step === 'info' && (
               <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">
                 {error}

@@ -1,3 +1,4 @@
+import { hiddenEventIds } from '@/lib/events/server';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
@@ -61,7 +62,10 @@ export async function GET(request: Request) {
     // races and club events are the part somebody opened this for.
     const athletes = athletesRes.error ? [] : athletesRes.data || [];
 
-    const buckets = buildUpcoming({ events: eventsRes.data || [], athletes, today });
+    // Drafts / not-yet-live scheduled events (migration 184) never reach the feed card.
+    const hidden = await hiddenEventIds(supabase);
+    const events = (eventsRes.data || []).filter((e: { id: string }) => !hidden.has(e.id));
+    const buckets = buildUpcoming({ events, athletes, today });
     return NextResponse.json({ ...buckets, today });
   } catch (error: unknown) {
     rethrowIfDynamicBailout(error);

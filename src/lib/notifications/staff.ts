@@ -155,6 +155,7 @@ export async function notifyStaff(opts: {
         url: opts.url,
         tag: opts.tag,
         category: opts.category,
+        kind: opts.kind,
         ...(opts.icon ? { icon: opts.icon } : {}),
       }));
       sent = result.sent;

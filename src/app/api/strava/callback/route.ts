@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { callbackQueryShape } from '@/lib/auth/login-error';
+import { NATIVE_STRAVA_RETURN, nativeStravaAthleteId } from '@/lib/data-sources/native';
 import { randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
@@ -93,6 +94,11 @@ export async function GET(request: Request) {
   // session established here — park it in login_handoffs and let the app collect
   // it instead.
   const { isLogin, challenge, joinToken } = parseLoginState(state);
+  // `app:<athleteId>` — a connect started from the native app
+  // (/api/me/data-sources/strava, self-only). Same link write as the coach link
+  // mode below, then back to the app's scheme instead of a web page.
+  const nativeAthleteId = nativeStravaAthleteId(state);
+  const linkId = nativeAthleteId ?? state;
   // Localhost stays local even if .env still points at production.
   // Behind a Cloudflare tunnel (non-localhost host), prefer NEXT_PUBLIC_APP_URL.
   const origin = resolveAppOrigin(request);
@@ -117,6 +123,7 @@ export async function GET(request: Request) {
   if (query.error) {
     console.info(`[auth-debug:${debugId}] callback:strava_error`, { error: query.error });
     const reason = query.error === 'access_denied' ? 'denied' : 'missing_params';
+    if (nativeAthleteId) return NextResponse.redirect(`${NATIVE_STRAVA_RETURN}?result=${reason}`);
     return NextResponse.redirect(new URL(`/?strava=error&reason=${reason}&debug=${debugId}`, origin));
   }
   if (!code || !state) {
@@ -333,7 +340,7 @@ export async function GET(request: Request) {
       const { data: linkTarget } = await supabase
         .from('athletes')
         .select('garmin_auth')
-        .eq('id', state)
+        .eq('id', linkId)
         .maybeSingle();
       const { error } = await supabase
         .from('athletes')
@@ -350,12 +357,19 @@ export async function GET(request: Request) {
           ...(linkTarget?.garmin_auth ? {} : { data_source: 'strava' }),
           ...(avatar ? { avatar_url: avatar } : {}),
         })
-        .eq('id', state);
+        .eq('id', linkId);
       if (error) {
         console.error('Failed to save Strava auth:', error);
+        if (nativeAthleteId) return NextResponse.redirect(`${NATIVE_STRAVA_RETURN}?result=error`);
         return NextResponse.redirect(
           new URL('/dashboard/athletes?strava=error&reason=save_failed', origin),
         );
+      }
+      if (nativeAthleteId) {
+        // Migration 192, best effort and separate: pre-migration this write fails
+        // on the missing column and must not take the connect down with it.
+        await supabase.from('athletes').update({ strava_connected_at: new Date().toISOString() }).eq('id', linkId);
+        return NextResponse.redirect(`${NATIVE_STRAVA_RETURN}?result=connected`);
       }
       return NextResponse.redirect(new URL('/dashboard/athletes?strava=connected', origin));
     }

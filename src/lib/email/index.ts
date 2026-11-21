@@ -307,6 +307,32 @@ export async function notifyLoginCode(user: { email: string; code: string; name?
 }
 
 /**
+ * BUILD-BRIEF gap 6. A removed/disconnected member who asks for a sign-in code used
+ * to get nothing — "send" always answers ok (so the form can't test addresses), and
+ * the app said "code sent" forever. The answer now goes where only they can read it:
+ * their own inbox, in place of the code. The screen stays generic for everybody.
+ */
+export async function notifyAccountClosed(user: { email: string; name?: string | null; athleteId?: string | null }): Promise<SendResult> {
+  const first = firstName(user.name);
+  return sendEmail({
+    template: 'account_closed_login',
+    to: user.email,
+    subject: 'החשבון שלכם במדרגות לא פעיל',
+    athleteId: user.athleteId ?? null,
+    html: renderEmail({
+      eyebrow: 'כניסה לאפליקציה',
+      title: first ? `${first}, החשבון שלכם לא פעיל` : 'החשבון שלכם לא פעיל',
+      preheader: 'ביקשתם קוד כניסה, אבל החשבון הזה סגור',
+      paragraphs: [
+        'ביקשתם קוד כניסה למדרגות, אבל החשבון שמחובר לכתובת הזו כבר לא פעיל, ולכן לא נשלח קוד.',
+        'אם זו טעות, או שתרצו לחזור לרוץ איתנו, כתבו לצוות המועדון בוואטסאפ והם יחזירו אתכם.',
+      ],
+      notes: ['לא ביקשתם קוד? אפשר להתעלם מהמייל.'],
+    }),
+  });
+}
+
+/**
  * The applicant's "we got it" mail (onboarding v2): sent the moment the public form
  * lands, so the first thing a new member hears from the club is that it arrived,
  * where they are in the journey, and that the next step is ours. No button: there

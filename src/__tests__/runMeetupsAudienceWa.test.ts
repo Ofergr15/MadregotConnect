@@ -43,7 +43,7 @@ beforeEach(() => {
       athletes: ['id', 'name', 'avatar_url', 'group_id', 'phone', 'status', 'notification_prefs'],
       groups: ['id', 'name'],
       run_meetups: ['id', 'host_athlete_id', 'date', 'start_time', 'location', 'planned_pace', 'distance_km', 'notes', 'status', 'kind', 'lat', 'lng', 'audience'],
-      run_meetup_requests: ['id', 'meetup_id', 'athlete_id', 'status'],
+      run_meetup_requests: ['id', 'meetup_id', 'athlete_id', 'status', 'created_at'],
       run_meetup_messages: ['id', 'meetup_id', 'athlete_id', 'body', 'created_at'],
       athlete_activities: ['athlete_id', 'distance', 'duration', 'start_time'],
     },
