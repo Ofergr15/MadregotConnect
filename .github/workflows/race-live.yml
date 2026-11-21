@@ -1,0 +1,30 @@
+# Race-day poller: one long job that hits /api/cron/race-live every 60s.
+# GitHub's own schedule is >=5 min and drifts, so a single job loops instead.
+# Runs ONLY from the default branch — the server code must be on main first.
+name: race-live
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: 'How long to poll (minutes)'
+        default: '360'
+  schedule:
+    # 06:45 UTC on 6 Dec = 07:45 Valencia (first start 08:15). Start it by hand too — schedules can lag.
+    - cron: '45 6 6 12 *'
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 370
+    steps:
+      - name: Poll every minute
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          MINUTES: ${{ github.event.inputs.minutes || '360' }}
+        run: |
+          end=$(( $(date +%s) + MINUTES * 60 ))
+          while [ "$(date +%s)" -lt "$end" ]; do
+            curl -sS -m 55 -X POST -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/cron/race-live" || true
+            echo
+            sleep 60
+          done
