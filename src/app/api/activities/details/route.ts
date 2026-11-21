@@ -34,6 +34,7 @@ import { paceGroupKeyFor } from '@/lib/plans/pace-group';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { readHiddenFields, type HiddenFieldKey } from '@/lib/feed/project';
 import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
 import { displaySplits } from '@/lib/activities/km-splits';
 import { perKmFromStream } from '@/lib/activities/stream-per-km';
@@ -114,7 +115,7 @@ export async function GET(request: Request) {
     // zeroes, a pace chart pinned flat against a y-axis labelled "-1:-28", and
     // "0 of 31 kilometres inside the target band" said about a 15 km run whose
     // laps were all there.
-    const splits = displaySplits(r.splits, r.laps);
+    let splits = displaySplits(r.splits, r.laps);
 
     // Power and performance condition live only in the per-sample trace (#74).
     // Laps already carrying power (Strava with a meter) keep their own number.
@@ -188,6 +189,29 @@ export async function GET(request: Request) {
       );
       repTargetOut = repTarget((ex as { executed_workout?: unknown } | null)?.executed_workout, { group1: 0, group2: 1, group3: 2 }[key]);
     } catch { /* no target: the chart draws without one */ }
+
+    // The stats the athlete hid in the share sheet (payload.hiddenFields on the run's
+    // feed item) are hidden here too for everyone but the athlete themselves — the
+    // feed already masks them (lib/feed/project.ts), and this page is one tap away
+    // from the card. Staff included: the toggle is the athlete's choice about the
+    // club, and nothing says coaches are exempt (a policy call, not made here).
+    if (!own) {
+      let hidden = new Set<HiddenFieldKey>();
+      try {
+        const { data: item } = await supabase.from('feed_items').select('payload')
+          .eq('activity_id', r.id).eq('type', 'activity').is('deleted_at', null).limit(1).maybeSingle();
+        hidden = readHiddenFields(((item as { payload?: Record<string, unknown> } | null)?.payload) ?? null);
+      } catch {
+        // Unreadable: hide all three rather than leak what may have been hidden.
+        hidden = new Set<HiddenFieldKey>(['calories', 'heart_rate', 'pace']);
+      }
+      const a = activity as Record<string, unknown>;
+      if (hidden.has('calories')) a.calories = null;
+      if (hidden.has('heart_rate')) { a.average_hr = null; a.max_hr = null; }
+      if (hidden.has('pace')) a.average_pace = null;
+      if (hidden.has('pace')) splits = [];
+      else if (hidden.has('heart_rate')) splits = splits.map((sp) => ({ ...sp, averageHR: null }));
+    }
 
     return NextResponse.json({
       qualityName,

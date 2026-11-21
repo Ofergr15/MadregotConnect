@@ -365,9 +365,9 @@ function projectActivity(row: RawActivityRow, planVerdict: FeedPlanVerdict | nul
  * server can't be read out of the network response either.
  */
 const HIDDEN_FIELD_KEYS = ['calories', 'heart_rate', 'pace', 'power'] as const;
-type HiddenFieldKey = (typeof HIDDEN_FIELD_KEYS)[number];
+export type HiddenFieldKey = (typeof HIDDEN_FIELD_KEYS)[number];
 
-function readHiddenFields(payload: Record<string, unknown> | null): Set<HiddenFieldKey> {
+export function readHiddenFields(payload: Record<string, unknown> | null): Set<HiddenFieldKey> {
   const raw = payload?.hiddenFields;
   if (!Array.isArray(raw)) return new Set();
   return new Set(
