@@ -1993,6 +1993,8 @@
     "stravaEmptyTitle": "The linked account is empty",
     "stravaEmptyBody": "The connected Strava account ({account}) has no activities at all. If it is not yours, connect the right one.",
     "stravaSwitchAccount": "Connect a different account",
+    "stravaLinked": "Strava is connected to your account.",
+    "stravaLinkFailed": "Connecting Strava didn't finish. Try again; if it keeps failing, ask your coach for help.",
     "stravaDisconnect": "Disconnect",
     "stravaDisconnectConfirm": "Disconnect?",
     "stravaDisconnectKeepsHistory": "Activities already imported are kept.",

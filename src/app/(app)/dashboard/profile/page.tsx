@@ -1,5 +1,6 @@
 'use client';
 
+import { StravaConnectButton } from '@/components/profile/StravaConnectButton';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import Link from 'next/link';
 
@@ -206,7 +207,6 @@ function ProfileContent() {
   const [historyImport, setHistoryImport] = useState<{ state: 'none' | 'importing' | 'complete'; oldest: string | null }>({ state: 'none', oldest: null });
   const [stravaSyncedAt, setStravaSyncedAt] = useState<string | null>(null);
   const [stravaEnabled, setStravaEnabled] = useState(false);
-  const [connectingStrava, setConnectingStrava] = useState(false);
   const [disconnectingStrava, setDisconnectingStrava] = useState(false);
   // Two-step rather than window.confirm: a native dialog in an installed PWA looks
   // like the browser breaking through the app, and this is reversible enough that a
@@ -275,6 +275,14 @@ function ProfileContent() {
   useEffect(() => {
     const next = tabFromParam(searchParams.get('tab'));
     setActiveTabState((current) => (current === next ? current : next));
+  }, [searchParams]);
+
+  // Back from Strava after linking from here (/api/strava/callback, link mode):
+  // ?strava=connected or ?strava=error&reason=… on the data-source tab.
+  const [stravaLinkNotice, setStravaLinkNotice] = useState<'connected' | 'failed' | null>(null);
+  useEffect(() => {
+    const s = searchParams.get('strava');
+    if (s === 'connected' || s === 'error') setStravaLinkNotice(s === 'connected' ? 'connected' : 'failed');
   }, [searchParams]);
 
   useEffect(() => {
@@ -1290,29 +1298,15 @@ function ProfileContent() {
                     )}
                   </div>
                 ) : (
-                  <button
-                    onClick={async () => {
-                      setConnectingStrava(true);
-                      try {
-                        // Authenticated: the link branch of /api/strava is
-                        // self-or-staff gated, because its `state` decides
-                        // whose row the returning Strava tokens land on.
-                        const res = await fetch(`/api/strava?athleteId=${athleteId}`, {
-                          headers: await apiHeaders(),
-                        });
-                        const data = await res.json();
-                        if (data.authUrl) {
-                          window.location.href = data.authUrl;
-                        }
-                      } catch {
-                        setConnectingStrava(false);
-                      }
-                    }}
-                    disabled={connectingStrava}
+                  // Authenticated: the link branch of /api/strava is self-or-staff gated,
+                  // because its `state` decides whose row the returning Strava tokens land on.
+                  <StravaConnectButton
+                    athleteId={athleteId}
+                    label={needsReconnect(stravaState) ? t('reconnect') : t('connect')}
+                    connectingLabel={t('connecting')}
+                    onFailed={() => setStravaLinkNotice('failed')}
                     className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#fc5200]/10 text-[#fc5200] hover:bg-[#fc5200]/20 transition-colors disabled:opacity-50"
-                  >
-                    {connectingStrava ? t('connecting') : needsReconnect(stravaState) ? t('reconnect') : t('connect')}
-                  </button>
+                  />
                 )}
               </div>
             )}
@@ -1324,6 +1318,12 @@ function ProfileContent() {
                 cheapest place to stop it. */}
             {(stravaEnabled || hasStrava) && !hasStrava && (
               <p className="mt-2 text-2xs text-ink-400 leading-relaxed">{t('stravaConnectHint')}</p>
+            )}
+
+            {stravaLinkNotice && (
+              <p role="status" className={`mt-2 text-xs font-semibold ${stravaLinkNotice === 'connected' ? 'text-[#15803d]' : 'text-accent-red-ink'}`}>
+                {t(stravaLinkNotice === 'connected' ? 'stravaLinked' : 'stravaLinkFailed')}
+              </p>
             )}
 
             {/* Linked, token works, and the account holds nothing. Named rather than
@@ -1338,28 +1338,14 @@ function ProfileContent() {
                   })}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    onClick={async () => {
-                      setConnectingStrava(true);
-                      try {
-                        // switch=1 → approval_prompt=force, so Strava actually shows
-                        // which athlete it is about to connect. Without it the retry
-                        // silently re-links the same wrong account.
-                        const res = await fetch(`/api/strava?athleteId=${athleteId}&switch=1`, {
-                          headers: await apiHeaders(),
-                        });
-                        const data = await res.json();
-                        if (data.authUrl) window.location.href = data.authUrl;
-                        else setConnectingStrava(false);
-                      } catch {
-                        setConnectingStrava(false);
-                      }
-                    }}
-                    disabled={connectingStrava}
+                  <StravaConnectButton
+                    athleteId={athleteId}
+                    switchAccount
+                    label={t('stravaSwitchAccount')}
+                    connectingLabel={t('connecting')}
+                    onFailed={() => setStravaLinkNotice('failed')}
                     className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#fc5200]/10 text-[#fc5200] hover:bg-[#fc5200]/20 transition-colors disabled:opacity-50"
-                  >
-                    {connectingStrava ? t('connecting') : t('stravaSwitchAccount')}
-                  </button>
+                  />
                   {confirmStravaDisconnect ? (
                     <button
                       onClick={disconnectStrava}

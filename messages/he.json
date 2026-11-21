@@ -1993,6 +1993,8 @@
     "stravaEmptyTitle": "החשבון המחובר ריק",
     "stravaEmptyBody": "בחשבון Strava שמחובר ({account}) אין אף פעילות. אם זה לא החשבון שלכם, חברו את החשבון הנכון.",
     "stravaSwitchAccount": "חיבור חשבון אחר",
+    "stravaLinked": "סטרבה חוברה לחשבון שלך.",
+    "stravaLinkFailed": "החיבור לסטרבה לא הושלם. נסו שוב, ואם זה חוזר — פנו למאמן לעזרה.",
     "stravaDisconnect": "ניתוק",
     "stravaDisconnectConfirm": "לנתק?",
     "stravaDisconnectKeepsHistory": "הפעילויות שכבר יובאו יישארו.",
