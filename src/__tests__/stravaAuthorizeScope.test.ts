@@ -89,6 +89,23 @@ describe('GET /api/strava — link branch', () => {
     expect(res.status).toBe(403);
   });
 
+  it('fails closed with 503 and no authUrl when the one-use reservation cannot be stored', async () => {
+    requireSession.mockResolvedValue(session());
+    const real = settingsDb.client.from;
+    settingsDb.client.from = (t: string) => {
+      const b = real(t);
+      b.insert = () => Promise.resolve({ data: null, error: { code: 'XX000', message: 'down' } });
+      return b;
+    };
+    try {
+      const res = await get(`?athleteId=${ME}`);
+      expect(res.status).toBe(503);
+      expect(await res.json()).toEqual({ error: 'Could not start Strava linking' });
+    } finally {
+      settingsDb.client.from = real;
+    }
+  });
+
   it('lets a runner connect their own Strava', async () => {
     requireSession.mockResolvedValue(session());
     const res = await get(`?athleteId=${ME}`);
