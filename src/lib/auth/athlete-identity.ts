@@ -668,3 +668,46 @@ export function stravaDisplayNameOf(
   if (!joined || PROVIDER_PLACEHOLDER_NAME.test(joined)) return null;
   return joined;
 }
+
+/**
+ * May a Strava login ADOPT this roster row on the strength of a NAME alone?
+ *
+ * A Strava display name is chosen by whoever owns the Strava account, so a name
+ * match is a claim, not evidence. Unguarded, anyone could rename their Strava
+ * account to a member's exact name and sign in as that member — and adoption
+ * writes their Strava id onto the row, so every later login lands there too.
+ *
+ * 'guarded' (the default): refuse a row already linked to a DIFFERENT Strava id
+ *   (that row belongs to someone else's Strava account), and refuse any row with
+ *   privileges — a staff role, an extra staff role, super-user or approver. An
+ *   ordinary member with no Strava link can still be adopted by an exact name;
+ *   that residual is stated, not closed.
+ * 'never': no name-only adoption at all. Every first Strava login that is not
+ *   recognised by Strava id or address becomes a pending request for an approver
+ *   to match by hand.
+ *
+ * `privileged` is null when the flag columns could not be read: refused (fail
+ * closed), since a coach row is exactly what must not be handed out by name.
+ */
+export type NameAdoptionMode = 'guarded' | 'never';
+export const NAME_ADOPTION_MODE: NameAdoptionMode = 'guarded';
+
+export function nameAdoptionRefusal(
+  row: IdentityRow,
+  stravaId: number | null | undefined,
+  privileged: boolean | null,
+  mode: NameAdoptionMode = NAME_ADOPTION_MODE,
+): 'name_only_disabled' | 'linked_to_other_strava' | 'privileged_row' | 'privileges_unknown' | null {
+  if (mode === 'never') return 'name_only_disabled';
+  if (row.strava_athlete_id != null && Number(row.strava_athlete_id) !== Number(stravaId)) return 'linked_to_other_strava';
+  if (STAFF.has(row.role || '')) return 'privileged_row';
+  if (privileged === null) return 'privileges_unknown';
+  if (privileged) return 'privileged_row';
+  return null;
+}
+
+/** Whether flag/extra-role values make a row privileged, from the raw columns. */
+export function isPrivilegedRow(flags: { extra_roles?: unknown; is_super_user?: unknown; is_approver?: unknown }): boolean {
+  const extra = Array.isArray(flags.extra_roles) ? flags.extra_roles : [];
+  return flags.is_super_user === true || flags.is_approver === true || extra.some((r) => STAFF.has(String(r)));
+}

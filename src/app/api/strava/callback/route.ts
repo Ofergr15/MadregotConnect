@@ -13,6 +13,9 @@ import {
   matchAthleteByName,
   matchAthleteByNameKey,
   matchRealRowByName,
+  nameAdoptionRefusal,
+  isPrivilegedRow,
+  NAME_ADOPTION_MODE,
   pickAthleteRow,
   stravaDisplayNameOf,
   type IdentityRow,
@@ -83,6 +86,19 @@ async function exchangeCode(code: string): Promise<TokenPayload> {
  * Activity import deliberately does not run here. It can take tens of seconds,
  * so the dashboard starts it after the browser session is established.
  */
+/**
+ * Whether a roster row carries privileges beyond its `role` (extra staff roles,
+ * super-user, approver). null when the flag columns cannot be read: the name guard
+ * then refuses, since an unreadable flag must not hand out a coach's row by name.
+ */
+async function privilegedOf(admin: ReturnType<typeof adminClient>, athleteId: string): Promise<boolean | null> {
+  const full = await admin.from('athletes').select('extra_roles, is_super_user, is_approver').eq('id', athleteId).maybeSingle();
+  if (!full.error) return isPrivilegedRow((full.data || {}) as Record<string, unknown>);
+  const flags = await admin.from('athletes').select('is_super_user, is_approver').eq('id', athleteId).maybeSingle();
+  if (!flags.error) return isPrivilegedRow((flags.data || {}) as Record<string, unknown>);
+  return null;
+}
+
 export async function GET(request: Request) {
   const debugId = randomUUID().slice(0, 8);
   const { searchParams } = new URL(request.url);
@@ -424,6 +440,20 @@ export async function GET(request: Request) {
       if (existing) matchedBy = 'name_real';
     }
 
+    // ── A NAME is a claim, not evidence (lib/auth/athlete-identity.ts nameAdoptionRefusal) ──
+    // A Strava display name is whatever the Strava account's owner typed. Before a
+    // name-only match may adopt a row, refuse a row linked to a DIFFERENT Strava id
+    // and any privileged row; refused, the login continues as a new person and lands
+    // in the approval queue, where an approver matches it by hand.
+    if (existing && matchedBy.startsWith('name')) {
+      const refusal = nameAdoptionRefusal(existing, stravaId, await privilegedOf(admin, existing.id), NAME_ADOPTION_MODE);
+      if (refusal) {
+        console.warn(`[auth-debug:${debugId}] callback:name_match_refused`, { athleteId: existing.id, matchedBy, refusal });
+        existing = null;
+        matchedBy = 'none';
+      }
+    }
+
     // ── Reconcile, on EVERY login rather than only the first ──────────────────
     //
     // This is what repairs the duplicates that already exist, without anybody
@@ -436,7 +466,14 @@ export async function GET(request: Request) {
       const real = matchAthleteByNameKey(roster, existing.name) || matchAthleteByNameKey(roster, name)
         // A name too short for the skeleton (Chen Becher): the exact name, real rows only.
         || matchRealRowByName(roster, existing.name, typedNames) || matchRealRowByName(roster, name, typedNames);
-      if (real && real.id !== existing.id) {
+      // The reclaim is a name match too: the same guard, against the row it would hand over.
+      const reclaimRefusal = real && real.id !== existing.id
+        ? nameAdoptionRefusal(real, stravaId, await privilegedOf(admin, real.id), NAME_ADOPTION_MODE)
+        : null;
+      if (reclaimRefusal) {
+        console.warn(`[auth-debug:${debugId}] callback:reclaim_refused`, { shell: existing.id, real: real!.id, refusal: reclaimRefusal });
+      }
+      if (real && real.id !== existing.id && !reclaimRefusal) {
         console.info(`[auth-debug:${debugId}] callback:reclaimed_roster_row`, {
           shell: existing.id,
           real: real.id,
