@@ -47,7 +47,9 @@ export default function ClaimPage() {
         // distinguish them, and for the person reading this the answer is the same:
         // ask the app for a new link.
         if (res.status === 410) throw new Error(t('errExpired'));
-        if (res.status === 409) throw new Error(t('errRefused'));
+        if (res.status === 409) {
+          throw new Error((out as { error?: string }).error === 'linked-to-other-strava' ? t('errOtherStrava') : t('errRefused'));
+        }
         throw new Error(t('errGeneric'));
       }
       setName(out.athleteName || null);

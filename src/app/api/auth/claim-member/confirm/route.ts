@@ -71,7 +71,7 @@ export async function POST(request: Request) {
     // approver from the queue, or by the member's own next Strava login.
     const { data: rows } = await admin
       .from('athletes')
-      .select('id, name, email')
+      .select('id, name, email, strava_athlete_id')
       .in('id', [claim.shell_athlete_id, claim.target_athlete_id]);
     const shell = (rows || []).find(r => r.id === claim.shell_athlete_id);
     const target = (rows || []).find(r => r.id === claim.target_athlete_id);
@@ -82,6 +82,16 @@ export async function POST(request: Request) {
       // the member's account is intact, which is what they came here for.
       return NextResponse.json({ ok: true, alreadyMerged: true, athleteName: target.name });
     }
+    // The roster account is already connected to a DIFFERENT Strava account. Merging
+    // would keep that one (merge_athlete_rows COALESCEs the real row's id) and drop
+    // this sign-in's, then report success while this Strava account still could not
+    // sign in. Refuse before any write, and say so: they can sign in with the Strava
+    // account already connected, or ask the coach. Only the mailbox owner reaches here.
+    if (target.strava_athlete_id != null && shell.strava_athlete_id != null
+        && Number(target.strava_athlete_id) !== Number(shell.strava_athlete_id)) {
+      return NextResponse.json({ error: 'linked-to-other-strava' }, { status: 409 });
+    }
+
     // The direction is fixed and checked here as well as in SQL: the row that goes
     // is the one the app invented. If the shell somehow holds a real address, this
     // is not the claim flow's business.

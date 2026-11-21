@@ -3266,7 +3266,8 @@
     "openApp": "Open the app",
     "errExpired": "This link isn't valid any more. It lasts half an hour and works once — you can ask for a new one from the app.",
     "errRefused": "We couldn't connect the accounts automatically. Please ask your coach.",
-    "alreadyDone": "Your accounts are already connected. Nothing to do."
+    "alreadyDone": "Your accounts are already connected. Nothing to do.",
+    "errOtherStrava": "Your Madregot account is already connected to a different Strava account. Sign in with that one — or ask your coach to switch it."
   },
   "entryQueue": {
     "title": "Waiting to get in",
