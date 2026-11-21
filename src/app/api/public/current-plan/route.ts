@@ -66,6 +66,7 @@ export async function GET() {
     });
   } catch (error: any) {
     console.error('current-plan error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to load plan' }, { status: 500 });
+    // Public route: the detail stays in the log above, not in an anonymous response.
+    return NextResponse.json({ error: 'Failed to load plan' }, { status: 500 });
   }
 }
