@@ -35,10 +35,17 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const athleteId = searchParams.get('athleteId');
     if (!athleteId) return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
-    const granularity = (searchParams.get('granularity') || 'week') as 'week' | 'month' | 'year';
-    const weeks = Math.min(Math.max(Number(searchParams.get('weeks')) || 12, 1), 52);
+    const rawGranularity = searchParams.get('granularity') || 'week';
+    // An unknown value used to fall through to the month/year bucketing silently.
+    if (rawGranularity !== 'week' && rawGranularity !== 'month' && rawGranularity !== 'year') {
+      return NextResponse.json({ error: 'granularity must be week, month or year' }, { status: 400 });
+    }
+    const granularity = rawGranularity;
+    // Whole numbers only: a fractional count (weeks=1.5) built an axis whose one
+    // week matched no run and read 0 km.
+    const weeks = Math.min(Math.max(Math.floor(Number(searchParams.get('weeks'))) || 12, 1), 52);
     const periods = Math.min(
-      Math.max(Number(searchParams.get('periods')) || (granularity === 'year' ? 6 : 12), 1),
+      Math.max(Math.floor(Number(searchParams.get('periods'))) || (granularity === 'year' ? 6 : 12), 1),
       granularity === 'year' ? 10 : 36
     );
 
