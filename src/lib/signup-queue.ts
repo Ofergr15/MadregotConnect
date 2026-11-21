@@ -2,6 +2,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { notifyStaff } from '@/lib/notifications/staff';
 import { signupRequestCopy } from '@/lib/notifications/copy';
 import { notifyAdminNewSignupRequest } from '@/lib/email';
+import { isTestAccount } from '@/lib/athletes/test-accounts';
 import { signupAlertName } from '@/lib/signup';
 import { isSyntheticAuthEmail } from '@/lib/auth/athlete-identity';
 
@@ -140,10 +141,12 @@ export async function announceSignupRequest(input: {
       // identity key the browser collapses on, never a string anybody reads.
       tag: `signup-request-${input.email}`,
       category: 'management',
+      actorAthleteId: input.athleteId,
       copy: (locale) => signupRequestCopy(locale, { name: who, pending: count ?? 1 }),
     });
 
-    try {
+    // Test accounts (migration 182) never email the approvers.
+    if (!(await isTestAccount(supabase, input.athleteId))) try {
       await notifyAdminNewSignupRequest({
         email: input.contactEmail || input.email,
         name: who,

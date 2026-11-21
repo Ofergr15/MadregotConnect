@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { notifyAdminNewAcademyRegistration, notifyAcademyFormReceived } from '@/lib/email';
+import { isTestAccount } from '@/lib/athletes/test-accounts';
 import { formNameProblem, normalizeDisplayName } from '@/lib/names/latin';
 import { clientIp, createRateLimiter, isBotSubmit, looksLikeToken } from '@/lib/academy/intake';
 import { invitePrefill, recordFormCandidate } from '@/lib/academy/intake-server';
@@ -210,7 +211,8 @@ export async function POST(request: Request) {
         if (r.accepted || (r as { reason?: string }).reason === 'already') { letIn = true; return; }
       }
       if (candidateId && !(await claimFormMail(supabase, candidateId))) return;
-      await notifyAdminNewAcademyRegistration({
+      // A QA test account (migration 182) gets its own receipt below but emails no admin.
+      if (!(await isTestAccount(supabase, athleteId))) await notifyAdminNewAcademyRegistration({
         name: fullName, email: normEmail, phone, existingMember, candidateId,
         intake: intakeObj, likelyMember, existingTrainee,
       });
@@ -289,6 +291,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, ...(imported ? { letIn } : {}), ...(alreadyIn ? { alreadyIn } : {}) });
   } catch (error: any) {
     console.error('Academy register error:', error);
-    return NextResponse.json({ error: error.message || 'Registration failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Registration failed' }, { status: 500 });
   }
 }

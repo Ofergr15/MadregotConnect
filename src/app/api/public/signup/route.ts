@@ -9,6 +9,13 @@ import { signupRequestCopy } from '@/lib/notifications/copy';
 import { groupDisplayName } from '@/lib/utils';
 import { isLikelyEmail, normaliseEmail, signupAlertName } from '@/lib/signup';
 import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
+import { clientIp, createRateLimiter } from '@/lib/academy/intake';
+
+// Every submission writes a row and fires the approver mail, a staff push and a mail to
+// the typed address, so an unthrottled public POST is a spam cannon. Same limits and the
+// same per-person + per-IP keying as academy/register (a club event shares one Wi-Fi).
+const allowSubmit = createRateLimiter(5, 60_000);
+const allowFromIp = createRateLimiter(40, 60_000);
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +34,8 @@ export const dynamic = 'force-dynamic';
  * creates the athlete (see /api/admin/registrations/approve).
  *
  * DELIBERATELY NOT SESSION-GATED — it runs before the person has any account at
- * all. What keeps it safe is that it can only ever insert into this one table.
+ * all. What keeps it safe is that it can only ever insert into this one table, and
+ * never rewrites a row already there: it proves nothing about the address it is given.
  */
 
 /**
@@ -56,7 +64,7 @@ async function recordMemberSubmission(
       .maybeSingle();
 
     if (existing) {
-      if (groupId) await supabase.from('signup_requests').update({ group_id: groupId }).eq('id', existing.id);
+      // Same rule as the pending branch: a public resubmission never rewrites a row.
       return;
     }
 
@@ -82,6 +90,10 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as { email?: string; groupId?: string; fullName?: string; phone?: string; onb?: string; intake?: unknown };
     const email = normaliseEmail(body.email || '');
+    const ip = clientIp(request.headers);
+    if (!allowFromIp(ip) || !allowSubmit(`${ip}|${email}`)) {
+      return NextResponse.json({ error: 'Too many attempts, try again in a minute' }, { status: 429 });
+    }
     const groupId = body.groupId?.trim() || null;
     // Onboarding v2 (lib/install/flag): the form also asks a name and, optionally,
     // a phone — for the queue and the WhatsApp send, never written onto athletes
@@ -150,14 +162,10 @@ export async function POST(request: Request) {
       .eq('status', 'pending')
       .maybeSingle();
     if (pending) {
-      if (resolvedGroupId) {
-        await supabase.from('signup_requests').update({ group_id: resolvedGroupId }).eq('id', pending.id);
-      }
-      if (Object.keys(contact).length) {
-        // Best effort: before migration 131 the columns do not exist.
-        await supabase.from('signup_requests').update(contact).eq('id', pending.id);
-      }
-      if (intake) await supabase.from('signup_requests').update({ intake }).eq('id', pending.id);
+      // Nothing is written. This route is public and proves nothing about the address,
+      // so an update here let anybody rewrite another person's pending request (group,
+      // name, phone, intake) by typing their email. Corrections go through the coach
+      // (/dashboard/registrations) or, later, a flow that proves the address first.
       return NextResponse.json({ ok: true, state: 'pending' });
     }
 

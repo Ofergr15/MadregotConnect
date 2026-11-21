@@ -63,7 +63,7 @@ export async function GET(request: Request) {
 // Notification Center list as every other notification, then pushes.
 export async function POST(request: Request) {
   try {
-    const g = await publishGate(request, 'surveys', '/api/admin/surveys', (u) => !!u.canApprove);
+    const g = await publishGate(request, 'surveys', '/api/admin/surveys', (u) => !!u.canApprove || u.role === 'admin' || (u.roles ?? []).includes('admin'));
     if (g.denied) return g.denied;
     const actorEmail = g.user.email ?? '';
 

@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { requireMember } from '@/lib/auth/self-or-staff';
+import { testAccountIds } from '@/lib/athletes/test-accounts';
 import { rethrowIfDynamicBailout } from '@/lib/dynamic-bailout';
 import { getActivityWeekStart, activityWeekStart, computeWeekStreak, israelDateAnchor } from '@/lib/utils';
 import { fetchAllRowsParallel } from '@/lib/supabase/paginate';
@@ -67,13 +68,17 @@ async function computeLeaderboard() {
   // weekly km here is the same figure the athlete's watch reports.
   const weekStart = getActivityWeekStart(now);
 
-  const { data: athletes, error: athError } = await supabase
+  const { data: athletesRaw, error: athError } = await supabase
     .from('athletes')
     .select('id, name, group_id, gender, status')
     .eq('coach_id', COACH_ID)
     .eq('status', 'active');
 
   if (athError) throw athError;
+  // Test accounts (migration 182) never enter the club ranking. This is computed
+  // once and cached for every viewer, so they are dropped for staff too.
+  const testIds = await testAccountIds(supabase);
+  const athletes = (athletesRaw || []).filter(a => !testIds.has(a.id));
 
   const athleteIds = (athletes || []).map(a => a.id);
 

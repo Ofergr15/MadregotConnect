@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { testAccountIds, hiddenTestAccountsFor } from '@/lib/athletes/test-accounts';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,12 +64,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           .order('created_at');
         // An anonymous poll (164): the members get the counts, never who — the ids are
         // replaced, not only the names, since an id opens a profile. Staff still see names.
+        // Test accounts (migration 182): out of the counts and names for other members.
+        const hiddenTest = hiddenTestAccountsFor(await testAccountIds(supabase), caller);
         const hide = survey.anonymous === true && !caller.isStaff && !caller.isSuperUser;
         let n = 0;
         results = (survey.options_he as string[]).map((_, i) => ({
           optionIndex: i,
           people: (rows || [])
-            .filter((r: any) => r.option_index === i)
+            .filter((r: any) => r.option_index === i && !hiddenTest.has(r.athletes.id))
             .map((r: any) => (hide
               ? { id: r.athletes.id === athleteId ? athleteId : `anon-${n++}`, name: '' }
               : { id: r.athletes.id as string, name: (r.athletes.name as string) || '' })),

@@ -17,6 +17,10 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      # tsc (typecheck, and next build's own type-check) outgrows Node's default ~4 GB heap and
+      # dies with "JavaScript heap out of memory"; locally the same flag is needed.
+      NODE_OPTIONS: --max-old-space-size=6144
     steps:
       - uses: actions/checkout@v4
 

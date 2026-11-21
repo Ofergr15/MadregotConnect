@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { testAccountIds, hiddenTestAccountsFor } from '@/lib/athletes/test-accounts';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,6 +65,7 @@ export async function GET(request: Request) {
     if (groupsRes.error) throw groupsRes.error;
     if (followingRes.error) throw followingRes.error;
 
+    const hiddenTest = hiddenTestAccountsFor(await testAccountIds(supabase), caller);
     const groupNameById = new Map(
       ((groupsRes.data || []) as Array<{ id: string; name: string }>).map((g) => [g.id, g.name]),
     );
@@ -72,7 +74,7 @@ export async function GET(request: Request) {
     );
 
     const athletes = ((athletesRes.data || []) as AthleteRow[])
-      .filter((a) => a.id !== viewerId)
+      .filter((a) => a.id !== viewerId && !hiddenTest.has(a.id))
       .map((a) => ({
         id: a.id,
         name: a.name,

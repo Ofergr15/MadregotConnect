@@ -6,6 +6,7 @@ import type { LapLike } from './best-segment';
 import type { PrOverride } from './overrides';
 import { UNDEFINED_TABLE } from './overrides-store';
 import { readAllPrExclusions } from './exclusions-store';
+import { testAccountIds } from '@/lib/athletes/test-accounts';
 import { computeClubRecords, type ClubRecordAthlete, type ClubRecordBucket } from './club-records';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
@@ -120,7 +121,11 @@ export async function computeClubRecordsSnapshot(supabase: SupabaseServer): Prom
     .eq('status', 'active');
   if (athError) throw athError;
 
-  const athletes: ClubRecordAthlete[] = (athleteRows || []).map((a: any) => ({
+  // Test accounts (migration 182) never hold a club record. The snapshot is shared
+  // by every viewer, so it can't be viewer-scoped: excluded for everyone, staff
+  // included. Fails open (no column → nobody excluded).
+  const testIds = await testAccountIds(supabase as never);
+  const athletes: ClubRecordAthlete[] = (athleteRows || []).filter((a: any) => !testIds.has(a.id)).map((a: any) => ({
     id: a.id,
     name: a.name,
     groupId: a.group_id ?? null,

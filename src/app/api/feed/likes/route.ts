@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
 import { LIKER_SELECT, projectLike } from '@/lib/feed/project';
+import { hiddenInteractorsFor, withoutHiddenInteractors } from '@/lib/feed/test-account-filter';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,8 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
 
     // Uses the index behind UNIQUE(feed_item_id, athlete_id).
+    // A test account's like is hidden from other non-staff members (migration 182).
+    const hiddenRead = hiddenInteractorsFor(supabase as never, auth.user);
     const { data, error } = await supabase
       .from('feed_likes')
       .select(LIKER_SELECT)
@@ -39,7 +42,7 @@ export async function GET(request: Request) {
       .limit(MAX_LIKERS);
     if (error) throw error;
 
-    const likers = (data || [])
+    const likers = withoutHiddenInteractors(data || [], await hiddenRead)
       .map(projectLike)
       .filter(projected => projected !== null)
       .map(projected => projected.liker);

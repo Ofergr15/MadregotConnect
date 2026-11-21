@@ -2,6 +2,8 @@ import { Resend } from 'resend';
 import { createServerClient } from '@/lib/supabase/server';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { readEmailConfig } from './config';
+import { isDevSurface } from '@/lib/dev-api-allowlist';
+import { APPROVER_EMAILS } from '@/lib/constants';
 
 /**
  * THE ONE PLACE AN EMAIL LEAVES THIS APP.
@@ -100,6 +102,19 @@ function recipients(to: string | string[]): string[] {
  * Dropped here rather than at each of the eight call sites, for the same reason
  * everything else about sending lives in this file.
  */
+/**
+ * On the dev surface (the u21-personal-coach preview, `lib/dev-api-allowlist.ts`) never mail the
+ * club's fixed staff inboxes: APPROVER_EMAILS and ADMIN_EMAIL are real people whatever database the
+ * deployment uses. Everyone else there is a synthetic dev-DB member. Production and local dev are
+ * unaffected; `MC_OUTBOUND=all` lifts it deliberately.
+ */
+export function devSurfaceBlocks(address: string, env: Record<string, string | undefined> = process.env): boolean {
+  if (!isDevSurface(env) || env.MC_OUTBOUND === 'all') return false;
+  const a = address.toLowerCase().trim();
+  const fixed = [...APPROVER_EMAILS, env.ADMIN_EMAIL || 'madregot.club@gmail.com'].map((x) => x.toLowerCase().trim());
+  return fixed.includes(a);
+}
+
 function isSynthetic(address: string): boolean {
   return address.toLowerCase().endsWith('.local');
 }
@@ -133,7 +148,8 @@ export async function sendEmail(msg: OutboundEmail): Promise<SendResult> {
   const cfg = readEmailConfig();
   const from = senderWithName(cfg.from, msg.fromName);
   const asked = recipients(msg.to);
-  const to = asked.filter(a => !isSynthetic(a));
+  const blockedOnDev = asked.filter((a) => devSurfaceBlocks(a));
+  const to = asked.filter(a => !isSynthetic(a) && !blockedOnDev.includes(a));
 
   const base = {
     template: msg.template,
@@ -145,6 +161,10 @@ export async function sendEmail(msg: OutboundEmail): Promise<SendResult> {
     ...(msg.candidateId ? { candidate_id: msg.candidateId } : {}),
   };
 
+  if (!to.length && blockedOnDev.length) {
+    const logId = await writeLog({ ...base, recipients: asked, status: 'skipped', error_code: 'dev-surface-guard' });
+    return { ok: false, status: 'skipped', code: 'dev-surface-guard', reason: 'Not sent from the dev deployment to a staff inbox.', logId } as never;
+  }
   if (!to.length && asked.length) {
     // Every address was synthetic: this person has no inbox, by design. Recorded as
     // SKIPPED, the same category as "no key in this environment" — not refused and

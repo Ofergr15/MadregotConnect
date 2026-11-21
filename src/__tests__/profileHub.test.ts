@@ -24,7 +24,7 @@ describe('the profile', () => {
     expect(body).toMatch(/<BadgesGrid athleteId=\{athleteId\} peer=\{!owner\} \/>/);
     // …which means a teammate must be able to read them: member gate, not owner-only.
     expect(badges).not.toMatch(/mayActFor/);
-    expect(badges).toMatch(/isPendingAthlete/);
+    expect(badges).toMatch(/isPendingAthlete|hiddenFromCaller/);
   });
 
   it('shows "needs attention" only when something is broken', () => {

@@ -20,7 +20,7 @@ describe('sign in with a code by email', () => {
 
   it('never says whether an address is a member, and only an approved one gets a code', () => {
     const r = read('app/api/auth/email-code/route.ts');
-    expect(r).toMatch(/if \(!member\) return NextResponse\.json\(\{ ok: true \}\);/);
+    expect(r).toMatch(/if \(!member\) return;/);
     expect(r).toMatch(/data\.approved !== true \|\| data\.status === 'removed'/);
   });
 

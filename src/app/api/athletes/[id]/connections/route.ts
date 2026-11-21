@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { seesPending } from '@/lib/auth/pending-athletes';
+import { testAccountIds, hiddenTestAccountsFor } from '@/lib/athletes/test-accounts';
 import { buildConnectionsResult, type FollowAthleteRow } from '@/lib/follows/shape';
 
 export const dynamic = 'force-dynamic';
@@ -38,7 +39,8 @@ export async function GET(
       supabase.from('athlete_follows').select('follower_id').eq('followee_id', id),
       supabase.from('athlete_follows').select('followee_id').eq('follower_id', id),
     ]);
-    if ((target as { approved?: boolean | null } | null)?.approved === false && !seesPending(caller, id)) {
+    const hiddenTest = hiddenTestAccountsFor(await testAccountIds(supabase), caller);
+    if (hiddenTest.has(id) || ((target as { approved?: boolean | null } | null)?.approved === false && !seesPending(caller, id))) {
       return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
     }
 
@@ -57,7 +59,7 @@ export async function GET(
         .in('id', allIds);
       if (error) throw error;
       athleteRows = ((data || []) as Array<FollowAthleteRow & { approved?: boolean | null }>)
-        .filter(row => row.approved !== false || seesPending(caller, row.id))
+        .filter(row => !hiddenTest.has(row.id) && (row.approved !== false || seesPending(caller, row.id)))
         .map(({ approved: _approved, ...row }) => row);
     }
 

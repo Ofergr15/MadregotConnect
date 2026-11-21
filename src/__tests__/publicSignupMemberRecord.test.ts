@@ -66,9 +66,12 @@ vi.mock('@/lib/email', () => ({
 
 const { POST } = await import('@/app/api/public/signup/route');
 
+// One client IP per call: the route's rate limiter (5/min per person) is not this suite's subject.
+let ipSeq = 0;
 const post = (email: string, groupId?: string) =>
   POST(new Request('https://example.test/api/public/signup', {
     method: 'POST',
+    headers: { 'x-forwarded-for': `10.1.0.${ipSeq++ % 250}` },
     body: JSON.stringify({ email, groupId }),
   }));
 
@@ -110,7 +113,7 @@ describe('POST /api/public/signup — an existing member submits the form', () =
     expect(mailed).toBe(0);
   });
 
-  it('is idempotent: a second visit updates, never inserts a twin', async () => {
+  it('is idempotent: a second visit writes nothing, never inserts a twin', async () => {
     rows.signup_requests = [{ email: MEMBER, status: 'member', id: 'req-1' }];
     rows.groups = [{ id: 'g1', name: 'דבוקה 1', coach_id: undefined }];
     const res = await post(MEMBER);

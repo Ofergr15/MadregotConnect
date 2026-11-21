@@ -365,14 +365,41 @@ function projectActivity(row: RawActivityRow, planVerdict: FeedPlanVerdict | nul
  * server can't be read out of the network response either.
  */
 const HIDDEN_FIELD_KEYS = ['calories', 'heart_rate', 'pace', 'power'] as const;
-type HiddenFieldKey = (typeof HIDDEN_FIELD_KEYS)[number];
+export type HiddenFieldKey = (typeof HIDDEN_FIELD_KEYS)[number];
 
-function readHiddenFields(payload: Record<string, unknown> | null): Set<HiddenFieldKey> {
+export function readHiddenFields(payload: Record<string, unknown> | null): Set<HiddenFieldKey> {
   const raw = payload?.hiddenFields;
   if (!Array.isArray(raw)) return new Set();
   return new Set(
     raw.filter((v): v is HiddenFieldKey => (HIDDEN_FIELD_KEYS as readonly unknown[]).includes(v)),
   );
+}
+
+/**
+ * The same choice applied to the activity DETAIL response (snake_case row + per-km
+ * splits), for viewers who are not the athlete. Kept beside maskHiddenStats so the
+ * two cannot drift: per-km splits are pace at a finer grain (dropped with `pace`), and
+ * carry HR (blanked with `heart_rate`).
+ */
+export function maskDetailForViewer<R extends Record<string, unknown>, S extends { averageHR: number | null }>(
+  row: R,
+  splits: S[],
+  hidden: Set<HiddenFieldKey>,
+): { row: R; splits: S[] } {
+  if (hidden.size === 0) return { row, splits };
+  return {
+    row: {
+      ...row,
+      ...(hidden.has('calories') ? { calories: null } : {}),
+      ...(hidden.has('heart_rate') ? { average_hr: null, max_hr: null } : {}),
+      ...(hidden.has('pace') ? { average_pace: null } : {}),
+    },
+    splits: hidden.has('pace')
+      ? []
+      : hidden.has('heart_rate')
+        ? splits.map((s) => ({ ...s, averageHR: null }))
+        : splits,
+  };
 }
 
 /**
@@ -451,6 +478,9 @@ export interface ProjectContext {
    * plans simply ships no badge.
    */
   planVerdictsByActivity?: Map<string, FeedPlanVerdict>;
+  /** feed_item_id -> likes / live comments by test accounts hidden from this viewer. */
+  hiddenLikeCountByItem?: Map<string, number>;
+  hiddenCommentCountByItem?: Map<string, number>;
   /** activity_id -> the quality session's name, for the runs that are it. */
   qualityNameByActivity?: Map<string, string>;
 }
@@ -487,8 +517,9 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
     media: toMedia(row.media),
     payload,
     occurredAt: row.occurred_at,
-    likeCount: row.like_count ?? 0,
-    commentCount: row.comment_count ?? 0,
+    // Minus a test account's rows this viewer can't see (lib/feed/test-account-filter.ts).
+    likeCount: Math.max(0, (row.like_count ?? 0) - (ctx.hiddenLikeCountByItem?.get(row.id) ?? 0)),
+    commentCount: Math.max(0, (row.comment_count ?? 0) - (ctx.hiddenCommentCountByItem?.get(row.id) ?? 0)),
     likedByMe: ctx.likedItemIds.has(row.id),
     likePreview: ctx.likersByItem?.get(row.id) ?? [],
     commentPreview: ctx.commentsByItem?.get(row.id) ?? [],
