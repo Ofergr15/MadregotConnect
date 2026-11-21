@@ -30,7 +30,10 @@ vi.mock('@/lib/garmin/stream-store', () => ({
   loadActivityStream: vi.fn(async () => ({ series: { t, d: t.map((s) => s * 4), hr: t.map(() => 160) }, laps: [] })),
 }));
 vi.mock('@/lib/run-analysis/workout', () => ({
-  readWorkout: () => ({ title: '5×1000', avgPace: 225, reps: [{ meters: 1000, start: 100, seconds: 225 }] }),
+  readWorkout: () => {
+    const rep = { kind: 'rep', meters: 1000, start: 100, seconds: 225, pace: 225, hr: 170, maxHr: 181 };
+    return { title: '5×1000', avgPace: 225, avgHr: 170, segments: [rep], reps: [rep], strides: [] };
+  },
   bestEffort: () => ({ seconds: 220, start: 100 }),
   heatCostSec: () => 6,
   recoveries: (tr: { hr?: number[] }) => (tr.hr ? [{ rep: 1, from: 170, to: 130 }] : []),
@@ -97,6 +100,8 @@ describe('activities/analysis — hidden stats', () => {
     expect(body.hrVisible).toBe(false);
     expect(body.recovery).toEqual([]);
     expect(body.workout).not.toBeNull();                       // pace not hidden: kept
+    expect(body.workout.avgHr).toBeNull();                     // ...but its lap HR goes with hidden HR
+    expect(body.workout.reps[0]).toMatchObject({ hr: null, maxHr: null, pace: 225 });
   });
   it('teammate, nothing hidden: unchanged (workout, efforts, heat cost present)', async () => {
     asTeammate();
