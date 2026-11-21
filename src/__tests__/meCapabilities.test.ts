@@ -101,4 +101,10 @@ describe('GET /api/me/capabilities', () => {
     expect(h.writes).toBe(0);
     expect(h.outbound).not.toHaveBeenCalled();
   });
+  it('a super-user whose role is runner gets NO events.manage, because the events routes check isStaff alone', async () => {
+    as({ isSuperUser: true, isStaff: false, role: 'runner', roles: ['runner'] });
+    const j = await (await get()).json();
+    expect(j.events.manage).toBe(false);
+    expect(j.people).toEqual({ read: true, admin: true });
+  });
 });
