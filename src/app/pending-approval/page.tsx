@@ -80,12 +80,18 @@ function PendingApproval() {
   // '/' re-resolves the identity first, which is the only correct entry.
   const stopped = useRef(false);
   useEffect(() => {
+    // `alive` is THIS mount's: a remount (React's development double-mount, a fast
+    // refresh) used to find the shared ref already set by the previous cleanup and
+    // never poll at all; a shared flag reset here would instead let the old mount's
+    // in-flight check re-arm a second loop. `stopped` keeps only the one-way exit.
+    let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const check = async () => {
-      if (stopped.current) return;
+      if (!alive || stopped.current) return;
       try {
         const res = await fetch('/api/auth/me', { headers: await apiHeaders(true) });
+        if (!alive) return;
         if (res.ok) {
           const data = (await res.json()) as { membership?: string };
           if (data.membership === 'active') {
@@ -100,12 +106,12 @@ function PendingApproval() {
         // again — a failed poll is not news, and an error on this screen would
         // read as "your approval failed".
       }
-      timer = setTimeout(check, POLL_MS);
+      if (alive) timer = setTimeout(check, POLL_MS);
     };
 
     check();
     return () => {
-      stopped.current = true;
+      alive = false;
       if (timer) clearTimeout(timer);
     };
   }, []);

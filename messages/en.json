@@ -3262,7 +3262,7 @@
     "confirmCta": "Yes, that's me",
     "confirmWorking": "Connecting…",
     "doneTitle": "Accounts connected",
-    "doneBody": "All set. Go back to the app: the waiting screen lets you in by itself within a few seconds. If it's closed, just open it.",
+    "doneBody": "All set. Go back to the app: the waiting screen lets you in by itself, usually within a minute. If it's closed, just open it.",
     "openApp": "Open the app",
     "errExpired": "This link isn't valid any more. It lasts half an hour and works once — you can ask for a new one from the app.",
     "errRefused": "We couldn't connect the accounts automatically. Please ask your coach.",
