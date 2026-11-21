@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 
 // The OAuth `state` for "connect Strava to THIS athlete" (link mode).
 //
@@ -17,18 +17,21 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 // Signed with ENCRYPTION_KEY under its own label (the action-token approach), so no
 // new environment variable is needed; an unusable key fails closed.
 //
-// Browser binding (OAuth CSRF): GET /api/strava also sets an HttpOnly, Secure,
-// SameSite=Lax cookie holding sha256(nonce), scoped to the callback path for the same
-// 10 minutes. The callback accepts the state only together with that cookie and
-// clears it, so a state captured in transit cannot be completed from another browser,
-// and one browser cannot complete it twice. This is NOT a server-side one-use store:
-// a browser that kept a copy of the cookie could replay within 10 minutes; a nonce
-// table would be needed for that.
+// Single use: GET /api/strava RESERVES the state's nonce in app_settings
+// (key strava_link:<nonce>, value = the athlete id) and the callback CONSUMES it with
+// one DELETE ... RETURNING before the code exchange. Only one request can delete the
+// row, so a state works once, wherever it is completed.
 //
-// Known cost: the cookie is set on the response to the app's fetch of /api/strava and
-// must come back on Strava's redirect to the callback. If the authorize page opens in
-// a DIFFERENT cookie jar (e.g. an iOS home-screen app handing off to Safari) the
-// cookie is missing and the link is refused (bad_state) — fail closed, needs a device check.
+// Why a server-side nonce and not a cookie: an installed iOS home-screen app opens
+// Strava in a separate in-app browser sheet with its own storage (see
+// supabase/migrations/082_login_handoffs.sql), so a cookie set on the app's fetch never
+// reaches the callback and every link from the installed app would be refused.
+// app_settings already exists (migration 032; key is the PRIMARY KEY): no migration.
+//
+// Residual, by design of OAuth state: whoever completes a valid state FIRST wins.
+// Someone who captured a victim's state (URL, logs) and completed it within 10
+// minutes, before the victim, would link their own Strava onto that athlete. The
+// state is only ever in the victim's own browser, Strava, and server logs.
 
 const PREFIX = 'link.';
 const LABEL = 'strava-link-state-v1';
@@ -50,25 +53,36 @@ export function signLinkState(athleteId: string, nowSeconds = Math.floor(Date.no
   return `${PREFIX}${body}.${mac(s, body)}`;
 }
 
-export const LINK_COOKIE = 'mc_strava_link';
+const NONCE_KEY_PREFIX = 'strava_link:';
 
-/** sha256(nonce) of a link state, for the binding cookie; null if not a link state. */
-export function linkBindingOf(state: string | null | undefined): string | null {
-  if (!state || !state.startsWith(PREFIX)) return null;
+type Db = { from: (t: string) => any };
+
+function nonceOf(state: string): string | null {
+  if (!state.startsWith(PREFIX)) return null;
   const parts = state.slice(PREFIX.length).split('.');
-  if (parts.length !== 4 || !parts[2]) return null;
-  return createHash('sha256').update(parts[2]).digest('base64url');
+  return parts.length === 4 && parts[2] ? parts[2] : null;
 }
 
-/** The state is valid AND the request carries the cookie bound to it. */
-export function verifyBoundLinkState(state: string | null | undefined, cookieValue: string | null | undefined, nowSeconds?: number): string | null {
-  const id = verifyLinkState(state, nowSeconds);
-  if (!id) return null;
-  const want = linkBindingOf(state);
-  if (!want || !cookieValue) return null;
-  const a = Buffer.from(want); const b = Buffer.from(cookieValue);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-  return id;
+/** Records the state's nonce for one later use. False (fail closed) on any DB error. */
+export async function reserveLinkState(db: Db, state: string, athleteId: string): Promise<boolean> {
+  const nonce = nonceOf(state);
+  if (!nonce) return false;
+  // Best-effort sweep of reservations that can no longer be used.
+  try {
+    const cutoff = new Date(Date.now() - LINK_STATE_MAX_AGE_SECONDS * 1000 - 60_000).toISOString();
+    await db.from('app_settings').delete().like('key', `${NONCE_KEY_PREFIX}%`).lt('updated_at', cutoff);
+  } catch { /* the reservation below still decides */ }
+  const { error } = await db.from('app_settings').insert({ key: `${NONCE_KEY_PREFIX}${nonce}`, value: athleteId, updated_at: new Date().toISOString() });
+  return !error;
+}
+
+/** Atomically consumes the reservation for this state and athlete. True exactly once. */
+export async function consumeLinkState(db: Db, state: string, athleteId: string): Promise<boolean> {
+  const nonce = nonceOf(state);
+  if (!nonce) return false;
+  const { data, error } = await db.from('app_settings')
+    .delete().eq('key', `${NONCE_KEY_PREFIX}${nonce}`).eq('value', athleteId).select('key');
+  return !error && Array.isArray(data) && data.length === 1;
 }
 
 export function isLinkState(state: string | null | undefined): boolean {

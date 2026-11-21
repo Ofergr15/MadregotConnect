@@ -44,3 +44,35 @@ describe('Strava link state', () => {
     expect(parseLoginState(signLinkState(id)!).isLogin).toBe(false);
   });
 });
+
+import { reserveLinkState, consumeLinkState } from '@/lib/strava/link-state';
+import { createMemoryDb } from './helpers/memory-db';
+
+describe('Strava link state: one-use reservation', () => {
+  const id = '00000000-0000-4000-8000-000000000001';
+  const fresh = () => createMemoryDb({ schema: { app_settings: ['key', 'value', 'updated_at'] }, unique: { app_settings: [['key']] } });
+  it('two consumes of one reservation: exactly one succeeds', async () => {
+    const db = fresh();
+    const st = signLinkState(id)!;
+    expect(await reserveLinkState(db.client, st, id)).toBe(true);
+    const results = await Promise.all([consumeLinkState(db.client, st, id), consumeLinkState(db.client, st, id)]);
+    expect(results.filter(Boolean)).toHaveLength(1);
+    expect(db.tables.app_settings).toHaveLength(0);
+  });
+  it('a reservation is athlete-specific', async () => {
+    const db = fresh();
+    const st = signLinkState(id)!;
+    await reserveLinkState(db.client, st, id);
+    expect(await consumeLinkState(db.client, st, 'someone-else')).toBe(false);
+    expect(await consumeLinkState(db.client, st, id)).toBe(true);
+  });
+  it('fails closed when the store errors (no table) on reserve and on consume', async () => {
+    const db = createMemoryDb({ schema: {} });
+    const st = signLinkState(id)!;
+    expect(await reserveLinkState(db.client, st, id)).toBe(false);
+    expect(await consumeLinkState(db.client, st, id)).toBe(false);
+  });
+  it('a non-link state never reserves', async () => {
+    expect(await reserveLinkState(fresh().client, 'login', id)).toBe(false);
+  });
+});

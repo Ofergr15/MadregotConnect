@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { resolveStravaRedirectUri } from '@/lib/strava/client';
 import { loginState, joinState } from '@/lib/auth/login-handoff';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
-import { LINK_COOKIE, LINK_STATE_MAX_AGE_SECONDS, linkBindingOf, signLinkState } from '@/lib/strava/link-state';
+import { reserveLinkState, signLinkState } from '@/lib/strava/link-state';
+import { createServerClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/strava?mode=login[&challenge=<base64url sha256>]
@@ -82,6 +83,10 @@ export async function GET(request: Request) {
     // onto the athlete this verified caller was allowed to act for.
     const signed = signLinkState(athleteId);
     if (!signed) return NextResponse.json({ error: 'Strava not configured' }, { status: 500 });
+    // One use (lib/strava/link-state.ts). No reservation, no link: fail closed.
+    if (!(await reserveLinkState(createServerClient(), signed, athleteId))) {
+      return NextResponse.json({ error: 'Could not start Strava linking' }, { status: 503 });
+    }
     state = signed;
   } else {
     return NextResponse.json({ error: 'athleteId or mode=login required' }, { status: 400 });
@@ -127,13 +132,5 @@ export async function GET(request: Request) {
     `&approval_prompt=${approvalPrompt}` +
     `&state=${encodeURIComponent(state)}`;
 
-  const res = NextResponse.json({ authUrl });
-  // Link mode: bind the state to this browser (lib/strava/link-state.ts).
-  const binding = linkBindingOf(state);
-  if (binding) {
-    res.cookies.set(LINK_COOKIE, binding, {
-      httpOnly: true, secure: true, sameSite: 'lax', path: '/api/strava/callback', maxAge: LINK_STATE_MAX_AGE_SECONDS,
-    });
-  }
-  return res;
+  return NextResponse.json({ authUrl });
 }

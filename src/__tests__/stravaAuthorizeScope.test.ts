@@ -1,5 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { verifyLinkState } from '@/lib/strava/link-state';
+import { createMemoryDb } from './helpers/memory-db';
+
+const settingsDb = createMemoryDb({ schema: { app_settings: ['key', 'value', 'updated_at'] }, unique: { app_settings: [['key']] } });
+vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => settingsDb.client }));
 
 /**
  * `GET /api/strava?athleteId=…` was a complete account takeover, and the whole
@@ -66,6 +70,7 @@ async function stateOf(res: Response): Promise<string | null> {
 beforeEach(() => {
   requireSession.mockReset();
   process.env.STRAVA_CLIENT_ID = 'test-client-id';
+  settingsDb.tables.app_settings.length = 0;
   process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY && process.env.ENCRYPTION_KEY.length >= 32 ? process.env.ENCRYPTION_KEY : 'test-key-'.padEnd(40, 'x');
 });
 
@@ -89,12 +94,9 @@ describe('GET /api/strava — link branch', () => {
     const res = await get(`?athleteId=${ME}`);
     expect(res.status).toBe(200);
     expect(verifyLinkState(await stateOf(res))).toBe(ME);
-    const cookie = res.headers.get('set-cookie') ?? '';
-    expect(cookie).toMatch(/mc_strava_link=/);
-    expect(cookie).toMatch(/HttpOnly/i);
-    expect(cookie).toMatch(/Secure/i);
-    expect(cookie).toMatch(/SameSite=lax/i);
-    expect(cookie).toMatch(/Path=\/api\/strava\/callback/);
+    // One reservation for that athlete, nothing for anybody else (lib/strava/link-state.ts).
+    expect(settingsDb.tables.app_settings.filter((r) => String(r.key).startsWith('strava_link:') && r.value === ME)).toHaveLength(1);
+    expect(res.headers.get('set-cookie')).toBeNull();
   });
 
   it('lets a coach connect anyone — that is what the athletes page does', async () => {

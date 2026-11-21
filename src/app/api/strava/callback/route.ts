@@ -7,7 +7,7 @@ import { encrypt } from '@/lib/encryption';
 import { COACH_ID } from '@/lib/constants';
 import { resolveAppOrigin, stravaAuthEmail } from '@/lib/strava/client';
 import { createSyntheticSession } from '@/lib/auth/synthetic-session';
-import { LINK_COOKIE, verifyBoundLinkState } from '@/lib/strava/link-state';
+import { consumeLinkState, verifyLinkState } from '@/lib/strava/link-state';
 import {
   duplicatesToFold,
   isSyntheticAuthEmail,
@@ -133,13 +133,13 @@ export async function GET(request: Request) {
   // athlete in the last 10 minutes (lib/strava/link-state.ts). Checked BEFORE the
   // code is exchanged, so a forged or bare-id state never reaches Strava's token
   // endpoint or any write.
-  const linkCookie = request.headers.get('cookie')?.split(/;\s*/).find((c) => c.startsWith(`${LINK_COOKIE}=`))?.slice(LINK_COOKIE.length + 1) ?? null;
-  const linkAthleteId = !isLogin && !joinToken ? verifyBoundLinkState(state, linkCookie) : null;
+  // Signature and expiry first (no DB), then the one-use reservation (one DELETE).
+  const signedLinkId = !isLogin && !joinToken ? verifyLinkState(state) : null;
+  const linkAthleteId = signedLinkId && (await consumeLinkState(createServerClient(), state, signedLinkId).catch(() => false))
+    ? signedLinkId : null;
   if (!isLogin && !joinToken && !linkAthleteId) {
     console.warn(`[auth-debug:${debugId}] callback:link_state_rejected`);
-    const refused = NextResponse.redirect(new URL('/dashboard/athletes?strava=error&reason=bad_state', origin));
-    refused.cookies.delete({ name: LINK_COOKIE, path: '/api/strava/callback' });
-    return refused;
+    return NextResponse.redirect(new URL('/dashboard/athletes?strava=error&reason=bad_state', origin));
   }
 
   try {
@@ -373,9 +373,7 @@ export async function GET(request: Request) {
           new URL('/dashboard/athletes?strava=error&reason=save_failed', origin),
         );
       }
-      const linked = NextResponse.redirect(new URL('/dashboard/athletes?strava=connected', origin));
-      linked.cookies.delete({ name: LINK_COOKIE, path: '/api/strava/callback' });
-      return linked;
+      return NextResponse.redirect(new URL('/dashboard/athletes?strava=connected', origin));
     }
 
     // ── Login mode ───────────────────────────────────────────────────────────
