@@ -514,10 +514,11 @@ export default function DashboardPage() {
   // Today's run against the plan, for the hero's "done · on plan" (2026-10-19). Asked here,
   // above the early return, so the hook order never changes; the card only shows it.
   const todayRunId = recentActivities.find((a) => activityLocalDateStr(a.start_time) === israelToday())?.id;
-  const { data: execution } = useApi<{ summaries?: Array<{ activityId: string; direction: string }> }>(
+  const { data: execution } = useApi<{ summaries?: Array<{ activityId: string; direction: string; partsNotReps?: boolean }> }>(
     todayRunId ? `/api/plan-execution?ids=${todayRunId}` : null,
   );
-  const todayDirection = execution?.summaries?.find((x) => x.activityId === todayRunId)?.direction;
+  const todaySummary = execution?.summaries?.find((x) => x.activityId === todayRunId);
+  const todayDirection = todaySummary?.direction;
 
   if (!homeKnown || (!controlRoomView && weeklyLoading)) return (
     <div className="flex items-center justify-center h-[60vh]">
@@ -789,7 +790,7 @@ export default function DashboardPage() {
             ? (tomorrowW.sessions?.[0]?.name || `${tomorrowW.min === tomorrowW.max ? tomorrowW.max : `${tomorrowW.min}–${tomorrowW.max}`} ${tc('km')}`)
             : null}
           verdict={heroWorkout.showingToday && todayDirection && todayDirection !== 'unknown'
-            ? { onPlan: todayDirection === 'on_target', label: tx(`dir_${todayDirection}`) }
+            ? { onPlan: todayDirection === 'on_target', label: tx(todayDirection === 'incomplete' && todaySummary?.partsNotReps ? 'dir_incomplete_parts' : `dir_${todayDirection}`) }
             : null}
         >
           {rsvpTarget && (
