@@ -7,7 +7,7 @@ import { encrypt } from '@/lib/encryption';
 import { COACH_ID } from '@/lib/constants';
 import { resolveAppOrigin, stravaAuthEmail } from '@/lib/strava/client';
 import { createSyntheticSession } from '@/lib/auth/synthetic-session';
-import { consumeLinkState, verifyLinkState } from '@/lib/strava/link-state';
+import { consumeLinkState, reserveLinkState, verifyLinkState } from '@/lib/strava/link-state';
 import {
   duplicatesToFold,
   isSyntheticAuthEmail,
@@ -134,12 +134,24 @@ export async function GET(request: Request) {
   // code is exchanged, so a forged or bare-id state never reaches Strava's token
   // endpoint or any write.
   // Signature and expiry first (no DB), then the one-use reservation (one DELETE).
-  const signedLinkId = !isLogin && !joinToken ? verifyLinkState(state) : null;
-  const linkAthleteId = signedLinkId && (await consumeLinkState(createServerClient(), state, signedLinkId).catch(() => false))
-    ? signedLinkId : null;
-  if (!isLogin && !joinToken && !linkAthleteId) {
-    console.warn(`[auth-debug:${debugId}] callback:link_state_rejected`);
-    return NextResponse.redirect(new URL('/dashboard/athletes?strava=error&reason=bad_state', origin));
+  let linkAthleteId: string | null = null;
+  if (!isLogin && !joinToken) {
+    const signedLinkId = verifyLinkState(state);
+    let consumed: 'ok' | 'not_found' | 'error' = 'not_found';
+    if (signedLinkId) {
+      try {
+        consumed = await consumeLinkState(createServerClient(), state, signedLinkId);
+      } catch {
+        consumed = 'error';
+      }
+    }
+    if (consumed !== 'ok') {
+      // Fail closed either way; the reason tells a store outage from a bad state.
+      const reason = consumed === 'error' ? 'link_unavailable' : 'bad_state';
+      console.warn(`[auth-debug:${debugId}] callback:link_state_rejected`, { reason, signed: !!signedLinkId });
+      return NextResponse.redirect(new URL(`/dashboard/athletes?strava=error&reason=${reason}`, origin));
+    }
+    linkAthleteId = signedLinkId;
   }
 
   try {
@@ -164,6 +176,12 @@ export async function GET(request: Request) {
       if (isInvalidCode && isLogin) {
         console.info(`[auth-debug:${debugId}] callback:duplicate_code`);
         return NextResponse.redirect(`${origin}/auth/resolve`);
+      }
+      // Link mode: nothing was written yet, so put the reservation back and let the
+      // member retry this same callback (a transient Strava failure). An invalid code
+      // cannot succeed on a retry, so it is not restored.
+      if (linkAthleteId && !isInvalidCode) {
+        try { await reserveLinkState(createServerClient(), state, linkAthleteId); } catch { /* retry from the app */ }
       }
       throw exchangeErr;
     }

@@ -18,7 +18,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 // new environment variable is needed; an unusable key fails closed.
 //
 // Single use: GET /api/strava RESERVES the state's nonce in app_settings
-// (key strava_link:<nonce>, value = the athlete id) and the callback CONSUMES it with
+// (key stravalink:<nonce>, value = the athlete id; at most one outstanding per athlete) and the callback CONSUMES it with
 // one DELETE ... RETURNING before the code exchange. Only one request can delete the
 // row, so a state works once, wherever it is completed.
 //
@@ -53,7 +53,9 @@ export function signLinkState(athleteId: string, nowSeconds = Math.floor(Date.no
   return `${PREFIX}${body}.${mac(s, body)}`;
 }
 
-const NONCE_KEY_PREFIX = 'strava_link:';
+// No `_` or `%` in the prefix: it is used in a LIKE pattern below, where `_` would
+// match any character and sweep unrelated settings.
+const NONCE_KEY_PREFIX = 'stravalink:';
 
 type Db = { from: (t: string) => any };
 
@@ -63,30 +65,42 @@ function nonceOf(state: string): string | null {
   return parts.length === 4 && parts[2] ? parts[2] : null;
 }
 
-/** Records the state's nonce for one later use. False (fail closed) on any DB error. */
+/**
+ * Records the state's nonce for one later use, replacing any earlier reservation
+ * for the same athlete (so a caller cannot pile up rows; the latest attempt wins).
+ * False (fail closed) on any DB error.
+ */
 export async function reserveLinkState(db: Db, state: string, athleteId: string): Promise<boolean> {
   const nonce = nonceOf(state);
   if (!nonce) return false;
-  // Best-effort sweep of reservations that can no longer be used.
   try {
+    // Best-effort: this athlete's earlier reservations, and anyone's that expired.
     const cutoff = new Date(Date.now() - LINK_STATE_MAX_AGE_SECONDS * 1000 - 60_000).toISOString();
+    await db.from('app_settings').delete().like('key', `${NONCE_KEY_PREFIX}%`).eq('value', athleteId);
     await db.from('app_settings').delete().like('key', `${NONCE_KEY_PREFIX}%`).lt('updated_at', cutoff);
   } catch { /* the reservation below still decides */ }
   const { error } = await db.from('app_settings').insert({ key: `${NONCE_KEY_PREFIX}${nonce}`, value: athleteId, updated_at: new Date().toISOString() });
   return !error;
 }
 
-/** Atomically consumes the reservation for this state and athlete. True exactly once. */
-export async function consumeLinkState(db: Db, state: string, athleteId: string): Promise<boolean> {
-  const nonce = nonceOf(state);
-  if (!nonce) return false;
-  const { data, error } = await db.from('app_settings')
-    .delete().eq('key', `${NONCE_KEY_PREFIX}${nonce}`).eq('value', athleteId).select('key');
-  return !error && Array.isArray(data) && data.length === 1;
-}
+export type ConsumeResult = 'ok' | 'not_found' | 'error';
 
-export function isLinkState(state: string | null | undefined): boolean {
-  return !!state && state.startsWith(PREFIX);
+/**
+ * Atomically consumes the reservation for this state and athlete: 'ok' exactly once,
+ * 'not_found' when it was never reserved, already used or replaced, and 'error' when
+ * the store could not answer. Both non-ok results must refuse the link.
+ */
+export async function consumeLinkState(db: Db, state: string, athleteId: string): Promise<ConsumeResult> {
+  const nonce = nonceOf(state);
+  if (!nonce) return 'not_found';
+  try {
+    const { data, error } = await db.from('app_settings')
+      .delete().eq('key', `${NONCE_KEY_PREFIX}${nonce}`).eq('value', athleteId).select('key');
+    if (error) return 'error';
+    return Array.isArray(data) && data.length === 1 ? 'ok' : 'not_found';
+  } catch {
+    return 'error';
+  }
 }
 
 /** The athlete id a valid, unexpired state names; null for anything else. */

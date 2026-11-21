@@ -95,7 +95,7 @@ describe('GET /api/strava — link branch', () => {
     expect(res.status).toBe(200);
     expect(verifyLinkState(await stateOf(res))).toBe(ME);
     // One reservation for that athlete, nothing for anybody else (lib/strava/link-state.ts).
-    expect(settingsDb.tables.app_settings.filter((r) => String(r.key).startsWith('strava_link:') && r.value === ME)).toHaveLength(1);
+    expect(settingsDb.tables.app_settings.filter((r) => String(r.key).startsWith('stravalink:') && r.value === ME)).toHaveLength(1);
     expect(res.headers.get('set-cookie')).toBeNull();
   });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { signLinkState, verifyLinkState, isLinkState, LINK_STATE_MAX_AGE_SECONDS } from '@/lib/strava/link-state';
+import { signLinkState, verifyLinkState, LINK_STATE_MAX_AGE_SECONDS } from '@/lib/strava/link-state';
 import { parseLoginState } from '@/lib/auth/login-handoff';
 
 const KEY = 'k'.repeat(40);
@@ -11,7 +11,7 @@ describe('Strava link state', () => {
   const id = '00000000-0000-4000-8000-000000000001';
   it('round-trips the athlete id', () => {
     const st = signLinkState(id, 1000)!;
-    expect(isLinkState(st)).toBe(true);
+    expect(st.startsWith('link.')).toBe(true);
     expect(verifyLinkState(st, 1000 + 5)).toBe(id);
   });
   it('a bare athlete id (the old state) is refused', () => {
@@ -56,23 +56,48 @@ describe('Strava link state: one-use reservation', () => {
     const st = signLinkState(id)!;
     expect(await reserveLinkState(db.client, st, id)).toBe(true);
     const results = await Promise.all([consumeLinkState(db.client, st, id), consumeLinkState(db.client, st, id)]);
-    expect(results.filter(Boolean)).toHaveLength(1);
+    expect(results.filter((r) => r === 'ok')).toHaveLength(1);
+    expect(results.filter((r) => r === 'not_found')).toHaveLength(1);
     expect(db.tables.app_settings).toHaveLength(0);
   });
   it('a reservation is athlete-specific', async () => {
     const db = fresh();
     const st = signLinkState(id)!;
     await reserveLinkState(db.client, st, id);
-    expect(await consumeLinkState(db.client, st, 'someone-else')).toBe(false);
-    expect(await consumeLinkState(db.client, st, id)).toBe(true);
+    expect(await consumeLinkState(db.client, st, 'someone-else')).toBe('not_found');
+    expect(await consumeLinkState(db.client, st, id)).toBe('ok');
   });
   it('fails closed when the store errors (no table) on reserve and on consume', async () => {
     const db = createMemoryDb({ schema: {} });
     const st = signLinkState(id)!;
     expect(await reserveLinkState(db.client, st, id)).toBe(false);
-    expect(await consumeLinkState(db.client, st, id)).toBe(false);
+    expect(await consumeLinkState(db.client, st, id)).toBe('error');
   });
   it('a non-link state never reserves', async () => {
     expect(await reserveLinkState(fresh().client, 'login', id)).toBe(false);
+  });
+  it('one outstanding reservation per athlete: a new one replaces the old (no row pile-up)', async () => {
+    const db = fresh();
+    const first = signLinkState(id)!;
+    const second = signLinkState(id)!;
+    await reserveLinkState(db.client, first, id);
+    await reserveLinkState(db.client, second, id);
+    await reserveLinkState(db.client, signLinkState('other')!, 'other');
+    expect(db.tables.app_settings).toHaveLength(2);
+    expect(await consumeLinkState(db.client, first, id)).toBe('not_found');
+    expect(await consumeLinkState(db.client, second, id)).toBe('ok');
+  });
+  it('the sweep touches only its own keys, never look-alikes (no LIKE wildcard in the prefix)', async () => {
+    const db = fresh();
+    const old = new Date(Date.now() - 3600_000).toISOString();
+    db.tables.app_settings.push(
+      { key: 'strava_link:x', value: id, updated_at: old },
+      { key: 'strava-link:config', value: 'keep', updated_at: old },
+      { key: 'stravalink:stale', value: 'gone', updated_at: old },
+    );
+    await reserveLinkState(db.client, signLinkState('z')!, 'z');
+    const keys = db.tables.app_settings.map((r) => r.key);
+    expect(keys).toEqual(expect.arrayContaining(['strava_link:x', 'strava-link:config']));
+    expect(keys).not.toContain('stravalink:stale');
   });
 });

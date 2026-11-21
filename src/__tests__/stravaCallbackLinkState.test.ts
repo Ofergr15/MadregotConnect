@@ -10,7 +10,8 @@ const db = createMemoryDb({
   },
   unique: { app_settings: [['key']] },
 });
-vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => db.client }));
+let clientImpl: () => unknown = () => db.client;
+vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => clientImpl() }));
 const adminSpy = vi.fn(() => { throw new Error('login-mode client touched'); });
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => adminSpy() }));
 
@@ -29,6 +30,8 @@ beforeEach(() => {
   process.env.STRAVA_CLIENT_SECRET = 'test-secret';
   vi.stubGlobal('fetch', fetchSpy);
   fetchSpy.mockClear(); adminSpy.mockClear(); db.log.length = 0;
+  clientImpl = () => db.client;
+  fetchSpy.mockImplementation(async () => new Response(JSON.stringify(STRAVA_OK), { status: 200 }));
   db.tables.app_settings.length = 0; db.tables.athletes.length = 0;
   for (const id of [VICTIM, OTHER]) db.tables.athletes.push({ id, garmin_auth: null, strava_auth: null, strava_athlete_id: null, strava_enabled: false, data_source: 'garmin', avatar_url: null });
 });
@@ -103,5 +106,33 @@ describe('Strava callback, link mode', () => {
   it('a login state is not subject to the link guard (reaches the exchange; login mode is out of scope here)', async () => {
     await callback('login');
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+  it('the store failing while consuming -> link_unavailable (still fail closed, no exchange)', async () => {
+    const st = await reserved(VICTIM);
+    clientImpl = () => ({ from: () => ({ delete: () => ({ eq: () => ({ eq: () => ({ select: async () => ({ data: null, error: { code: 'X' } }) }) }) }) }) });
+    expect(where(await callback(st))).toBe('/dashboard/athletes?strava=error&reason=link_unavailable');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+  it('a synchronous client failure is a redirect, not a bare 500', async () => {
+    const st = await reserved(VICTIM);
+    clientImpl = () => { throw new Error('supabaseUrl is required.'); };
+    const r = await callback(st);
+    expect(r.status).toBe(307);
+    expect(where(r)).toBe('/dashboard/athletes?strava=error&reason=link_unavailable');
+  });
+  it('a transient exchange failure restores the reservation, so the same callback can be retried', async () => {
+    const st = await reserved(VICTIM);
+    fetchSpy.mockImplementationOnce(async () => new Response('upstream down', { status: 502 }));
+    await callback(st);
+    expect(row(VICTIM).strava_athlete_id).toBeNull();
+    expect(db.tables.app_settings).toHaveLength(1);
+    expect(where(await callback(st))).toBe('/dashboard/athletes?strava=connected');
+    expect(row(VICTIM).strava_athlete_id).toBe(777);
+  });
+  it('an INVALID code is not restored: it cannot succeed on a retry', async () => {
+    const st = await reserved(VICTIM);
+    fetchSpy.mockImplementationOnce(async () => new Response(JSON.stringify({ errors: [{ code: 'invalid' }] }), { status: 400 }));
+    await callback(st);
+    expect(db.tables.app_settings).toHaveLength(0);
   });
 });
