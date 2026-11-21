@@ -34,8 +34,8 @@ import { repTarget, type RepTarget } from '@/lib/activities/rep-target';
 import { paceGroupKeyFor } from '@/lib/plans/pace-group';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { maskDetailForViewer, readHiddenFields, type HiddenFieldKey } from '@/lib/feed/project';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { readHiddenStats } from '@/lib/activities/hidden-stats';
 import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
 import { displaySplits } from '@/lib/activities/km-splits';
 import { perKmFromStream } from '@/lib/activities/stream-per-km';
@@ -135,20 +135,6 @@ export async function GET(request: Request) {
 
     const include = new Set((searchParams.get('include') ?? '').split(',').filter(Boolean));
     const own = !!caller.athleteId && caller.athleteId === r.athlete_id;
-    // The athlete's share-sheet choice (feed_items.payload.hiddenFields), enforced for
-    // everyone but the athlete — the feed's own rule names this page as the place the
-    // owner still sees their full numbers. A failed read hides nothing extra (as before).
-    let hidden = new Set<HiddenFieldKey>();
-    if (!own) {
-      const { data: fi } = await supabase
-        .from('feed_items')
-        .select('payload')
-        .eq('activity_id', r.id)
-        .is('deleted_at', null)
-        .limit(1)
-        .maybeSingle();
-      hidden = readHiddenFields((fi?.payload as Record<string, unknown> | null) ?? null);
-    }
     let hrTrace: HrTrace | undefined;
     if (include.has('hr') && own) {
       const series = (await loadActivityStream(supabase, r.id))?.series;
@@ -174,17 +160,30 @@ export async function GET(request: Request) {
     // already the top-level `gpsPoints`/`splits`, and repeating a 60KB trace
     // doubles the response.
     const { gps_points, laps: _laps, splits: _splits, athletes, shoes, ...rest } = r;
-    const masked = maskDetailForViewer(
-      {
-        ...rest,
-        athlete_name: athletes?.name || 'Unknown',
-        athlete_avatar_url: athletes?.avatar_url ?? null,
-        shoe_name: shoes?.name ?? null,
-      },
-      splits,
-      hidden,
-    );
-    const activity = masked.row;
+    const activity = {
+      ...rest,
+      athlete_name: athletes?.name || 'Unknown',
+      athlete_avatar_url: athletes?.avatar_url ?? null,
+      shoe_name: shoes?.name ?? null,
+    };
+
+    // Stats the runner hid in the share sheet (feed_items.payload.hiddenFields) are withheld
+    // here too from everyone but the runner and staff, as the feed card already does
+    // (lib/feed/project.ts maskHiddenStats). Total distance and time stay. A per-km split's
+    // duration IS its pace, so it goes with pace; its distance stays.
+    if (!mayActFor(caller, r.athlete_id)) {
+      const hidden = await readHiddenStats(supabase, r.id);
+      if (hidden.has('pace')) {
+        activity.average_pace = null;
+        for (const sp of splits as unknown as Array<Record<string, unknown>>) { sp.averagePace = null; sp.duration = null; }
+      }
+      if (hidden.has('heart_rate')) {
+        activity.average_hr = null;
+        activity.max_hr = null;
+        for (const sp of splits as unknown as Array<Record<string, unknown>>) sp.averageHR = null;
+      }
+      if (hidden.has('calories')) activity.calories = null;
+    }
 
     // The coach's name for the day's quality session, when this run is it — the same
     // rule as the feed card (lib/activities/quality-name.ts). Never fails the page.
@@ -215,7 +214,7 @@ export async function GET(request: Request) {
       repTarget: repTargetOut,
       // Start/finish privacy zone: a teammate never receives the first/last 200 m.
       gpsPoints: routeForViewer(gps_points || [], caller, r.athlete_id) ?? [],
-      splits: masked.splits,
+      splits,
       hasPolyline: !!r.has_polyline,
       source: r.source || 'strava',
       activity,

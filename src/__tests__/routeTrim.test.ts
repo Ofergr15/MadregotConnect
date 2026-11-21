@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { haversineM, routeForViewer, seesFullRoute, trimRouteEnds, ROUTE_TRIM_M } from '@/lib/privacy/route-trim';
 import { projectFeedItem } from '@/lib/feed/project';
 
@@ -125,6 +125,8 @@ describe('the other non-owner trace routes', () => {
     const s = src('src/app/api/athletes/[id]/stats/route.ts');
     expect(s).toMatch(/const self = caller\.athleteId === id && new URL\(request\.url\)\.searchParams\.get\('as'\) !== 'member'/);
     expect(s).toMatch(/self \? readWellnessNights/);
-    expect(src('ios/Madregot/Features/Profile/TeammateProfile.swift')).toMatch(/"as": "member"/);
+    // The native caller lives on native-ios only; the server-only branch has no ios/.
+    const swift = 'ios/Madregot/Features/Profile/TeammateProfile.swift';
+    if (existsSync(swift)) expect(src(swift)).toMatch(/"as": "member"/);
   });
 });
