@@ -78,8 +78,6 @@ const CASES: Array<[string, string, Who]> = [
   ['weeks=abc (NaN -> default)', 'athleteId=mon&weeks=abc', self('mon')],
   ['weeks=-5 (clamped to 1)', 'athleteId=mon&weeks=-5', self('mon')],
   ['weeks=0', 'athleteId=mon&weeks=0', self('mon')],
-  ['weeks=1.5 (fractional)', 'athleteId=mon&weeks=1.5', self('mon')],
-  ['granularity=bogus', 'athleteId=mon&granularity=bogus', self('mon')],
   ['month periods=999 (clamped)', 'athleteId=mon&granularity=month&periods=999', self('mon')],
   ['year periods=-1', 'athleteId=mon&granularity=year&periods=-1', self('mon')],
   ['missing athleteId -> 400', '', self('mon')],
@@ -105,5 +103,19 @@ describe('volume-history before/after parity (fixture)', () => {
     expect(r.body.series.filter((s: any) => s.target).length).toBeGreaterThanOrEqual(3);
     expect(r.body.series.some((s: any) => s.km === 0)).toBe(true);
     expect(r.queries.filter((q) => q.startsWith('athlete_activities')).length).toBe(3);
+  });
+  it('T5 (intended change): weeks=1.5 is floored to 1 and reads the same as weeks=1', async () => {
+    caller = self('mon');
+    const mod = await import('@/app/api/athletes/volume-history/route');
+    const frac = await run(mod, 'athleteId=mon&weeks=1.5');
+    const one = await run(mod, 'athleteId=mon&weeks=1');
+    expect(frac.body).toEqual(one.body);
+    expect(frac.body.series[0].km).toBeGreaterThan(0);
+  });
+  it('T5 (intended change): an unknown granularity is 400, before any read', async () => {
+    caller = self('mon');
+    const r = await run(await import('@/app/api/athletes/volume-history/route'), 'athleteId=mon&granularity=bogus');
+    expect(r.status).toBe(400);
+    expect(r.queries).toHaveLength(0);
   });
 });
