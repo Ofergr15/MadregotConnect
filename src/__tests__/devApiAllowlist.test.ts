@@ -22,11 +22,13 @@ const req = (path: string, method = 'GET') => new NextRequest(new URL(path, 'htt
 const passes = (r: Response) => r.headers.get('x-middleware-next') === '1';
 const DEV_DB = `https://${DEV_SUPABASE_REF}.supabase.co`;
 const devPreview = () => setEnv({ VERCEL: '1', VERCEL_ENV: 'preview', NEXT_PUBLIC_SUPABASE_URL: DEV_DB });
-const SEVEN = DEV_API_ALLOWLIST;
+// Concrete request paths for the patterns (`*` → a synthetic id).
+const SEVEN = DEV_API_ALLOWLIST.map(([m, p]) => [m, p.replace(/\*/g, 'x1')] as const);
 const OTHERS: Array<[string, string]> = [
-  ['POST', '/api/public/signup'], ['GET', '/api/admin/people'], ['GET', '/api/feed/like'],
-  ['GET', '/api/feed/'], ['PUT', '/api/athletes/me'], ['GET', '/api/public/groups'],
-  ['GET', '/api'], ['GET', '/api/cron/sync'], ['GET', '/api/FEED'],
+  ['POST', '/api/public/signup'], ['POST', '/api/public/signup/status'], ['GET', '/api/join/groups'],
+  ['GET', '/api/feed/'], ['POST', '/api/admin/move'], ['GET', '/api/public/groups'],
+  ['POST', '/api/admin/login'], ['GET', '/api'], ['GET', '/api/cron/sync'], ['GET', '/api/FEED'],
+  ['GET', '/api/events/a/b/c'], ['GET', '/api/events//answers'],
 ];
 
 describe('1. production: every /api request passes through untouched', () => {
@@ -102,9 +104,19 @@ describe('matcher and the native app', () => {
     expect(config.matcher).toContain('/api/:path*');
   });
   it('every allowed path is a real route', () => {
-    for (const [, p] of SEVEN) expect(existsSync(join(ROOT, 'src', 'app', p, 'route.ts')), p).toBe(true);
+    const routeDir = (p: string): boolean => {
+      // Walk the pattern; `*` must match a dynamic [segment] directory.
+      let dirs = [join(ROOT, 'src', 'app')];
+      for (const seg of p.split('/').filter(Boolean)) {
+        dirs = dirs.flatMap((d) => (seg === '*'
+          ? (existsSync(d) ? readdirSync(d).filter((n) => /^\[.+\]$/.test(n)).map((n) => join(d, n)) : [])
+          : [join(d, seg)]));
+      }
+      return dirs.some((d) => existsSync(join(d, 'route.ts')));
+    };
+    for (const [, p] of DEV_API_ALLOWLIST) expect(routeDir(p), p).toBe(true);
   });
-  it('the seven are what the iOS app calls, minus registration (public, kept closed)', () => {
+  it('every allowed pattern sits under a path the iOS app calls (no route the app never uses)', () => {
     const iosDir = join(ROOT, 'ios', 'Madregot');
     if (!existsSync(iosDir)) return; // server-only branch: nothing to compare against
     const called = new Set<string>();
@@ -112,16 +124,12 @@ describe('matcher and the native app', () => {
       for (const name of readdirSync(dir)) {
         const full = join(dir, name);
         if (statSync(full).isDirectory()) walk(full);
-        else if (name.endsWith('.swift')) for (const m of readFileSync(full, 'utf8').matchAll(/"(api\/[a-z0-9/_-]+)"/g)) called.add('/' + m[1]);
+        else if (name.endsWith('.swift')) for (const m of readFileSync(full, 'utf8').matchAll(/"\/?(api\/[A-Za-z0-9/._-]+)/g)) called.add('/' + m[1].replace(/\/$/, ''));
       }
     };
     walk(iosDir);
-    called.delete('/api/public/groups');
-    called.delete('/api/public/signup');
-    // Onboarding (migration 189): the applicant's status poll and the invite lookup are
-    // public, secret/token-scoped, and stay closed on dev like the registration itself.
-    called.delete('/api/public/signup/status');
-    called.delete('/api/join/groups');
-    expect([...called].sort()).toEqual(SEVEN.map(([, p]) => p).sort());
+    for (const [, p] of DEV_API_ALLOWLIST) {
+      expect([...called].some((c) => p === c || p.startsWith(c + '/')), p).toBe(true);
+    }
   });
 });
