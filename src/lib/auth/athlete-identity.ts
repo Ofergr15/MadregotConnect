@@ -677,12 +677,12 @@ export function stravaDisplayNameOf(
  * account to a member's exact name and sign in as that member — and adoption
  * writes their Strava id onto the row, so every later login lands there too.
  *
- * 'guarded' (the default): refuse a row already linked to a DIFFERENT Strava id
+ * 'guarded': refuse a row already linked to a DIFFERENT Strava id
  *   (that row belongs to someone else's Strava account), and refuse any row with
  *   privileges — a staff role, an extra staff role, super-user or approver. An
  *   ordinary member with no Strava link can still be adopted by an exact name;
  *   that residual is stated, not closed.
- * 'never': no name-only adoption at all. Every first Strava login that is not
+ * 'never' (THE DEFAULT on this branch): no name-only adoption at all. Every first Strava login that is not
  *   recognised by Strava id or address becomes a pending request for an approver
  *   to match by hand.
  *
@@ -690,7 +690,7 @@ export function stravaDisplayNameOf(
  * closed), since a coach row is exactly what must not be handed out by name.
  */
 export type NameAdoptionMode = 'guarded' | 'never';
-export const NAME_ADOPTION_MODE: NameAdoptionMode = 'guarded';
+export const NAME_ADOPTION_MODE: NameAdoptionMode = 'never';
 
 export function nameAdoptionRefusal(
   row: IdentityRow,
