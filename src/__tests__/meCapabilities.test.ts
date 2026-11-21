@@ -107,4 +107,17 @@ describe('GET /api/me/capabilities', () => {
     expect(j.events.manage).toBe(false);
     expect(j.people).toEqual({ read: true, admin: true });
   });
+  it('view-as a person holding EVERY write (approver, messages grant 3, club-updates writer, staff): all write flags false', async () => {
+    vi.resetModules();
+    const fresh = await import('@/app/api/me/capabilities/route');
+    h.settings.access_grants = JSON.stringify({ w1: { content: { messages: 3 } } });
+    h.settings.club_updates = JSON.stringify({ enabled: true, writerIds: ['w1'] });
+    as({ athleteId: 'w1', role: 'coach', isStaff: true, canApprove: true, viewingAsBy: 'admin@example.test' });
+    const j = await (await fresh.GET(new Request('http://x/api/me/capabilities'))).json();
+    expect(j).toMatchObject({
+      viewingAs: true, events: { manage: false }, messages: 'none', approve: false, viewAs: false,
+      people: { admin: false }, clubUpdates: { read: true, write: false, admin: false },
+    });
+    expect(h.writes).toBe(0);
+  });
 });
