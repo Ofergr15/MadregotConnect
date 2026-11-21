@@ -63,27 +63,35 @@ async function withRowActions(
   return applyRowActions(items, { kudosGiven, rsvpByKey });
 }
 
-/** The week's club posts (feed announcements) merged in by time — the club tab's other half. */
-async function withClubPosts(
-  supabase: ReturnType<typeof createServerClient>,
-  groupId: string | null,
-  since: string,
-  items: RawItem[],
-): Promise<RawItem[]> {
+type ClubPost = { id: string; body: string | null; occurred_at: string; group_id: string | null };
+
+/**
+ * The week's club posts (feed announcements). Depends on nothing per-athlete — the
+ * group filter is applied in mergeClubPosts — so GET starts it right after the
+ * auth gate, alongside the athlete and notification reads, instead of as a third
+ * round trip after them. Never rejects: fail open, the inbox without the club's
+ * posts is still the inbox.
+ */
+function fetchClubPosts(supabase: ReturnType<typeof createServerClient>): Promise<ClubPost[] | null> {
   const weekAgo = new Date(Date.now() - CLUB_POSTS_DAYS * 86_400_000).toISOString();
-  const { data, error } = await supabase
-    .from('feed_items')
-    .select('id, body, occurred_at, group_id')
-    .eq('type', 'announcement')
-    .is('deleted_at', null)
-    .gte('occurred_at', weekAgo)
-    .order('occurred_at', { ascending: false })
-    .limit(20);
-  // Fail open: the inbox without the club's posts is still the inbox.
-  if (error || !data) return items;
-  const posts = data.filter((p: { group_id: string | null }) => !p.group_id || p.group_id === groupId);
+  return Promise.resolve(
+    supabase
+      .from('feed_items')
+      .select('id, body, occurred_at, group_id')
+      .eq('type', 'announcement')
+      .is('deleted_at', null)
+      .gte('occurred_at', weekAgo)
+      .order('occurred_at', { ascending: false })
+      .limit(20),
+  ).then(({ data, error }) => (error || !data ? null : (data as ClubPost[])), () => null);
+}
+
+/** The club posts merged in by time — the club tab's other half. */
+function mergeClubPosts(posts: ClubPost[] | null, groupId: string | null, since: string, items: RawItem[]): RawItem[] {
+  if (!posts) return items;
+  const mine = posts.filter((p) => !p.group_id || p.group_id === groupId);
   const pushed = new Set(items.filter((i) => i.toAll).map((i) => i.title.trim()));
-  return [...items, ...clubPostItems(posts, since, pushed)].sort((x, y) => (y.sentAt || '').localeCompare(x.sentAt || ''));
+  return [...items, ...clubPostItems(mine, since, pushed)].sort((x, y) => (y.sentAt || '').localeCompare(x.sentAt || ''));
 }
 
 // GET /api/notifications/inbox?athleteId=… → { items[], unread }
@@ -117,6 +125,8 @@ export async function GET(request: Request) {
     }
 
     const supabase = createServerClient();
+    // Started now, awaited below: independent of the two reads in between.
+    const clubPostsRead = fetchClubPosts(supabase);
 
     const { data: a, error: athleteError } = await supabase
       .from('athletes')
@@ -180,7 +190,7 @@ export async function GET(request: Request) {
     const aggregated = aggregate(rawItems, localeFromPrefs(a.notification_prefs));
     // After aggregate(), so a merged burst is asked about once rather than per
     // row it swallowed.
-    const withPosts = await withClubPosts(supabase, a.group_id, since, aggregated);
+    const withPosts = mergeClubPosts(await clubPostsRead, a.group_id, since, aggregated);
     const items = await withRowActions(supabase, athleteId, withPosts);
 
     return NextResponse.json({ items, unread: items.filter((i) => i.unread).length });

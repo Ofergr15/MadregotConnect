@@ -257,17 +257,19 @@ async function resolveChallenge(
   const current = catalog[0];
   if (!current) return null;
 
-  const [{ data: awards }, { data: badgeRows }] = await Promise.all([
+  // Progress needs neither the award nor the icon, so it runs alongside them: on a
+  // group challenge it is itself three reads in a row (group → members → runs), and
+  // waiting for the badge first put a fourth in front of them on the feed's open.
+  const [{ data: awards }, { data: badgeRows }, progress] = await Promise.all([
     supabase
       .from('athlete_badges')
       .select('badge_id')
       .eq('athlete_id', athleteId)
       .eq('badge_id', current.badge_id),
     supabase.from('badges').select('id, icon, icon_url').eq('id', current.badge_id),
+    computeChallengeProgress(supabase, athleteId, current),
   ]);
   const badge = ((badgeRows || []) as Array<{ icon: string; icon_url: string | null }>)[0];
-
-  const progress = await computeChallengeProgress(supabase, athleteId, current);
   const daysLeft = Math.max(0, dayKeyDiff(todayKey, current.end_date));
 
   // On track = at least as far through the target as through the calendar. One word
