@@ -74,8 +74,9 @@ export async function fetchActivities(
 }
 
 /** How one activity's distance compares to that day's planned target (see ActivitySyncEditor). */
-export function fetchPlanMatch(activityId: string): Promise<Response> {
-  return fetch(`/api/activities/${encodeURIComponent(activityId)}/plan-match`);
+export async function fetchPlanMatch(activityId: string): Promise<Response> {
+  // Sends the session: the route is self-or-staff (it reads the athlete's own plan).
+  return fetch(`/api/activities/${encodeURIComponent(activityId)}/plan-match`, { headers: await apiHeaders() });
 }
 
 /**

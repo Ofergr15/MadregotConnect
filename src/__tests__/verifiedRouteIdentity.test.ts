@@ -30,6 +30,8 @@ const MIGRATED_ROUTES = [
   'app/api/activities/details/route.ts',
   'app/api/garmin/activity-details/route.ts',
   'app/api/auth/me/route.ts',
+  // 2026-11-21: was unauthenticated and returned a plan-accuracy % on a named person's run.
+  'app/api/activities/[id]/plan-match/route.ts',
 ];
 
 // Most of these files still discuss the old header in a comment explaining what
