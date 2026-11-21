@@ -30,7 +30,7 @@ import { readPrExclusions } from '@/lib/prs/exclusions-store';
 import { classifyWorkout } from '@/lib/plans/session-summary';
 import { workoutPlanForGroup } from '@/lib/plans/match-athlete-activities';
 import type { ParsedWorkout } from '@/lib/ai/types';
-import { bestEffort, heatCostSec, readWorkout, recoveries, technique, type WStep } from '@/lib/run-analysis/workout';
+import { bestEffort, heatCostSec, readWorkout, recoveries, technique, type Seg, type Workout, type WStep } from '@/lib/run-analysis/workout';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +51,12 @@ async function weather(lat: number, lng: number, localIso: string): Promise<{ te
     if (i < 0 || h.temperature_2m[i] == null) return null;
     return { tempC: h.temperature_2m[i], dewC: h.dew_point_2m[i], humidity: h.relative_humidity_2m[i], feelsC: h.apparent_temperature?.[i] ?? null };
   } catch { return null; }
+}
+
+/** The workout with every heart-rate figure removed (the runner hid heart rate on this run). */
+function withoutHr(w: Workout): Workout {
+  const strip = (s: Seg): Seg => ({ ...s, hr: null, maxHr: null });
+  return { ...w, segments: w.segments.map(strip), reps: w.reps.map(strip), strides: w.strides.map(strip), avgHr: null };
 }
 
 /** The club's own line between a long run and a normal one (lib/plans/session-summary). */
@@ -169,8 +175,13 @@ export async function GET(request: Request) {
     // average pace, and the heat cost in seconds per km. Heart-rate recovery (gated by hrOk
     // above), cadence/stride per rep, the weather itself, the linked cool-down's distance and
     // the training effect are not pace and stay.
+    // Hidden heart rate: the lap averages inside the workout (every segment's, rep's and
+    // stride's hr / maxHr, and avgHr) go too — /details and /stream already null them. Only
+    // an explicit hide does this: a runner who merely switched the HR line off (hrOk false,
+    // nothing hidden) keeps the lap averages teammates have always seen.
+    const shownWorkout = !workout || hidePace ? null : hidden.has('heart_rate') ? withoutHr(workout) : workout;
     return NextResponse.json({
-      workout: hidePace ? null : workout,
+      workout: shownWorkout,
       linked: extra,
       similar: hidePace ? [] : similar,
       efforts: hidePace ? [] : efforts, prs: hidePace ? {} : prs,
