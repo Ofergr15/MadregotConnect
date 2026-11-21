@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   auth: null as null | { ok: true; user: Record<string, unknown> } | { ok: false; status: number },
   settings: {} as Record<string, string>,
   writes: 0,
+  failRead: false,
   outbound: vi.fn(),
 }));
 
@@ -22,7 +23,10 @@ vi.mock('@/lib/supabase/server', () => ({
       const c: any = {};
       c.select = () => c;
       c.eq = (_: string, v: string) => { key = v; return c; };
-      c.maybeSingle = async () => ({ data: key in h.settings ? { value: h.settings[key] } : null, error: null });
+      c.maybeSingle = async () => {
+        if (h.failRead) throw new Error('settings read failed');
+        return { data: key in h.settings ? { value: h.settings[key] } : null, error: null };
+      };
       for (const m of ['insert', 'update', 'upsert', 'delete']) c[m] = () => { h.writes++; return c; };
       return c;
     },
@@ -39,7 +43,7 @@ const NONE = { viewingAs: false, events: { manage: false }, messages: 'none',
   clubUpdates: { read: false, write: false, admin: false }, people: { read: false, admin: false }, approve: false, viewAs: false };
 
 beforeEach(async () => {
-  h.auth = null; h.settings = {}; h.writes = 0; h.outbound.mockClear();
+  h.auth = null; h.settings = {}; h.writes = 0; h.failRead = false; h.outbound.mockClear();
 });
 
 describe('GET /api/me/capabilities', () => {
@@ -119,5 +123,26 @@ describe('GET /api/me/capabilities', () => {
       people: { admin: false }, clubUpdates: { read: true, write: false, admin: false },
     });
     expect(h.writes).toBe(0);
+  });
+  it('every answer is Cache-Control: private, no-store (401, 403 pending, 200, 500)', async () => {
+    const cc = (r: Response) => r.headers.get('cache-control');
+    h.auth = null;
+    const r401 = await get();
+    expect(r401.status).toBe(401);
+    expect(cc(r401)).toBe('private, no-store');
+    h.auth = { ok: false, status: 403, error: 'pending' } as never;
+    const r403 = await get();
+    expect(r403.status).toBe(403);
+    expect(cc(r403)).toBe('private, no-store');
+    as({ athleteId: 'r1', role: 'runner' });
+    const r200 = await get();
+    expect(r200.status).toBe(200);
+    expect(cc(r200)).toBe('private, no-store');
+    vi.resetModules(); // readGrants caches for 60 s per module instance
+    const fresh = await import('@/app/api/me/capabilities/route');
+    h.failRead = true;
+    const r500 = await fresh.GET(new Request('http://x/api/me/capabilities'));
+    expect(r500.status).toBe(500);
+    expect(cc(r500)).toBe('private, no-store');
   });
 });
