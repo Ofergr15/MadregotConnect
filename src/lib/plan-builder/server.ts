@@ -286,7 +286,24 @@ export async function runScheduledPlanPublishes(db: Db, now = new Date()): Promi
   const due = await db.from('plan_push_status').select('version_id, athlete_id').eq('state', 'backoff').lte('retry_at', now.toISOString());
   const byVersion = new Map<string, string[]>();
   for (const r of (due.data as any[]) || []) byVersion.set(r.version_id, [...(byVersion.get(r.version_id) || []), r.athlete_id]);
-  for (const [vid, ids] of byVersion) { try { await retryPush(db, vid, ids); fired.push(`planPushRetry ${ids.length}`); } catch {} }
+  for (const [vid, ids] of byVersion) {
+    try {
+      // Automatic retries only push the week's CURRENT published version (2026-11-22). A backoff
+      // row can point at a version since superseded or unpublished; pushing that body would
+      // replace the athlete's same-day workouts with a plan the coach withdrew. Such rows are
+      // closed as skipped/stale_version so they stop retrying. Manual retryPush is unchanged.
+      const { data: v } = await db.from('weekly_plan_versions').select('id, week_start, state').eq('id', vid).maybeSingle();
+      const current = v ? live(await versionsFor(db, (v as { week_start: string }).week_start)) : null;
+      if (!current || current.id !== vid) {
+        await db.from('plan_push_status').update({ state: 'skipped', error_code: 'stale_version', retry_at: null, updated_at: new Date().toISOString() })
+          .eq('version_id', vid).eq('state', 'backoff');
+        fired.push(`planPushRetrySkippedStale ${ids.length}`);
+        continue;
+      }
+      await retryPush(db, vid, ids);
+      fired.push(`planPushRetry ${ids.length}`);
+    } catch {}
+  }
   return fired;
 }
 
