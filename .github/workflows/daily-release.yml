@@ -51,8 +51,11 @@ jobs:
         run: |
           HOUR="${RELEASE_HOUR:-20}"
           if [ "${{ github.event_name }}" = "schedule" ] && [ "$HOUR" != "now" ]; then
-            if [ "$((10#$(TZ=Asia/Jerusalem date +%H)))" != "$((10#$HOUR))" ]; then
-              echo "Release hour is ${HOUR}:00 Israel — not now."
+            # Before HOUR:00 → wait. At or after it → release (once: the check below).
+            # GitHub runs scheduled jobs late, sometimes by hours (2026-11-22 the 20:00 slot
+            # first fired at 22:51), so "exactly HOUR" silently skipped the whole evening.
+            if [ "$((10#$(TZ=Asia/Jerusalem date +%H)))" -lt "$((10#$HOUR))" ]; then
+              echo "Release hour is ${HOUR}:00 Israel — not yet."
               exit 0
             fi
             # One release a day: production already deployed in today's release window
