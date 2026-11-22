@@ -41,6 +41,12 @@ export const FEATURES = {
   academy_register: { label: 'הרשמה לאקדמיה מהאפליקציה', defaultEnabled: false },
   /** תגים card on Profile (read-only GET /api/athletes/badges). */
   profile_badges: { label: 'כרטיס תגים בפרופיל', defaultEnabled: false },
+  // ── Native management screens (coach shell, read-only), iOS native-mgmt-readonly.
+  native_mgmt_registrations: { label: 'אישורי הרשמה (אפליקציה)', defaultEnabled: false },
+  native_mgmt_groups: { label: 'קבוצות וחברים (אפליקציה)', defaultEnabled: false },
+  native_mgmt_roles: { label: 'תפקידים וניתוב התראות (אפליקציה)', defaultEnabled: false },
+  native_mgmt_scheduled: { label: 'התראות מתוזמנות (אפליקציה)', defaultEnabled: false },
+  native_mgmt_staff_week: { label: 'תוכנית שבוע לצוות (אפליקציה)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
