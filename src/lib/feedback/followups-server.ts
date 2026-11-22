@@ -55,6 +55,10 @@ export async function runPainFollowups(db: Db, now: Date = new Date()): Promise<
 
   let escalated = 0;
   for (const r of escalate) {
+    // The feature gate comes first, as for the runner's question above: switched off for this
+    // athlete → no recipient lookup, no coach notification, no escalated_at write (2026-11-22).
+    // The report stays unescalated, so switching the feature back on still escalates it once.
+    if (!(await isFeatureEnabled('feedback_pain', r.athleteId, db))) continue;
     const [{ ids }, { data: a }] = await Promise.all([
       painRecipientIds(db, r.athleteId),
       db.from('athletes').select('name').eq('id', r.athleteId).maybeSingle(),

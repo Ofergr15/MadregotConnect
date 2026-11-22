@@ -27,7 +27,7 @@
  * the repeat lengths, which need the step list (`executed_workout`). Own run only, as
  * with `hr` — the targets are the athlete's plan.
  */
-import { routeForViewer } from '@/lib/privacy/route-trim';
+import { routeForViewer, seesFullRoute } from '@/lib/privacy/route-trim';
 import { qualityNames } from '@/lib/activities/quality-name';
 import { COACH_ID } from '@/lib/constants';
 import { repTarget, type RepTarget } from '@/lib/activities/rep-target';
@@ -166,6 +166,14 @@ export async function GET(request: Request) {
       athlete_avatar_url: athletes?.avatar_url ?? null,
       shoe_name: shoes?.name ?? null,
     };
+    // Exact coordinates follow the same rule as the trace (route-trim.ts): a teammate never
+    // gets the start point — it is where the runner lives far more often than the trimmed
+    // 200 m hides. Owner and staff keep them. `location_name` (a place name the feed already
+    // shows members) stays.
+    if (!seesFullRoute(caller, r.athlete_id)) {
+      (activity as Record<string, unknown>).start_lat = null;
+      (activity as Record<string, unknown>).start_lng = null;
+    }
 
     // Stats the runner hid in the share sheet (feed_items.payload.hiddenFields) are withheld
     // here too from everyone but the runner and staff, as the feed card already does
