@@ -1,4 +1,5 @@
 import { after, NextResponse } from 'next/server';
+import { withServerTiming } from '@/lib/perf/server-timing';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
 import { membershipFor } from '@/lib/auth/membership';
@@ -15,7 +16,7 @@ export const revalidate = 0;
 // `role: 'admin'` and the full staff nav, and it doubled as an oracle for which
 // addresses are members. requireSession does the same athletes-then-coaches
 // lookup, from the JWT instead.
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   try {
     const auth = await requireSession(request);
     if (!auth.ok) {
@@ -196,3 +197,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Failed to resolve role' }, { status: 500 });
   }
 }
+
+export const GET = withServerTiming(handleGET);

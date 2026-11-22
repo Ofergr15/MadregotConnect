@@ -1,3 +1,4 @@
+import { withServerTiming } from '@/lib/perf/server-timing';
 /**
  * GET /api/activities/analysis?activityId=<uuid>
  *
@@ -75,7 +76,7 @@ async function plannedHard(supabase: ReturnType<typeof createServerClient>, acti
   } catch { return false; }
 }
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const activityId = new URL(request.url).searchParams.get('activityId');
   if (!activityId || !/^[0-9a-f-]{36}$/i.test(activityId)) return NextResponse.json({ error: 'activityId (uuid) required' }, { status: 400 });
   const { denied, caller } = await resolveVerifiedCaller(request);
@@ -202,3 +203,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
+
+export const GET = withServerTiming(handleGET);
