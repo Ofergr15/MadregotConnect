@@ -1,0 +1,54 @@
+# Post-release smoke test: after the daily release moves `production`, wait for Vercel to
+# finish deploying that commit, then run scripts/smoke-prod.mjs (GETs only) against
+# www.madregot.app. A red run means the release that just went out is broken.
+#
+# Secrets (Settings → Secrets → Actions): SMOKE_EMAIL / SMOKE_PASSWORD for a dedicated test
+# staff account, SUPABASE_URL / SUPABASE_ANON_KEY (public values), SMOKE_TRAINEE_ID optional.
+# Without the account secrets only the anonymous checks run.
+name: Prod smoke
+
+on:
+  workflow_run:
+    workflows: ['Daily release']
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: read
+
+jobs:
+  smoke:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Wait for the production deploy of the released commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch -q origin production
+          SHA=$(git rev-parse origin/production)
+          echo "production = $SHA"
+          for i in $(seq 1 40); do
+            STATE=$(gh api "repos/${{ github.repository }}/deployments?sha=$SHA&environment=Production" --jq '.[0].statuses_url' \
+              | xargs -r -I{} gh api {} --jq '.[0].state' 2>/dev/null || true)
+            echo "deploy state: ${STATE:-none}"
+            [ "$STATE" = "success" ] && exit 0
+            [ "$STATE" = "failure" ] || [ "$STATE" = "error" ] && { echo "Vercel deploy failed"; exit 1; }
+            sleep 15
+          done
+          echo "No finished production deploy after 10 min — smoke runs against whatever is live."
+      - name: Smoke
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SMOKE_EMAIL: ${{ secrets.SMOKE_EMAIL }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+          SMOKE_TRAINEE_ID: ${{ secrets.SMOKE_TRAINEE_ID }}
+        run: node scripts/smoke-prod.mjs
