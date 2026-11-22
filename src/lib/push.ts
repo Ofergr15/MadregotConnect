@@ -14,6 +14,7 @@ import {
   type NotificationLocale,
 } from '@/lib/notifications/locale';
 import { KUDOS_ACTION_LABEL, teammateActivityCopy } from '@/lib/notifications/copy';
+import { apnsConfig, buildApnsPayload, sendApns } from '@/lib/apns';
 import { duplicateInstalls, siblingGhosts, type SubDevice, type SubHealth } from '@/lib/push-ghosts';
 
 /**
@@ -135,7 +136,13 @@ export function actionScopeFor(payload: PushPayload): string | null {
   return null;
 }
 
-type SubRow = { id: string; endpoint: string; p256dh: string; auth: string; athlete_id: string };
+/**
+ * A device to push to. Web-push rows come from `push_subscriptions`; a native iOS
+ * device (an `athlete_devices` row with an APNs token) rides the same pipeline with
+ * `apns_token` set and `id` = the athlete_devices id, so every filter below
+ * (maintenance, category, quiet hours, blocked) applies to it unchanged.
+ */
+type SubRow = { id: string; endpoint: string; p256dh: string; auth: string; athlete_id: string; apns_token?: string };
 
 type DeliveryRow = { nid: string; athlete_id: string | null; subscription_id: string | null; kind: string | null; title: string; accepted: boolean; error: string | null };
 /**
@@ -521,9 +528,14 @@ export async function sendPushDetailed(
     for (const s of list) deliveries.push({ nid, athlete_id: s.athlete_id || null, subscription_id: s.id, kind: payload.kind ?? payload.category ?? null, title: payload.title.slice(0, 120), accepted, error });
   };
   if (!ensureConfigured()) {
-    console.warn(`[push] VAPID keys missing — dropped "${payload.title}" for ${subs.length} subscription(s)`);
-    return empty;
+    // Web-push can't go out, but an iOS device still can (APNs has its own keys).
+    const web = subs.filter((s) => !s.apns_token);
+    if (web.length > 0) console.warn(`[push] VAPID keys missing — dropped "${payload.title}" for ${web.length} subscription(s)`);
+    subs = subs.filter((s) => s.apns_token);
+    if (subs.length === 0) return empty;
   }
+  const apns = apnsConfig();
+  subs = subs.filter((s) => !s.apns_token || apns);
   const supabase = createServerClient();
 
   // While maintenance mode is ON, only the allowlist (+ approvers) may receive
@@ -622,6 +634,7 @@ export async function sendPushDetailed(
   let sent = 0;
   const byAthlete: Record<string, number> = {};
   const deadIds: string[] = [];
+  const deadApns: string[] = [];
   const failures: string[] = [];
   const scope = actionScopeFor(payload);
 
@@ -643,6 +656,20 @@ export async function sendPushDetailed(
         athleteId: s.athlete_id,
         ...(actionToken ? { actionToken } : {}),
       });
+      if (s.apns_token) {
+        if (!apns) return;
+        const r = await sendApns(apns, s.apns_token, buildApnsPayload(payload, { nid, badge, athleteId: s.athlete_id }), { collapseId: payload.tag });
+        if (r.ok) {
+          sent++;
+          byAthlete[s.athlete_id] = (byAthlete[s.athlete_id] || 0) + 1;
+          note([s], true, null);
+        } else {
+          note([s], false, `apns:${r.status}${r.reason ? ` ${r.reason}` : ''}`.slice(0, 80));
+          if (r.dead) deadApns.push(s.id);
+          else failures.push(`apns:${s.apns_token.slice(0, 8)}…=${r.status} ${r.reason ?? ''}`);
+        }
+        return;
+      }
       try {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
@@ -666,6 +693,11 @@ export async function sendPushDetailed(
 
   if (deadIds.length > 0) {
     await supabase.from('push_subscriptions').delete().in('id', deadIds);
+  }
+  if (deadApns.length > 0) {
+    // 410 Unregistered: the app was deleted. Clear the token, keep the device row
+    // (its watch-delivery credentials are a separate thing); the app sends a fresh one if reinstalled.
+    try { await supabase.from('athlete_devices').update({ apns_token: null }).in('id', deadApns); } catch { /* best effort */ }
   }
   await recordDeliveries(deliveries);
 
@@ -775,7 +807,35 @@ export async function subscriptionsForAthletes(athleteIds: string[]): Promise<Su
     .from('push_subscriptions')
     .select('id, endpoint, p256dh, auth, athlete_id')
     .in('athlete_id', athleteIds);
-  return filterBlockedRecipients((subs || []) as SubRow[]);
+  const ios = await apnsDevicesForAthletes(athleteIds);
+  return filterBlockedRecipients([...((subs || []) as SubRow[]), ...ios]);
+}
+
+/**
+ * The athletes' live iOS devices with an APNs token, as SubRows. Empty when APNs
+ * isn't configured (env vars absent) or migration 138 isn't applied — never throws.
+ */
+async function apnsDevicesForAthletes(athleteIds: string[]): Promise<SubRow[]> {
+  if (athleteIds.length === 0 || !apnsConfig()) return [];
+  try {
+    const { data, error } = await createServerClient()
+      .from('athlete_devices')
+      .select('id, athlete_id, apns_token')
+      .in('athlete_id', athleteIds)
+      .is('revoked_at', null)
+      .not('apns_token', 'is', null);
+    if (error || !data) return [];
+    const seen = new Set<string>();
+    const out: SubRow[] = [];
+    for (const d of data as Array<{ id: string; athlete_id: string; apns_token: string | null }>) {
+      if (!d.apns_token || seen.has(d.apns_token)) continue; // one token = one phone
+      seen.add(d.apns_token);
+      out.push({ id: d.id, endpoint: 'apns', p256dh: '', auth: '', athlete_id: d.athlete_id, apns_token: d.apns_token });
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }
 
 /**
