@@ -214,8 +214,8 @@ describe('GET /api/reminder-config — memoised', () => {
     // Four components on one dashboard load read this route.
     const { GET } = await load();
 
-    const first = await (await GET(new Request('https://madregot.app/api/admin/tab-permissions'))).json();
-    const second = await (await GET(new Request('https://madregot.app/api/admin/tab-permissions'))).json();
+    const first = await (await GET()).json();
+    const second = await (await GET()).json();
 
     expect(second.config).toMatchObject({ teamDays: [1, 4], workoutHour: 19 });
     expect(second).toEqual(first);
@@ -230,16 +230,16 @@ describe('GET /api/reminder-config — memoised', () => {
     settingFails = true;
     const { GET } = await load();
 
-    const res = await (await GET(new Request('https://madregot.app/api/admin/tab-permissions'))).json();
+    const res = await (await GET()).json();
     expect(res.config).toMatchObject({ teamDays: [2, 5] });
-    await GET(new Request('https://madregot.app/api/admin/tab-permissions'));
+    await GET();
 
     expect(settingReads).toBe(2);
   });
 
   it('drops the memo when an approver saves new reminder times', async () => {
     const { GET, PUT } = await load();
-    await GET(new Request('https://madregot.app/api/admin/tab-permissions'));
+    await GET();
     expect(settingReads).toBe(1);
 
     const res = await PUT(new Request('https://madregot.app/api/reminder-config', {
@@ -248,7 +248,7 @@ describe('GET /api/reminder-config — memoised', () => {
     }));
     expect(res.status).toBe(200);
 
-    await GET(new Request('https://madregot.app/api/admin/tab-permissions'));
+    await GET();
     expect(settingReads).toBe(2);
   });
 });
