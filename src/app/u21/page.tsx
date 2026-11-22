@@ -9,7 +9,7 @@ import {
 import { parseU21TrackParam } from '@/lib/u21/entry';
 import { cn } from '@/lib/utils';
 
-type Step = 'track' | 'form' | 'done';
+type Step = 'track' | 'form' | 'review' | 'done';
 
 const input = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base focus:border-gray-900 focus:outline-none';
 
@@ -18,22 +18,19 @@ export default function U21Page() {
   // lib/u21/entry): a valid track skips the picker and opens the questionnaire
   // directly — "בחירת מסלול וכניסה קדימה". Read in the state initializer (not
   // an effect) so the track step never flashes first; null on the server.
-  const [entry] = useState(() =>
-    typeof window === 'undefined'
-      ? null
-      : parseU21TrackParam(new URLSearchParams(window.location.search).get('track')));
-  const [step, setStep] = useState<Step>(entry ? 'form' : 'track');
-  const [track, setTrack] = useState<U21Track | null>(entry);
-  // The initializer alone misses client-side <Link> navigation: during the
-  // route transition it can run before the URL commits, so it reads the
-  // SOURCE page's search and lands on the picker (seen on the deployed
-  // preview: /register → track link → picker instead of the questionnaire).
-  // Re-check once mounted, when location is final.
+  // The ?track= param is read once mounted, never during the first render: the
+  // server has no `window` and always rendered the picker, so a first client render
+  // that already showed the questionnaire failed hydration. Until mounted, nothing
+  // step-specific is drawn (`ready`), so the picker never flashes before a deep
+  // link either. Reading after mount also covers client-side <Link> navigation,
+  // where the URL commits only after the transition (/register → track link).
+  const [ready, setReady] = useState(false);
+  const [step, setStep] = useState<Step>('track');
+  const [track, setTrack] = useState<U21Track | null>(null);
   useEffect(() => {
-    if (track) return;
     const t = parseU21TrackParam(new URLSearchParams(window.location.search).get('track'));
     if (t) { setTrack(t); setStep('form'); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setReady(true);
   }, []);
   const [answers, setAnswers] = useState<U21Answers>({});
   const [honeypot, setHoneypot] = useState('');
@@ -51,13 +48,36 @@ export default function U21Page() {
     return out;
   }, []);
 
-  const set = (key: string, value: U21Answers[string]) => setAnswers(a => ({ ...a, [key]: value }));
+  const set = (key: string, value: U21Answers[string]) => {
+    setAnswers(a => ({ ...a, [key]: value }));
+    // The field just edited drops its own stale error (re-checked on the next submit);
+    // otherwise "שדה חובה" stayed under an answered question until then.
+    setErrors(e => {
+      if (!(key in e)) return e;
+      const next = { ...e };
+      delete next[key];
+      return next;
+    });
+  };
+
+  // The questionnaire's button validates and opens the read-only review; nothing is
+  // sent until the review's own send button (the native plan's U21Review step).
+  function toReview() {
+    setServerError(null);
+    const v = validateU21Intake(track, answers);
+    setErrors(v.errors);
+    // Focus (not only scroll to) the summary, so a keyboard or screen-reader user
+    // lands on the list of fields to fix instead of staying on the submit button.
+    if (!v.ok) { setTimeout(() => document.getElementById(SUMMARY_ID)?.focus(), 0); return; }
+    setStep('review');
+    window.scrollTo({ top: 0 });
+  }
 
   async function submit() {
     setServerError(null);
     const v = validateU21Intake(track, answers);
     setErrors(v.errors);
-    if (!v.ok) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    if (!v.ok) { setStep('form'); setTimeout(() => document.getElementById(SUMMARY_ID)?.focus(), 0); return; }
     setSubmitting(true);
     try {
       const res = await fetch('/api/u21/register', {
@@ -67,7 +87,8 @@ export default function U21Page() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        if (json.errors) setErrors(json.errors);
+        // Field errors from the server belong next to their fields: back to the form.
+        if (json.errors) { setErrors(json.errors); setStep('form'); }
         setServerError(res.status === 429 ? 'יותר מדי ניסיונות, נסו שוב בעוד דקה' : 'לא הצלחנו לשמור את הפרטים, נסו שוב');
         return;
       }
@@ -79,6 +100,8 @@ export default function U21Page() {
       setSubmitting(false);
     }
   }
+
+  if (!ready) return null;
 
   if (step === 'done') {
     return (
@@ -125,6 +148,44 @@ export default function U21Page() {
   const chosen = U21_TRACKS.find(t => t.id === track);
   const errCount = Object.keys(errors).length;
 
+  if (step === 'review') {
+    return (
+      <div>
+        <button type="button" className="mb-4 text-sm text-gray-600 underline" onClick={() => setStep('form')}>
+          ← עריכה
+        </button>
+        <h1 className="mb-1 text-2xl font-bold" tabIndex={-1}>בדיקת הפרטים לפני שליחה</h1>
+        <p className="mb-6 text-sm text-gray-600">מסלול נבחר: <b>{chosen?.name}</b></p>
+        <div className="space-y-4" data-testid="u21-review">
+          {sections.map(s => {
+            const visible = s.fields.filter(f => fieldVisible(f.key, answers, age));
+            if (!visible.length) return null;
+            return (
+              <section key={s.title} className="rounded-2xl bg-white p-5 shadow-sm">
+                <h2 className="mb-3 text-lg font-semibold">{s.title}</h2>
+                <dl className="space-y-2 text-sm">
+                  {visible.map(f => (
+                    <div key={f.key}>
+                      <dt className="text-gray-600">{f.label}</dt>
+                      <dd className="font-medium"><bdi dir={f.type === 'email' || f.type === 'tel' ? 'ltr' : undefined}>{reviewValue(f, answers[f.key])}</bdi></dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            );
+          })}
+        </div>
+        {serverError && <p className="mt-3 text-sm text-red-700">{serverError}</p>}
+        <button
+          type="button" onClick={submit} disabled={submitting}
+          className="mt-4 w-full rounded-xl bg-gray-900 py-3 text-lg font-semibold text-white disabled:opacity-50"
+        >
+          {submitting ? 'שולח…' : 'שליחה'}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div>
       <button type="button" className="mb-4 text-sm text-gray-600 underline" onClick={() => setStep('track')}>
@@ -133,7 +194,15 @@ export default function U21Page() {
       <h1 className="mb-1 text-2xl font-bold">שאלון היכרות</h1>
       <p className="mb-6 text-sm text-gray-600">מסלול נבחר: <b>{chosen?.name}</b></p>
       {errCount > 0 && (
-        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">יש {errCount} שדות שצריך לתקן</div>
+        <div id={SUMMARY_ID} data-testid="u21-error-summary" role="alert" tabIndex={-1}
+          className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 focus:outline focus:outline-2 focus:outline-red-700">
+          <p>יש {errCount} שדות שצריך לתקן</p>
+          <ul className="mt-1 list-inside list-disc">
+            {U21_FIELDS.filter(f => errors[f.key]).map(f => (
+              <li key={f.key}><a className="underline" href={`#${fieldId(f.key)}`}>{f.label}</a></li>
+            ))}
+          </ul>
+        </div>
       )}
       {/* Honeypot: hidden from people, filled by bots. */}
       <input
@@ -163,84 +232,114 @@ export default function U21Page() {
       </p>
       {serverError && <p className="mt-3 text-sm text-red-700">{serverError}</p>}
       <button
-        type="button" onClick={submit} disabled={submitting}
+        type="button" onClick={toReview}
         className="mt-4 w-full rounded-xl bg-gray-900 py-3 text-lg font-semibold text-white disabled:opacity-50"
       >
-        {submitting ? 'שולח…' : 'שליחה'}
+        המשך לבדיקה
       </button>
     </div>
   );
 }
 
+/** How an answer reads on the review: the option text as chosen, never a code. */
+function reviewValue(f: U21Field, v: U21Answers[string]): string {
+  if (v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0)) return '—';
+  if (f.type === 'yesno') return v === 'yes' ? 'כן' : v === 'no' ? 'לא' : '—';
+  if (f.type === 'checkbox') return v === true ? 'אושר' : '—';
+  if (Array.isArray(v)) return v.join(', ');
+  return String(v);
+}
+
+const SUMMARY_ID = 'u21-error-summary';
+const fieldId = (key: string) => `u21-f-${key}`;
+
 function FieldInput({ f, value, error, onChange }: {
   f: U21Field; value: U21Answers[string]; error?: string; onChange: (v: U21Answers[string]) => void;
 }) {
-  const label = <span className="mb-1 block text-sm font-medium">{f.label}{f.required && <span className="text-red-600"> *</span>}</span>;
-  let control: React.ReactNode;
+  const id = fieldId(f.key);
+  const labelId = `${id}-label`;
+  const errId = `${id}-err`;
+  const hintId = `${id}-hint`;
+  const describedBy = [f.type === 'date' ? hintId : null, error ? errId : null].filter(Boolean).join(' ') || undefined;
+  const aria = { 'aria-invalid': error ? true : undefined, 'aria-describedby': describedBy } as const;
+  const star = f.required && <span className="text-red-600"> *</span>;
+  const errorText = error && <span id={errId} className="mt-1 block text-sm text-red-700">{error}</span>;
+
+  // Choice questions are a group of buttons, NOT a <label>: a label forwards a tap on
+  // the question text to its first button, which silently answered it (on the safety
+  // questions, that first button is "כן").
+  const choice = (buttons: React.ReactNode) => (
+    <div id={id} role="group" aria-labelledby={labelId} tabIndex={-1} {...aria}>
+      <span id={labelId} className="mb-1 block text-sm font-medium">{f.label}{star}</span>
+      {buttons}
+      {errorText}
+    </div>
+  );
+  const pill = (on: boolean, extra = 'px-3') =>
+    cn('rounded-full border py-1.5 text-sm', extra, on ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 bg-white');
+
   switch (f.type) {
-    case 'textarea':
-      control = <textarea className={input} rows={3} value={(value as string) ?? ''} placeholder={f.placeholder} onChange={e => onChange(e.target.value)} />;
-      break;
     case 'radio':
-      control = (
+      return choice(
         <div className="flex flex-wrap gap-2">
           {f.options.map(o => (
-            <button key={o} type="button" onClick={() => onChange(o)}
-              className={cn('rounded-full border px-3 py-1.5 text-sm', value === o ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 bg-white')}>{o}</button>
+            <button key={o} type="button" aria-pressed={value === o} onClick={() => onChange(o)} className={pill(value === o)}>{o}</button>
           ))}
-        </div>
+        </div>,
       );
-      break;
     case 'checkboxes': {
       const arr = Array.isArray(value) ? value : [];
-      control = (
+      return choice(
         <div className="flex flex-wrap gap-2">
           {f.options.map(o => {
             const on = arr.includes(o);
             return (
-              <button key={o} type="button" onClick={() => onChange(on ? arr.filter(x => x !== o) : [...arr, o])}
-                className={cn('rounded-full border px-3 py-1.5 text-sm', on ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 bg-white')}>{o}</button>
+              <button key={o} type="button" aria-pressed={on} onClick={() => onChange(on ? arr.filter(x => x !== o) : [...arr, o])} className={pill(on)}>{o}</button>
             );
           })}
-        </div>
+        </div>,
       );
-      break;
     }
     case 'yesno':
-      control = (
+      return choice(
         <div className="flex gap-2">
           {[['yes', 'כן'], ['no', 'לא']].map(([v, t]) => (
-            <button key={v} type="button" onClick={() => onChange(v)}
-              className={cn('rounded-full border px-4 py-1.5 text-sm', value === v ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 bg-white')}>{t}</button>
+            <button key={v} type="button" aria-pressed={value === v} onClick={() => onChange(v)} className={pill(value === v, 'px-4')}>{t}</button>
           ))}
-        </div>
+        </div>,
       );
-      break;
     case 'checkbox':
       return (
-        <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" className="mt-1" checked={value === true} onChange={e => onChange(e.target.checked)} />
-          <span>{f.label}{f.required && <span className="text-red-600"> *</span>}{error && <span className="block text-red-700">{error}</span>}</span>
-        </label>
-      );
-    default:
-      control = (
-        <input
-          className={input}
-          type={f.type === 'number' ? 'text' : f.type}
-          inputMode={f.type === 'number' ? 'decimal' : f.type === 'tel' ? 'tel' : undefined}
-          dir={f.type === 'email' || f.type === 'tel' ? 'ltr' : undefined}
-          value={(value as string) ?? ''} placeholder={f.placeholder}
-          onChange={e => onChange(e.target.value)}
-        />
+        <div>
+          <label className="flex items-start gap-2 text-sm">
+            <input id={id} type="checkbox" className="mt-1" checked={value === true} onChange={e => onChange(e.target.checked)} {...aria} />
+            <span>{f.label}{star}</span>
+          </label>
+          {errorText}
+        </div>
       );
   }
+
+  const control = f.type === 'textarea'
+    ? <textarea id={id} className={input} rows={3} value={(value as string) ?? ''} placeholder={f.placeholder} onChange={e => onChange(e.target.value)} {...aria} />
+    : (
+      <input
+        id={id}
+        className={input}
+        type={f.type === 'number' ? 'text' : f.type}
+        inputMode={f.type === 'number' ? 'decimal' : f.type === 'tel' ? 'tel' : undefined}
+        dir={f.type === 'email' || f.type === 'tel' ? 'ltr' : undefined}
+        value={(value as string) ?? ''} placeholder={f.placeholder}
+        onChange={e => onChange(e.target.value)}
+        {...aria}
+      />
+    );
   return (
-    <label className="block">
-      {label}
+    <div>
+      <label htmlFor={id} className="mb-1 block text-sm font-medium">{f.label}{star}</label>
       {control}
-      {f.type === 'date' && <span className="mt-1 block text-xs text-gray-500">{DATE_HINT}</span>}
-      {error && <span className="mt-1 block text-sm text-red-700">{error}</span>}
-    </label>
+      {f.type === 'date' && <span id={hintId} className="mt-1 block text-xs text-gray-500">{DATE_HINT}</span>}
+      {errorText}
+    </div>
   );
 }
