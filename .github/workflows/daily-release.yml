@@ -8,7 +8,7 @@
 # See src/lib/release-notes.ts.
 #
 # Owner decision 2026-11-22: a release goes out right after approval, not at
-# 05:00. The workflow has no secrets (the app cannot dispatch it), so it checks
+# 05:00. The 05:00 mode is kept behind the RELEASE_AT_0500 repo variable (off). The workflow has no secrets (the app cannot dispatch it), so it checks
 # every 10 minutes instead; GitHub may run a scheduled job a few minutes late.
 # The name stays "Daily release" so existing references keep working.
 name: Daily release
@@ -37,7 +37,17 @@ jobs:
           fetch-depth: 0
       - name: Ship the approved commit
         id: ship
+        env:
+          # Kept switch, OFF by default (owner 2026-11-22: "now to now"). Set the repo variable
+          # RELEASE_AT_0500=true (Settings → Secrets and variables → Actions → Variables) to go
+          # back to the 05:00 Israel release: then only the run in the 05:00 hour ships.
+          RELEASE_AT_0500: ${{ vars.RELEASE_AT_0500 }}
         run: |
+          if [ "$RELEASE_AT_0500" = "true" ] && [ "${{ github.event_name }}" = "schedule" ] \
+             && [ "$(TZ=Asia/Jerusalem date +%H)" != "05" ]; then
+            echo "RELEASE_AT_0500 is on — waiting for the 05:00 run."
+            exit 0
+          fi
           SHA=$(curl -fsS https://www.madregot.app/api/release/approved | jq -r '.sha // empty')
           if [ -z "$SHA" ]; then
             echo "No approved release — nothing goes out."
