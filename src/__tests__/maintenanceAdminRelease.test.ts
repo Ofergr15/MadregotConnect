@@ -19,6 +19,8 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 let settings: { mode: string; allow: string };
 let upserted: Array<{ key: string; value: string }>;
 let canApprove: boolean;
+let superUser = true;
+let role = 'coach';
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: () => ({
@@ -56,9 +58,9 @@ vi.mock('@/lib/auth-session', () => ({
       email: 'strava_106828158@strava.madregot.local',
       athleteEmail: 'coach@madregot.club',
       athleteId: ADMIN_ID,
-      role: 'coach',
+      role,
       isStaff: true,
-      isSuperUser: true,
+      isSuperUser: superUser,
       canApprove,
       isCoreRunner: false,
     },
@@ -77,6 +79,8 @@ beforeEach(() => {
   settings = { mode: 'on', allow: `${ADMIN_ID},coach@madregot.club` };
   upserted = [];
   canApprove = true;
+  superUser = true;
+  role = 'coach';
 });
 
 describe('PUT /api/maintenance — releasing a member from the roster', () => {
@@ -125,8 +129,20 @@ describe('PUT /api/maintenance — releasing a member from the roster', () => {
     expect(allowWritten()).toBeNull();
   });
 
-  it('refuses a caller who is not an approver', async () => {
-    canApprove = false;
+  it('refuses an approver who is not an admin (admin only, 2026-11-22)', async () => {
+    superUser = false; role = 'coach'; canApprove = true;
+    const res = await put({ on: false });
+    expect(res.status).toBe(403);
+    expect(upserted).toEqual([]);
+  });
+
+  it('an admin-role caller may toggle', async () => {
+    superUser = false; role = 'admin'; canApprove = false;
+    expect((await put({ on: false })).status).toBe(200);
+  });
+
+  it('refuses a caller who is neither admin nor super user', async () => {
+    superUser = false; canApprove = false;
     const res = await put({ allowlist: [MEMBER_ID] });
     expect(res.status).toBe(403);
     expect(upserted).toEqual([]);

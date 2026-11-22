@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
+import { hasRole } from '@/lib/auth/roles';
 import { clearMaintenanceCache, maintenanceBlocks, readMaintenance } from '@/lib/maintenance';
 
 export const dynamic = 'force-dynamic';
@@ -82,7 +83,10 @@ export async function PUT(request: Request) {
     // for anybody — the toggle 403'd for every admin in the club, which is how
     // maintenance mode got stuck on with no way to turn it off from the app. The
     // session flag reads the row's `is_approver` and handles exactly this.
-    if (!auth.user.canApprove) {
+    // Admin only (owner, 2026-11-22): maintenance changes the app for EVERY member, so it is
+    // stricter than approving a registration. Super user or the `admin` role, read from the
+    // session row, never from the request.
+    if (!(auth.user.isSuperUser || hasRole(auth.user, 'admin'))) {
       return NextResponse.json({ error: 'Not authorized.' }, { status: 403 });
     }
     const { on, allowlist } = await request.json();
