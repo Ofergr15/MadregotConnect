@@ -730,7 +730,7 @@ export default function SettingsPage() {
   const fetchPermissions = async () => {
     try {
       setPermissionsLoading(true);
-      const response = await fetch('/api/admin/tab-permissions');
+      const response = await fetch('/api/admin/tab-permissions', { headers: await apiHeaders() });
       if (!response.ok) throw new Error('Failed to fetch permissions');
       const data = await response.json();
       setPermissions(data.permissions || []);
