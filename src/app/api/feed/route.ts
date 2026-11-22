@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { withServerTiming } from '@/lib/perf/server-timing';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
 import { FEED_SELECT, projectFeedItem, type FeedItem } from '@/lib/feed/project';
@@ -32,7 +33,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * nothing valid is treated as absent rather than as "match none", so a typo
  * degrades to the full feed instead of an unexplained empty screen.
  */
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const auth = await requireSession(request);
   if (!auth.ok) return authError(auth);
 
@@ -168,3 +169,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Failed to load feed' }, { status: 500 });
   }
 }
+
+export const GET = withServerTiming(handleGET);

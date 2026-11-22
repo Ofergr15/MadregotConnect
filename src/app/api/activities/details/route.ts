@@ -1,3 +1,4 @@
+import { withServerTiming } from '@/lib/perf/server-timing';
 /**
  * GET /api/activities/details?activityId=<uuid|legacy numeric>[&athleteId=]
  *
@@ -66,7 +67,7 @@ const SUMMARY_COLS_WITH_SHOE = `${SUMMARY_COLS}, shoes (name)`;
 /** Plus the wall-clock time (migration 166, may be unapplied). */
 const SUMMARY_COLS_FULL = `${SUMMARY_COLS_WITH_SHOE}, elapsed_duration`;
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const activityId = searchParams.get('activityId');
@@ -239,3 +240,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Failed to fetch' }, { status: 500 });
   }
 }
+
+export const GET = withServerTiming(handleGET);

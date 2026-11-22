@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withServerTiming } from '@/lib/perf/server-timing';
 import { readHrTraceSetting, writeHrTracePublic } from '@/lib/athletes/hr-trace-privacy';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
@@ -64,7 +65,7 @@ function kitSizesOf(row: Record<string, unknown>) {
 // onboarding/provider state, so it isn't the public one (see
 // src/lib/athletes/public-profile.ts). Ungated, `?id=<anyone>` returned any
 // club member's contact details to an anonymous caller.
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id');
   if (!id) {
     return NextResponse.json({ error: 'id required' }, { status: 400 });
@@ -355,3 +356,5 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to update personal info' }, { status: 500 });
   }
 }
+
+export const GET = withServerTiming(handleGET);

@@ -1,4 +1,5 @@
 import { withoutDraftsFor } from '@/lib/plans/scope';
+import { withServerTiming } from '@/lib/perf/server-timing';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { WEEKLY_PLANS_TAG } from '@/lib/plans/cache';
@@ -17,7 +18,7 @@ import { daySessionWorkouts, mergeDaySessions } from '@/lib/day-session/week-mer
 // `revalidateSeconds` maps to the underlying fetch's cache behavior.
 export const revalidate = 300;
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   try {
     // The coach's training plan — club-internal, and every athlete reads it, so
     // requireMember rather than requireStaff. Same static-render trade as the
@@ -181,3 +182,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Failed to fetch weekly data' }, { status: 500 });
   }
 }
+
+export const GET = withServerTiming(handleGET);

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { timeStep } from '@/lib/perf/server-timing';
 import { createServerClient } from '@/lib/supabase/server';
 import { canApprove, isSuperUser, STAFF_ROLES } from '@/lib/constants';
 import { isCoreRunner } from '@/lib/core-runner';
@@ -232,6 +233,10 @@ function bearerToken(request: Request): string {
  * that knowingly change what it says.
  */
 export async function requireSession(request: Request): Promise<AuthResult> {
+  return timeStep('auth', () => requireSessionUntimed(request));
+}
+
+async function requireSessionUntimed(request: Request): Promise<AuthResult> {
   const token = bearerToken(request);
   if (!token) return { ok: false, status: 401, error: 'Missing bearer token' };
 

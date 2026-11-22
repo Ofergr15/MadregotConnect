@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { withServerTiming } from '@/lib/perf/server-timing';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { GarminClient } from '@/lib/garmin/client';
@@ -45,7 +46,7 @@ export const dynamic = 'force-dynamic';
  * `?activityId=` pins which of the day's runs to grade; without it the one
  * closest to planned distance is used, matching the adherence engine.
  */
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     let athleteId = searchParams.get('athleteId');
@@ -437,3 +438,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message || 'Failed to compute segments' }, { status: 500 });
   }
 }
+
+export const GET = withServerTiming(handleGET);
