@@ -1,3 +1,4 @@
+import { invalidateShared, sharedCache, SHARED_TAGS } from '@/lib/cache/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { COACH_ID } from '@/lib/constants';
 import { heldRoles } from '@/lib/auth/roles';
@@ -72,26 +73,52 @@ export async function loadRow(db: Db, id: string): Promise<UpdateRow | null> {
   return (data as UpdateRow | null) ?? null;
 }
 
-/** Newest first, pinned ones included wherever they fall (the client lifts them). */
-export async function listUpdates(db: Db, viewerId: string | null, opts: { limit: number; since?: string | null; topicIds?: string[] }): Promise<{ updates: ClubUpdate[]; missing: boolean }> {
-  // A filter that resolved to no topic matches nothing — never fall back to the whole stream.
-  if (opts.topicIds && opts.topicIds.length === 0) return { updates: [], missing: false };
-  let q = db.from('club_updates').select(COLUMNS).is('deleted_at', null).order('created_at', { ascending: false }).limit(opts.limit);
-  if (opts.since) q = q.gte('created_at', opts.since);
-  if (opts.topicIds) q = q.in('topic_id', opts.topicIds);
+/**
+ * The raw rows of the stream — the same for every member, so they come from the
+ * shared cache (lib/cache/shared.ts). Per-viewer shaping (`project`: likes, `me`,
+ * the undo window) still runs per request on top. Throws on a read error so an
+ * error is never cached; a missing table answers `missing` (cached too — it only
+ * changes when a migration is pasted, and a write invalidates).
+ */
+async function readUpdateRows(db: Db, limit: number, since: string | null, topicIds: string[] | null): Promise<{ rows: UpdateRow[]; missing: boolean }> {
+  let q = db.from('club_updates').select(COLUMNS).is('deleted_at', null).order('created_at', { ascending: false }).limit(limit);
+  if (since) q = q.gte('created_at', since);
+  if (topicIds) q = q.in('topic_id', topicIds);
   const { data, error } = await q;
   if (error) {
-    if (isMissingTable(error)) return { updates: [], missing: true };
+    if (isMissingTable(error)) return { rows: [], missing: true };
     throw error;
   }
   const rows = (data || []) as UpdateRow[];
   // A pinned update stays at the top of the stream, and in the feed, however old it is.
   {
     let pq = db.from('club_updates').select(COLUMNS).is('deleted_at', null).eq('pinned', true);
-    if (opts.topicIds) pq = pq.in('topic_id', opts.topicIds);
+    if (topicIds) pq = pq.in('topic_id', topicIds);
     const { data: pins } = await pq.order('created_at', { ascending: false }).limit(3);
     for (const p of (pins || []) as UpdateRow[]) if (!rows.some((r) => r.id === p.id)) rows.push(p);
   }
+  return { rows, missing: false };
+}
+
+/** The feed's "since" window, floored to the minute so it can be a cache key (≤ 60 s wider). */
+export function sinceKey(since: string | null | undefined): string | null {
+  if (!since) return null;
+  const ms = Date.parse(since);
+  return Number.isFinite(ms) ? new Date(Math.floor(ms / 60_000) * 60_000).toISOString() : since;
+}
+
+/** Newest first, pinned ones included wherever they fall (the client lifts them). */
+export async function listUpdates(db: Db, viewerId: string | null, opts: { limit: number; since?: string | null; topicIds?: string[] }): Promise<{ updates: ClubUpdate[]; missing: boolean }> {
+  // A filter that resolved to no topic matches nothing — never fall back to the whole stream.
+  if (opts.topicIds && opts.topicIds.length === 0) return { updates: [], missing: false };
+  // Wrapped per call so the client isn't a key argument; unstable_cache keys on the
+  // key parts + the plain arguments, so every call shares the same entries.
+  const shared = sharedCache(
+    (limit: number, since: string | null, topicIds: string[] | null) => readUpdateRows(db, limit, since, topicIds),
+    ['club-updates:rows:v1'], { tag: SHARED_TAGS.clubUpdates, revalidate: 300 },
+  );
+  const { rows, missing } = await shared(opts.limit, sinceKey(opts.since), opts.topicIds ? [...opts.topicIds].sort() : null);
+  if (missing) return { updates: [], missing: true };
   return { updates: await project(db, rows, viewerId), missing: false };
 }
 
@@ -184,6 +211,7 @@ export async function sendUpdatePush(db: Db, id: string): Promise<number> {
   const now = new Date().toISOString();
   const { data: claimed } = await db.from('club_updates').update({ notified_at: now })
     .eq('id', id).is('notified_at', null).is('deleted_at', null).select(COLUMNS).maybeSingle();
+  invalidateShared(SHARED_TAGS.clubUpdates);
   const row = claimed as UpdateRow | null;
   if (!row) return 0;
   const { notifyAthlete } = await import('@/lib/push');

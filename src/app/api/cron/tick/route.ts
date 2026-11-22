@@ -1,3 +1,4 @@
+import { invalidateShared, SHARED_TAGS } from '@/lib/cache/shared';
 import { hiddenEventIds } from '@/lib/events/server';
 import { after, NextResponse } from 'next/server';
 import { sendEveningWatchReminders } from '@/lib/watch/evening-reminder';
@@ -370,6 +371,7 @@ async function run(request: Request) {
     if (!(await already(tag))) {
       // Archive everything before the upcoming week (reversible flag; nothing deleted).
       await supabase.from('program_weeks').update({ archived: true }).lt('week_start_date', upcomingWeek);
+      invalidateShared(SHARED_TAGS.programWeeks);
 
       // Which plans exist for the upcoming week?
       const { data: pw } = await supabase

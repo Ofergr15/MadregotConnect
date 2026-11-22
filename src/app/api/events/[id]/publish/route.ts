@@ -1,3 +1,4 @@
+import { invalidateShared, SHARED_TAGS } from '@/lib/cache/shared';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaff } from '@/lib/auth/self-or-staff';
@@ -42,6 +43,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .eq('id', id)
       .select()
       .maybeSingle();
+    invalidateShared(SHARED_TAGS.events);
     if (upErr) {
       if (isMissingSchema(upErr)) return NextResponse.json({ error: 'Publishing needs migration 184' }, { status: 409 });
       throw upErr;

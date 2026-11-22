@@ -1,3 +1,4 @@
+import { invalidateShared, SHARED_TAGS } from '@/lib/cache/shared';
 import { NextResponse, after } from 'next/server';
 import { clubUpdatesCaller, forbidden } from '@/lib/club-updates/access';
 import { UUID_RE, isMissingTable, listTopics, listUpdates, project, sendUpdatePush, wantsPush, type UpdateRow } from '@/lib/club-updates/server';
@@ -77,6 +78,7 @@ export async function POST(request: Request) {
     ...(topicId ? { topic_id: topicId } : {}),
     notify_at: push ? new Date(Date.now() + UNDO_MS).toISOString() : null,
   }).select('*').single();
+  invalidateShared(SHARED_TAGS.clubUpdates);
   if (error) {
     if (isMissingTable(error)) return NextResponse.json({ error: 'migration 154 not applied' }, { status: 503 });
     console.error('[club-updates] insert failed:', error);
