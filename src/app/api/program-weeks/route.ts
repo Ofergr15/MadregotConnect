@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { logWeek } from '@/lib/week-setup/server';
 import { requireSession, authError } from '@/lib/auth-session';
+import { nativePdfUrl } from '@/lib/native/supabase-proxy';
 
 export async function GET() {
   const supabase = createServerClient();
@@ -14,7 +15,15 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data);
+  // *_native_url: the same PDF via our own domain (/api/native/storage/...), so the
+  // native app never needs the Supabase host. Stored *_pdf_url values are unchanged.
+  return NextResponse.json(
+    (data || []).map((row: any) => ({
+      ...row,
+      training_pdf_native_url: nativePdfUrl(row.training_pdf_url),
+      nutrition_pdf_native_url: nativePdfUrl(row.nutrition_pdf_url),
+    })),
+  );
 }
 
 // Staff only. This writes the club's program: it upserts program_weeks on
