@@ -91,6 +91,42 @@ export const FEATURES = {
   native_help: { label: 'עזרה ומה חדש (אפליקציה)', defaultEnabled: false },
   /** Viewer accounts see the club feed inside the app instead of a link to the website. */
   native_viewer_feed: { label: 'פיד לחשבון צפייה (אפליקציה)', defaultEnabled: false },
+  // ── Native build 21.
+  /** Coach-tools hub in the coach shell. */
+  native_mgmt_coach_tools: { label: 'כלי מאמן (אפליקציה)', defaultEnabled: false },
+  /** Athletes directory for staff. */
+  native_mgmt_athletes: { label: 'רשימת הרצים (אפליקציה)', defaultEnabled: false },
+  /** Photos gallery (read-only, Drive-sourced). */
+  native_photos: { label: 'גלריית תמונות (אפליקציה)', defaultEnabled: false },
+  /** Native cache-first paint: main tabs show the saved copy instantly, refresh in the background. */
+  perf_cache_first: { label: 'פתיחה מיידית מהעותק השמור (אפליקציה)', defaultEnabled: false },
+  // build 21 — every key the native app reads; all off until someone turns them on.
+  club_tab: { label: 'לשונית מועדון (אפליקציה)', defaultEnabled: false },
+  native_benefits: { label: 'הטבות (אפליקציה)', defaultEnabled: false },
+  native_club_stories: { label: 'סטוריז מועדון (אפליקציה)', defaultEnabled: false },
+  native_core_perks: { label: 'הטבות ליבה (אפליקציה)', defaultEnabled: false },
+  native_mgmt_access: { label: 'ניהול גישה (אפליקציה)', defaultEnabled: false },
+  native_mgmt_birthdays: { label: 'ימי הולדת (אפליקציה)', defaultEnabled: false },
+  native_mgmt_content: { label: 'ניהול תוכן (אפליקציה)', defaultEnabled: false },
+  native_mgmt_pack_moves: { label: 'העברות בין דבוקות (אפליקציה)', defaultEnabled: false },
+  native_mgmt_pain: { label: 'דיווחי כאב (אפליקציה)', defaultEnabled: false },
+  native_mgmt_people: { label: 'אנשים (אפליקציה)', defaultEnabled: false },
+  native_mgmt_plan_builder: { label: 'בונה תוכניות (אפליקציה)', defaultEnabled: false },
+  native_mgmt_review: { label: 'סקירה (אפליקציה)', defaultEnabled: false },
+  native_mgmt_signup_tests: { label: 'מבחני הרשמה (אפליקציה)', defaultEnabled: false },
+  native_mgmt_team_volume: { label: 'נפח קבוצתי (אפליקציה)', defaultEnabled: false },
+  native_mgmt_training: { label: 'ניהול אימונים (אפליקציה)', defaultEnabled: false },
+  native_practice: { label: 'אימונים (אפליקציה)', defaultEnabled: false },
+  native_run_share: { label: 'שיתוף ריצה (אפליקציה)', defaultEnabled: false },
+  native_store: { label: 'חנות (אפליקציה)', defaultEnabled: false },
+  native_surveys: { label: 'סקרים (אפליקציה)', defaultEnabled: false },
+  perf_get_memo: { label: 'זיכרון בקשות (אפליקציה)', defaultEnabled: false },
+  profile_trend: { label: 'מגמה בפרופיל (אפליקציה)', defaultEnabled: false },
+  run_chat: { label: 'צ׳אט ריצה (אפליקציה)', defaultEnabled: false },
+  search: { label: 'חיפוש (אפליקציה)', defaultEnabled: false },
+  teammate_full: { label: 'פרופיל חבר מלא (אפליקציה)', defaultEnabled: false },
+  native_mgmt_pack_stories: { label: 'סטוריז דבוקה (אפליקציה)', defaultEnabled: false },
+  native_review: { label: 'סקירה (אפליקציה, מתאמן)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
