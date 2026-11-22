@@ -1,3 +1,4 @@
+import { ownGroup } from '@/lib/athletes/own-group';
 import { NextRequest, NextResponse } from 'next/server';
 import { withServerTiming } from '@/lib/perf/server-timing';
 import { readHrTraceSetting, writeHrTracePublic } from '@/lib/athletes/hr-trace-privacy';
@@ -23,7 +24,7 @@ type Gender = (typeof GENDERS)[number];
 // question. /dashboard/profile used to get that from GET /api/admin/athlete-source,
 // which returns EVERY athlete's row — a whole-roster download to read four fields
 // about yourself, on a screen an athlete opens constantly.
-const CORE_COLUMNS = 'id, name, email, garmin_auth:has_garmin, strava_auth:has_strava, strava_enabled, data_source, onboarding_status, avatar_url, created_at, birth_date, gender, shoe_size';
+const CORE_COLUMNS = 'id, name, email, garmin_auth:has_garmin, strava_auth:has_strava, strava_enabled, data_source, onboarding_status, avatar_url, created_at, birth_date, gender, shoe_size, group_id, groups!group_id(name)';
 // The three non-shirt kit sizes (migration 100) ride the SAME degrade path: they
 // are the newest columns here, so until 100 is pasted in they trip the 42703 /
 // PGRST204 retry below and the route serves the pre-100 set instead of 404ing.
@@ -153,6 +154,8 @@ async function handleGET(req: NextRequest) {
       id: data.id,
       name: data.name,
       email: data.email,
+      // perf S1: the caller's own group, so no screen downloads the feed to learn it.
+      group: ownGroup(data as any),
       hasGarmin: !!data.garmin_auth,
       hasStrava: !!data.strava_auth,
       // hasGarmin/hasStrava only say a credential is STORED. These say whether it
