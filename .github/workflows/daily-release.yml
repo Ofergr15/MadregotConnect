@@ -1,22 +1,33 @@
-# The daily release train. Production deploys the `production` branch (Vercel →
+# The release train. Production deploys the `production` branch (Vercel →
 # Settings → Environments → Production → Branch Tracking).
 #
 # NOTHING goes out without the owner's approval. He approves a release in the
-# app (/dashboard/whats-new); that pins the exact main commit he reviewed. At
-# 05:00 Israel time this moves `production` to THAT commit — never to whatever
-# main has become since. No approval, or an approval already shipped: nothing
-# happens. See src/lib/release-notes.ts.
+# app (/dashboard/whats-new); that pins the exact main commit he reviewed. This
+# moves `production` to THAT commit — never to whatever main has become since.
+# No approval, or an approval already shipped: nothing happens, in seconds.
+# See src/lib/release-notes.ts.
 #
-# The cron is UTC. 02:00 UTC is 05:00 in summer (IDT) and 04:00 in winter (IST).
+# Owner decision 2026-11-22: ONE release a day, at 20:00 Israel time — everything
+# ready and approved by 19:00, out by 20:00 at the latest.
+#   - The hour is the repo variable RELEASE_HOUR (Settings → Secrets and variables →
+#     Actions → Variables): unset = 20; another hour 0-23; or "now" = ship ~10 min
+#     after any approval (and no once-a-day limit).
+#   - The workflow runs every 10 minutes and ships only in that Israel hour, so it is
+#     DST-proof. GitHub may run a scheduled job a few minutes late.
+#   - Once a day: if production was already deployed since today's HOUR:00, a later
+#     approval waits for tomorrow's release.
+#   - A manual run (workflow_dispatch) always ships right away — the escape hatch.
+# The name stays "Daily release" so existing references keep working.
 name: Daily release
 
 on:
   schedule:
-    - cron: '0 2 * * *'
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 permissions:
   contents: write
+  deployments: read
 
 concurrency:
   group: daily-release
@@ -25,13 +36,35 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      shipped: ${{ steps.ship.outputs.shipped }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
       - name: Ship the approved commit
+        id: ship
+        env:
+          RELEASE_HOUR: ${{ vars.RELEASE_HOUR }}
+          GH_TOKEN: ${{ github.token }}
         run: |
+          HOUR="${RELEASE_HOUR:-20}"
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$HOUR" != "now" ]; then
+            if [ "$((10#$(TZ=Asia/Jerusalem date +%H)))" != "$((10#$HOUR))" ]; then
+              echo "Release hour is ${HOUR}:00 Israel — not now."
+              exit 0
+            fi
+            # One release a day: production already deployed in today's release window
+            # (since HOUR:00 Israel today) → the next approval waits for tomorrow. A deploy
+            # earlier in the day (manual run, redeploy) does not use up the evening release.
+            LAST=$(gh api "repos/${{ github.repository }}/deployments?environment=Production&per_page=1" --jq '.[0].created_at // empty' || true)
+            WINDOW=$(TZ=Asia/Jerusalem date -d "$(TZ=Asia/Jerusalem date +%F) $((10#$HOUR)):00" +%s)
+            if [ -n "$LAST" ] && [ "$(date -d "$LAST" +%s)" -ge "$WINDOW" ]; then
+              echo "Already released today ($LAST) — next release tomorrow at ${HOUR}:00."
+              exit 0
+            fi
+          fi
           SHA=$(curl -fsS https://www.madregot.app/api/release/approved | jq -r '.sha // empty')
           if [ -z "$SHA" ]; then
             echo "No approved release — nothing goes out."
@@ -48,3 +81,11 @@ jobs:
           fi
           git push origin "$SHA:refs/heads/production" --force
           echo "production → $SHA"
+          echo "shipped=true" >> "$GITHUB_OUTPUT"
+
+  # Only after a run that actually moved production (not every 10-minute no-op).
+  smoke:
+    needs: release
+    if: needs.release.outputs.shipped == 'true'
+    uses: ./.github/workflows/prod-smoke.yml
+    secrets: inherit

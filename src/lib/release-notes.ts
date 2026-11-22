@@ -8,7 +8,7 @@
  * - Production deploys the `production` branch. NOTHING reaches it without the
  *   owner's approval: he approves a release in /dashboard/whats-new, which pins
  *   the exact main commit he was looking at (`release_approvals`, migration 122),
- *   and the 05:00 workflow (.github/workflows/daily-release.yml) moves
+ *   and the release workflow (.github/workflows/daily-release.yml) moves
  *   `production` to that commit — not to whatever main has become since. No
  *   approval, no release.
  * - The first request a new release deploy serves records a `releases` row: its
@@ -90,7 +90,7 @@ export interface ApprovalRow {
 
 /**
  * Split the waiting notes by the standing approval: those it covers go out at
- * 05:00; anything that reached main after it waits for the next approval.
+ * the next release run (~10 min); anything that reached main after it waits for the next approval.
  */
 export function splitByApproval<T extends { id: string }>(
   pending: T[], approval: Pick<ApprovalRow, 'note_ids'> | null,
