@@ -5,6 +5,7 @@ import { APP_URL } from '@/lib/constants';
 import { exchangeTicketForTokens } from '@/lib/garmin/auth-mfa';
 import { garminNativeServiceUrl, isPlausibleGarminTicket } from '@/lib/data-sources/native';
 import { loadDataSourcesStatus, storeGarminTokens } from '@/lib/data-sources/server';
+import { afterGarminConnect } from '@/lib/data-sources/after-connect';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +47,8 @@ export async function POST(request: Request) {
   const db = createServerClient();
   try {
     await storeGarminTokens(db, auth.user.athleteId, tokens, 'sso-login', 'sso');
-    return NextResponse.json({ ok: true, status: await loadDataSourcesStatus(db, auth.user.athleteId) });
+    const { watchResent } = await afterGarminConnect(auth.user.athleteId);
+    return NextResponse.json({ ok: true, status: await loadDataSourcesStatus(db, auth.user.athleteId), watchResent });
   } catch (error: any) {
     console.error('garmin native sso: store failed', error?.code);
     return NextResponse.json({ error: 'save_failed' }, { status: 500 });
