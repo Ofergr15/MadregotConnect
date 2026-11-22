@@ -125,6 +125,7 @@ export const FEATURES = {
   run_chat: { label: 'צ׳אט ריצה (אפליקציה)', defaultEnabled: false },
   search: { label: 'חיפוש (אפליקציה)', defaultEnabled: false },
   teammate_full: { label: 'פרופיל חבר מלא (אפליקציה)', defaultEnabled: false },
+  native_mgmt_pack_stories: { label: 'סטוריז דבוקה (אפליקציה)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
