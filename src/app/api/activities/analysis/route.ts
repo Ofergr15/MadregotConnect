@@ -87,28 +87,38 @@ export async function GET(request: Request) {
       .eq('id', activityId).maybeSingle();
     if (error) throw error;
     if (!row) return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
-    if (row.athlete_id && !seesPending(caller, row.athlete_id) && (await isPendingAthlete(supabase, row.athlete_id))) {
-      return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
-    }
-    // A QA test account's runs read as not there to everyone but itself and staff (migration 201).
-    if (row.athlete_id && !caller.isStaff && caller.athleteId !== row.athlete_id && (await isTestAccount(supabase, row.athlete_id))) {
-      return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
-    }
+    // Everything that needs only the row goes out in ONE wave (it was ~8 round trips in a
+    // row). The visibility checks are still decided first below, before anything is shaped
+    // or returned, so a hidden run answers 404 exactly as before — only sooner.
     // Stats the runner hid in the share sheet: masked for everyone but the runner and staff;
     // a failed read hides them all (lib/activities/hidden-stats). Hidden heart rate now also
     // closes the trace here, as /api/activities/stream already did.
     const selfOrStaff = mayActFor(caller, row.athlete_id);
-    const hidden: Set<MaskedStat> = selfOrStaff ? new Set() : await readHiddenStats(supabase, row.id);
-    const hidePace = hidden.has('pace');
-    const hrOk = selfOrStaff || mayViewHrTrace({ isSelfOrStaff: false, runnerAllows: await readHrTracePublic(supabase, row.athlete_id), hiddenOnThisRun: hidden.has('heart_rate') });
-
-    const [stream, who, groups, te] = await Promise.all([
+    const day = String(row.start_time).slice(0, 10);
+    const [pendingHidden, testHidden, hidden, runnerAllows, stream, who, groups, te, sameDayRes] = await Promise.all([
+      row.athlete_id && !seesPending(caller, row.athlete_id) ? isPendingAthlete(supabase, row.athlete_id) : false,
+      // A QA test account's runs read as not there to everyone but itself and staff (migration 201).
+      row.athlete_id && !caller.isStaff && caller.athleteId !== row.athlete_id ? isTestAccount(supabase, row.athlete_id) : false,
+      selfOrStaff ? new Set<MaskedStat>() : readHiddenStats(supabase, row.id),
+      selfOrStaff ? null : readHrTracePublic(supabase, row.athlete_id),
       loadActivityStream(supabase, row.id),
       supabase.from('athletes').select('group_id').eq('id', row.athlete_id).maybeSingle(),
       supabase.from('groups').select('id, pace_profile').eq('coach_id', COACH_ID),
       // Migration 160; until it is applied the read fails and the card stays away.
       supabase.from('athlete_activities').select('training_effect').eq('id', row.id).maybeSingle(),
+      // The cool-down (or warm-up) saved as a run of its own the same morning.
+      supabase.from('athlete_activities').select('id, start_time, distance, duration')
+        .eq('athlete_id', row.athlete_id).neq('id', row.id)
+        .gte('start_time', `${day}T00:00:00`).lte('start_time', `${day}T23:59:59`),
     ]);
+    if (pendingHidden || testHidden) {
+      return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
+    }
+    // Only after the visibility checks: it sends the run's start point to a third party,
+    // which a run hidden from this caller must not cause. Overlaps everything below.
+    const condRead = row.start_lat && row.start_lng ? weather(row.start_lat, row.start_lng, String(row.start_time)) : Promise.resolve(null);
+    const hidePace = hidden.has('pace');
+    const hrOk = selfOrStaff || mayViewHrTrace({ isSelfOrStaff: false, runnerAllows: runnerAllows === true, hiddenOnThisRun: hidden.has('heart_rate') });
     const key = paceGroupKeyFor(((groups.data || []) as Array<{ id: string; pace_profile: { marathonGoal?: number | null } | null }>)
       .map((g) => ({ id: g.id, marathonGoal: g.pace_profile?.marathonGoal ?? null })), (who.data as { group_id?: string | null } | null)?.group_id);
     const packIndex = { group1: 0, group2: 1, group3: 2 }[key];
@@ -129,7 +139,9 @@ export async function GET(request: Request) {
     // times), not just whole runs of that length.
     const prs: Record<string, { seconds: number; date: string | null } | null> = {};
     const wanted = Object.keys(PR_RANGE).filter((k) => efforts.some((e) => e!.key === k));
-    if (wanted.length) {
+    // The records, the similar sessions and the "was this planned hard" read depend on
+    // the first wave only, not on each other: one more wave, not three.
+    const prsWork = (async () => { if (wanted.length) {
       const acts = await fetchAllRows<RunActivityRow & { id: string }>((from, to) => supabase.from('athlete_activities')
         .select('id, activity_name, activity_type, start_time, distance, duration').eq('athlete_id', row.athlete_id)
         .neq('id', row.id).order('start_time', { ascending: false }).order('id').range(from, to));
@@ -140,20 +152,18 @@ export async function GET(request: Request) {
         const b = bests.find((x) => x.key === k);
         prs[k] = b?.seconds ? { seconds: b.seconds, date: b.date ? String(b.date).slice(0, 10) : null } : null;
       }
-    }
+    } })();
 
-    // The cool-down (or warm-up) saved as a run of its own the same morning.
     const startMs = Date.parse(String(row.start_time).slice(0, 19) + 'Z');
     const endMs = startMs + (row.duration || 0) * 1000;
-    const { data: sameDay } = await supabase.from('athlete_activities').select('id, start_time, distance, duration')
-      .eq('athlete_id', row.athlete_id).neq('id', row.id)
-      .gte('start_time', `${String(row.start_time).slice(0, 10)}T00:00:00`).lte('start_time', `${String(row.start_time).slice(0, 10)}T23:59:59`);
+    const sameDay = sameDayRes.data;
     const linked = (sameDay || []).map((a) => ({ ...a, s: Date.parse(String(a.start_time).slice(0, 19) + 'Z') }))
       .find((a) => (a.distance || 0) <= 6000 && ((a.s >= endMs - 60_000 && a.s - endMs <= 45 * 60_000) || (a.s + (a.duration || 0) * 1000 <= startMs + 60_000 && startMs - (a.s + (a.duration || 0) * 1000) <= 45 * 60_000)));
     const extra = linked ? { id: linked.id, start: String(linked.start_time).slice(11, 16), km: Math.round((linked.distance || 0) / 100) / 10, after: linked.s >= endMs - 60_000 } : null;
 
     // Workouts like this one in the last nine weeks: reps within 25% of today's length.
     let similar: Array<{ id: string; date: string; title: string; avgPace: number }> = [];
+    const similarWork = (async () => {
     // A workout read without reps (an old run's steps) has no length to compare: it used to
     // throw here and fail the whole analysis with a 500 (10-23).
     const len = workout?.reps[0]?.meters ?? 0;
@@ -167,11 +177,12 @@ export async function GET(request: Request) {
         return w && m && Math.abs(m - len) / len <= 0.25 ? { id: a.id, date: String(a.start_time).slice(0, 10), title: w.title, avgPace: w.avgPace } : null;
       }).filter((x): x is NonNullable<typeof x> => !!x).sort((a, b) => a.date.localeCompare(b.date)).slice(-4);
     }
-
-    const cond = row.start_lat && row.start_lng ? await weather(row.start_lat, row.start_lng, String(row.start_time)) : null;
+    })();
     // "How much faster in other conditions" is for the runs where the pace is the point — a
     // quality session or a long run (Ofer, 2026-10-21) — not every easy jog.
-    const paceMatters = !!workout || total >= LONG_RUN_M || (cond ? await plannedHard(supabase, row.id) : false);
+    const [, , cond] = await Promise.all([prsWork, similarWork, condRead]);
+    const hard = !workout && total < LONG_RUN_M && cond ? await plannedHard(supabase, row.id) : false;
+    const paceMatters = !!workout || total >= LONG_RUN_M || hard;
     const pace = row.average_pace || (total ? (row.duration || 0) / (total / 1000) : 0);
     const teRow = te.error ? null : (te.data as { training_effect?: { aerobic?: number; anaerobic?: number; label?: string | null; load?: number | null; recoveryHours?: number | null } | null } | null)?.training_effect ?? null;
 

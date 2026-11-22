@@ -100,7 +100,7 @@ export async function GET(request: Request) {
     // caller already renders — it's what a day with no plan returns.
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
-    if (pendingRead && !seesPending(caller, athleteId) && ((await pendingRead) || (await isTestAccount(createServerClient(), athleteId)))) {
+    if (pendingRead && !seesPending(caller, athleteId) && (await Promise.all([pendingRead, isTestAccount(createServerClient(), athleteId)])).some(Boolean)) {
       return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
     }
     const mayReadVerdict = mayActFor(caller, athleteId);
@@ -136,6 +136,27 @@ export async function GET(request: Request) {
     //    chart's target band nor a verdict should come from a week nobody was asked
     //    to run. Same filter matchAthleteActivities attributes runs with.
     let workouts: ParsedWorkout[] = [];
+    // The club-wide week is asked for ALONGSIDE the athlete's own instead of only
+    // after it came back empty: same rows, same precedence below (own plan wins),
+    // one round trip instead of two for the 25 athletes who have no individual plan.
+    const sharedRead = Promise.resolve(supabase
+      .from('weekly_plans').select('parsed_workouts, created_at')
+      .eq('coach_id', COACH_ID).eq('week_start_date', weekStart)
+      .is('athlete_id', null)
+      .in('status', PLAN_STATUSES)
+      .order('created_at', { ascending: false }));
+    // The day's activities only matter to a verdict this caller may read — the same
+    // condition that stops a bands-only request below before it reads them. Started
+    // now so it overlaps the plan reads; still only awaited after a plan is found.
+    const activityColumnsEarly =
+      'id, garmin_activity_id, garmin_workout_id, start_time, distance, duration,'
+      + ' moving_duration, average_pace, activity_type, laps';
+    const actsRead = emitVerdict
+      ? Promise.resolve(supabase.from('athlete_activities').select(`${activityColumnsEarly}, executed_workout`)
+        .eq('athlete_id', athleteId).gte('start_time', `${date}T00:00:00Z`).lte('start_time', `${date}T23:59:59Z`))
+      : null;
+    sharedRead.catch(() => {});
+    actsRead?.catch(() => {});
     const indiv = await supabase
       .from('weekly_plans').select('parsed_workouts, created_at')
       .eq('week_start_date', weekStart).eq('athlete_id', athleteId)
@@ -151,12 +172,7 @@ export async function GET(request: Request) {
     if (!indiv.error && indiv.data && indiv.data.length) {
       workouts = laneWorkouts(indiv.data[0].parsed_workouts, lane);
     } else {
-      let shared = await supabase
-        .from('weekly_plans').select('parsed_workouts, created_at')
-        .eq('coach_id', COACH_ID).eq('week_start_date', weekStart)
-        .is('athlete_id', null)
-        .in('status', PLAN_STATUSES)
-        .order('created_at', { ascending: false });
+      let shared = await sharedRead;
       if (shared.error) {
         shared = await supabase
           .from('weekly_plans').select('parsed_workouts, created_at')
@@ -215,15 +231,13 @@ export async function GET(request: Request) {
     //    with. Retried without `executed_workout` because migration 095 is applied by
     //    hand: without the fallback an unapplied migration returns no rows at all here,
     //    which this route would report as "no completed activity on this day".
-    const activityColumns =
-      'id, garmin_activity_id, garmin_workout_id, start_time, distance, duration,'
-      + ' moving_duration, average_pace, activity_type, laps';
+    const activityColumns = activityColumnsEarly;
     const dayRange = (q: any) => q
       .eq('athlete_id', athleteId)
       .gte('start_time', `${date}T00:00:00Z`)
       .lte('start_time', `${date}T23:59:59Z`);
-    let actsRes = await dayRange(supabase.from('athlete_activities')
-      .select(`${activityColumns}, executed_workout`));
+    let actsRes = await (actsRead ?? dayRange(supabase.from('athlete_activities')
+      .select(`${activityColumns}, executed_workout`)));
     if (actsRes.error) {
       actsRes = await dayRange(supabase.from('athlete_activities').select(activityColumns));
     }
