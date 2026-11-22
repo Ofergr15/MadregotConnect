@@ -129,6 +129,8 @@ export const FEATURES = {
   teammate_full: { label: 'פרופיל חבר מלא (אפליקציה)', defaultEnabled: false },
   native_mgmt_pack_stories: { label: 'סטוריז דבוקה (אפליקציה)', defaultEnabled: false },
   native_review: { label: 'סקירה (אפליקציה, מתאמן)', defaultEnabled: false },
+  /** "שלח שוב לשעון": a runner re-sends their own day's workout (POST /api/me/watch/resend). */
+  native_resend_workout: { label: 'שליחה חוזרת לשעון (אפליקציה)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
