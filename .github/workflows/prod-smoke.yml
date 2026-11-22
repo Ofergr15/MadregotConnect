@@ -51,4 +51,7 @@ jobs:
           SMOKE_EMAIL: ${{ secrets.SMOKE_EMAIL }}
           SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
           SMOKE_TRAINEE_ID: ${{ secrets.SMOKE_TRAINEE_ID }}
-        run: node scripts/smoke-prod.mjs
+        run: |
+          # Public logs: never echo the trainee id, even by accident.
+          [ -n "$SMOKE_TRAINEE_ID" ] && echo "::add-mask::$SMOKE_TRAINEE_ID"
+          node scripts/smoke-prod.mjs

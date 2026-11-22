@@ -19,6 +19,9 @@ const check = async (name, fn) => {
   catch (e) { results.push([name, `FAIL: ${e.message}`]); }
 };
 const expect = (cond, msg) => { if (!cond) throw new Error(msg); };
+// Actions logs are PUBLIC (public repo): a failure prints a status and the response's key
+// names only — never a value (plan content, names, ids).
+const shape = (b) => (b && typeof b === 'object' ? Object.keys(b).join(',') : typeof b);
 const get = async (path, token) => {
   const r = await fetch(`${BASE}${path}`, { headers: token ? { authorization: `Bearer ${token}` } : {} });
   let body = null;
@@ -59,13 +62,13 @@ async function main() {
     const token = (await auth.json().catch(() => ({})))?.access_token;
     await check('smoke account signs in', async () => expect(!!token, `auth status ${auth.status}`));
     if (token) {
-      await check('auth/me accepts the smoke account's token', async () => {
+      await check('auth/me accepts the smoke account token', async () => {
         const r = await get('/api/auth/me', token);
         expect(r.status === 200, `got ${r.status}`);
       });
       await check('group week reads (200)', async () => {
         const r = await get(pb, token);
-        expect(r.status === 200 && r.body?.week === week, `got ${r.status} ${JSON.stringify(r.body)?.slice(0, 120)}`);
+        expect(r.status === 200 && r.body?.week === week, `got ${r.status} keys=${shape(r.body)}`);
         expect(!('fromClub' in r.body), 'group read carries trainee keys');
       });
       await check('malformed ?athleteId is 400 (trainee weeks shipped)', async () => {
@@ -75,7 +78,7 @@ async function main() {
       if (SMOKE_TRAINEE_ID) {
         await check('trainee week reads with fromClub (200)', async () => {
           const r = await get(`${pb}?athleteId=${SMOKE_TRAINEE_ID}`, token);
-          expect(r.status === 200, `got ${r.status} ${JSON.stringify(r.body)?.slice(0, 120)}`);
+          expect(r.status === 200, `got ${r.status} keys=${shape(r.body)}`);
           expect(typeof r.body?.fromClub === 'boolean', 'no fromClub');
           expect(r.body?.athleteId === SMOKE_TRAINEE_ID, 'wrong athleteId');
         });
