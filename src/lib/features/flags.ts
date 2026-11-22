@@ -84,6 +84,11 @@ export const FEATURES = {
   // Gates the native PlanEdit, which writes PUT /api/plans and bypasses weekly_plan_versions.
   // Keep OFF until PlanEdit moves onto /api/plan-builder/* (the single writer) or is removed.
   native_mgmt_staff_week: { label: 'תוכנית שבוע לצוות (אפליקציה) — לא להפעיל עדיין', defaultEnabled: false },
+  // ── iOS: screens that replace hand-offs to the PWA (native-no-pwa).
+  /** עזרה ואודות: native bug report (POST /api/feedback) + What's New (GET /api/whats-new). */
+  native_help: { label: 'עזרה ומה חדש (אפליקציה)', defaultEnabled: false },
+  /** Viewer accounts see the club feed inside the app instead of a link to the website. */
+  native_viewer_feed: { label: 'פיד לחשבון צפייה (אפליקציה)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
