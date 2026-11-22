@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { timeStep } from '@/lib/perf/server-timing';
+import { verifyAccessTokenLocally } from '@/lib/auth/local-jwt';
 import { createServerClient } from '@/lib/supabase/server';
 import { canApprove, isSuperUser, STAFF_ROLES } from '@/lib/constants';
 import { isCoreRunner } from '@/lib/core-runner';
@@ -353,7 +354,16 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
   // thrown away and the row is read for the verified one.
   const claimed = claimedEmail(token);
   const early = claimed ? fetchAthleteRows(createServerClient(), claimed).catch(() => null) : null;
-  try {
+  // Local first (lib/auth/local-jwt.ts): the signature against the project's
+  // cached JWKS. `invalid` is the same 401 the network check would give; only a
+  // `fallback` (no JWKS, legacy HS256, unknown kid) pays the getUser round trip.
+  const local = await verifyAccessTokenLocally(token, url);
+  if (local.kind === 'invalid') {
+    console.warn('[auth] local JWT check rejected a token', { reason: local.reason });
+    return { ok: false, status: 401, error: 'Invalid or expired session' };
+  }
+  if (local.kind === 'valid') email = local.email;
+  else try {
     const { data, error } = await createClient(url, anonKey).auth.getUser(token);
     if (error) {
       // Log it. This used to discard the error, which made two very different
