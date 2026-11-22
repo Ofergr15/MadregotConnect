@@ -29,6 +29,8 @@ function noStore(res: Response): Response {
  *   people.admin       admin/roles, admin/people/delete   isSuperUser || role admin
  *   approve            /api/admin/approve                 canApprove
  *   viewAs             /api/admin/view-as                 mayViewAs (the REAL session only)
+ *   storyEditor        POST /api/admin/club-stories       publishGate('circle'): super/staff/approver or grant 3
+ *   superUser          (owner-only rows)                  isSuperUser
  * While an admin views as someone, the answer is that person's, with every write false: writes are
  * refused in view-as anyway (view_as_read_only).
  */
@@ -44,7 +46,11 @@ export async function GET(request: Request) {
     const db = createServerClient();
     const [grants, cfg] = await Promise.all([readGrants(db), readConfig(db)]);
     // publishGate passes role 'runner' to levelsFor: only the grant counts beside canApprove.
-    const level = levelsFor({ role: 'runner' }, u.athleteId ? grants[u.athleteId] : undefined).messages;
+    const levels = levelsFor({ role: 'runner' }, u.athleteId ? grants[u.athleteId] : undefined);
+    const level = levels.messages;
+    // Mirrors publishGate('circle') in /api/admin/club-stories: its legacy rule, or grant 3.
+    // Level 2 only files a draft (202), so it does not open the editor.
+    const storyEditor = !viewing && (u.isSuperUser || u.isStaff || !!u.canApprove || levels.circle >= 3);
     const messages = viewing ? 'none' : u.canApprove || level >= 3 ? 'publish' : level === 2 ? 'draft' : 'none';
     const cu = accessFor(cfg, u.athleteId, admin);
 
@@ -58,6 +64,9 @@ export async function GET(request: Request) {
       people: { read: staff, admin: !viewing && admin },
       approve: !viewing && !!u.canApprove,
       viewAs: !viewing && mayViewAs(u),
+      storyEditor,
+      // The club owner only (isSuperUser); never true while viewing as someone.
+      superUser: !viewing && !!u.isSuperUser,
     }));
   } catch (error) {
     console.error('[me/capabilities] failed:', error);

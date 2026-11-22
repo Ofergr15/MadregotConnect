@@ -40,7 +40,7 @@ const base = { email: 'x@example.test', athleteEmail: null, name: 'X', groupId: 
 const as = (over: Record<string, unknown>) => { h.auth = { ok: true, user: { ...base, ...over } }; };
 
 const NONE = { viewingAs: false, events: { manage: false }, messages: 'none',
-  clubUpdates: { read: false, write: false, admin: false }, people: { read: false, admin: false }, approve: false, viewAs: false };
+  clubUpdates: { read: false, write: false, admin: false }, people: { read: false, admin: false }, approve: false, viewAs: false, storyEditor: false, superUser: false };
 
 beforeEach(async () => {
   h.auth = null; h.settings = {}; h.writes = 0; h.failRead = false; h.outbound.mockClear();
@@ -62,7 +62,7 @@ describe('GET /api/me/capabilities', () => {
   });
   it('a coach: events + people read; NOT approve, people admin, view-as or messages without canApprove', async () => {
     as({ athleteId: 'c1', role: 'coach', isStaff: true });
-    expect(await (await get()).json()).toEqual({ ...NONE, events: { manage: true }, people: { read: true, admin: false } });
+    expect(await (await get()).json()).toEqual({ ...NONE, events: { manage: true }, people: { read: true, admin: false }, storyEditor: true });
   });
   it('an approver publishes messages and approves; that alone is not staff', async () => {
     as({ athleteId: 'a1', role: 'runner', canApprove: true });
@@ -83,7 +83,7 @@ describe('GET /api/me/capabilities', () => {
   it('an admin: everything', async () => {
     as({ athleteId: 'ad', role: 'admin', isStaff: true, canApprove: true });
     expect(await (await get()).json()).toEqual({ viewingAs: false, events: { manage: true }, messages: 'publish',
-      clubUpdates: { read: true, write: true, admin: true }, people: { read: true, admin: true }, approve: true, viewAs: true });
+      clubUpdates: { read: true, write: true, admin: true }, people: { read: true, admin: true }, approve: true, viewAs: true, storyEditor: true, superUser: false });
   });
   it('view-as: the admin viewing a runner gets the runner answer and no write at all', async () => {
     as({ athleteId: 'r1', role: 'runner', viewingAsBy: 'admin@example.test' });
@@ -99,6 +99,27 @@ describe('GET /api/me/capabilities', () => {
     expect((await (await get()).json()).clubUpdates).toEqual({ read: true, write: true, admin: false });
     as({ athleteId: 'w2', role: 'runner' });
     expect((await (await get()).json()).clubUpdates).toEqual({ read: true, write: false, admin: false });
+  });
+  it('storyEditor mirrors publishGate("circle"): legacy (super/staff/approver) or circle grant 3; level 2 is a draft, not the editor', async () => {
+    as({ athleteId: 'a1', role: 'runner', canApprove: true });
+    expect((await (await get()).json()).storyEditor).toBe(true);
+    for (const [lvl, want] of [[3, true], [2, false], [1, false]] as const) {
+      vi.resetModules();
+      const fresh = await import('@/app/api/me/capabilities/route');
+      h.settings.access_grants = JSON.stringify({ g1: { content: { circle: lvl } } });
+      as({ athleteId: 'g1', role: 'runner' });
+      expect((await (await fresh.GET(new Request('http://x/api/me/capabilities'))).json()).storyEditor).toBe(want);
+    }
+  });
+  it('superUser: true only for the super user, false under view-as', async () => {
+    as({ isSuperUser: true, role: 'runner' });
+    const j = await (await get()).json();
+    expect(j.superUser).toBe(true);
+    expect(j.storyEditor).toBe(true);
+    as({ isSuperUser: true, role: 'runner', viewingAsBy: 'owner@example.test' });
+    const v = await (await get()).json();
+    expect(v.superUser).toBe(false);
+    expect(v.storyEditor).toBe(false);
   });
   it('never writes and never sends', async () => {
     for (const u of [{ role: 'admin', isStaff: true, canApprove: true }, { role: 'runner' }]) { as({ athleteId: 'z', ...u }); await get(); }
