@@ -32,3 +32,28 @@ export async function afterGarminConnect(athleteId: string): Promise<{ watchRese
   }
   return { watchResent };
 }
+
+/**
+ * Strava's counterpart: the native connect completes in the OAuth callback, so there is
+ * no response body to carry a flag — the caller puts `syncStarted` on the redirect.
+ * Fire-and-forget via `after`; only ever given the athlete id the signed link state named.
+ */
+export function afterStravaConnect(athleteId: string): { syncStarted: boolean } {
+  try {
+    after(async () => {
+      try {
+        const { runStravaSyncRequest } = await import('@/app/api/strava/sync-activities/route');
+        await runStravaSyncRequest(new Request('http://internal/strava/sync', {
+          method: 'POST',
+          body: JSON.stringify({ athleteId }),
+        }));
+      } catch (e: any) {
+        console.error('strava native connect: sync failed', e?.code ?? e?.name);
+      }
+    });
+    return { syncStarted: true };
+  } catch (e: any) {
+    console.error('strava native connect: could not schedule sync', e?.name);
+    return { syncStarted: false };
+  }
+}
