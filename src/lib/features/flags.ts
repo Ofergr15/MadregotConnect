@@ -66,6 +66,10 @@ export const FEATURES = {
   notif_prefs: { label: 'העדפות התראות (אפליקציה)', defaultEnabled: false },
   /** Native packs management (staff): group edit + move runners, PUT /api/athletes, /api/groups. */
   native_mgmt_packs: { label: 'ניהול דבוקות (אפליקציה)', defaultEnabled: false },
+  /** Native watch connections (Garmin/Strava connect from the app, /api/me/data-sources/**). */
+  data_sources: { label: 'חיבור שעון באפליקציה', defaultEnabled: false },
+  /** Native season program (read-only, member routes). */
+  season_program: { label: 'תוכנית העונה (אפליקציה)', defaultEnabled: false },
   // ── Native management screens (coach shell, read-only), iOS native-mgmt-readonly.
   native_mgmt_registrations: { label: 'אישורי הרשמה (אפליקציה)', defaultEnabled: false },
   native_mgmt_groups: { label: 'קבוצות וחברים (אפליקציה)', defaultEnabled: false },
