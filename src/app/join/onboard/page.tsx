@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Check } from 'lucide-react';
 import { signOutEverywhere } from '@/lib/auth/sign-out';
+import { bearerHeaders } from '@/lib/api';
 import { InsetSection, InsetRow, EmptyState, LoadingBlock, SegmentedControl } from '@/components/ui';
 import { ApprovalPushOptIn } from '@/components/PushOptIn';
 import { WhatsNewOnboardingCard } from '@/components/whats-new/WhatsNewOnboarding';
@@ -128,14 +129,15 @@ function OnboardContent() {
   };
 
   // Garmin exchange. The route stores the credential on this person's row and
-  // answers with a status only — there is no session on this page, so the row is
-  // named by `signupEmail`, which the route accepts only for a not-yet-active row.
+  // answers with a status only. The row isn't linked to the session yet, so it is named by
+  // `signupEmail` — accepted only with this session's bearer and only when it is the
+  // session's own verified address (lib/garmin/store-auth.ts, door 3).
   // A brand-new sign-up may have no row yet: create it (the same connect call the
   // flow ends with) and ask once more.
   const garminAuthenticate = async (payload: Record<string, unknown>) => {
-    const post = () => fetch('/api/garmin/authenticate', {
+    const post = async () => fetch('/api/garmin/authenticate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await bearerHeaders(true),
       body: JSON.stringify({ ...payload, signupEmail: email }),
     });
     let res = await post();

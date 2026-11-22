@@ -170,16 +170,72 @@ describe('/api/garmin/authenticate', () => {
     expect(garminLogin).not.toHaveBeenCalled();
   });
 
-  it('signupEmail opens only a not-yet-active row', async () => {
-    const ok = await call('authenticate', post('/api/garmin/authenticate', { signupEmail: 'new@x', email: 'g@x', password: 'pw' }));
-    expect(ok.status).toBe(200);
-    expectNoCredential(ok.text);
-    updates = [];
-    garminLogin.mockClear();
-    const active = await call('authenticate', post('/api/garmin/authenticate', { signupEmail: 'active@x', email: 'g@x', password: 'pw' }));
-    expect(active.status).toBe(401);
+  // signupEmail (2026-11-22): the address alone proves nothing. Two pending applicants,
+  // A = new@x (row 'newbie') and B = other@x; neither row is linked to a session yet.
+  const pendingA = { ...me, email: 'new@x', athleteId: null };
+  const pendingB = { ...me, email: 'other@x', athleteId: null };
+  const body = (signupEmail: string) => ({ signupEmail, email: 'g@x', password: 'pw' });
+
+  it('signupEmail WITHOUT a bearer is refused before Garmin, for a pending row too', async () => {
+    const r = await call('authenticate', post('/api/garmin/authenticate', body('new@x')));
+    expect(r.status).toBe(401);
     expect(garminLogin).not.toHaveBeenCalled();
     expect(updates).toEqual([]);
+  });
+
+  it('no bearer: an unknown address and a pending one get the SAME answer (no enumeration)', async () => {
+    const pending = await call('authenticate', post('/api/garmin/authenticate', body('new@x')));
+    const unknown = await call('authenticate', post('/api/garmin/authenticate', body('nobody@x')));
+    const active = await call('authenticate', post('/api/garmin/authenticate', body('active@x')));
+    expect([pending.status, unknown.status, active.status]).toEqual([401, 401, 401]);
+    expect(pending.text).toBe(unknown.text);
+    expect(active.text).toBe(unknown.text);
+  });
+
+  it('pending A, signed in, naming their OWN address: stores onto their row', async () => {
+    resolveVerifiedCaller.mockResolvedValue({ denied: null, caller: pendingA });
+    const r = await call('authenticate', post('/api/garmin/authenticate', body('new@x'), true));
+    expect(r.status).toBe(200);
+    expectNoCredential(r.text);
+    expect(updates.map((u) => u.id)).toContain('newbie');
+  });
+
+  it("pending B, signed in, naming A's address: refused before Garmin, A's row untouched", async () => {
+    resolveVerifiedCaller.mockResolvedValue({ denied: null, caller: pendingB });
+    const r = await call('authenticate', post('/api/garmin/authenticate', body('new@x'), true));
+    expect(r.status).toBe(403);
+    expect(garminLogin).not.toHaveBeenCalled();
+    expect(updates).toEqual([]);
+    expect(r.text).not.toMatch(/newbie|invited|account_not_found/);
+  });
+
+  it("B naming A's address answers exactly like B naming an unknown address (no state leak)", async () => {
+    resolveVerifiedCaller.mockResolvedValue({ denied: null, caller: pendingB });
+    const a = await call('authenticate', post('/api/garmin/authenticate', body('new@x'), true));
+    const u = await call('authenticate', post('/api/garmin/authenticate', body('nobody@x'), true));
+    expect(a.status).toBe(u.status);
+    expect(a.text).toBe(u.text);
+  });
+
+  it('own address but the row is active: not door 3 — an unlinked session is refused', async () => {
+    resolveVerifiedCaller.mockResolvedValue({ denied: null, caller: { ...me, email: 'active@x', athleteId: null } });
+    const r = await call('authenticate', post('/api/garmin/authenticate', body('active@x'), true));
+    expect(r.status).toBe(403);
+    expect(garminLogin).not.toHaveBeenCalled();
+    expect(updates).toEqual([]);
+  });
+
+  it('ticket-auth: the same rule (B cannot name A)', async () => {
+    resolveVerifiedCaller.mockResolvedValue({ denied: null, caller: pendingB });
+    const r = await call('ticket-auth', post('/api/garmin/ticket-auth', { signupEmail: 'new@x', ticket: 'ST-abcdefgh123' }, true));
+    expect(r.status).toBe(403);
+    expect(getOauth1Token).not.toHaveBeenCalled();
+    expect(updates).toEqual([]);
+  });
+
+  it('/join/onboard sends its bearer with signupEmail', () => {
+    const src = readFileSync(join(__dirname, '..', 'app/join/onboard/page.tsx'), 'utf8');
+    expect(src).toMatch(/fetch\('\/api\/garmin\/authenticate', \{\s*method: 'POST',\s*headers: await bearerHeaders\(true\)/);
   });
 
   it('a bad invite token is refused', async () => {

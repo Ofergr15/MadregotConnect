@@ -21,10 +21,12 @@ import { sendWaitingAfterReconnect, withinMs } from '@/lib/watch/reconnect';
  *
  *  1. `inviteToken` — the token is the credential (unguessable, one row).
  *  2. A Supabase bearer — self, or staff naming `athleteId` (mayActFor).
- *  3. `signupEmail` with no bearer — /join/onboard runs before the person has a
- *     session. Only a row that is NOT yet `active`, which is exactly the row
- *     connect's token-less path already lets that caller write. An active row
- *     must come through door 2.
+ *  3. `signupEmail` WITH a verified bearer whose own email is that address — /join/onboard,
+ *     reached from /auth/resolve after a Supabase sign-in, before the athlete row is
+ *     linked to the session. Only a row that is NOT yet `active`. Without a bearer the
+ *     address alone proves nothing: it used to let anyone write their Garmin credential
+ *     onto another pending applicant's row and tell existing addresses from unknown ones
+ *     (2026-11-22). An active row must come through door 2.
  */
 export type GarminTarget = { athleteId: string };
 
@@ -43,33 +45,40 @@ export async function resolveGarminTarget(
     return { target: { athleteId: data.id } };
   }
 
-  if (req.headers.get('authorization')) {
-    const { denied, caller } = await resolveVerifiedCaller(req);
-    if (denied) return { denied };
-    const wanted = typeof body.athleteId === 'string' && body.athleteId ? body.athleteId : caller.athleteId;
-    if (!wanted || !mayActFor(caller, wanted)) {
+  if (!req.headers.get('authorization')) {
+    return { denied: NextResponse.json({ error: 'Sign in to connect Garmin' }, { status: 401 }) };
+  }
+  const { denied, caller } = await resolveVerifiedCaller(req);
+  if (denied) return { denied };
+
+  // Door 3: a signed-in person finishing their own sign-up, named by their OWN verified
+  // address. Any other address is refused the same way as a wrong athleteId.
+  const signupEmail = typeof body.signupEmail === 'string' ? body.signupEmail.toLowerCase().trim() : '';
+  const ownEmail = (caller.email || '').toLowerCase().trim();
+  if (signupEmail && !(typeof body.athleteId === 'string' && body.athleteId)) {
+    if (!ownEmail || signupEmail !== ownEmail) {
       return { denied: NextResponse.json({ error: 'forbidden' }, { status: 403 }) };
     }
-    return { target: { athleteId: wanted } };
-  }
-
-  if (typeof body.signupEmail === 'string' && body.signupEmail.trim()) {
     const { data } = await supabase
       .from('athletes')
       .select('id, status')
-      .eq('email', body.signupEmail.toLowerCase().trim())
+      .eq('email', signupEmail)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (!data) return { denied: NextResponse.json({ error: 'account_not_found' }, { status: 404 }) };
-    if (data.status === 'active') {
-      return { denied: NextResponse.json({ error: 'Sign in to connect Garmin' }, { status: 401 }) };
-    }
-    return { target: { athleteId: data.id } };
+    if (data && data.status !== 'active') return { target: { athleteId: data.id } };
+    if (!data && !caller.athleteId) return { denied: NextResponse.json({ error: 'account_not_found' }, { status: 404 }) };
+    // An active row (or a session already linked to one) is door 2's.
   }
 
-  return { denied: NextResponse.json({ error: 'Sign in to connect Garmin' }, { status: 401 }) };
+  // Door 2: self, or staff naming athleteId.
+  const wanted = typeof body.athleteId === 'string' && body.athleteId ? body.athleteId : caller.athleteId;
+  if (!wanted || !mayActFor(caller, wanted)) {
+    return { denied: NextResponse.json({ error: 'forbidden' }, { status: 403 }) };
+  }
+  return { target: { athleteId: wanted } };
 }
+
 
 /**
  * Encrypts and writes the credential onto the target row, and does what a fresh
