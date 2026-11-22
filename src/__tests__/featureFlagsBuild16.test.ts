@@ -6,7 +6,7 @@ const row = (scope_type: EnablementRow['scope_type'], scope_id: string, enabled:
 
 describe('native build 16 flag keys', () => {
   it('exist and default off — the iOS FeatureKey enum reads these exact strings', () => {
-    for (const k of ['events', 'run_together', 'program_files', 'academy_register', 'profile_badges', 'records_tab', 'native_mgmt_registrations', 'native_mgmt_groups', 'native_mgmt_roles', 'native_mgmt_scheduled', 'native_mgmt_staff_week', 'calendar', 'native_mgmt_attendance', 'academy_coach', 'academy_trainee', 'native_mgmt_entry_queue', 'native_mgmt_onboarding_funnel', 'native_mgmt_control_room', 'native_mgmt_push_health', 'native_mgmt_data_check', 'native_mgmt_numbers', 'academy_chat_send', 'notif_prefs', 'native_mgmt_packs', 'data_sources', 'season_program', 'profile_edit', 'native_club_updates', 'native_mgmt_day_session'] as const) {
+    for (const k of ['events', 'run_together', 'program_files', 'academy_register', 'profile_badges', 'records_tab', 'native_mgmt_registrations', 'native_mgmt_groups', 'native_mgmt_roles', 'native_mgmt_scheduled', 'native_mgmt_staff_week', 'calendar', 'native_mgmt_attendance', 'academy_coach', 'academy_trainee', 'native_mgmt_entry_queue', 'native_mgmt_onboarding_funnel', 'native_mgmt_control_room', 'native_mgmt_push_health', 'native_mgmt_data_check', 'native_mgmt_numbers', 'academy_chat_send', 'notif_prefs', 'native_mgmt_packs', 'data_sources', 'season_program', 'profile_edit', 'native_club_updates', 'native_mgmt_day_session', 'native_mgmt_coach_tools'] as const) {
       expect(FEATURE_KEYS).toContain(k);
       expect(FEATURES[k].defaultEnabled).toBe(false);
     }

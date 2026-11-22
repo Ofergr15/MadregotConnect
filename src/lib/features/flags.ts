@@ -91,6 +91,9 @@ export const FEATURES = {
   native_help: { label: 'עזרה ומה חדש (אפליקציה)', defaultEnabled: false },
   /** Viewer accounts see the club feed inside the app instead of a link to the website. */
   native_viewer_feed: { label: 'פיד לחשבון צפייה (אפליקציה)', defaultEnabled: false },
+  // ── Native build 21.
+  /** Coach-tools hub in the coach shell. */
+  native_mgmt_coach_tools: { label: 'כלי מאמן (אפליקציה)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
