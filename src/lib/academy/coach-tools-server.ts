@@ -9,6 +9,7 @@
  * and later copies do not know about the update. `stored: false` says so to the client.
  */
 
+import { setIndividualPlanStatus, writeIndividualWeek } from '@/lib/plan-builder/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { COACH_ID } from '@/lib/constants';
 import { addDaysToDateStr, israelToday, planWeekStartOf } from '@/lib/utils';
@@ -302,47 +303,23 @@ export interface WeekWriteResult {
   detail?: string | null;
 }
 
-/** The newest plan row of a trainee's week (the one adherence and the watch read). */
-async function planRowOf(supabase: Db, athleteId: string, weekStart: string): Promise<{ id: string; workouts: ParsedWorkout[]; status: string | null } | null> {
-  const { data } = await supabase
-    .from('weekly_plans')
-    .select('id, parsed_workouts, status, created_at')
-    .eq('coach_id', COACH_ID)
-    .eq('athlete_id', athleteId)
-    .eq('week_start_date', weekStart)
-    .order('created_at', { ascending: false })
-    .limit(1);
-  const row = (data || [])[0] as any;
-  if (!row) return null;
-  const workouts = (row.parsed_workouts as { workouts?: ParsedWorkout[] } | null)?.workouts;
-  return { id: String(row.id), workouts: Array.isArray(workouts) ? workouts : [], status: row.status ?? null };
-}
-
 /**
  * Save one trainee's week (update the newest row, else insert) and send the asked days
  * through `pushWeekToAthlete` — the same door as the book's send and "לשלוח שוב".
  */
 export async function writeWeek(supabase: Db, write: WeekWrite, opts: { cleanDayOnce?: boolean } = {}): Promise<WeekWriteResult> {
   const parsed = normalizeParsedWorkouts({ workouts: write.workouts });
-  const existing = await planRowOf(supabase, write.athleteId, write.weekStart);
   // A coach's write here is a send: published watch or not (plan-status.ts sentPlanStatus).
   const sentDays = new Set(write.pushDays);
   const status = sentPlanStatus({ otherDays: parsed.workouts.some(w => !sentDays.has(w.dayOfWeek)) });
-  const saved = existing
-    // A re-price with nothing to send leaves an existing row's status as it was.
-    ? await supabase.from('weekly_plans').update({ parsed_workouts: parsed, ...(sentDays.size ? { status } : {}) }).eq('id', existing.id).select('id').single()
-    : await supabase.from('weekly_plans').insert({
-      coach_id: COACH_ID,
-      week_start_date: write.weekStart,
-      original_input: '[built in-app]',
-      parsed_workouts: parsed,
-      status,
-      athlete_id: write.athleteId,
-    }).select('id').single();
-  if (saved.error || !saved.data) {
-    return { athleteId: write.athleteId, weekStart: write.weekStart, status: 'failed', stage: 'save', detail: saved.error?.message ?? null };
+  // Through the plan builder, the only plan writer (owner decision 2026-11-22): it writes the
+  // trainee's row and records it as that trainee's published version.
+  // A re-price with nothing to send leaves an existing row's status as it was.
+  const saved = await writeIndividualWeek(supabase, { athleteId: write.athleteId, weekStart: write.weekStart, parsed, status, setStatusOnUpdate: sentDays.size > 0 });
+  if (saved.error || !saved.planId) {
+    return { athleteId: write.athleteId, weekStart: write.weekStart, status: 'failed', stage: 'save', detail: saved.error ?? null };
   }
-  const planId = String(saved.data.id);
+  const planId = saved.planId;
   revalidateWeeklyPlans();
   const days = new Set(write.pushDays);
   const toSend = parsed.workouts.filter(w => days.has(w.dayOfWeek));
@@ -366,10 +343,10 @@ export async function writeWeek(supabase: Db, write: WeekWrite, opts: { cleanDay
   });
   if (push.status === 'success') {
     const others = parsed.workouts.some(w => !days.has(w.dayOfWeek));
-    await supabase.from('weekly_plans').update({ status: others ? 'partial' : 'pushed' }).eq('id', planId);
+    await setIndividualPlanStatus(supabase, planId, others ? 'partial' : 'pushed');
     return { athleteId: write.athleteId, weekStart: write.weekStart, status: 'sent' };
   }
-  await supabase.from('weekly_plans').update({ status: sentPlanStatus({ otherDays: true, delivered: false }) }).eq('id', planId);
+  await setIndividualPlanStatus(supabase, planId, sentPlanStatus({ otherDays: true, delivered: false }));
   return { athleteId: write.athleteId, weekStart: write.weekStart, status: 'failed', stage: 'push', detail: push.error ?? null };
 }
 

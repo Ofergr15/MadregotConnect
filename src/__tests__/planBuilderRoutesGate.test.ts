@@ -69,14 +69,14 @@ describe('plan-builder routes', () => {
     expect((await jobs.POST(req('/p', { week: '2026-11-23', text: 'x' }) as any)).status).toBe(400);
   });
 
-  it('every route file under api/plan-builder goes through the staff gate', () => {
+  it('every route file under api/plan-builder goes through the staff gate (or gate(): staff, or trainee access with ?athleteId)', () => {
     const walk = (d: string): string[] => readdirSync(d).flatMap((f) => statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [join(d, f)]);
     const files = walk('src/app/api/plan-builder').filter((f) => f.endsWith('route.ts'));
     expect(files.length).toBeGreaterThanOrEqual(10);
     for (const f of files) {
       const src = readFileSync(f, 'utf8');
       const handlers = (src.match(/export async function (GET|POST|PUT|DELETE)/g) || []).length;
-      expect((src.match(/await staff\(req\)/g) || []).length, f).toBe(handlers);
+      expect((src.match(/await (staff|gate)\(req\)/g) || []).length, f).toBe(handlers);
     }
   });
 });
