@@ -467,32 +467,38 @@ export async function writeIndividualWeek(db: Db, w: IndividualWrite): Promise<{
 }
 
 /**
- * The academy write as the trainee stream's published version. A builder draft in progress
- * is left as a draft (it is newer intent); a previous published version is superseded.
- * Best effort before migration 198: the trainee's row above is the plan they follow, and
- * the academy tools worked without versions before — so a missing column skips this, never
- * the write, and never touches the group stream.
+ * A write made outside the builder, recorded as the published version of its stream
+ * (`who` null = the group week, a uuid = that trainee's week). A builder draft in progress
+ * is left as a draft (it is newer intent); a previous published version is superseded; a
+ * SCHEDULED version has its schedule cancelled (kept as the draft) so it cannot publish
+ * later and silently wipe this write. A concurrent version insert (23505) re-reads and
+ * retries once. Best effort before migration 198: a missing column skips the record, never
+ * the write — and a trainee record never touches the group stream.
  */
-async function recordIndividualVersion(db: Db, who: string, week: string, body: ParsedWeeklyPlan, planId: string, by: string | null) {
+/** JSON with object keys sorted at every level: jsonb does not keep key order, so a plain
+ *  JSON.stringify of a stored body and an identical incoming one can differ. */
+export function stableJson(v: unknown): string {
+  return JSON.stringify(v, (_k, x) => (x && typeof x === 'object' && !Array.isArray(x)
+    ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, (x as Record<string, unknown>)[k]])) : x));
+}
+
+async function recordPublishedVersion(db: Db, who: Who, week: string, body: ParsedWeeklyPlan, planId: string, by: string | null, kind: string) {
   try {
-    // Two attempts: a concurrent version insert (23505 on the (week, athlete, version) key)
-    // re-reads the stream and takes the next number, instead of losing the record.
     for (let attempt = 0; attempt < 2; attempt++) {
       const vs = await versionsFor(db, week, who);
       const prev = live(vs);
+      // A status-only save (same workouts) is not a new version.
+      if (prev && stableJson(prev.body) === stableJson(body)) return;
       const now = new Date().toISOString();
       const ins = await db.from('weekly_plan_versions').insert({
-        week_start: week, athlete_id: who, version: (vs[0]?.version ?? 0) + 1, body, state: 'published',
-        plan_id: planId, published_at: now, published_by: by, created_by: by, source: { kind: 'academy' },
+        week_start: week, ...(who ? { athlete_id: who } : {}), version: (vs[0]?.version ?? 0) + 1, body, state: 'published',
+        plan_id: planId, published_at: now, published_by: by, created_by: by, source: { kind },
       }).select('id').single();
       if (ins.error) {
         if (attempt === 0 && (ins.error.code === '23505' || /duplicate key/.test(ins.error.message || ''))) continue;
         throw new Error(ins.error.message);
       }
       if (prev) await db.from('weekly_plan_versions').update({ state: 'superseded' }).eq('id', prev.id);
-      // A SCHEDULED trainee version would publish later and silently wipe this send. Its
-      // schedule is cancelled — it stays as the draft, so the coach still sees and can
-      // publish it by hand. A plain draft is left alone: nothing publishes it unasked.
       const pending = draftOf(vs);
       if (pending?.state === 'scheduled') {
         await db.from('weekly_plan_versions').update({ state: 'draft', publish_at: null }).eq('id', pending.id).eq('state', 'scheduled');
@@ -500,8 +506,31 @@ async function recordIndividualVersion(db: Db, who: string, week: string, body: 
       return;
     }
   } catch (e) {
-    if (!(e instanceof MigrationPending)) console.error('[plan-builder] academy version record failed', who, week, e);
+    if (!(e instanceof MigrationPending)) console.error('[plan-builder] version record failed', kind, who, week, e);
   }
+}
+const recordIndividualVersion = (db: Db, who: string, week: string, body: ParsedWeeklyPlan, planId: string, by: string | null) =>
+  recordPublishedVersion(db, who, week, body, planId, by, 'academy');
+
+/** weekly_plans statuses that mean "the athletes have this plan" (a draft is not recorded). */
+const SENT_STATUSES = new Set(['published', 'pushed', 'partial']);
+
+/**
+ * Option C (owner decision 2026-11-22): the PWA's plan routes (`/api/plans` POST/PUT,
+ * `plans/import-program`, `plans/reimport`) keep writing weekly_plans as before, and each
+ * sent write is ALSO recorded as a builder version — so the builder's history is complete
+ * and a builder publish diffs against what athletes actually have. Never throws: the
+ * route's own write already succeeded and is the plan athletes follow.
+ */
+export async function recordLegacyPlanWrite(db: Db, w: { weekStart: string; athleteId?: string | null; parsed: any; status: string | null | undefined; planId: string; by?: string | null; kind: string }) {
+  try {
+    if (!w.status || !SENT_STATUSES.has(w.status)) return;
+    // The builder's body is one { workouts } (lane paces in the notation); a grouped row's
+    // group1 carries that notation — the same reading copyLastWeek's legacy fallback uses.
+    const body = legacyBody(w.parsed);
+    if (!body || !Array.isArray(body.workouts)) return;
+    await recordPublishedVersion(db, w.athleteId || null, String(w.weekStart).slice(0, 10), body, w.planId, w.by ?? null, w.kind);
+  } catch (e) { console.error('[plan-builder] legacy record failed', e); }
 }
 
 /** Delivery status of a trainee's weekly_plans row after a push (`pushed` / `partial` / …). */
