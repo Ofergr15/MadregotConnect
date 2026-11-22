@@ -1,18 +1,21 @@
-# The daily release train. Production deploys the `production` branch (Vercel →
+# The release train. Production deploys the `production` branch (Vercel →
 # Settings → Environments → Production → Branch Tracking).
 #
 # NOTHING goes out without the owner's approval. He approves a release in the
-# app (/dashboard/whats-new); that pins the exact main commit he reviewed. At
-# 05:00 Israel time this moves `production` to THAT commit — never to whatever
-# main has become since. No approval, or an approval already shipped: nothing
-# happens. See src/lib/release-notes.ts.
+# app (/dashboard/whats-new); that pins the exact main commit he reviewed. This
+# moves `production` to THAT commit — never to whatever main has become since.
+# No approval, or an approval already shipped: nothing happens, in seconds.
+# See src/lib/release-notes.ts.
 #
-# The cron is UTC. 02:00 UTC is 05:00 in summer (IDT) and 04:00 in winter (IST).
+# Owner decision 2026-11-22: a release goes out right after approval, not at
+# 05:00. The workflow has no secrets (the app cannot dispatch it), so it checks
+# every 10 minutes instead; GitHub may run a scheduled job a few minutes late.
+# The name stays "Daily release" so existing references keep working.
 name: Daily release
 
 on:
   schedule:
-    - cron: '0 2 * * *'
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -25,12 +28,15 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      shipped: ${{ steps.ship.outputs.shipped }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
       - name: Ship the approved commit
+        id: ship
         run: |
           SHA=$(curl -fsS https://www.madregot.app/api/release/approved | jq -r '.sha // empty')
           if [ -z "$SHA" ]; then
@@ -48,3 +54,11 @@ jobs:
           fi
           git push origin "$SHA:refs/heads/production" --force
           echo "production → $SHA"
+          echo "shipped=true" >> "$GITHUB_OUTPUT"
+
+  # Only after a run that actually moved production (not every 10-minute no-op).
+  smoke:
+    needs: release
+    if: needs.release.outputs.shipped == 'true'
+    uses: ./.github/workflows/prod-smoke.yml
+    secrets: inherit
