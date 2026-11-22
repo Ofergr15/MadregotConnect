@@ -46,7 +46,9 @@ export const FEATURES = {
   native_mgmt_groups: { label: 'קבוצות וחברים (אפליקציה)', defaultEnabled: false },
   native_mgmt_roles: { label: 'תפקידים וניתוב התראות (אפליקציה)', defaultEnabled: false },
   native_mgmt_scheduled: { label: 'התראות מתוזמנות (אפליקציה)', defaultEnabled: false },
-  native_mgmt_staff_week: { label: 'תוכנית שבוע לצוות (אפליקציה)', defaultEnabled: false },
+  // Gates the native PlanEdit, which writes PUT /api/plans and bypasses weekly_plan_versions.
+  // Keep OFF until PlanEdit moves onto /api/plan-builder/* (the single writer) or is removed.
+  native_mgmt_staff_week: { label: 'תוכנית שבוע לצוות (אפליקציה) — לא להפעיל עדיין', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
