@@ -17,10 +17,20 @@ import { TEST_PREVIEW_NOTE, U21_TRACKS } from '@/lib/u21/intake';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: () => {} }) }));
 
 beforeEach(() => {
+  vi.stubEnv('NEXT_PUBLIC_U21_ENTRY', '1');
   // JoinFlow asks for the pace groups on mount; the path step does not need them.
   vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ json: () => Promise.resolve({ groups: [] }) })));
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+
+describe('U21 entry is default OFF', () => {
+  it('renders nothing without NEXT_PUBLIC_U21_ENTRY=1, on its own and inside JoinFlow', () => {
+    vi.stubEnv('NEXT_PUBLIC_U21_ENTRY', '');
+    expect(render(<U21RegisterEntry />).queryByTestId('u21-register-entry')).toBeNull();
+    cleanup();
+    expect(render(<JoinFlow />).queryByTestId('u21-register-entry')).toBeNull();
+  });
+});
 
 describe('U21RegisterEntry (the section itself)', () => {
   it('offers every track as a deep link into the intake, with the test-preview note', () => {
