@@ -47,6 +47,8 @@ export const FEATURES = {
   native_mgmt_attendance: { label: 'נוכחות באימונים (אפליקציה)', defaultEnabled: false },
   /** Native academy coach tab (trainees, plans, hub) in the coach shell. */
   academy_coach: { label: 'לשונית מאמן אקדמיה (אפליקציה)', defaultEnabled: false },
+  /** Native academy trainee home + coach chat send. */
+  academy_trainee: { label: 'בית מתאמן אקדמיה (אפליקציה)', defaultEnabled: false },
   // ── Native management screens (coach shell, read-only), iOS native-mgmt-readonly.
   native_mgmt_registrations: { label: 'אישורי הרשמה (אפליקציה)', defaultEnabled: false },
   native_mgmt_groups: { label: 'קבוצות וחברים (אפליקציה)', defaultEnabled: false },
