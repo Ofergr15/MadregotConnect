@@ -62,6 +62,8 @@ export const FEATURES = {
   native_mgmt_numbers: { label: 'מדרגות במספרים (אפליקציה)', defaultEnabled: false },
   /** Native academy coach–trainee chat SEND (POST /api/academy/threads/messages). */
   academy_chat_send: { label: 'שליחה בצ׳אט אקדמיה (אפליקציה)', defaultEnabled: false },
+  /** Native notification preferences screen (own categories). */
+  notif_prefs: { label: 'העדפות התראות (אפליקציה)', defaultEnabled: false },
   // ── Native management screens (coach shell, read-only), iOS native-mgmt-readonly.
   native_mgmt_registrations: { label: 'אישורי הרשמה (אפליקציה)', defaultEnabled: false },
   native_mgmt_groups: { label: 'קבוצות וחברים (אפליקציה)', defaultEnabled: false },
