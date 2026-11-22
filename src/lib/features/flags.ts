@@ -100,6 +100,8 @@ export const FEATURES = {
   native_photos: { label: 'גלריית תמונות (אפליקציה)', defaultEnabled: false },
   /** Native cache-first paint: main tabs show the saved copy instantly, refresh in the background. */
   perf_cache_first: { label: 'פתיחה מיידית מהעותק השמור (אפליקציה)', defaultEnabled: false },
+  /** Native opts in to the lighter server shapes (#72): group on athletes/me, activities?shape=list. */
+  perf_server_shapes: { label: 'נתונים קלים יותר מהשרת (אפליקציה)', defaultEnabled: false },
   // build 21 — every key the native app reads; all off until someone turns them on.
   club_tab: { label: 'לשונית מועדון (אפליקציה)', defaultEnabled: false },
   native_benefits: { label: 'הטבות (אפליקציה)', defaultEnabled: false },
