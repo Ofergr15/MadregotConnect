@@ -235,7 +235,7 @@ describe('/api/garmin/authenticate', () => {
 
   it('/join/onboard sends its bearer with signupEmail', () => {
     const src = readFileSync(join(__dirname, '..', 'app/join/onboard/page.tsx'), 'utf8');
-    expect(src).toMatch(/fetch\('\/api\/garmin\/authenticate', \{\s*method: 'POST',\s*headers: await bearerHeaders\(true\)/);
+    expect(src).toMatch(/fetch\('\/api\/garmin\/authenticate', \{\s*method: 'POST',\s*headers: await apiHeaders\(true\)/);
   });
 
   it('a bad invite token is refused', async () => {
