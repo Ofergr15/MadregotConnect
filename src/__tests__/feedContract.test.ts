@@ -144,7 +144,7 @@ describe('GET /api/feed — item shape', () => {
       body: null, media: [], payload: null, occurredAt: '2026-11-19T06:10:00+00:00',
       likeCount: 2, commentCount: 0, likedByMe: true,
       likePreview: [{ athleteId: ME, name: 'אני', avatarUrl: null }, { athleteId: MATE, name: 'חבר', avatarUrl: null }],
-      commentPreview: [], canDelete: false,
+      commentPreview: [], canDelete: false, paceHidden: false,
       activity: {
         id: 'act-1', athleteId: MATE, garminActivityId: 987, activityName: 'אינטרוולים', activityType: 'running',
         startTime: '2026-11-19T06:10:00+00:00', distance: 4400, duration: 1218, movingDuration: 1200,

@@ -200,6 +200,14 @@ describe('feed projection — payload.hiddenFields', () => {
       context,
     ).activity!;
 
+  it('flags paceHidden on the item when pace is hidden (distance + time still ship, so clients must not derive pace)', () => {
+    const item = (hiddenFields: unknown) => projectFeedItem(
+      { ...baseRow, type: 'activity', payload: { hiddenFields }, athlete_activities: activityRow }, context);
+    expect(item(['pace']).paceHidden).toBe(true);
+    expect(item(['calories']).paceHidden).toBe(false);
+    expect(item([]).paceHidden).toBe(false);
+  });
+
   it('ships every stat when nothing is hidden', () => {
     const activity = project([]);
     expect(activity).toMatchObject({ calories: 640, averageHr: 152, maxHr: 178, averagePace: 300 });
