@@ -276,11 +276,12 @@ async function legacyRowOf(db: Db, week: string, who: Who): Promise<string | nul
 }
 
 async function writeLegacyPlan(db: Db, week: string, body: ParsedWeeklyPlan, status: string, who: Who = null) {
-  const row = { coach_id: COACH_ID, week_start_date: week, parsed_workouts: normalizeParsedWorkouts(body), status };
+  const row: { coach_id: string; week_start_date: string; parsed_workouts: any; status: string; athlete_id?: string; original_input?: string } =
+    { coach_id: COACH_ID, week_start_date: week, parsed_workouts: normalizeParsedWorkouts(body), status };
   const existing = await legacyRowOf(db, week, who);
   const saved = existing
     ? check(await db.from('weekly_plans').update(row).eq('id', existing).select('id').single())
-    : check(await db.from('weekly_plans').insert(who ? { ...row, athlete_id: who, original_input: '[built in-app]' } : row).select('id').single());
+    : check(await db.from('weekly_plans').insert(who ? { ...row, athlete_id: who, original_input: '[built in-app]' } : row as typeof row).select('id').single());
   revalidateWeeklyPlans();
   return (saved as any).id as string;
 }
