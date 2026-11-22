@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 // GET   any member: the recent releases, each with its notes as shown.
 //       staff also get `pending` (every note on main no release has carried),
 //       `mainSha`, and `approval`: the commit he approved, which is the only
-//       thing the 05:00 run will ship.
+//       thing the release train will ship.
 // PATCH staff: { note_id, featured?, title?, body? } — one pick.
 // POST  staff: { sha } — approve that main commit as the next release.
 // DELETE staff: withdraw the standing approval; nothing goes out.

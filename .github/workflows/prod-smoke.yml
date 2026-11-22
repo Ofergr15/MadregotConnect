@@ -1,4 +1,4 @@
-# Post-release smoke test: after the daily release moves `production`, wait for Vercel to
+# Post-release smoke test: after the release train moves `production`, wait for Vercel to
 # finish deploying that commit, then run scripts/smoke-prod.mjs (GETs only) against
 # www.madregot.app. A red run means the release that just went out is broken.
 #
@@ -8,9 +8,7 @@
 name: Prod smoke
 
 on:
-  workflow_run:
-    workflows: ['Daily release']
-    types: [completed]
+  workflow_call:      # from daily-release.yml, only after it moved production
   workflow_dispatch:
 
 permissions:
@@ -19,7 +17,6 @@ permissions:
 
 jobs:
   smoke:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

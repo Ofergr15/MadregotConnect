@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { recordLegacyPlanWrite } from '@/lib/plan-builder/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { revalidateWeeklyPlans } from '@/lib/plans/cache';
 import { parseWorkoutPlan } from '@/lib/ai/parser';
@@ -50,15 +51,17 @@ export async function POST(request: Request) {
         imageMediaType: 'application/pdf',
       });
 
-      // Delete existing plans for this week
+      // Delete the existing GROUP plan for this week only. Academy trainees' own rows
+      // (athlete_id set) are their personal weeks, not this program's — leave them.
       await supabase
         .from('weekly_plans')
         .delete()
         .eq('coach_id', COACH_ID)
-        .eq('week_start_date', week.weekStart);
+        .eq('week_start_date', week.weekStart)
+        .is('athlete_id', null);
 
       // Insert fresh
-      const { error } = await supabase
+      const { data: inserted, error } = await supabase
         .from('weekly_plans')
         .insert({
           coach_id: COACH_ID,
@@ -66,9 +69,11 @@ export async function POST(request: Request) {
           original_input: `Re-imported from: ${week.file}`,
           parsed_workouts: normalizeParsedWorkouts(parsed) as any,
           status: 'pushed',
-        });
+        }).select('id, parsed_workouts').single();
 
       if (error) throw error;
+      // Option C (2026-11-22): recorded as the group week's plan-builder version too.
+      await recordLegacyPlanWrite(supabase, { weekStart: week.weekStart, athleteId: null, parsed: (inserted as any)?.parsed_workouts, status: 'pushed', planId: String((inserted as any)?.id), kind: 'reimport' });
       results.push({ week: week.weekStart, status: 'reimported' });
     } catch (e: any) {
       results.push({ week: week.weekStart, status: 'error', error: e.message });

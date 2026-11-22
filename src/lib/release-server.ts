@@ -42,7 +42,7 @@ let shippedMarkedFor: string | null = null;
 
 /**
  * Once a production deploy is serving, its approval (and any older one it
- * supersedes) is spent, so the 05:00 run never re-ships it and the panel stops
+ * supersedes) is spent, so the release run never re-ships it and the panel stops
  * showing it as waiting. Once per server instance.
  */
 export async function markShipped(db: Db): Promise<void> {
@@ -56,7 +56,7 @@ export async function markShipped(db: Db): Promise<void> {
   shippedMarkedFor = sha;
 }
 
-/** The approval the next 05:00 run ships, if there is one. */
+/** The approval the next release run ships, if there is one. */
 export async function activeApproval(db: Db): Promise<ApprovalRow | null> {
   const { data, error } = await db.from('release_approvals')
     .select('id, sha, note_ids, approved_at')

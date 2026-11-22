@@ -23,7 +23,7 @@ interface Data {
 
 /**
  * Every release, one row a day — and, for the owner, the next release: he
- * approves it (nothing ships at 05:00 without that), stars which notes get a row
+ * approves it (nothing ships without that), stars which notes get a row
  * in the "What's new" sheet (none until he does), and rewords them. See
  * src/lib/release-notes.ts.
  */
