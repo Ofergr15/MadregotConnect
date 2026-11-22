@@ -144,7 +144,7 @@ function OnboardContent() {
     if (res.status === 404) {
       const created = await fetch('/api/athletes/connect', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await apiHeaders(true),
         body: JSON.stringify({ name, email, groupId: selectedGroup || undefined, weekStartDay }),
       });
       if (created.ok) res = await post();
@@ -167,7 +167,7 @@ function OnboardContent() {
 
       const saveRes = await fetch('/api/athletes/connect', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await apiHeaders(true),
         body: JSON.stringify({ name, email, groupId: selectedGroup || undefined, weekStartDay }),
       });
       if (!saveRes.ok) {
@@ -211,7 +211,7 @@ function OnboardContent() {
 
       const saveRes = await fetch('/api/athletes/connect', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await apiHeaders(true),
         body: JSON.stringify({
           name,
           email,
@@ -466,7 +466,7 @@ function OnboardContent() {
                 try {
                   const saveRes = await fetch('/api/athletes/connect', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: await apiHeaders(true),
                     body: JSON.stringify({
                       name,
                       email,

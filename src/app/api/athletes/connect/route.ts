@@ -126,6 +126,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'name and email are required' }, { status: 400 });
     }
 
+    // The token-less path writes the row named by `email` — a string the caller picks. Since
+    // 2026-11-22 it needs a verified session that OWNS that address (or is already linked to
+    // the row): /join/onboard, its only caller, is reached from /auth/resolve after a Supabase
+    // sign-in and sends its bearer. Before, anyone could rename, regroup, re-mark onboarding
+    // and (approved null) ACTIVATE another applicant's pending row, read back its id/email,
+    // and fire the admin "new user" mail and the follow sync — all by naming an address.
+    // Invite redemption (above) is unaffected: the token is the credential.
+    if (!req.headers.get('authorization')) {
+      return NextResponse.json({ error: 'Sign in to continue' }, { status: 401 });
+    }
+    const { denied: unverified, caller } = await resolveVerifiedCaller(req);
+    if (unverified) return unverified;
+    const wantedEmail = String(email).toLowerCase().trim();
+    const ownEmail = (caller.email || '').toLowerCase().trim();
+
     // Check if athlete already exists by email
     const { data: existing } = await supabase
       .from('athletes')
@@ -140,6 +155,10 @@ export async function POST(req: NextRequest) {
       if (existing.status === 'active') {
         const denied = await gateEstablishedMember(req, existing.id);
         if (denied) return denied;
+      } else if (!(ownEmail && ownEmail === wantedEmail) && caller.athleteId !== existing.id) {
+        // Someone else's pending row: refused exactly like an unknown address would be by
+        // the insert check below — same status, same body, nothing written, nothing sent.
+        return NextResponse.json({ error: 'forbidden' }, { status: 403 });
       }
 
       const updatePayload: Record<string, any> = {
@@ -177,6 +196,11 @@ export async function POST(req: NextRequest) {
         } catch {}
       }
       return NextResponse.json({ success: true, athlete: updated });
+    }
+
+    // A new row only for the caller's own address (no pre-registering someone else's).
+    if (!(ownEmail && ownEmail === wantedEmail)) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 
     // Create new athlete — a brand-new public sign-up. Start pending (not
