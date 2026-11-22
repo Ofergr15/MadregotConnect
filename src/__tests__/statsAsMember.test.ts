@@ -6,7 +6,7 @@ const ME = '11111111-1111-1111-1111-111111111111';
 let caller = { athleteId: ME, isStaff: false, isSuperUser: false, role: 'runner' };
 const readWellnessNights = vi.fn(async () => [{ date: '2026-11-20', sleepSeconds: 27000, restingHr: 48 }]);
 
-vi.mock('@/lib/auth/self-or-staff', () => ({ resolveVerifiedCaller: async () => ({ denied: null, caller }) }));
+vi.mock('@/lib/auth/self-or-staff', () => ({ resolveVerifiedCaller: async () => ({ denied: null, caller }), mayActFor: (c: typeof caller, t: string) => c.isStaff || c.isSuperUser || c.athleteId === t }));
 vi.mock('@/lib/auth/pending-athletes', () => ({ isPendingAthlete: async () => false, seesPending: () => true }));
 vi.mock('@/lib/wellness/read', () => ({ readWellnessNights: () => readWellnessNights() }));
 vi.mock('@/lib/supabase/paginate', () => ({ fetchAllRows: async () => [] }));
