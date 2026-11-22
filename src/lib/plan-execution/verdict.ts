@@ -197,6 +197,12 @@ export interface ExecutionVerdict {
   effortCounts: ExecutionEffortCounts | null;
   toleranceSec: number;
   basis: ExecutionBasis | null;
+  /**
+   * Set when `direction` is `incomplete` on a plan with no repeat block: the counts
+   * are the session's parts, not reps, so the words must say "parts". Wording only —
+   * the direction value and the score are exactly what they were.
+   */
+  partsNotReps?: boolean;
 }
 
 /**
@@ -657,6 +663,7 @@ export function buildVerdict(input: VerdictInput): ExecutionVerdict {
       ? { needed: efforts.neededTotal, attempted: efforts.attemptedTotal, found: efforts.foundTotal }
       : null,
     basis,
+    ...(direction === 'incomplete' && efforts?.repeatPlan === false ? { partsNotReps: true } : {}),
   };
 }
 
@@ -667,6 +674,16 @@ export interface ExecutionSummary {
   score: number | null;
   direction: ExecutionDirection;
   workoutName: string | null;
+  /** See `ExecutionVerdict.partsNotReps`. Only present when true. */
+  partsNotReps?: boolean;
+}
+
+/**
+ * The message key for a direction. Every renderer goes through this, so "did not
+ * complete all the reps" is never said of a plan the coach wrote without a repeat.
+ */
+export function directionKey(v: { direction: ExecutionDirection; partsNotReps?: boolean }): string {
+  return v.direction === 'incomplete' && v.partsNotReps ? 'dir_incomplete_parts' : `dir_${v.direction}`;
 }
 
 export function toExecutionSummary(verdict: ExecutionVerdict): ExecutionSummary {
@@ -676,6 +693,7 @@ export function toExecutionSummary(verdict: ExecutionVerdict): ExecutionSummary 
     score: verdict.score,
     direction: verdict.direction,
     workoutName: verdict.workoutName,
+    ...(verdict.partsNotReps ? { partsNotReps: true } : {}),
   };
 }
 

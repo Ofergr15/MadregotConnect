@@ -419,7 +419,7 @@ export function groupNumberFor(groupId: string | null | undefined, groupNames: M
  * so throwing the raw workout away here is what used to make a rep-level score
  * impossible anywhere but the athlete's own run page.
  */
-function plannedForWeek(workouts: ParsedWorkout[], weekStart: string): {
+export function plannedForWeek(workouts: ParsedWorkout[], weekStart: string): {
   planned: PlannedWorkout[];
   rawByDate: Map<string, ParsedWorkout>;
 } {

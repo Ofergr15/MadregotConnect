@@ -35,10 +35,18 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const athleteId = searchParams.get('athleteId');
     if (!athleteId) return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
-    const granularity = (searchParams.get('granularity') || 'week') as 'week' | 'month' | 'year';
-    const weeks = Math.min(Math.max(Number(searchParams.get('weeks')) || 12, 1), 52);
+    // From volume-history-on-main 8bf0c1c0 (behaviour only): an unknown granularity is a 400 (it
+    // used to fall through to month/year bucketing silently), and counts are whole numbers
+    // (weeks=1.5 built an axis whose one week matched no run and read 0 km). Cap stays 53 —
+    // the native week views ask for weeks+1.
+    const rawGranularity = searchParams.get('granularity') || 'week';
+    if (rawGranularity !== 'week' && rawGranularity !== 'month' && rawGranularity !== 'year') {
+      return NextResponse.json({ error: 'granularity must be week, month or year' }, { status: 400 });
+    }
+    const granularity: 'week' | 'month' | 'year' = rawGranularity;
+    const weeks = Math.min(Math.max(Math.floor(Number(searchParams.get('weeks'))) || 12, 1), 53);
     const periods = Math.min(
-      Math.max(Number(searchParams.get('periods')) || (granularity === 'year' ? 6 : 12), 1),
+      Math.max(Math.floor(Number(searchParams.get('periods'))) || (granularity === 'year' ? 6 : 12), 1),
       granularity === 'year' ? 10 : 36
     );
 
@@ -67,6 +75,7 @@ export async function GET(request: Request) {
       km: round1(b.meters / 1000),
       runs: b.runs,
       durationSec: b.seconds,
+      climbM: Math.round(b.climbM),
     }));
 
     let series: Array<(typeof weekRows)[number] & { target?: { min: number; max: number } }> = weekRows;
@@ -92,13 +101,14 @@ export async function GET(request: Request) {
     }
     if (granularity !== 'week') {
       const bucketLen = granularity === 'year' ? 4 : 7; // 'YYYY' or 'YYYY-MM'
-      const buckets = new Map<string, { weekStart: string; km: number; runs: number; durationSec: number }>();
+      const buckets = new Map<string, { weekStart: string; km: number; runs: number; durationSec: number; climbM: number }>();
       for (const w of weekRows) {
         const key = w.weekStart.slice(0, bucketLen);
-        const b = buckets.get(key) || { weekStart: key, km: 0, runs: 0, durationSec: 0 };
+        const b = buckets.get(key) || { weekStart: key, km: 0, runs: 0, durationSec: 0, climbM: 0 };
         b.km = round1(b.km + w.km);
         b.runs += w.runs;
         b.durationSec += w.durationSec;
+        b.climbM += w.climbM;
         buckets.set(key, b);
       }
       series = Array.from(buckets.values()).sort((a, b) => a.weekStart.localeCompare(b.weekStart)).slice(-periods);

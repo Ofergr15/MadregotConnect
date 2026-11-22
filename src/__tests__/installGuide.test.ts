@@ -137,7 +137,8 @@ describe('the approval message', () => {
     expect(v2).toMatch(/renderJourney\(2\)/);
     expect(v2).toMatch(/renderScanOnPhone\(`\$\{APP_URL\}\/api\/public\/qr\?t=/);
     expect(v2).toMatch(/replyTo: ADMIN_EMAIL/);
-    expect(read('lib/email/send.ts')).toMatch(/\.\.\.\(msg\.replyTo \? \{ replyTo: msg\.replyTo \} : \{\}\)/);
+    expect(read('lib/email/send.ts')).toMatch(/replyTo: msg\.replyTo/);
+    expect(read('lib/email/transport.ts')).toMatch(/\.\.\.\(m\.replyTo \? \{ replyTo: m\.replyTo \} : \{\}\)/);
   });
 
   it('only the super user sends it while it is tried, and the queue keeps the link to send on WhatsApp', () => {

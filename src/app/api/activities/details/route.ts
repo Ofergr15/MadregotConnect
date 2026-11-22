@@ -27,6 +27,7 @@
  * the repeat lengths, which need the step list (`executed_workout`). Own run only, as
  * with `hr` — the targets are the athlete's plan.
  */
+import { routeForViewer } from '@/lib/privacy/route-trim';
 import { qualityNames } from '@/lib/activities/quality-name';
 import { COACH_ID } from '@/lib/constants';
 import { repTarget, type RepTarget } from '@/lib/activities/rep-target';
@@ -211,7 +212,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       qualityName,
       repTarget: repTargetOut,
-      gpsPoints: gps_points || [],
+      // Start/finish privacy zone: a teammate never receives the first/last 200 m.
+      gpsPoints: routeForViewer(gps_points || [], caller, r.athlete_id) ?? [],
       splits,
       hasPolyline: !!r.has_polyline,
       source: r.source || 'strava',

@@ -2,10 +2,13 @@
 // categories in src/lib/push.ts. A missing key = opted IN (receive everything),
 // so defaults are all-on and nothing is silenced unless explicitly turned off —
 // except for the staff exception below.
-export const CATEGORIES = ['workouts', 'coach', 'achievements', 'program', 'teammates', 'news', 'events', 'management'] as const;
+export const CATEGORIES = ['workouts', 'coach', 'achievements', 'program', 'teammates', 'news', 'events', 'management', 'plan_ready'] as const;
 export type Category = (typeof CATEGORIES)[number];
 export const DEFAULTS: Record<Category, boolean> = {
   workouts: true, coach: true, achievements: true, program: true, teammates: true, news: true, events: true, management: true,
+  // Opt-in (Ofer, 2026-11-21): "notify me when the plan is published" — the button on השבוע's no-plan card.
+  // Off until the member asks, so nobody gets a second ping beside the coach's own 'program' notice.
+  plan_ready: false,
 };
 
 /**
@@ -71,6 +74,8 @@ export type SavedPrefs = Partial<Record<Category, boolean>> & {
    * ("HH:MM", Israel, 5-minute grid). Absent = academy/morning-reminder.ts's default.
    */
   morningReminder?: { enabled: boolean; time: string };
+  /** Quiet hours (notifications/quiet-hours.ts). Absent = on, 22:00–07:00. */
+  quietHours?: { enabled: boolean; from: string; to: string };
 };
 
 // Merge a partial saved map over this reader's defaults so any category they
@@ -81,7 +86,7 @@ export type SavedPrefs = Partial<Record<Category, boolean>> & {
 export function mergeWithDefaults(
   saved: SavedPrefs | null | undefined,
   isStaff?: boolean,
-): Record<Category, boolean> & { language?: string; morningReminder?: { enabled: boolean; time: string } } {
+): Record<Category, boolean> & Omit<SavedPrefs, Category> {
   return { ...defaultsFor(isStaff), ...(saved || {}) };
 }
 
@@ -128,7 +133,10 @@ export const KIND_CATEGORY: Record<string, Category> = {
   // every badge anyway.
   academy_morning: 'workouts',
   badge: 'achievements',
+  // Race-day live milestones (lib/race-live): a club runner started / passed halfway / finished.
+  race_live: 'events',
   plan_pushed: 'program',
+  plan_ready: 'plan_ready',
   // "אימון ליום אחד" published (lib/day-session): a session the coach wrote without a week.
   day_session: 'program',
   feedback_reply: 'coach',
@@ -156,6 +164,8 @@ export const KIND_CATEGORY: Record<string, Category> = {
   // Running the club. Staff-only by construction — nothing sends these to an
   // athlete — so the toggle exists to let a coach turn them DOWN, not up.
   signup_request: 'management',
+  account_delete_request: 'management',
+  group_change_request: 'management',
   academy_applicant: 'management',
   // A trainee signed in with neither a coach nor a band (loop-notify notifyTraineeJoined).
   academy_band_missing_no_coach: 'management',
@@ -175,6 +185,17 @@ export const KIND_CATEGORY: Record<string, Category> = {
   podium_locked: 'management',
   podium_update: 'news',
   feedback_alert: 'management',
+  // A runner marked themself injured / paused (PUT /api/athletes/[id]/availability).
+  availability_change: 'management',
+  // A pain report (POST /api/pain-reports) to the runner's own coaches, and the 14-day
+  // "no check-in" escalation (cron/tick). Named health data — see lib/feedback/pain.ts.
+  pain_report: 'management',
+  pain_no_checkin: 'management',
+  // To the runner: "how is it today?" (cron/tick follow-up) and a coach's answer to a report.
+  pain_followup: 'workouts',
+  pain_reply: 'coach',
+  // A coach's direct note to one runner, from the coach roster (POST /api/coach/message).
+  coach_message: 'coach',
   // Tomorrow's pre-workout pushes waiting for an admin's OK (lib/notifications/approval.ts).
   push_approval: 'management',
 };

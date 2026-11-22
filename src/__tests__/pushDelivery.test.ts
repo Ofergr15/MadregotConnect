@@ -100,9 +100,17 @@ beforeEach(() => {
     push_subscriptions: [],
   };
   warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  // Quiet hours (22:00–07:00 Israel, on by default) read the wall clock, so these
+  // delivery tests failed whenever the suite ran at night. Pin the clock to midday;
+  // quiet-hours behaviour has its own tests.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-18T12:00:00+02:00'));
 });
 
-afterEach(() => warn.mockRestore());
+afterEach(() => {
+  warn.mockRestore();
+  vi.useRealTimers();
+});
 
 describe('sendPushDetailed — per-athlete delivery counts', () => {
   it('counts each athlete\'s own devices separately', async () => {

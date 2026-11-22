@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
-import { createSyntheticSession } from '@/lib/auth/synthetic-session';
+import { mintMemberSession } from '@/lib/auth/member-session';
+import { devFixedCodeFor } from '@/lib/auth/dev-login';
 import { DEVICE_COOKIE, DEVICE_COOKIE_OPTIONS, signDeviceToken } from '@/lib/auth/device-token';
 import { CODE_TTL_MS, MAX_ATTEMPTS, MAX_SENDS, SEND_WINDOW_MS, codeMatches, hashCode, newCode, normaliseCode } from '@/lib/auth/email-code';
 import { isLikelyEmail, normaliseEmail } from '@/lib/signup';
-import { notifyLoginCode } from '@/lib/email';
+import { notifyAccountClosed, notifyLoginCode } from '@/lib/email';
 import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
 
 export const dynamic = 'force-dynamic';
@@ -32,6 +32,13 @@ async function memberFor(supabase: Db, email: string) {
     .maybeSingle();
   if (!data || data.approved !== true || data.status === 'removed' || data.status === 'disconnected') return null;
   return data;
+}
+
+/** An approved row whose access was taken away (gap 6). Never signs in. */
+async function closedMemberFor(supabase: Db, email: string) {
+  const { data } = await supabase.from('athletes').select('id, name, status, approved').eq('email', email).maybeSingle();
+  if (!data || data.approved !== true) return null;
+  return data.status === 'removed' || data.status === 'disconnected' ? data : null;
 }
 
 /**
@@ -63,6 +70,10 @@ export async function POST(request: Request) {
 
   // The welcome screen's greeting: who this link belongs to, never the full address.
   if (body?.action === 'who') {
+    // Only a join link may ask whose it is. Answered for a bare address, this told
+    // anybody "member, first name X" versus 404 — the probe `send` refuses to be.
+    // Same status and body as an unknown link, so the two cannot be told apart.
+    if (!token) return NextResponse.json({ error: 'unknown-link' }, { status: 404 });
     const member = await memberFor(supabase, email);
     if (!member) return NextResponse.json({ error: 'unknown-link' }, { status: 404 });
     // The name they typed on the form (migration 131) reads better than the roster's
@@ -75,17 +86,40 @@ export async function POST(request: Request) {
   try {
     if (body?.action === 'send') {
       const member = await memberFor(supabase, email);
-      if (!member) return NextResponse.json({ ok: true });
+      if (!member) {
+        // Gap 6: a removed member is told why — in their inbox, never on this screen,
+        // which answers the same { ok } as for a stranger. The send window still
+        // applies (a placeholder row with an unusable hash counts it), so the form
+        // cannot be used to flood that inbox either.
+        const closed = await closedMemberFor(supabase, email);
+        if (closed) {
+          const since = new Date(Date.now() - SEND_WINDOW_MS).toISOString();
+          const { count } = await supabase.from('login_codes').select('id', { count: 'exact', head: true }).eq('email', email).gte('created_at', since);
+          if ((count ?? 0) < MAX_SENDS) {
+            const placeholder = hashCode(email, `closed:${newCode()}:${Date.now()}`);
+            if (placeholder) await supabase.from('login_codes').insert({ email, code_hash: placeholder, expires_at: new Date().toISOString(), attempts: MAX_ATTEMPTS });
+            const mail = await notifyAccountClosed({ email, name: closed.name, athleteId: closed.id });
+            if (!mail.ok) console.error('[email-code] closed-account mail not sent', mail.code, mail.reason);
+          }
+        }
+        return NextResponse.json({ ok: true });
+      }
       const since = new Date(Date.now() - SEND_WINDOW_MS).toISOString();
       const { count } = await supabase.from('login_codes').select('id', { count: 'exact', head: true }).eq('email', email).gte('created_at', since);
       if ((count ?? 0) >= MAX_SENDS) return NextResponse.json({ error: 'too-many' }, { status: 429 });
-      const code = newCode();
+      // Gap 1: dev project + seeded test address only (lib/auth/dev-login). Never prod.
+      const code = devFixedCodeFor(email) ?? newCode();
       const hash = hashCode(email, code);
       if (!hash) return NextResponse.json({ error: 'not-configured' }, { status: 500 });
       const { error } = await supabase.from('login_codes').insert({ email, code_hash: hash, expires_at: new Date(Date.now() + CODE_TTL_MS).toISOString() });
       // Migration 132 not pasted yet: say so, rather than fail as if the address were wrong.
       if (error && (error.code === '42P01' || error.code === 'PGRST205')) return NextResponse.json({ error: 'not-ready' }, { status: 503 });
       if (error) throw error;
+      // Dev backend only (no mail service there): print the code to the local server log.
+      // Needs BOTH an explicit flag and a non-production build, so it can never run live.
+      if (process.env.DEV_LOGIN_CODE_LOG === '1' && process.env.NODE_ENV !== 'production') {
+        console.log(`[email-code] DEV code for ${email}: ${code}`);
+      }
       const mail = await notifyLoginCode({ email, code, name: member.name, athleteId: member.id });
       if (!mail.ok) console.error('[email-code] mail not sent', mail.code, mail.reason);
       await recordOnbEvent({ step: 'code_sent', athleteId: member.id, device: deviceFromUa(request.headers.get('user-agent')), meta: { mailed: mail.ok } });
@@ -105,37 +139,34 @@ export async function POST(request: Request) {
       if (!row || Date.parse(row.expires_at) < Date.now() || row.attempts >= MAX_ATTEMPTS) {
         return NextResponse.json({ error: 'expired' }, { status: 401 });
       }
+      // Claim the attempt BEFORE comparing the code, atomically: the UPDATE matches only
+      // while `attempts` still holds the value read above. Read-then-write let N parallel
+      // guesses all pass the gate on the same count and try N codes against a limit of
+      // MAX_ATTEMPTS. A correct code also spends a slot; the row is deleted on success.
+      const { data: claimed } = await supabase
+        .from('login_codes')
+        .update({ attempts: row.attempts + 1 })
+        .eq('id', row.id)
+        .eq('attempts', row.attempts)
+        .lt('attempts', MAX_ATTEMPTS)
+        .select('id');
+      if (!claimed || claimed.length === 0) {
+        return NextResponse.json({ error: 'too-many' }, { status: 429 });
+      }
       if (!codeMatches(email, code, row.code_hash)) {
-        await supabase.from('login_codes').update({ attempts: row.attempts + 1 }).eq('id', row.id);
         return NextResponse.json({ error: 'wrong-code', left: Math.max(0, MAX_ATTEMPTS - row.attempts - 1) }, { status: 401 });
       }
       const member = await memberFor(supabase, email);
       if (!member) return NextResponse.json({ error: 'expired' }, { status: 401 });
       // One use: every code for this address goes.
       await supabase.from('login_codes').delete().eq('email', email);
-      // Approved but still 'invited' reads as "access removed" once inside; signing
-      // in IS joining, the same flip /api/athletes/connect makes.
-      if (member.status === 'invited') await supabase.from('athletes').update({ status: 'active' }).eq('id', member.id);
-
-      const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      });
-      const auth = await createSyntheticSession(admin, email, { athlete_id: member.id, name: member.name });
-      if (auth.error || !auth.session) {
-        console.error('[email-code] session mint failed:', auth.error);
+      const minted = await mintMemberSession(supabase, { ...member, email });
+      if (!minted.ok) {
+        console.error('[email-code] session mint failed:', minted.error);
         return NextResponse.json({ error: 'failed' }, { status: 500 });
       }
       await recordOnbEvent({ step: 'code_verified', athleteId: member.id, device: deviceFromUa(request.headers.get('user-agent')) });
-      const response = NextResponse.json({
-        ok: true,
-        email,
-        name: member.name,
-        athleteId: member.id,
-        groupId: member.group_id,
-        role: (member as { role?: string | null }).role ?? null,
-        isAcademy: !!(member as { is_academy?: boolean | null }).is_academy,
-        session: auth.session,
-      });
+      const response = NextResponse.json(minted.body);
       const device = signDeviceToken(email);
       if (device) response.cookies.set(DEVICE_COOKIE, device, DEVICE_COOKIE_OPTIONS);
       return response;

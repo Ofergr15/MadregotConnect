@@ -8,6 +8,8 @@ import { buildWeekBreakdown } from '@/lib/plans/workout-parsing';
 import { COACH_ID } from '@/lib/constants';
 import { pickPlan, planRowsFilter } from '@/lib/plans/scope';
 import { ownPlanRowsCount, withoutOwnRows } from '@/lib/plans/scope-server';
+import { isFeatureEnabled } from '@/lib/features/server';
+import { evaluateFeedbackPrompt } from '@/lib/feedback/prompts-server';
 
 // Activities recorded within this many ms of each other are treated as one
 // session (e.g. a watch auto-splitting a long run around a pause, or a
@@ -171,6 +173,18 @@ export async function notifyMainWorkoutFeedback(opts: { athleteId: string; dateS
 
     const main = await pickMainActivity(acts as Act[], opts.dateStr, opts.athleteId);
     const km = main.distance > 0 ? Math.round((main.distance / 1000) * 10) / 10 : null;
+
+    // Gated rollout (feature_enablements, migration 191): for an athlete with
+    // feedback_pain ON, the new rule set decides (lib/feedback/prompt-rules.ts) —
+    // quality / long ≥ 18 km push, easy 1-in-4 quiet card, caps, mute, quiet hours,
+    // nothing while injured or paused. The card in פיד/השבוע reads the same row.
+    // Everyone else keeps the existing one-push-per-day behaviour, unchanged.
+    if (await isFeatureEnabled('feedback_pain', opts.athleteId, supabase)) {
+      const decision = await evaluateFeedbackPrompt(supabase, {
+        athleteId: opts.athleteId, activityId: String(main.garmin_activity_id), dateStr: opts.dateStr, distanceKm: km ?? 0,
+      });
+      if (!decision?.push) return;
+    }
     const execution = await gradeForPush(main.id);
 
     await notifyAthlete({

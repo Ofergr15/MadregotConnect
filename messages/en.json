@@ -1672,7 +1672,9 @@
     "pendingWatchSub": "Connect it after approval, in one tap",
     "pendingNotYou": "Not your account?",
     "pendingSignOutLink": "Sign out",
-    "pendingSignOut": "Sign out"
+    "pendingSignOut": "Sign out",
+    "sessionExpired": "Your session expired. Please sign in again — your choices are saved.",
+    "signInAgain": "Sign in again"
   },
   "join": {
     "joinYourTeam": "Join Your Team",
@@ -1993,6 +1995,8 @@
     "stravaEmptyTitle": "The linked account is empty",
     "stravaEmptyBody": "The connected Strava account ({account}) has no activities at all. If it is not yours, connect the right one.",
     "stravaSwitchAccount": "Connect a different account",
+    "stravaLinked": "Strava is connected to your account.",
+    "stravaLinkFailed": "Connecting Strava didn't finish. Try again; if it keeps failing, ask your coach for help.",
     "stravaDisconnect": "Disconnect",
     "stravaDisconnectConfirm": "Disconnect?",
     "stravaDisconnectKeepsHistory": "Activities already imported are kept.",
@@ -2357,7 +2361,10 @@
       "deleting": "Deleting…",
       "deleteConfirm": "Delete “{name}”? Registrations for it are deleted too, and this cannot be undone.",
       "mapLinkCurrent": "Pin on file: {lat}, {lng}. Leave empty to keep it, or paste a new link to move it."
-    }
+    },
+    "statusDraft": "Draft",
+    "statusScheduled": "Scheduled",
+    "pendingUpdate": "Pending update"
   },
   "eventDetail": {
     "edit": "Edit event",
@@ -2385,7 +2392,10 @@
     "registerCta": "Register for event",
     "cancelRegistration": "Cancel registration",
     "actionError": "Something went wrong, please try again",
-    "faqTitle": "FAQ"
+    "faqTitle": "FAQ",
+    "statusDraft": "Draft",
+    "statusScheduled": "Scheduled",
+    "pendingUpdate": "Pending update"
   },
   "practice": {
     "title": "Practice",
@@ -2594,7 +2604,8 @@
       "teammates": "Workouts from your teammates",
       "news": "Updates and announcements",
       "events": "Event and race reminders",
-      "management": "Running the club"
+      "management": "Running the club",
+      "plan_ready": "When the week's plan is published"
     },
     "managementHint": "Sign-up requests, problem reports and system alerts",
     "morningHeader": "Morning reminder"
@@ -3158,6 +3169,7 @@
     "feedLabel": "Execution accuracy",
     "dir_on_target": "Ran to plan",
     "dir_incomplete": "Did not complete all the reps",
+    "dir_incomplete_parts": "Did not complete every part of the session",
     "dir_too_fast": "Ran faster than planned",
     "dir_too_slow": "Ran slower than planned",
     "dir_mixed": "Uneven pacing",
@@ -3174,6 +3186,7 @@
     "dirShort_unknown": "Not enough data",
     "detail_on_target": "The execution landed inside the range the plan asked for.",
     "detail_incomplete": "{found} of {needed} reps the plan asked for are in this run at the target pace.",
+    "detail_incomplete_parts": "{found} of {needed} parts of the session the plan asked for are in this run at the target pace.",
     "detail_too_fast": "{sec}s per km faster than the range the plan asked for, on average.",
     "detail_too_slow": "{sec}s per km slower than the range the plan asked for, on average.",
     "detail_too_fast_reps": "{count} of {graded} reps were faster than the range the plan asked for.",

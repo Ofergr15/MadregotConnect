@@ -110,7 +110,7 @@ describe('POST /api/public/signup — an existing member submits the form', () =
     expect(mailed).toBe(0);
   });
 
-  it('is idempotent: a second visit updates, never inserts a twin', async () => {
+  it('is idempotent: a second visit writes nothing, never inserts a twin', async () => {
     rows.signup_requests = [{ email: MEMBER, status: 'member', id: 'req-1' }];
     rows.groups = [{ id: 'g1', name: 'דבוקה 1', coach_id: undefined }];
     const res = await post(MEMBER);

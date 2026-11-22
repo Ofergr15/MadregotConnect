@@ -187,13 +187,14 @@ export default function JoinPage() {
   }, [token]);
 
 
-  const saveConnection = async (auth: string) => {
+  // The Garmin credential is already on the row — the authenticate route stored it
+  // server-side; this only saves the rest of the join form.
+  const saveConnection = async () => {
     const saveRes = await fetch('/api/athletes/connect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         inviteToken: token,
-        garminAuth: auth,
         name,
         email,
         groupId: selectedGroup || undefined,
@@ -352,7 +353,7 @@ export default function JoinPage() {
       const authRes = await fetch('/api/garmin/authenticate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: garminEmail, password: garminPassword }),
+        body: JSON.stringify({ inviteToken: token, email: garminEmail, password: garminPassword }),
       });
 
       const authData = await authRes.json();
@@ -368,7 +369,7 @@ export default function JoinPage() {
         throw new Error(authData.message || authData.error || to('failedToConnectGarmin'));
       }
 
-      await saveConnection(authData.auth);
+      await saveConnection();
     } catch (err: any) {
       setError(err.message);
       setStep('garmin');
@@ -384,7 +385,7 @@ export default function JoinPage() {
       const authRes = await fetch('/api/garmin/authenticate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: garminEmail, mfaCode, sessionId: mfaSessionId }),
+        body: JSON.stringify({ inviteToken: token, email: garminEmail, mfaCode, sessionId: mfaSessionId }),
       });
 
       const authData = await authRes.json();
@@ -393,7 +394,7 @@ export default function JoinPage() {
         throw new Error(authData.message || authData.error || to('verificationFailed'));
       }
 
-      await saveConnection(authData.auth);
+      await saveConnection();
     } catch (err: any) {
       setError(err.message);
       setStep('mfa');

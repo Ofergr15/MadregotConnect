@@ -33,6 +33,13 @@ export interface PlannedSegment {
   hrTarget?: { kind: 'bpm' | 'pct'; min: number; max: number };
   /** True when this step can be graded on heart rate (has an HR target, isn't rest). */
   hrGraded: boolean;
+  /**
+   * The repeat count of the coach's repeat block this step was expanded from, or
+   * undefined for a top-level step. Flattening must not lose it: without it a plan of
+   * "2 km easy, 20 km at 4:25, cool-down" is indistinguishable from three reps, and a
+   * run cut short read "did not complete all the reps" on a session that had none.
+   */
+  repeatOf?: number;
 }
 
 export interface Lap {
@@ -179,16 +186,17 @@ export function segmentFromStep(step: WorkoutStep, index: number): PlannedSegmen
 /** Ordered, repeat-EXPANDED list of executable steps (the leaf run order). */
 export function flattenPlannedSteps(workout: ParsedWorkout): PlannedSegment[] {
   const out: PlannedSegment[] = [];
-  const walk = (steps: WorkoutStep[]) => {
+  const walk = (steps: WorkoutStep[], repeatOf: number | undefined) => {
     for (const s of steps) {
       if (s.repeatCount && s.repeatSteps && s.repeatSteps.length) {
-        for (let i = 0; i < s.repeatCount; i++) walk(s.repeatSteps);
+        for (let i = 0; i < s.repeatCount; i++) walk(s.repeatSteps, s.repeatCount);
       } else {
-        out.push(segmentFromStep(s, out.length));
+        const seg = segmentFromStep(s, out.length);
+        out.push(repeatOf ? { ...seg, repeatOf } : seg);
       }
     }
   };
-  walk(workout.steps);
+  walk(workout.steps, undefined);
   return out;
 }
 
@@ -378,6 +386,12 @@ export interface EffortReport {
   neededTotal: number;
   attemptedTotal: number;
   foundTotal: number;
+  /**
+   * True when the plan has a real repeat (a repeat block of 2 or more). Only then is
+   * "reps" the right word for what the counts measure; otherwise they count the
+   * session's parts. Wording only: the score does not read this.
+   */
+  repeatPlan?: boolean;
   lapCount: number;
   /** Typical lap length, for explaining an unverifiable verdict. */
   medianLapM: number | null;
@@ -497,6 +511,7 @@ export function findPlannedEfforts(
     foundTotal: 0,
     lapCount: laps.length,
     medianLapM,
+    repeatPlan: planned.some(seg => (seg.repeatOf ?? 0) >= 2),
   };
 
   if (requirements.length === 0) return { ...base, reason: 'no_paced_plan' };

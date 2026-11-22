@@ -1152,6 +1152,28 @@ export function feedbackAlertCopy(
     : { title: '⚠️ Session feedback', body: `${p.athleteName}: ${p.reason}` };
 }
 
+const AVAILABILITY_HE: Record<string, string> = { active: 'חזר/ה לרוץ', injured: 'סימן/ה פציעה', paused: 'סימן/ה הפסקה' };
+const AVAILABILITY_EN: Record<string, string> = { active: 'is back running', injured: 'marked injured', paused: 'is taking a break' };
+
+export function availabilityChangeCopy(
+  locale: NotificationLocale,
+  p: { athleteName: string; availability: string },
+): PushCopy {
+  return locale === 'he'
+    ? { title: 'עדכון זמינות', body: `${p.athleteName} ${AVAILABILITY_HE[p.availability] ?? p.availability}` }
+    : { title: 'Availability', body: `${p.athleteName} ${AVAILABILITY_EN[p.availability] ?? p.availability}` };
+}
+
+export function coachMessageCopy(
+  locale: NotificationLocale,
+  p: { coachName: string; text: string },
+): PushCopy {
+  const body = p.text.length > 180 ? `${p.text.slice(0, 177)}…` : p.text;
+  return locale === 'he'
+    ? { title: `הודעה מ${p.coachName}`, body }
+    : { title: `Message from ${p.coachName}`, body };
+}
+
 export function storeOrderCopy(
   locale: NotificationLocale,
   p: { athleteName: string | null | undefined; itemCount: number; total: number },
@@ -1615,4 +1637,69 @@ export function sessionPhotosFoundCopy(locale: NotificationLocale, p: { count: n
   return locale === 'he'
     ? { title: `📸 ${p.count} תמונות חדשות בתיקייה`, body: p.first ? 'מאימון האיכות של הבוקר. נגיעה כדי לבדוק ולפרסם.' : 'נוספו לתיקייה אחרי הפרסום. נגיעה כדי להוסיף אותן.' }
     : { title: `📸 ${p.count} new photos in the folder`, body: p.first ? "From this morning's quality session. Tap to check and publish." : 'Added after publishing. Tap to add them.' };
+}
+
+// ── Run together v3 (migration 190) ─────────────────────────────────────────
+
+const firstName = (n: string | null | undefined, locale: NotificationLocale) => ((n || '').trim().split(/\s+/)[0]) || SOMEONE[locale];
+
+/** The host moved the time — to everyone going or waiting. */
+export function meetupTimeChangedCopy(locale: NotificationLocale, p: { hostName: string | null | undefined; from: string; to: string; title: string }): PushCopy {
+  const host = firstName(p.hostName, locale);
+  return locale === 'he'
+    ? { title: `השעה השתנתה: ${p.from} ← ${p.to}`, body: `${host} שינה/תה את ${p.title}. נשארת רשום/ה — אם לא מתאים, אפשר לצאת.` }
+    : { title: `Time changed: ${p.from} → ${p.to}`, body: `${host} moved ${p.title}. You're still in — you can leave if it doesn't work.` };
+}
+
+/** The host called it off. */
+export function meetupCancelledCopy(locale: NotificationLocale, p: { hostName: string | null | undefined; startTime: string; note: string | null }): PushCopy {
+  const host = firstName(p.hostName, locale);
+  return locale === 'he'
+    ? { title: `הריצה של ${p.startTime} בוטלה`, body: p.note ? `${host}: ${p.note}` : `${host} ביטל/ה את הריצה` }
+    : { title: `The ${p.startTime} run is cancelled`, body: p.note ? `${host}: ${p.note}` : `${host} cancelled the run` };
+}
+
+/** A place opened and the waitlister is in. */
+export function meetupPromotedCopy(locale: NotificationLocale, p: { startTime: string; title: string }): PushCopy {
+  return locale === 'he'
+    ? { title: `התפנה מקום — את/ה בפנים`, body: `${p.title} · ${p.startTime}. המקום המדויק והתיאום פתוחים.` }
+    : { title: `A place opened — you're in`, body: `${p.title} · ${p.startTime}. The exact spot and chat are open.` };
+}
+
+/** T−60. Only the people going hear it, so the exact place may be named. */
+export function meetupSoonCopy(locale: NotificationLocale, p: { startTime: string; place: string; going: number }): PushCopy {
+  return locale === 'he'
+    ? { title: `בעוד שעה · ${p.startTime}`, body: `${p.place} · ${p.going} מגיעים` }
+    : { title: `In an hour · ${p.startTime}`, body: `${p.place} · ${p.going} going` };
+}
+
+// ── Pain reports (lib/feedback/pain.ts) ─────────────────────────────────────
+// To the runner's own coaches only. Names the runner and the area — never sent to
+// a group or club channel.
+export function painReportCopy(
+  locale: NotificationLocale,
+  p: { athleteName: string; area: string; severity: number; severe: boolean },
+): PushCopy {
+  return locale === 'he'
+    ? { title: p.severe ? '🩹 דיווח כאב — חמור' : '🩹 דיווח כאב', body: `${p.athleteName}: ${p.area}, ${p.severity}/10` }
+    : { title: p.severe ? '🩹 Pain report — severe' : '🩹 Pain report', body: `${p.athleteName}: ${p.area}, ${p.severity}/10` };
+}
+
+export function painFollowupCopy(locale: NotificationLocale, p: { area: string }): PushCopy {
+  return locale === 'he'
+    ? { title: 'איך ה' + p.area + ' היום?', body: 'הקש כדי לעדכן — שנייה אחת' }
+    : { title: `How is the ${p.area} today?`, body: 'Tap to update — one second' };
+}
+
+export function painNoCheckinCopy(locale: NotificationLocale, p: { athleteName: string; area: string }): PushCopy {
+  return locale === 'he'
+    ? { title: 'דיווח כאב בלי עדכון', body: `${p.athleteName} לא עדכן/ה על ה${p.area} כבר שבועיים — כדאי לבדוק` }
+    : { title: 'Pain report, no update', body: `${p.athleteName} hasn't updated the ${p.area} report in two weeks` };
+}
+
+export function painReplyCopy(locale: NotificationLocale, p: { coachName: string; text: string }): PushCopy {
+  const body = p.text.length > 160 ? `${p.text.slice(0, 157)}…` : p.text;
+  return locale === 'he'
+    ? { title: `${p.coachName} ענה/תה על הדיווח`, body }
+    : { title: `${p.coachName} replied to your report`, body };
 }

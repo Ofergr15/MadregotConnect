@@ -82,10 +82,34 @@ export const ROUTED_KINDS: RoutedKind[] = [
     source: 'api/workout-feedback',
   },
   {
+    kind: 'pain_report',
+    label: 'דיווח כאב (טופס חדש)',
+    hint: 'רץ שלח דיווח כאב — רק המאמנים שלו (ובאקדמיה גם המנהלים). הניתוב יכול רק לצמצם',
+    source: 'api/pain-reports',
+  },
+  {
+    kind: 'availability_change',
+    label: 'רץ סימן פציעה / הפסקה',
+    hint: 'רץ סימן בעצמו שהוא פצוע או בהפסקה (או חזר)',
+    source: 'api/athletes/[id]/availability',
+  },
+  {
+    kind: 'account_delete_request',
+    label: 'בקשה למחיקת חשבון',
+    hint: 'רץ ביקש למחוק את החשבון — לטפל תוך 7 ימים (anonymise_athlete)',
+    source: 'api/account/delete-request',
+  },
+  {
     kind: 'signup_request',
     label: 'בקשת הרשמה',
     hint: 'נרשם חדש ממתין לאישור',
     source: 'api/public/signup · lib/signup-queue',
+  },
+  {
+    kind: 'group_change_request',
+    label: 'בקשת מעבר דבוקה',
+    hint: 'רץ ביקש לעבור דבוקה בהגדרה הראשונה של האפליקציה',
+    source: 'api/onboarding/group-change',
   },
   {
     kind: 'academy_applicant',
@@ -116,6 +140,12 @@ export const ROUTED_KINDS: RoutedKind[] = [
     label: 'תוכנית השבוע חסרה',
     hint: 'שבת 20:00 — אימונים או תזונה לשבוע הבא עוד לא הועלו',
     source: 'api/cron/tick',
+  },
+  {
+    kind: 'plan_changed',
+    label: 'התוכנית עודכנה אחרי פרסום',
+    hint: 'מאמן שינה תוכנית שכבר פורסמה — עותק של הודעת השינוי',
+    source: 'api/plan-builder/weeks/[week]/publish',
   },
   {
     kind: 'sync_stalled',

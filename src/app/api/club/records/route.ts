@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { getClubRecords } from '@/lib/prs/club-records-store';
+import { israelToday } from '@/lib/utils';
+import { clubRecordHistory, filterRecordTable, isOnTimeTable, type SexFilter } from '@/lib/records/board';
+import { readRoster, officialActivityIds, benchmarkBests } from '@/lib/records/server';
 
 export const dynamic = 'force-dynamic';
 // The cold path is the full-history walk in computeClubRecordsSnapshot — thirty
@@ -23,6 +26,14 @@ export const maxDuration = 60;
 // Nothing on it is athlete-specific, so there is no per-caller filtering and no
 // `athleteId` parameter: every member sees the same table, which is the point of
 // a club record.
+//
+// שיאים tab (2026-11-21): two runners are now left out of EVERY table and history
+// here, for every viewer — `leaderboard_opt_out` (195) and anyone whose
+// default_hidden_fields hold `pace` (a record is a time over a distance, i.e. a
+// pace). `?sex=m|f&age=35–44&races=1` filter `tables`; `history` is the club
+// record over time per bucket (strictly faster breaks across the club); `b2000`
+// is the 2000 m benchmark. The unfiltered per-athlete breaks in the snapshot are
+// never sent.
 export async function GET(request: Request) {
   try {
     const { denied, caller } = await resolveVerifiedCaller(request);
@@ -34,7 +45,35 @@ export async function GET(request: Request) {
     // snapshot and never rewrites it.
     const { snapshot, recomputed } = await getClubRecords(supabase, { refresh, readOnly: !!caller.viewingAsBy });
 
-    return NextResponse.json({ ...snapshot, recomputed });
+    const url = new URL(request.url);
+    const sexQ = url.searchParams.get('sex');
+    const sex: SexFilter = sexQ === 'm' || sexQ === 'f' ? sexQ : 'all';
+    const age = url.searchParams.get('age') || 'all';
+    const racesOnly = url.searchParams.get('races') === '1';
+
+    const [roster, official, bench] = await Promise.all([readRoster(supabase, israelToday()), officialActivityIds(supabase), benchmarkBests(supabase)]);
+    const facts = new Map(roster.map((p) => [p.id, p]));
+    const names = new Map(roster.map((p) => [p.id, p.name]));
+    const visible = (id: string) => isOnTimeTable(facts.get(id) ?? {});
+    const isOfficial = (e: { activityId: string | null; source?: string }) => !!e.activityId && official.has(e.activityId);
+
+    const buckets = snapshot.buckets.map((b) => ({ ...b, entries: b.entries.filter((e) => visible(e.athleteId)) }));
+    const tables = Object.fromEntries(snapshot.buckets.map((b) => [b.key,
+      filterRecordTable(b.entries, facts, isOfficial, { sex, age, racesOnly }).map(({ entry, rank, official: o, ageBand }) => ({
+        rank, athleteId: entry.athleteId, name: entry.name, gender: entry.gender, groupId: entry.groupId,
+        seconds: entry.seconds, date: entry.date, activityId: entry.activityId, official: o, ageBand,
+      })),
+    ]));
+    const b2000 = filterRecordTable(bench.map((x) => ({ ...x, activityId: null })), facts, () => true, { sex, age })
+      .map(({ entry, rank, ageBand }) => ({ rank, athleteId: entry.athleteId, name: names.get(entry.athleteId) ?? '', gender: facts.get(entry.athleteId)?.gender ?? null, seconds: entry.seconds, date: entry.date, official: true, ageBand }));
+    const history = Object.fromEntries(Object.entries(snapshot.breaks ?? {}).map(([key, byAthlete]) => [key,
+      clubRecordHistory(new Map(Object.entries(byAthlete)), facts).map((h) => ({ ...h, name: names.get(h.athleteId) ?? '', official: isOfficial(h) })),
+    ]));
+    const ageBands = [...new Set(roster.map((p) => p.ageBand).filter((a): a is string => !!a))].sort();
+
+    const { breaks: _raw, ...rest } = snapshot;
+    void _raw;
+    return NextResponse.json({ ...rest, buckets, tables, b2000, history, ageBands, filters: { sex, age, racesOnly }, recomputed });
   } catch (err: any) {
     console.error('Club records error:', err);
     return NextResponse.json({ error: err.message || 'Failed to compute club records' }, { status: 500 });

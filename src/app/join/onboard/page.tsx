@@ -6,10 +6,11 @@ import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Check } from 'lucide-react';
 import { signOutEverywhere } from '@/lib/auth/sign-out';
+import { apiHeaders } from '@/lib/api';
 import { InsetSection, InsetRow, EmptyState, LoadingBlock, SegmentedControl } from '@/components/ui';
 import { ApprovalPushOptIn } from '@/components/PushOptIn';
 import { WhatsNewOnboardingCard } from '@/components/whats-new/WhatsNewOnboarding';
-import { cn, MONDAY_WEEK, SUNDAY_WEEK, type WeekStartDay, memberPackName } from '@/lib/utils';
+import { cn, MONDAY_WEEK, type WeekStartDay, memberPackName } from '@/lib/utils';
 
 // Local input primitive — see src/app/admin/login/page.tsx for why this is
 // duplicated locally instead of promoted to the shared ui/index.tsx.
@@ -60,7 +61,7 @@ function OnboardContent() {
   // as wrong — Monday matches their watch, Sunday matches the Israeli calendar, and
   // only they know which one they read. Monday is preselected because it is what
   // the watch says and what the club's leaderboard uses.
-  const [weekStartDay, setWeekStartDay] = useState<WeekStartDay>(MONDAY_WEEK);
+  const weekStartDay: WeekStartDay = MONDAY_WEEK;
   const [groups, setGroups] = useState<Group[]>([]);
   const [garminEmail, setGarminEmail] = useState(searchParams.get('email') || '');
   const [garminPassword, setGarminPassword] = useState('');
@@ -70,6 +71,38 @@ function OnboardContent() {
   const [skippedGarmin, setSkippedGarmin] = useState(false);
   const [step, setStep] = useState<'info' | 'garmin' | 'mfa' | 'connecting' | 'done'>('info');
   const [error, setError] = useState<string | null>(null);
+  // The save calls need this tab's Supabase session (connect / Garmin, 2026-11-22). If it has
+  // expired the server answers 401: say so plainly, keep what was chosen, and offer the way
+  // back — sign-in lands here again through /auth/resolve for a row that isn't active yet.
+  const [needsSignIn, setNeedsSignIn] = useState(false);
+  const DRAFT_KEY = 'onboard_draft';
+  const saveDraft = () => {
+    try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ email, selectedGroup, garminEmail })); } catch { /* private mode: they retype */ }
+  };
+  const guard401 = (res: Response) => {
+    if (res.status !== 401) return;
+    saveDraft();
+    setNeedsSignIn(true);
+    throw new Error(t('sessionExpired'));
+  };
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d && d.email && d.email === email) {
+        if (d.selectedGroup) setSelectedGroup(d.selectedGroup);
+        if (d.garminEmail) setGarminEmail(d.garminEmail);
+      }
+      sessionStorage.removeItem(DRAFT_KEY);
+    } catch { /* nothing to restore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const signInAgain = async () => {
+    saveDraft();
+    await signOutEverywhere();
+    window.location.href = '/';
+  };
 
   useEffect(() => {
     if (!skipGroup) {
@@ -106,9 +139,10 @@ function OnboardContent() {
     try {
       const saveRes = await fetch('/api/athletes/update-group', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await apiHeaders(true),
         body: JSON.stringify({ email, groupId: selectedGroup, weekStartDay }),
       });
+      guard401(saveRes);
       if (!saveRes.ok) {
         const err = await saveRes.json();
         throw new Error(err.message || err.error || t('failedToSave'));
@@ -127,29 +161,50 @@ function OnboardContent() {
     }
   };
 
+  // Garmin exchange. The route stores the credential on this person's row and
+  // answers with a status only. The row isn't linked to the session yet, so it is named by
+  // `signupEmail` — accepted only with this session's bearer and only when it is the
+  // session's own verified address (lib/garmin/store-auth.ts, door 3).
+  // A brand-new sign-up may have no row yet: create it (the same connect call the
+  // flow ends with) and ask once more.
+  const garminAuthenticate = async (payload: Record<string, unknown>) => {
+    const post = async () => fetch('/api/garmin/authenticate', {
+      method: 'POST',
+      headers: await apiHeaders(true),
+      body: JSON.stringify({ ...payload, signupEmail: email }),
+    });
+    let res = await post();
+    if (res.status === 404) {
+      const created = await fetch('/api/athletes/connect', {
+        method: 'POST',
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ name, email, groupId: selectedGroup || undefined, weekStartDay }),
+      });
+      if (created.ok) res = await post();
+    }
+    return res;
+  };
+
   const handleMfaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStep('connecting');
     setError(null);
 
     try {
-      const authRes = await fetch('/api/garmin/authenticate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: garminEmail, mfaCode, sessionId: mfaSessionId }),
-      });
+      const authRes = await garminAuthenticate({ email: garminEmail, mfaCode, sessionId: mfaSessionId });
+      guard401(authRes);
 
       const authData = await authRes.json();
       if (!authRes.ok) {
         throw new Error(authData.message || authData.error || t('verificationFailed'));
       }
 
-      const auth = authData.auth;
       const saveRes = await fetch('/api/athletes/connect', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ garminAuth: auth, name, email, groupId: selectedGroup || undefined, weekStartDay }),
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ name, email, groupId: selectedGroup || undefined, weekStartDay }),
       });
+      guard401(saveRes);
       if (!saveRes.ok) {
         const err = await saveRes.json();
         throw new Error(err.message || err.error || t('failedToSaveConnection'));
@@ -174,11 +229,8 @@ function OnboardContent() {
     setError(null);
 
     try {
-      const authRes = await fetch('/api/garmin/authenticate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: garminEmail, password: garminPassword }),
-      });
+      const authRes = await garminAuthenticate({ email: garminEmail, password: garminPassword });
+      guard401(authRes);
 
       const authData = await authRes.json();
 
@@ -193,13 +245,10 @@ function OnboardContent() {
         throw new Error(authData.message || authData.error || t('failedToConnectGarmin'));
       }
 
-      const auth = authData.auth;
-
       const saveRes = await fetch('/api/athletes/connect', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await apiHeaders(true),
         body: JSON.stringify({
-          garminAuth: auth,
           name,
           email,
           groupId: selectedGroup || undefined,
@@ -207,6 +256,7 @@ function OnboardContent() {
         }),
       });
 
+      guard401(saveRes);
       if (!saveRes.ok) {
         const err = await saveRes.json();
         throw new Error(err.message || err.error || t('failedToSaveConnection'));
@@ -360,22 +410,15 @@ function OnboardContent() {
                 <p className="text-xs text-ink-400 -mt-3 mb-1">{t('groupAssignedLater')}</p>
               </div>
             )}
-            <div>
-              <label className="block text-sm font-medium text-ink-500 mb-1.5">{t('weekStartLabel')}</label>
-              <SegmentedControl<'monday' | 'sunday'>
-                value={weekStartDay === SUNDAY_WEEK ? 'sunday' : 'monday'}
-                onChange={(v) => setWeekStartDay(v === 'sunday' ? SUNDAY_WEEK : MONDAY_WEEK)}
-                options={[
-                  { value: 'monday', label: t('weekMonSun') },
-                  { value: 'sunday', label: t('weekSunSat') },
-                ]}
-                className="bg-page/50"
-              />
-              <p className="text-xs text-ink-400 mt-1.5">{t('weekStartHint')}</p>
-            </div>
+            {/* Week start choice removed (settings rev 3, Q7): weekly km is always the watch week. */}
             {error && step === 'info' && (
               <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">
                 {error}
+                {needsSignIn && (
+                  <button type="button" onClick={signInAgain} className="mt-2 flex min-h-[44px] w-full items-center justify-center rounded-lg bg-brand-600 px-4 font-medium text-white hover:bg-brand-700" data-testid="onboard-sign-in-again">
+                    {t('signInAgain')}
+                  </button>
+                )}
               </div>
             )}
             <button
@@ -435,6 +478,11 @@ function OnboardContent() {
             {error && (
               <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">
                 {error}
+                {needsSignIn && (
+                  <button type="button" onClick={signInAgain} className="mt-2 flex min-h-[44px] w-full items-center justify-center rounded-lg bg-brand-600 px-4 font-medium text-white hover:bg-brand-700" data-testid="onboard-sign-in-again">
+                    {t('signInAgain')}
+                  </button>
+                )}
               </div>
             )}
 
@@ -465,7 +513,7 @@ function OnboardContent() {
                 try {
                   const saveRes = await fetch('/api/athletes/connect', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: await apiHeaders(true),
                     body: JSON.stringify({
                       name,
                       email,
@@ -473,7 +521,8 @@ function OnboardContent() {
                       weekStartDay,
                     }),
                   });
-                  if (!saveRes.ok) {
+                  guard401(saveRes);
+      if (!saveRes.ok) {
                     const err = await saveRes.json();
                     throw new Error(err.message || err.error || t('failedToSave'));
                   }
@@ -528,6 +577,11 @@ function OnboardContent() {
             {error && (
               <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">
                 {error}
+                {needsSignIn && (
+                  <button type="button" onClick={signInAgain} className="mt-2 flex min-h-[44px] w-full items-center justify-center rounded-lg bg-brand-600 px-4 font-medium text-white hover:bg-brand-700" data-testid="onboard-sign-in-again">
+                    {t('signInAgain')}
+                  </button>
+                )}
               </div>
             )}
 

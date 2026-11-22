@@ -27,6 +27,9 @@ const TEXT: Record<string, string> = {
   session_create_failed: 'ההתחברות לא הושלמה אצלנו. נסו שוב בעוד רגע.',
   session_failed: 'ההתחברות לא נשמרה במכשיר הזה. לחצו שוב על התחברות עם סטרבה.',
   session_exception: 'ההתחברות לא נשמרה במכשיר הזה. לחצו שוב על התחברות עם סטרבה.',
+  // A Strava name that matches the roster is not proof of who you are (callback route,
+  // "A name is not an identity"). Worded so it does not confirm that a name is a member.
+  verify_email: 'כדי לחבר סטרבה לחשבון קיים בפעם הראשונה: התחברו פעם אחת עם קוד למייל הרשום שלכם, ואז חברו את סטרבה מתוך האפליקציה. אין גישה למייל? פנו למאמן לעזרה.',
 };
 
 const FALLBACK = 'ההתחברות נכשלה. נסו שוב.';
@@ -35,7 +38,7 @@ export function loginErrorText(reason: string | null, debug: string | null): Log
   const text = (reason && TEXT[reason]) || FALLBACK;
   // A cancel is the member's own choice and a missing config is ours to know;
   // neither needs a code to be reported with.
-  const quiet = reason === 'denied' || reason === 'not_configured';
+  const quiet = reason === 'denied' || reason === 'not_configured' || reason === 'verify_email';
   const code = debug && /^[A-Za-z0-9-]{1,40}$/.test(debug) ? debug : null;
   return { text, debug: quiet ? null : code };
 }

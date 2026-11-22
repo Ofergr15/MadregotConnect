@@ -506,11 +506,32 @@ describe('GET /api/activities/details', () => {
     const res = await get(`?activityId=${ACTIVITY}`);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.gpsPoints).toEqual([{ lat: 1, lng: 2 }]);
+    // The route reaches a club-mate minus its first/last 200 m (settings rev 3,
+    // lib/privacy/route-trim.ts); a one-point route has no middle, so nothing.
+    expect(body.gpsPoints).toEqual([]);
     // The summary row rides along so a detail page holding only an id doesn't
     // need a second request — and the trace isn't repeated inside it.
     expect(body.activity).toMatchObject({ id: ACTIVITY, athlete_name: 'Someone' });
     expect(body.activity.gps_points).toBeUndefined();
+  });
+
+  // Start/finish privacy zone (settings rev 3): 2 km north, a point every ~50 m.
+  const LINE = Array.from({ length: 41 }, (_, i) => ({ lat: 32 + i * 0.00045, lng: 34.8 }));
+  it('trims the first/last 200 m for a club-mate, never for the runner or staff', async () => {
+    requireSession.mockResolvedValue(session());
+    selected = { id: ACTIVITY, athlete_id: OTHER, gps_points: LINE, splits: [], athletes: { name: 'Someone' } };
+    const mate = await (await get(`?activityId=${ACTIVITY}`)).json();
+    expect(mate.gpsPoints.length).toBeGreaterThan(1);
+    expect(mate.gpsPoints.length).toBeLessThan(LINE.length);
+    expect(mate.gpsPoints).not.toContainEqual(LINE[0]);
+    expect(mate.gpsPoints).not.toContainEqual(LINE[LINE.length - 1]);
+
+    selected = { id: ACTIVITY, athlete_id: ME, gps_points: LINE, splits: [], athletes: { name: 'Me' } };
+    expect((await (await get(`?activityId=${ACTIVITY}`)).json()).gpsPoints).toHaveLength(LINE.length);
+
+    requireSession.mockResolvedValue(session({ role: 'coach', isStaff: true }));
+    selected = { id: ACTIVITY, athlete_id: OTHER, gps_points: LINE, splits: [], athletes: { name: 'Someone' } };
+    expect((await (await get(`?activityId=${ACTIVITY}`)).json()).gpsPoints).toHaveLength(LINE.length);
   });
 
   it('401s an anonymous caller — club-visible is not public', async () => {

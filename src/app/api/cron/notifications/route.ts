@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { sendPushLocalized, resolveAudience } from '@/lib/push';
+import { sendPushLocalized, resolveAudience, sendPushDetailed, subscriptionsForAthletes } from '@/lib/push';
+import { QUIET_DEFERRED_KIND } from '@/lib/notifications/quiet-hours';
 import { pickBilingual } from '@/lib/notifications/copy';
 import { publishAnnouncement } from '@/lib/feed/announce';
 import { ACADEMY_REMINDER_KINDS } from '@/lib/academy/testReminders';
@@ -60,7 +61,8 @@ async function run(request: Request) {
       const recurring = n.schedule_type === 'recurring' && n.recur_interval && n.recur_unit;
       // A poll's reminder ends 'silent', not 'sent': it went only to whoever had not answered,
       // so it must not land in everybody's inbox (which lists 'sent' rows by audience).
-      const reminder = n.kind === REMINDER_KIND;
+      // A held-over quiet-hours alert is silent too: its inbox row was written when it first fired.
+      const reminder = n.kind === REMINDER_KIND || n.kind === QUIET_DEFERRED_KIND;
       const claim = recurring
         ? { next_run_at: nextRecurrence(n.next_run_at, n.recur_interval, n.recur_unit, Date.now()), last_sent_at: nowIso, updated_at: nowIso }
         : { status: reminder ? 'silent' : 'sent', last_sent_at: nowIso, updated_at: nowIso };
@@ -73,6 +75,15 @@ async function run(request: Request) {
         .select('id');
       if (!won || won.length === 0) continue;
 
+      // A staff alert held over the recipient's quiet hours (lib/push.ts): to that one
+      // person, as management, never as a club announcement.
+      if (n.kind === QUIET_DEFERRED_KIND) {
+        const one = n.audience_id ? await subscriptionsForAthletes([n.audience_id]) : [];
+        const { sent } = await sendPushDetailed(one, { title: n.title_he, body: n.body_he, url: n.url ?? undefined, category: 'management', kind: 'quiet_deferred', deferred: true });
+        await supabase.from('scheduled_notifications').update({ sent_count: sent }).eq('id', n.id);
+        results.push({ id: n.id, sent });
+        continue;
+      }
       // A poll's reminder (lib/survey-reminders): only to the people who still haven't
       // answered, and nothing once the poll has closed.
       if (reminder) {

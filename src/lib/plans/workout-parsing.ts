@@ -167,10 +167,22 @@ export function enrichWithGroupPaces(parsedWorkouts: any): ParsedWorkout[] {
   const g3 = parsedWorkouts?.group3?.workouts as ParsedWorkout[] | undefined;
   // Flat plan (single group) or no per-group split → nothing extra to attach;
   // groupPaces falls back to group1's own pace for all three.
+  // Paired by day AND part: a day with a morning and an evening session used to take the
+  // first session of the day for groups 2/3, so the evening's steps were annotated with the
+  // morning's paces (or none, past the morning's step count).
+  const twin = (list: ParsedWorkout[] | undefined, w: ParsedWorkout, nth: number) => {
+    const day = (list || []).filter(x => x.dayOfWeek === w.dayOfWeek);
+    if (w.partIndex != null) {
+      const byPart = day.find(x => x.partIndex === w.partIndex);
+      if (byPart) return byPart;
+    }
+    return day[nth] || w;
+  };
   return g1.map(w => {
-    const w2 = g2?.find(x => x.dayOfWeek === w.dayOfWeek) || w;
-    const w3 = g3?.find(x => x.dayOfWeek === w.dayOfWeek) || w;
-    return { ...w, steps: annotateSteps(w.steps, w2.steps, w3.steps) };
+    const nth = g1.filter(x => x.dayOfWeek === w.dayOfWeek).indexOf(w);
+    const w2 = twin(g2, w, nth);
+    const w3 = twin(g3, w, nth);
+    return { ...w, steps: annotateSteps(w.steps, w2.steps || [], w3.steps || []) };
   });
 }
 

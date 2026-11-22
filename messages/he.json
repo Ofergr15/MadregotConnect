@@ -1672,7 +1672,9 @@
     "pendingWatchSub": "מחברים אחרי האישור, בלחיצה",
     "pendingNotYou": "לא החשבון שלך?",
     "pendingSignOutLink": "יציאה",
-    "pendingSignOut": "יציאה מהחשבון"
+    "pendingSignOut": "יציאה מהחשבון",
+    "sessionExpired": "החיבור שלך פג. צריך להתחבר שוב — מה שבחרת נשמר.",
+    "signInAgain": "להתחברות מחדש"
   },
   "join": {
     "joinYourTeam": "הצטרף לקבוצה שלך",
@@ -1993,6 +1995,8 @@
     "stravaEmptyTitle": "החשבון המחובר ריק",
     "stravaEmptyBody": "בחשבון Strava שמחובר ({account}) אין אף פעילות. אם זה לא החשבון שלכם, חברו את החשבון הנכון.",
     "stravaSwitchAccount": "חיבור חשבון אחר",
+    "stravaLinked": "סטרבה חוברה לחשבון שלך.",
+    "stravaLinkFailed": "החיבור לסטרבה לא הושלם. נסו שוב, ואם זה חוזר — פנו למאמן לעזרה.",
     "stravaDisconnect": "ניתוק",
     "stravaDisconnectConfirm": "לנתק?",
     "stravaDisconnectKeepsHistory": "הפעילויות שכבר יובאו יישארו.",
@@ -2357,7 +2361,10 @@
       "deleting": "מוחק…",
       "deleteConfirm": "למחוק את “{name}”? גם ההרשמות לאירוע יימחקו, ואי אפשר לבטל את זה.",
       "mapLinkCurrent": "סימון קיים במפה: {lat}, {lng}. השאירו ריק כדי לשמור אותו, או הדביקו קישור חדש כדי להזיז אותו."
-    }
+    },
+    "statusDraft": "טיוטה",
+    "statusScheduled": "מתוזמן",
+    "pendingUpdate": "יש עדכון ממתין"
   },
   "eventDetail": {
     "edit": "עריכת אירוע",
@@ -2385,7 +2392,10 @@
     "registerCta": "הרשמה לאירוע",
     "cancelRegistration": "ביטול הרשמה",
     "actionError": "משהו השתבש, נסו שוב",
-    "faqTitle": "שאלות נפוצות"
+    "faqTitle": "שאלות נפוצות",
+    "statusDraft": "טיוטה",
+    "statusScheduled": "מתוזמן",
+    "pendingUpdate": "יש עדכון ממתין"
   },
   "practice": {
     "title": "תרגול",
@@ -2594,7 +2604,8 @@
       "teammates": "אימוני חברי הקבוצה",
       "news": "עדכונים והודעות כלליות",
       "events": "תזכורות לאירועים ותחרויות",
-      "management": "ניהול המערכת"
+      "management": "ניהול המערכת",
+      "plan_ready": "כשהתוכנית לשבוע עולה"
     },
     "managementHint": "בקשות הרשמה, דיווחי תקלה והתראות מערכת",
     "morningHeader": "תזכורת בוקר"
@@ -3158,6 +3169,7 @@
     "feedLabel": "דיוק ביצוע",
     "dir_on_target": "בוצע לפי התוכנית",
     "dir_incomplete": "לא הושלמו כל החזרות",
+    "dir_incomplete_parts": "לא הושלמו כל חלקי האימון",
     "dir_too_fast": "רצת מהר מהמתוכנן",
     "dir_too_slow": "רצת לאט מהמתוכנן",
     "dir_mixed": "קצב לא אחיד",
@@ -3174,6 +3186,7 @@
     "dirShort_unknown": "אין נתונים",
     "detail_on_target": "הביצוע היה בתוך הטווח שהתוכנית ביקשה.",
     "detail_incomplete": "{found} מתוך {needed} החזרות שהתוכנית ביקשה מופיעות בריצה בקצב היעד.",
+    "detail_incomplete_parts": "{found} מתוך {needed} חלקי האימון שהתוכנית ביקשה מופיעים בריצה בקצב היעד.",
     "detail_too_fast": "מהר ב־{sec} שניות לק״מ מהטווח שהתוכנית ביקשה, בממוצע.",
     "detail_too_slow": "לאט ב־{sec} שניות לק״מ מהטווח שהתוכנית ביקשה, בממוצע.",
     "detail_too_fast_reps": "{count} מתוך {graded} החזרות היו מהר מהטווח שהתוכנית ביקשה.",

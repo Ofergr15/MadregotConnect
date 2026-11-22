@@ -54,10 +54,15 @@ vi.mock('@/lib/supabase/server', () => ({
       }
       return {
         select: () => ({ eq: () => ({ single: async () => ({ data: athlete, error: athlete ? null : { code: 'X' } }) }) }),
+        // The approve write is conditional (eq id, then or approved null/false,
+        // then select): awaiting the eq alone still works for other callers.
         update: (values: Record<string, unknown>) => ({
-          eq: async () => {
-            updated = values;
-            return { error: null };
+          eq: () => {
+            const done = () => { updated = values; return { error: null, data: [{ id: 'x' }] }; };
+            return {
+              then: (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => Promise.resolve(done()).then(res, rej),
+              or: () => ({ select: async () => done() }),
+            };
           },
         }),
       };

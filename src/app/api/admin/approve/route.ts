@@ -114,12 +114,20 @@ export async function POST(req: NextRequest) {
     const token = athlete.invite_token || randomBytes(16).toString('hex');
     if (isAcademyPending) updates.invite_token = token;
 
-    const { error: updateError } = await supabase
+    // Conditional on `approved = false`, so of two approvers tapping at once only
+    // the request whose write flips the row goes on to mail and push; the other
+    // finds the row already approved and answers like a replay (B30).
+    const { data: flipped, error: updateError } = await supabase
       .from('athletes')
       .update(updates)
-      .eq('id', athleteId);
+      .eq('id', athleteId)
+      .or('approved.is.null,approved.eq.false')
+      .select('id');
 
     if (updateError) throw updateError;
+    if (!flipped || flipped.length === 0) {
+      return NextResponse.json({ message: 'Already approved', approved: true, released, maintenance: maintenanceOn, sync: null });
+    }
 
     // Close every request that is this person — by athlete_id, or the form they
     // filled in by address — and, for someone who has not signed in yet, mail the

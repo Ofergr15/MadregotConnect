@@ -20,7 +20,7 @@ export const SUBJECT_COLUMNS: Array<[table: string, column: string]> = [
   ['feed_likes', 'athlete_id'], ['feed_comments', 'athlete_id'], ['feed_items', 'author_athlete_id'],
   ['club_update_reactions', 'athlete_id'], ['club_updates', 'author_athlete_id'],
   ['survey_responses', 'athlete_id'], ['run_chats', 'athlete_id'], ['run_meetup_messages', 'athlete_id'],
-  ['run_meetup_requests', 'athlete_id'], ['event_registrations', 'athlete_id'], ['workout_attendance', 'athlete_id'],
+  ['run_meetup_requests', 'athlete_id'], ['run_meetup_invites', 'athlete_id'], ['event_registrations', 'athlete_id'], ['workout_attendance', 'athlete_id'],
   ['workout_feedback', 'athlete_id'], ['feedback', 'athlete_id'], ['store_orders', 'athlete_id'],
   // Their running
   ['activity_plan_matches', 'athlete_id'], ['race_matches', 'athlete_id'], ['race_results', 'athlete_id'],

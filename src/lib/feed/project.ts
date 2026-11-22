@@ -1,3 +1,5 @@
+import { maskClubRecordPayload } from '@/lib/records/club-record-card';
+import { seesFullRoute, trimRouteEnds } from '@/lib/privacy/route-trim';
 import { birthdayBodyAsOf } from '@/lib/feed/birthday';
 import { israelToday } from '@/lib/utils';
 /**
@@ -365,14 +367,41 @@ function projectActivity(row: RawActivityRow, planVerdict: FeedPlanVerdict | nul
  * server can't be read out of the network response either.
  */
 const HIDDEN_FIELD_KEYS = ['calories', 'heart_rate', 'pace', 'power'] as const;
-type HiddenFieldKey = (typeof HIDDEN_FIELD_KEYS)[number];
+export type HiddenFieldKey = (typeof HIDDEN_FIELD_KEYS)[number];
 
-function readHiddenFields(payload: Record<string, unknown> | null): Set<HiddenFieldKey> {
+export function readHiddenFields(payload: Record<string, unknown> | null): Set<HiddenFieldKey> {
   const raw = payload?.hiddenFields;
   if (!Array.isArray(raw)) return new Set();
   return new Set(
     raw.filter((v): v is HiddenFieldKey => (HIDDEN_FIELD_KEYS as readonly unknown[]).includes(v)),
   );
+}
+
+/**
+ * The same choice applied to the activity DETAIL response (snake_case row + per-km
+ * splits), for viewers who are not the athlete. Kept beside maskHiddenStats so the
+ * two cannot drift: per-km splits are pace at a finer grain (dropped with `pace`), and
+ * carry HR (blanked with `heart_rate`).
+ */
+export function maskDetailForViewer<R extends Record<string, unknown>, S extends { averageHR: number | null }>(
+  row: R,
+  splits: S[],
+  hidden: Set<HiddenFieldKey>,
+): { row: R; splits: S[] } {
+  if (hidden.size === 0) return { row, splits };
+  return {
+    row: {
+      ...row,
+      ...(hidden.has('calories') ? { calories: null } : {}),
+      ...(hidden.has('heart_rate') ? { average_hr: null, max_hr: null } : {}),
+      ...(hidden.has('pace') ? { average_pace: null } : {}),
+    },
+    splits: hidden.has('pace')
+      ? []
+      : hidden.has('heart_rate')
+        ? splits.map((s) => ({ ...s, averageHR: null }))
+        : splits,
+  };
 }
 
 /**
@@ -462,7 +491,7 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
   const row = value as RawFeedRow;
   const isOwn = !!row.author_athlete_id && row.author_athlete_id === ctx.viewerAthleteId;
   const payload = (row.payload as Record<string, unknown> | null) ?? null;
-  const activity = row.athlete_activities
+  const projected = row.athlete_activities
     ? maskHiddenStats(
       projectActivity(
         row.athlete_activities,
@@ -472,6 +501,17 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
       readHiddenFields(payload),
     )
     : null;
+  // Start/finish privacy zone (lib/privacy/route-trim.ts): other members get the
+  // route minus its first and last 200 m; the runner and staff get all of it.
+  const activity = projected && !seesFullRoute(
+    { athleteId: ctx.viewerAthleteId, isStaff: ctx.viewerIsStaff },
+    row.athlete_activities?.athlete_id,
+  )
+    ? (() => {
+      const trimmed = trimRouteEnds(projected.routePreview);
+      return { ...projected, routePreview: trimmed, hasRoute: !!trimmed };
+    })()
+    : projected;
 
   return {
     id: row.id,
@@ -485,7 +525,8 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
     // A birthday post kept up for days says "אתמול" the day after (lib/feed/birthday.ts).
     body: birthdayBodyAsOf(row.body, (payload as Record<string, unknown> | null)?.date, israelToday()),
     media: toMedia(row.media),
-    payload,
+    // A club-record card whose pace is hidden carries no times (lib/records/club-record-card.ts).
+    payload: maskClubRecordPayload(payload),
     occurredAt: row.occurred_at,
     likeCount: row.like_count ?? 0,
     commentCount: row.comment_count ?? 0,

@@ -5,6 +5,8 @@ import { EVENT_KINDS, isEventKind } from '@/lib/events';
 import { resolveAudience, sendPushLocalized } from '@/lib/push';
 import { newEventCopy } from '@/lib/notifications/copy';
 import { israelToday } from '@/lib/utils';
+import { isMissingSchema, normaliseBlocks, projectEvents } from '@/lib/events/lifecycle';
+import { callerIsStaff, optionalCaller, replaceBlocks } from '@/lib/events/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +47,10 @@ export async function GET(request: Request) {
     const { data, error } = await query.order('date', { ascending: true });
     if (error) throw error;
 
-    return NextResponse.json({ events: data || [] });
+    // Events v2: drafts and not-yet-live scheduled events only for verified staff;
+    // `pending` never leaves for anyone else. Rows without `status` (pre-184) pass.
+    const caller = await optionalCaller(request);
+    return NextResponse.json({ events: projectEvents(data || [], callerIsStaff(caller), new Date()) });
   } catch (error) {
     console.error('Failed to fetch events:', error);
     return NextResponse.json({ error: 'Failed to fetch events' }, { status: 500 });
@@ -86,7 +91,20 @@ export async function POST(request: Request) {
       faqs,
       capacity,
       registration_deadline,
+      cover_image_url,
+      logo_url,
+      notify,
     } = body || {};
+    // `notify: false` creates the event silently: no push to anyone (manager drafts,
+    // synthetic test events). Absent = the original behaviour, so old clients are unchanged.
+    // Ported from ec9d28b2 (the native ManagerModel sends it).
+    if (notify !== undefined && typeof notify !== 'boolean') {
+      return NextResponse.json({ error: 'notify must be a boolean' }, { status: 400 });
+    }
+    // v2: a new event may start as a draft (native editor). The PWA form sends no
+    // status, so it keeps creating published events that push immediately.
+    const status = body?.status === 'draft' ? 'draft' : 'published';
+    const blocks = normaliseBlocks(body?.blocks);
 
     if (!kind || !name || !date || !location) {
       return NextResponse.json(
@@ -102,9 +120,12 @@ export async function POST(request: Request) {
     }
 
     const supabase = createServerClient();
-    const { data, error } = await supabase
-      .from('events')
-      .insert({
+    const v2 = {
+      ...(cover_image_url ? { cover_image_url } : {}),
+      ...(logo_url ? { logo_url } : {}),
+      ...(status === 'draft' ? { status } : {}),
+    };
+    const base = {
         kind,
         name,
         date,
@@ -124,11 +145,21 @@ export async function POST(request: Request) {
         capacity: capacity ?? null,
         registration_deadline: registration_deadline || null,
         created_by: auth.user.athleteId,
-      })
-      .select()
-      .single();
-
+    };
+    let { data, error } = await supabase.from('events').insert({ ...base, ...v2 }).select().single();
+    if (error && Object.keys(v2).length > 0 && isMissingSchema(error)) {
+      // Migration 184 not applied: a draft can't be represented, so refuse rather
+      // than silently publishing what the coach meant to keep private.
+      if (status === 'draft') {
+        return NextResponse.json({ error: 'Drafts need migration 184' }, { status: 409 });
+      }
+      ({ data, error } = await supabase.from('events').insert(base).select().single());
+    }
     if (error) throw error;
+    if (blocks && blocks.length > 0) {
+      try { await replaceBlocks(supabase, data.id, blocks); } catch (e) { console.error('event blocks insert failed', e); }
+    }
+    if (status === 'draft') return NextResponse.json({ event: data, notified: false });
 
     // Previously athletes only learned of a new event by opening the
     // calendar themselves — nothing ever surfaced it, unlike a new perk
@@ -136,7 +167,7 @@ export async function POST(request: Request) {
     // the event exists (this schema has no separate "opens later" concept —
     // see registration_deadline for the only other date involved), so one
     // push covers both "there's a new event" and "you can register now."
-    try {
+    if (notify !== false) try {
       const subs = await resolveAudience('all', null);
       if (subs.length > 0) {
         await sendPushLocalized(subs, (locale) => ({
@@ -150,7 +181,7 @@ export async function POST(request: Request) {
       // best-effort — never let a push failure affect event creation
     }
 
-    return NextResponse.json({ event: data });
+    return NextResponse.json({ event: data, notified: notify !== false });
   } catch (error) {
     console.error('Failed to create event:', error);
     return NextResponse.json({ error: 'Failed to create event' }, { status: 500 });

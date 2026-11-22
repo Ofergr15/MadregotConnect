@@ -41,11 +41,13 @@ export default function AcademyJoinPage() {
   const [mfaSessionId, setMfaSessionId] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const saveConnection = async (auth: string) => {
+  // The Garmin credential is already on the row — the authenticate route stored it
+  // server-side; this only saves the rest of the join form.
+  const saveConnection = async () => {
     const res = await fetch('/api/athletes/connect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ inviteToken: token, garminAuth: auth }),
+      body: JSON.stringify({ inviteToken: token }),
     });
     if (!res.ok) {
       const err = await res.json();
@@ -69,12 +71,12 @@ export default function AcademyJoinPage() {
       const res = await fetch('/api/garmin/authenticate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: garminEmail, password: garminPassword }),
+        body: JSON.stringify({ inviteToken: token, email: garminEmail, password: garminPassword }),
       });
       const data = await res.json();
       if (data.mfaRequired) { setMfaSessionId(data.sessionId); setStep('mfa'); return; }
       if (!res.ok) throw new Error(data.message || data.error || to('failedToConnectGarmin'));
-      await saveConnection(data.auth);
+      await saveConnection();
     } catch (err: any) {
       setError(err.message);
       setStep('garmin');
@@ -89,11 +91,11 @@ export default function AcademyJoinPage() {
       const res = await fetch('/api/garmin/authenticate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: garminEmail, mfaCode, sessionId: mfaSessionId }),
+        body: JSON.stringify({ inviteToken: token, email: garminEmail, mfaCode, sessionId: mfaSessionId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || data.error || to('verificationFailed'));
-      await saveConnection(data.auth);
+      await saveConnection();
     } catch (err: any) {
       setError(err.message);
       setStep('mfa');

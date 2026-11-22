@@ -1,3 +1,4 @@
+import { routeForViewer } from '@/lib/privacy/route-trim';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, requireSession, authError } from '@/lib/auth-session';
@@ -78,7 +79,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       const pts = Array.isArray(gps?.gps_points) ? (gps.gps_points as Array<{ lat?: unknown; lng?: unknown }>) : [];
       const full = pts.filter((p): p is { lat: number; lng: number } => typeof p?.lat === 'number' && typeof p?.lng === 'number')
         .map(p => ({ lat: p.lat, lng: p.lng }));
-      if (full.length > item.activity.routePreview.length) item.activity.routeFull = full;
+      // The trimmed preview already went through the projection; the full track
+      // gets the same start/finish rule for a viewer who isn't the runner or staff.
+      const shown = routeForViewer(full, { athleteId: auth.user.athleteId, isStaff: auth.user.isStaff, isSuperUser: auth.user.isSuperUser }, item.activity.athleteId);
+      if (shown && shown.length > item.activity.routePreview.length) item.activity.routeFull = shown;
     }
 
     return NextResponse.json({ item });

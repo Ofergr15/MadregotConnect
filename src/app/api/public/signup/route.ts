@@ -9,6 +9,7 @@ import { signupRequestCopy } from '@/lib/notifications/copy';
 import { groupDisplayName } from '@/lib/utils';
 import { isLikelyEmail, normaliseEmail, signupAlertName } from '@/lib/signup';
 import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
+import { hashStatusSecret, newStatusSecret } from '@/lib/onboarding/signup-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,8 @@ export const dynamic = 'force-dynamic';
  * creates the athlete (see /api/admin/registrations/approve).
  *
  * DELIBERATELY NOT SESSION-GATED — it runs before the person has any account at
- * all. What keeps it safe is that it can only ever insert into this one table.
+ * all. What keeps it safe is that it can only ever insert into this one table, and
+ * never rewrites a row already there: it proves nothing about the address it is given.
  */
 
 /**
@@ -56,7 +58,7 @@ async function recordMemberSubmission(
       .maybeSingle();
 
     if (existing) {
-      if (groupId) await supabase.from('signup_requests').update({ group_id: groupId }).eq('id', existing.id);
+      // Same rule as the pending branch: a public resubmission never rewrites a row.
       return;
     }
 
@@ -150,14 +152,10 @@ export async function POST(request: Request) {
       .eq('status', 'pending')
       .maybeSingle();
     if (pending) {
-      if (resolvedGroupId) {
-        await supabase.from('signup_requests').update({ group_id: resolvedGroupId }).eq('id', pending.id);
-      }
-      if (Object.keys(contact).length) {
-        // Best effort: before migration 131 the columns do not exist.
-        await supabase.from('signup_requests').update(contact).eq('id', pending.id);
-      }
-      if (intake) await supabase.from('signup_requests').update({ intake }).eq('id', pending.id);
+      // Nothing is written. This route is public and proves nothing about the address,
+      // so an update here let anybody rewrite another person's pending request (group,
+      // name, phone, intake) by typing their email. Corrections go through the coach
+      // (/dashboard/registrations) or, later, a flow that proves the address first.
       return NextResponse.json({ ok: true, state: 'pending' });
     }
 
@@ -209,10 +207,29 @@ export async function POST(request: Request) {
     // won is the one we wanted, so this is a success, not a collision to report.
     if (insertError && insertError.code !== '23505') throw insertError;
     // The funnel's first server-side step (lib/onboarding/events). Never allowed to fail the request.
+    let created: { id?: string; created_at?: string } | null = null;
     try {
-      const { data: created } = await supabase.from('signup_requests').select('id').eq('email', email).eq('status', 'pending').order('created_at', { ascending: false }).limit(1).maybeSingle();
-      await recordOnbEvent({ step: 'register_submitted', signupRequestId: (created as { id?: string } | null)?.id ?? null, device: deviceFromUa(request.headers.get('user-agent')) });
+      ({ data: created } = await supabase.from('signup_requests').select('id, created_at').eq('email', email).eq('status', 'pending').order('created_at', { ascending: false }).limit(1).maybeSingle());
+      await recordOnbEvent({ step: 'register_submitted', signupRequestId: created?.id ?? null, device: deviceFromUa(request.headers.get('user-agent')) });
     } catch { /* recording is best-effort */ }
+
+    // Gap 2 (migration 189): the applicant's key to their OWN request's status, handed
+    // out exactly once — only to the submission that CREATED the row. A resubmission
+    // ('pending' above) gets none, so typing somebody's address never yields theirs.
+    // Missing column → no secret; the app then says "we'll email you" and doesn't poll.
+    let statusKey: { id: string; secret: string; createdAt: string | null } | null = null;
+    if (!insertError && created?.id) {
+      try {
+        const secret = newStatusSecret();
+        const { data: stamped, error: stampError } = await supabase
+          .from('signup_requests')
+          .update({ status_secret_hash: hashStatusSecret(secret) })
+          .eq('id', created.id)
+          .is('status_secret_hash', null)
+          .select('id');
+        if (!stampError && stamped && stamped.length > 0) statusKey = { id: created.id, secret, createdAt: created.created_at ?? null };
+      } catch { /* pre-189: no status polling, the approval mail still goes */ }
+    }
 
     if (!insertError) {
       // This form asks for an address and a group and nothing else, so the local
@@ -259,7 +276,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, state: 'new' });
+    return NextResponse.json({ ok: true, state: 'new', ...(statusKey ? { request: statusKey } : {}) });
   } catch (err) {
     console.error('Failed to record signup request:', err);
     return NextResponse.json({ error: 'failed' }, { status: 500 });

@@ -12,6 +12,8 @@ import { parseFeedbackInput } from '@/lib/feedback-scales';
 
 export const dynamic = 'force-dynamic';
 
+const VS_PLAN: unknown[] = ['easier', 'as_planned', 'harder', 'unfinished'];
+
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
 interface ThreadMessage {
@@ -401,22 +403,35 @@ export async function POST(request: Request) {
       before = (prev as Before | null) ?? null;
     }
 
-    const { error } = await supabase
-      .from('workout_feedback')
-      .upsert(
-        {
-          athlete_id: athleteId,
-          garmin_activity_id: garminActivityId,
-          difficulty,
-          feel,
-          pain,
-          pain_detail: painDetail || null,
-          wants_feedback: wantsFeedback ?? null,
-          comment: comment || null,
-        },
-        { onConflict: 'athlete_id,garmin_activity_id' },
-      );
+    const baseRow = {
+      athlete_id: athleteId,
+      garmin_activity_id: garminActivityId,
+      difficulty,
+      feel,
+      pain,
+      pain_detail: painDetail || null,
+      wants_feedback: wantsFeedback ?? null,
+      comment: comment || null,
+    };
+    // Migration 191: vs-plan, edit stamp, and re-submitting clears a soft withdraw.
+    // A database without 191 gets the row without them (42703 → retry), so the PWA
+    // keeps working before the paste.
+    const vsPlan = VS_PLAN.includes(body?.vsPlan) ? (body.vsPlan as string) : null;
+    const with191 = {
+      ...baseRow,
+      ...(vsPlan ? { vs_plan: vsPlan } : {}),
+      ...(before ? { edited_at: new Date().toISOString(), withdrawn_at: null } : {}),
+    };
+    let { error } = await supabase.from('workout_feedback').upsert(with191, { onConflict: 'athlete_id,garmin_activity_id' });
+    if (error && (error as { code?: string }).code === '42703') {
+      ({ error } = await supabase.from('workout_feedback').upsert(baseRow, { onConflict: 'athlete_id,garmin_activity_id' }));
+    }
     if (error) throw error;
+    // The prompt this answers (feedback_prompts, 191) — cards in פיד and השבוע clear together.
+    try {
+      await supabase.from('feedback_prompts').update({ answered_at: new Date().toISOString() })
+        .eq('athlete_id', athleteId).eq('activity_id', String(garminActivityId)).is('answered_at', null);
+    } catch { /* table missing pre-191 */ }
 
     // Team alert (PRD §1): high difficulty (>=9), reported pain, or an explicit
     // request for feedback → push the coaches so they can reach out.
