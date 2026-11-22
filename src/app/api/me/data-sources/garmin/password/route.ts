@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireAthlete } from '@/lib/auth-session';
 import { garminLogin, garminVerifyMfa } from '@/lib/garmin/auth-mfa';
 import { loadDataSourcesStatus, storeGarminTokens } from '@/lib/data-sources/server';
+import { afterGarminConnect } from '@/lib/data-sources/after-connect';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,8 +11,8 @@ export const dynamic = 'force-dynamic';
  * POST /api/me/data-sources/garmin/password — the fallback when Garmin's own page
  * won't open. Self-only (JWT).
  *
- *   { email, password }            → { ok, status } | { mfaRequired, sessionId }
- *   { email, sessionId, mfaCode }  → { ok, status }
+ *   { email, password }            → { ok, status, watchResent } | { mfaRequired, sessionId }
+ *   { email, sessionId, mfaCode }  → { ok, status, watchResent }
  *
  * The password is sent to Garmin once and dropped; only the resulting tokens are
  * stored, encrypted, by this route — the blob is never returned. Nothing from the
@@ -43,7 +44,8 @@ export async function POST(request: Request) {
     }
     const db = createServerClient();
     await storeGarminTokens(db, auth.user.athleteId, tokens, email, 'password');
-    return NextResponse.json({ ok: true, status: await loadDataSourcesStatus(db, auth.user.athleteId) });
+    const { watchResent } = await afterGarminConnect(auth.user.athleteId);
+    return NextResponse.json({ ok: true, status: await loadDataSourcesStatus(db, auth.user.athleteId), watchResent });
   } catch (error: any) {
     // Status code only: axios errors carry the request config, which holds the body.
     console.error('garmin native password: failed', error?.response?.status ?? error?.code);
