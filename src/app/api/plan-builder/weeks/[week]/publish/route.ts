@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { defaultOpts, publishVersion, versionsFor } from '@/lib/plan-builder/server';
+import { defaultOpts, draftFor, publishVersion } from '@/lib/plan-builder/server';
 import { defaultPublishAt } from '@/lib/plan-builder/schedule';
 import { DEFAULT_PUBLISH_MODE } from '@/lib/plan-builder/constants';
-import { badWeek, fail, staff } from '@/lib/plan-builder/route-helpers';
+import { badWeek, fail, gate } from '@/lib/plan-builder/route-helpers';
 
 export const maxDuration = 300; // a "now" publish pushes the whole club to Garmin
 export const dynamic = 'force-dynamic';
@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
  * Flags never block (FLAGS_BLOCK_PUBLISH = false).
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ week: string }> }) {
-  const { denied, me } = await staff(req);
+  const { denied, me, who } = await gate(req);
   if (denied) return denied;
   const { week } = await params;
   const bad = badWeek(week);
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ wee
   try {
     const b = await req.json().catch(() => ({}));
     const db = createServerClient();
-    const draft = (await versionsFor(db, week)).find((v) => v.state === 'draft' || v.state === 'scheduled');
+    const draft = await draftFor(db, week, who);
     if (!draft) return NextResponse.json({ error: 'no draft to publish' }, { status: 409 });
     const opts = defaultOpts(b);
     const mode = b.mode ?? DEFAULT_PUBLISH_MODE;
