@@ -93,7 +93,14 @@ export async function POST(request: Request) {
       registration_deadline,
       cover_image_url,
       logo_url,
+      notify,
     } = body || {};
+    // `notify: false` creates the event silently: no push to anyone (manager drafts,
+    // synthetic test events). Absent = the original behaviour, so old clients are unchanged.
+    // Ported from ec9d28b2 (the native ManagerModel sends it).
+    if (notify !== undefined && typeof notify !== 'boolean') {
+      return NextResponse.json({ error: 'notify must be a boolean' }, { status: 400 });
+    }
     // v2: a new event may start as a draft (native editor). The PWA form sends no
     // status, so it keeps creating published events that push immediately.
     const status = body?.status === 'draft' ? 'draft' : 'published';
@@ -152,7 +159,7 @@ export async function POST(request: Request) {
     if (blocks && blocks.length > 0) {
       try { await replaceBlocks(supabase, data.id, blocks); } catch (e) { console.error('event blocks insert failed', e); }
     }
-    if (status === 'draft') return NextResponse.json({ event: data });
+    if (status === 'draft') return NextResponse.json({ event: data, notified: false });
 
     // Previously athletes only learned of a new event by opening the
     // calendar themselves — nothing ever surfaced it, unlike a new perk
@@ -160,7 +167,7 @@ export async function POST(request: Request) {
     // the event exists (this schema has no separate "opens later" concept —
     // see registration_deadline for the only other date involved), so one
     // push covers both "there's a new event" and "you can register now."
-    try {
+    if (notify !== false) try {
       const subs = await resolveAudience('all', null);
       if (subs.length > 0) {
         await sendPushLocalized(subs, (locale) => ({
@@ -174,7 +181,7 @@ export async function POST(request: Request) {
       // best-effort — never let a push failure affect event creation
     }
 
-    return NextResponse.json({ event: data });
+    return NextResponse.json({ event: data, notified: notify !== false });
   } catch (error) {
     console.error('Failed to create event:', error);
     return NextResponse.json({ error: 'Failed to create event' }, { status: 500 });
