@@ -1672,7 +1672,9 @@
     "pendingWatchSub": "Connect it after approval, in one tap",
     "pendingNotYou": "Not your account?",
     "pendingSignOutLink": "Sign out",
-    "pendingSignOut": "Sign out"
+    "pendingSignOut": "Sign out",
+    "sessionExpired": "Your session expired. Please sign in again — your choices are saved.",
+    "signInAgain": "Sign in again"
   },
   "join": {
     "joinYourTeam": "Join Your Team",

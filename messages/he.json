@@ -1672,7 +1672,9 @@
     "pendingWatchSub": "מחברים אחרי האישור, בלחיצה",
     "pendingNotYou": "לא החשבון שלך?",
     "pendingSignOutLink": "יציאה",
-    "pendingSignOut": "יציאה מהחשבון"
+    "pendingSignOut": "יציאה מהחשבון",
+    "sessionExpired": "החיבור שלך פג. צריך להתחבר שוב — מה שבחרת נשמר.",
+    "signInAgain": "להתחברות מחדש"
   },
   "join": {
     "joinYourTeam": "הצטרף לקבוצה שלך",

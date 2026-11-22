@@ -71,6 +71,38 @@ function OnboardContent() {
   const [skippedGarmin, setSkippedGarmin] = useState(false);
   const [step, setStep] = useState<'info' | 'garmin' | 'mfa' | 'connecting' | 'done'>('info');
   const [error, setError] = useState<string | null>(null);
+  // The save calls need this tab's Supabase session (connect / Garmin, 2026-11-22). If it has
+  // expired the server answers 401: say so plainly, keep what was chosen, and offer the way
+  // back — sign-in lands here again through /auth/resolve for a row that isn't active yet.
+  const [needsSignIn, setNeedsSignIn] = useState(false);
+  const DRAFT_KEY = 'onboard_draft';
+  const saveDraft = () => {
+    try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ email, selectedGroup, garminEmail })); } catch { /* private mode: they retype */ }
+  };
+  const guard401 = (res: Response) => {
+    if (res.status !== 401) return;
+    saveDraft();
+    setNeedsSignIn(true);
+    throw new Error(t('sessionExpired'));
+  };
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d && d.email && d.email === email) {
+        if (d.selectedGroup) setSelectedGroup(d.selectedGroup);
+        if (d.garminEmail) setGarminEmail(d.garminEmail);
+      }
+      sessionStorage.removeItem(DRAFT_KEY);
+    } catch { /* nothing to restore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const signInAgain = async () => {
+    saveDraft();
+    await signOutEverywhere();
+    window.location.href = '/';
+  };
 
   useEffect(() => {
     if (!skipGroup) {
@@ -110,6 +142,7 @@ function OnboardContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, groupId: selectedGroup, weekStartDay }),
       });
+      guard401(saveRes);
       if (!saveRes.ok) {
         const err = await saveRes.json();
         throw new Error(err.message || err.error || t('failedToSave'));
@@ -159,6 +192,7 @@ function OnboardContent() {
 
     try {
       const authRes = await garminAuthenticate({ email: garminEmail, mfaCode, sessionId: mfaSessionId });
+      guard401(authRes);
 
       const authData = await authRes.json();
       if (!authRes.ok) {
@@ -170,6 +204,7 @@ function OnboardContent() {
         headers: await apiHeaders(true),
         body: JSON.stringify({ name, email, groupId: selectedGroup || undefined, weekStartDay }),
       });
+      guard401(saveRes);
       if (!saveRes.ok) {
         const err = await saveRes.json();
         throw new Error(err.message || err.error || t('failedToSaveConnection'));
@@ -195,6 +230,7 @@ function OnboardContent() {
 
     try {
       const authRes = await garminAuthenticate({ email: garminEmail, password: garminPassword });
+      guard401(authRes);
 
       const authData = await authRes.json();
 
@@ -220,6 +256,7 @@ function OnboardContent() {
         }),
       });
 
+      guard401(saveRes);
       if (!saveRes.ok) {
         const err = await saveRes.json();
         throw new Error(err.message || err.error || t('failedToSaveConnection'));
@@ -377,6 +414,11 @@ function OnboardContent() {
             {error && step === 'info' && (
               <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">
                 {error}
+                {needsSignIn && (
+                  <button type="button" onClick={signInAgain} className="mt-2 flex min-h-[44px] w-full items-center justify-center rounded-lg bg-brand-600 px-4 font-medium text-white hover:bg-brand-700" data-testid="onboard-sign-in-again">
+                    {t('signInAgain')}
+                  </button>
+                )}
               </div>
             )}
             <button
@@ -436,6 +478,11 @@ function OnboardContent() {
             {error && (
               <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">
                 {error}
+                {needsSignIn && (
+                  <button type="button" onClick={signInAgain} className="mt-2 flex min-h-[44px] w-full items-center justify-center rounded-lg bg-brand-600 px-4 font-medium text-white hover:bg-brand-700" data-testid="onboard-sign-in-again">
+                    {t('signInAgain')}
+                  </button>
+                )}
               </div>
             )}
 
@@ -474,7 +521,8 @@ function OnboardContent() {
                       weekStartDay,
                     }),
                   });
-                  if (!saveRes.ok) {
+                  guard401(saveRes);
+      if (!saveRes.ok) {
                     const err = await saveRes.json();
                     throw new Error(err.message || err.error || t('failedToSave'));
                   }
@@ -529,6 +577,11 @@ function OnboardContent() {
             {error && (
               <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">
                 {error}
+                {needsSignIn && (
+                  <button type="button" onClick={signInAgain} className="mt-2 flex min-h-[44px] w-full items-center justify-center rounded-lg bg-brand-600 px-4 font-medium text-white hover:bg-brand-700" data-testid="onboard-sign-in-again">
+                    {t('signInAgain')}
+                  </button>
+                )}
               </div>
             )}
 
