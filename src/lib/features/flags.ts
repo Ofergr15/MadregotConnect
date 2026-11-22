@@ -30,6 +30,17 @@ export const FEATURES = {
   race_live: { label: 'מעקב חי במרוץ', defaultEnabled: false },
   /** Native app: staff get the coach shell (CoachTabView) instead of the runner tabs. iOS build 15+. */
   native_coach: { label: 'מסכי מאמן באפליקציה', defaultEnabled: false },
+  // ── Native build 16: build-15 surfaces no Release user could reach (review-2026-11-20 gap audit).
+  /** אירועים: the entry row on השבוע → events list / RSVP. */
+  events: { label: 'אירועים', defaultEnabled: false },
+  /** ריצות משותפות: the השבוע chip and the feed strip. */
+  run_together: { label: 'ריצות משותפות', defaultEnabled: false },
+  /** "קובץ התוכנית" opens the list of every week's files (off: this week's files only). */
+  program_files: { label: 'רשימת קבצי התוכנית', defaultEnabled: false },
+  /** Academy registration submitted from the app against the live club server. */
+  academy_register: { label: 'הרשמה לאקדמיה מהאפליקציה', defaultEnabled: false },
+  /** תגים card on Profile (read-only GET /api/athletes/badges). */
+  profile_badges: { label: 'כרטיס תגים בפרופיל', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
@@ -37,6 +48,19 @@ export const FEATURE_KEYS = Object.keys(FEATURES) as FeatureKey[];
 
 export function isFeatureKey(v: unknown): v is FeatureKey {
   return typeof v === 'string' && (FEATURE_KEYS as string[]).includes(v);
+}
+
+/**
+ * Keys a SIGNED-OUT device may read, club scope only (GET /api/features/public): the academy form lives
+ * on the signed-out gateway, where there is no caller to resolve. Only a club-wide switch is ever
+ * disclosed — never a per-athlete/squad/role row.
+ */
+export const PUBLIC_FEATURE_KEYS: readonly FeatureKey[] = ['academy_register'];
+
+/** The club-wide answer alone: only a `club` row counts; no row = the default (off). */
+export function resolveClubScope(feature: FeatureKey, rows: EnablementRow[]): boolean {
+  const club = rows.find((r) => r.feature === feature && r.scope_type === 'club' && r.scope_id === CLUB_SCOPE_ID);
+  return club ? !!club.enabled : FEATURES[feature].defaultEnabled;
 }
 
 export const SCOPE_TYPES = ['athlete', 'squad', 'academy', 'role', 'club'] as const;
