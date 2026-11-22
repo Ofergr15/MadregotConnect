@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import webpush from 'web-push';
 import { msUntilQuietEnds, quietDecision, readQuietHours, QUIET_DEFERRED_KIND } from '@/lib/notifications/quiet-hours';
+import { DEFERRED_SOURCE_PREFIX } from '@/lib/notifications/quiet-deferred';
 export { QUIET_DEFERRED_KIND };
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID, isStaffRole } from '@/lib/constants';
@@ -115,6 +116,9 @@ export interface PushPayload {
   kind?: string;
   /** Set by the quiet-hours re-send so it isn't deferred a second time. */
   deferred?: boolean;
+  /** Who the push is about (a pain alert's runner). Kept on a quiet-hours deferral so the
+   *  re-send can re-check eligibility (lib/notifications/quiet-deferred.ts). */
+  actorAthleteId?: string | null;
 }
 
 // The scope an action button on this payload is allowed to act within, or null
@@ -563,6 +567,11 @@ export async function sendPushDetailed(
         if (d === 'defer') {
           await supabase.from('scheduled_notifications').insert({
             kind: QUIET_DEFERRED_KIND,
+            // The source context, so delivery re-checks eligibility instead of trusting a
+            // stale copy (2026-11-22): the original kind (in created_by — no migration) and
+            // the runner it is about.
+            created_by: `${DEFERRED_SOURCE_PREFIX}${payload.kind ?? ''}`,
+            actor_athlete_id: payload.actorAthleteId ?? null,
             title_he: payload.title, body_he: payload.body,
             url: payload.url ?? null,
             audience_type: 'athlete', audience_id: r.id,
@@ -1101,6 +1110,7 @@ export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<NotifyR
     if (subs.length > 0) {
       ({ byAthlete } = await sendPushDetailed(subs, {
         kind: opts.kind,
+        actorAthleteId: opts.actorAthleteId ?? null,
         title,
         body,
         url: opts.url,

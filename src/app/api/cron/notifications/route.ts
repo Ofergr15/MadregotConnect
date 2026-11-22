@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { sendPushLocalized, resolveAudience, sendPushDetailed, subscriptionsForAthletes } from '@/lib/push';
 import { QUIET_DEFERRED_KIND } from '@/lib/notifications/quiet-hours';
+import { deferredStillEligible } from '@/lib/notifications/quiet-deferred';
 import { pickBilingual } from '@/lib/notifications/copy';
 import { publishAnnouncement } from '@/lib/feed/announce';
 import { ACADEMY_REMINDER_KINDS } from '@/lib/academy/testReminders';
@@ -78,6 +79,14 @@ async function run(request: Request) {
       // A staff alert held over the recipient's quiet hours (lib/push.ts): to that one
       // person, as management, never as a club announcement.
       if (n.kind === QUIET_DEFERRED_KIND) {
+        // Re-checked at delivery, not trusted from enqueue (lib/notifications/quiet-deferred.ts).
+        const elig = await deferredStillEligible(supabase, n);
+        if (!elig.ok) {
+          console.info(`[cron/notifications] deferred ${n.id} not sent: ${elig.reason}`);
+          await supabase.from('scheduled_notifications').update({ sent_count: 0 }).eq('id', n.id);
+          results.push({ id: n.id, sent: 0 });
+          continue;
+        }
         const one = n.audience_id ? await subscriptionsForAthletes([n.audience_id]) : [];
         const { sent } = await sendPushDetailed(one, { title: n.title_he, body: n.body_he, url: n.url ?? undefined, category: 'management', kind: 'quiet_deferred', deferred: true });
         await supabase.from('scheduled_notifications').update({ sent_count: sent }).eq('id', n.id);
