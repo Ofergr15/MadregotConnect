@@ -391,27 +391,32 @@ export async function POST(request: Request) {
 
     // What was saved before, so a re-save of the same answer does not alert anyone twice:
     // each flag below fires only when it turns on.
-    type Before = { pain?: boolean | null; difficulty?: number | null; wants_feedback?: boolean | null };
+    type Before = { pain?: boolean | null; difficulty?: number | null; wants_feedback?: boolean | null; feel?: number | null; pain_detail?: string | null; comment?: string | null };
     let before: Before | null = null;
     if (garminActivityId != null) {
       const { data: prev } = await supabase
         .from('workout_feedback')
-        .select('pain, difficulty, wants_feedback')
+        .select('pain, difficulty, wants_feedback, feel, pain_detail, comment')
         .eq('athlete_id', athleteId)
         .eq('garmin_activity_id', garminActivityId)
         .maybeSingle();
       before = (prev as Before | null) ?? null;
     }
 
+    // A field the request does not carry keeps what was saved: the upsert writes the whole
+    // row, so a one-field save (the native app's feel tap sends only `feel`) used to null the
+    // difficulty, pain and comment already saved for that run. A field sent as null still clears.
+    const has = (k: string) => Object.prototype.hasOwnProperty.call(body, k);
+    const keep = <T,>(k: string, sent: T, prev: T | undefined): T | null => (has(k) || !before ? sent : (prev ?? null));
     const baseRow = {
       athlete_id: athleteId,
       garmin_activity_id: garminActivityId,
-      difficulty,
-      feel,
-      pain,
-      pain_detail: painDetail || null,
-      wants_feedback: wantsFeedback ?? null,
-      comment: comment || null,
+      difficulty: keep('difficulty', difficulty, before?.difficulty),
+      feel: keep('feel', feel, before?.feel),
+      pain: keep('pain', pain, before?.pain),
+      pain_detail: keep('painDetail', painDetail || null, before?.pain_detail),
+      wants_feedback: keep('wantsFeedback', wantsFeedback ?? null, before?.wants_feedback),
+      comment: keep('comment', comment || null, before?.comment),
     };
     // Migration 191: vs-plan, edit stamp, and re-submitting clears a soft withdraw.
     // A database without 191 gets the row without them (42703 → retry), so the PWA
