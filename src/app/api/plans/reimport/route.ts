@@ -50,12 +50,14 @@ export async function POST(request: Request) {
         imageMediaType: 'application/pdf',
       });
 
-      // Delete existing plans for this week
+      // Delete the existing GROUP plan for this week only. Academy trainees' own rows
+      // (athlete_id set) are their personal weeks, not this program's — leave them.
       await supabase
         .from('weekly_plans')
         .delete()
         .eq('coach_id', COACH_ID)
-        .eq('week_start_date', week.weekStart);
+        .eq('week_start_date', week.weekStart)
+        .is('athlete_id', null);
 
       // Insert fresh
       const { error } = await supabase
