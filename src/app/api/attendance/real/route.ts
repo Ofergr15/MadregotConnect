@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { israelToday } from '@/lib/utils';
-import { people, sessionsBetween } from '@/lib/attendance/real-server';
+import { activeRoster, people, presenceBetween, sessionsBetween } from '@/lib/attendance/real-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,8 +25,25 @@ export async function GET(request: Request) {
   try {
     const db = createServerClient();
     const today = israelToday();
-    const [days, folk] = await Promise.all([sessionsBetween(db, from, to, today), people(db)]);
-    const ids = new Set(days.flatMap((d) => [...d.came, ...d.said]));
+    const [sessions, folk, presence, roster] = await Promise.all([
+      sessionsBetween(db, from, to, today), people(db), presenceBetween(db, from, to), activeRoster(db),
+    ]);
+    // Per session: the coach's marks (migration 197; null before it is applied) as
+    // `presence: {athleteId: boolean}`, who/when in `presenceMarks`, and the active roster
+    // so a coach can mark someone who neither ran nor RSVP'd.
+    const days = sessions.map((d) => {
+      const marks = presence ? presence[d.date] ?? {} : null;
+      return {
+        ...d,
+        presence: marks && Object.fromEntries(Object.entries(marks).map(([id, m]) => [id, m.present])),
+        presenceMarks: marks && Object.fromEntries(Object.entries(marks).map(([id, m]) => [id, { markedBy: m.markedBy, markedAt: m.markedAt, groupLabel: m.groupLabel }])),
+        roster,
+      };
+    });
+    const ids = new Set([
+      ...days.flatMap((d) => [...d.came, ...d.said]),
+      ...Object.values(presence ?? {}).flatMap((byAthlete) => Object.keys(byAthlete)),
+    ]);
     const active = Object.values(folk).filter((p) => p.active);
     return NextResponse.json({
       today,

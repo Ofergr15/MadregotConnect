@@ -51,3 +51,56 @@ export async function people(db: Db): Promise<Record<string, Person>> {
   }
   return out;
 }
+
+export interface PresenceMark { present: boolean; groupLabel: string | null; markedBy: string | null; markedAt: string }
+
+/**
+ * The coach's presence marks (migration 197) for practice days from `from` to `to`,
+ * keyed by date then athlete. Null when the table is missing or the read failed —
+ * the screen keeps working without it.
+ */
+export async function presenceBetween(db: Db, from: string, to: string): Promise<Record<string, Record<string, PresenceMark>> | null> {
+  try {
+    const { data, error } = await db.from('practice_presence')
+      .select('athlete_id, week_start, day, group_label, present, marked_by, marked_at')
+      .gte('week_start', addDays(from, -6)).lte('week_start', to);
+    if (error) return null;
+    const out: Record<string, Record<string, PresenceMark>> = {};
+    for (const r of (data || []) as Array<{ athlete_id: string; week_start: string; day: number; group_label: string | null; present: boolean; marked_by: string | null; marked_at: string }>) {
+      const date = addDays(String(r.week_start).slice(0, 10), r.day);
+      if (date < from || date > to) continue;
+      (out[date] ??= {})[r.athlete_id] = { present: r.present, groupLabel: r.group_label, markedBy: r.marked_by, markedAt: r.marked_at };
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+export interface RosterEntry { id: string; name: string }
+export type Roster = Record<'1' | '2' | '3' | 'academy', RosterEntry[]>;
+
+/**
+ * Who a coach can mark: every ACTIVE, approved member, by pack (academy apart, as in
+ * `sizes`). id + name only — never email. Pending rows (`approved = false`, the
+ * pendingAthleteIds rule) are left out. Null on a read error.
+ */
+export async function activeRoster(db: Db): Promise<Roster | null> {
+  const [{ data: rows, error }, { data: groups }] = await Promise.all([
+    db.from('athletes').select('id, name, group_id, is_academy, status, approved').eq('status', 'active'),
+    db.from('groups').select('id, name'),
+  ]);
+  if (error) return null;
+  const gname = new Map(((groups || []) as Array<{ id: string; name: string }>).map((g) => [g.id, g.name]));
+  const out: Roster = { 1: [], 2: [], 3: [], academy: [] };
+  for (const a of (rows || []) as Array<{ id: string; name: string | null; group_id: string | null; is_academy: boolean | null; status: string | null; approved: boolean | null }>) {
+    if (a.approved === false || a.status !== 'active') continue;
+    const entry = { id: a.id, name: (a.name || '').trim() };
+    if (a.is_academy) { out.academy.push(entry); continue; }
+    const g = a.group_id ? resolveGroup(gname.get(a.group_id) || '') : null;
+    const pack = g && g.index >= 0 && g.index < 3 ? (String(g.index + 1) as '1' | '2' | '3') : null;
+    if (pack) out[pack].push(entry);
+  }
+  for (const k of Object.keys(out) as Array<keyof Roster>) out[k].sort((x, y) => x.name.localeCompare(y.name, 'he'));
+  return out;
+}
