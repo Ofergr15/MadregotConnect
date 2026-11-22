@@ -36,7 +36,7 @@ async function sign(priv: CryptoKey, payload: Record<string, unknown>) {
   const s = await webcrypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, priv, new TextEncoder().encode(`${h}.${p}`));
   return `${h}.${p}.${b64(new Uint8Array(s))}`;
 }
-const claims = () => ({ email: 'runner@example.com', aud: 'authenticated', iss: 'https://proj.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+const claims = () => ({ email: 'runner@example.com', aud: 'authenticated', role: 'authenticated', iss: 'https://proj.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
 const req = (t: string) => new Request('http://x/api/feed', { headers: { authorization: `Bearer ${t}` } });
 
 beforeEach(async () => {

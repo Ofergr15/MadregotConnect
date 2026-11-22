@@ -28,12 +28,24 @@ export const JWKS_TTL_MS = 10 * 60_000;
 /** Minimum gap between forced refreshes for an unknown kid, so junk kids can't hammer auth. */
 const REFRESH_COOLDOWN_MS = 30_000;
 const FETCH_TIMEOUT_MS = 1500;
+/**
+ * How long the last good JWKS may still be used after refreshes start failing.
+ * Past this, verification falls back to getUser rather than trusting keys that
+ * may have been rotated out (or revoked) since.
+ */
+export const JWKS_MAX_STALE_MS = 60 * 60_000;
 
 type Jwk = { kid?: string; kty: string; alg?: string; crv?: string; x?: string; y?: string; n?: string; e?: string };
 
 let jwks: { keys: Jwk[]; at: number; url: string } | null = null;
 let lastForced = 0;
 const keyCache = new Map<string, CryptoKey>();
+
+/** Test hook: age the cached JWKS as if it was fetched `ms` ago. */
+export function ageJwksCacheForTest(ms: number): void {
+  if (jwks) jwks.at -= ms;
+  lastForced = 0;
+}
 
 export function resetJwksCache(): void {
   jwks = null;
@@ -45,24 +57,27 @@ async function loadJwks(supabaseUrl: string, force: boolean): Promise<Jwk[] | nu
   const url = `${supabaseUrl.replace(/\/$/, '')}/auth/v1/.well-known/jwks.json`;
   const now = Date.now();
   if (!force && jwks && jwks.url === url && now - jwks.at < JWKS_TTL_MS) return jwks.keys;
-  if (force && now - lastForced < REFRESH_COOLDOWN_MS) return jwks?.url === url ? jwks.keys : null;
+  const lastGood = () => (jwks && jwks.url === url && now - jwks.at < JWKS_MAX_STALE_MS ? jwks.keys : null);
+  if (force && now - lastForced < REFRESH_COOLDOWN_MS) return lastGood();
   if (force) lastForced = now;
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), cache: 'no-store' });
-    if (!res.ok) return jwks?.url === url ? jwks.keys : null;
+    if (!res.ok) return lastGood();
     const body = (await res.json()) as { keys?: Jwk[] };
     const keys = Array.isArray(body.keys) ? body.keys : [];
     jwks = { keys, at: now, url };
     keyCache.clear();
     return keys;
   } catch {
-    return jwks?.url === url ? jwks.keys : null;
+    return lastGood();
   }
 }
 
 function b64urlBytes(s: string): Uint8Array {
   return new Uint8Array(Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64'));
 }
+
+const KTY_FOR_ALG: Record<string, string> = { ES256: 'EC', RS256: 'RSA' };
 
 function algParams(alg: string): { importAlg: EcKeyImportParams | RsaHashedImportParams; verifyAlg: EcdsaParams | AlgorithmIdentifier } | null {
   if (alg === 'ES256') return { importAlg: { name: 'ECDSA', namedCurve: 'P-256' }, verifyAlg: { name: 'ECDSA', hash: 'SHA-256' } };
@@ -97,6 +112,7 @@ export async function verifyAccessTokenLocally(token: string, supabaseUrl: strin
     if (!jwk) return { kind: 'fallback', reason: 'unknown-kid' };
   }
   if (jwk.alg && jwk.alg !== header.alg) return { kind: 'invalid', reason: 'alg-mismatch' };
+  if (jwk.kty !== KTY_FOR_ALG[header.alg!]) return { kind: 'invalid', reason: 'kty-mismatch' };
 
   let key = keyCache.get(header.kid);
   try {
@@ -112,7 +128,7 @@ export async function verifyAccessTokenLocally(token: string, supabaseUrl: strin
     .catch(() => false);
   if (!ok) return { kind: 'invalid', reason: 'signature' };
 
-  let payload: { exp?: unknown; aud?: unknown; iss?: unknown; email?: unknown; sub?: unknown };
+  let payload: { exp?: unknown; aud?: unknown; iss?: unknown; role?: unknown; email?: unknown; sub?: unknown };
   try {
     payload = JSON.parse(Buffer.from(b64urlBytes(parts[1])).toString('utf8'));
   } catch {
@@ -122,7 +138,9 @@ export async function verifyAccessTokenLocally(token: string, supabaseUrl: strin
   const aud = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
   if (!aud.includes('authenticated')) return { kind: 'invalid', reason: 'audience' };
   const iss = `${supabaseUrl.replace(/\/$/, '')}/auth/v1`;
-  if (payload.iss !== undefined && payload.iss !== iss) return { kind: 'invalid', reason: 'issuer' };
+  if (payload.iss !== iss) return { kind: 'invalid', reason: 'issuer' };
+  // An anon/service key is signed by the same project; only a user session may pass.
+  if (payload.role !== 'authenticated') return { kind: 'invalid', reason: 'role' };
   const email = typeof payload.email === 'string' ? payload.email.toLowerCase().trim() : '';
   return { kind: 'valid', email, sub: typeof payload.sub === 'string' ? payload.sub : null };
 }

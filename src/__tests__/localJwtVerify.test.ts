@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { webcrypto } from 'node:crypto';
-import { resetJwksCache, verifyAccessTokenLocally } from '@/lib/auth/local-jwt';
+import { ageJwksCacheForTest, JWKS_MAX_STALE_MS, JWKS_TTL_MS, resetJwksCache, verifyAccessTokenLocally } from '@/lib/auth/local-jwt';
 
 const URL_ = 'https://proj.supabase.co';
 const b64 = (b: Uint8Array | string) => Buffer.from(b).toString('base64url');
@@ -19,7 +19,7 @@ async function sign(priv: CryptoKey, kid: string, payload: Record<string, unknow
 }
 
 const good = (over: Record<string, unknown> = {}) => ({
-  sub: 'u1', email: 'Runner@Example.com', aud: 'authenticated', iss: `${URL_}/auth/v1`,
+  sub: 'u1', email: 'Runner@Example.com', aud: 'authenticated', role: 'authenticated', iss: `${URL_}/auth/v1`,
   exp: Math.floor(Date.now() / 1000) + 3600, ...over,
 });
 
@@ -66,6 +66,31 @@ describe('local JWT verification', () => {
   it('rejects another audience or issuer', async () => {
     expect((await verifyAccessTokenLocally(await sign(a.kp.privateKey, 'kid-a', good({ aud: 'x' })), URL_)).kind).toBe('invalid');
     expect((await verifyAccessTokenLocally(await sign(a.kp.privateKey, 'kid-a', good({ iss: 'https://other/auth/v1' })), URL_)).kind).toBe('invalid');
+  });
+
+  it('rejects a token with no iss', async () => {
+    expect(await verifyAccessTokenLocally(await sign(a.kp.privateKey, 'kid-a', good({ iss: undefined })), URL_)).toEqual({ kind: 'invalid', reason: 'issuer' });
+  });
+
+  it('rejects a non-user role (anon / service_role / missing)', async () => {
+    for (const role of ['anon', 'service_role', undefined]) {
+      expect(await verifyAccessTokenLocally(await sign(a.kp.privateKey, 'kid-a', good({ role })), URL_)).toEqual({ kind: 'invalid', reason: 'role' });
+    }
+  });
+
+  it('rejects a JWK whose kty does not match the alg', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ keys: [{ ...a.jwk, kty: 'RSA', alg: undefined }] })));
+    expect(await verifyAccessTokenLocally(await sign(a.kp.privateKey, 'kid-a', good()), URL_)).toEqual({ kind: 'invalid', reason: 'kty-mismatch' });
+  });
+
+  it('serves stale keys after a failed refresh, but only up to the max-stale cap', async () => {
+    const t = await sign(a.kp.privateKey, 'kid-a', good());
+    expect((await verifyAccessTokenLocally(t, URL_)).kind).toBe('valid');
+    fetchMock.mockRejectedValue(new Error('down'));
+    ageJwksCacheForTest(JWKS_TTL_MS + 1);
+    expect((await verifyAccessTokenLocally(t, URL_)).kind).toBe('valid'); // stale, within cap
+    ageJwksCacheForTest(JWKS_MAX_STALE_MS);
+    expect(await verifyAccessTokenLocally(t, URL_)).toEqual({ kind: 'fallback', reason: 'jwks-unavailable' });
   });
 
   it('falls back to the network check when the JWKS is unreachable', async () => {
