@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { resolveVerifiedCaller, mayActFor } from '@/lib/auth/self-or-staff';
+import { MASKED_STATS, parseHiddenStats, type MaskedStat } from '@/lib/activities/hidden-stats';
 import { hiddenFromCaller } from '@/lib/athletes/test-accounts';
 import { computeDistanceBests, filterQualifyingRuns, type RunActivityRow } from '@/lib/prs/pr-buckets';
 import { applyPrLaps, loadPrLaps } from '@/lib/prs/attach-laps';
@@ -144,6 +145,43 @@ export async function GET(
     // keeps no history either: hiding a record that the timeline still drew would
     // not have hidden it. See lib/prs/record-history.ts.
     const prYear = israelToday().slice(0, 4);
+
+    // Pace / calories the runner hid in the share sheet (feed_items.payload.hiddenFields)
+    // are withheld from anyone who is not the runner and not staff — and from the owner's
+    // own `?as=member` preview (lib/activities/hidden-stats.ts). One batched read over the
+    // runs this payload exposes per-run: the recent-runs list and the seven-day window.
+    // A failed read hides every masked stat on all of them: "could not tell" never publishes.
+    const asMember = searchParams.get('as') === 'member';
+    const masked = asMember || !mayActFor(caller, id);
+    const recentRaw = buildRecentRuns(acts, runLimit);
+    const last7Raw = buildLast7Report(acts, israelToday());
+    const hiddenById = new Map<string, Set<MaskedStat>>();
+    if (masked) {
+      const ids = [...new Set([
+        ...recentRaw.map((r) => r.id),
+        ...last7Raw.days.flatMap((d) => d.activities.map((a) => a.id)),
+      ].filter((x): x is string => !!x))];
+      if (ids.length) {
+        const all = () => { for (const i of ids) hiddenById.set(i, new Set(MASKED_STATS)); };
+        try {
+          const { data, error } = await supabase.from('feed_items').select('activity_id, payload').in('activity_id', ids);
+          if (error) all();
+          else for (const f of (data || []) as Array<{ activity_id: string; payload?: { hiddenFields?: unknown } | null }>) {
+            const h = parseHiddenStats(f.payload?.hiddenFields);
+            if (h.size) hiddenById.set(f.activity_id, h);
+          }
+        } catch { all(); }
+      }
+    }
+    const isHidden = (rid: string | null | undefined, k: MaskedStat) => !!rid && !!hiddenById.get(rid)?.has(k);
+    const recentRuns = recentRaw.map((r) =>
+      isHidden(r.id, 'pace') ? { ...r, paceSecPerKm: null, paceHidden: true } : r,
+    );
+    const caloriesHidden = masked && acts.some((a) => isHidden(a.id, 'calories'));
+    const last7Base = caloriesHidden
+      ? buildLast7Report(acts.map((a) => (isHidden(a.id, 'calories') ? { ...a, calories: null } : a)), israelToday())
+      : last7Raw;
+    const last7Out = caloriesHidden ? { ...last7Base, caloriesHidden: true } : last7Base;
     const history = computeRecordHistory(prRuns, prExclusions);
     const prHistory = Object.fromEntries(
       prs.map((p) => [p.key, p.seconds == null ? [] : history[p.key] || []]),
@@ -184,9 +222,9 @@ export async function GET(
       // Sleep and resting HR are health data: folded in for the athlete's own
       // profile only, never for a teammate or a coach browsing it (#69).
       last7: self
-        ? withWellness(buildLast7Report(acts, israelToday()), wellness ?? [])
-        : buildLast7Report(acts, israelToday()),
-      recentRuns: buildRecentRuns(acts, runLimit),
+        ? withWellness(last7Out, wellness ?? [])
+        : last7Out,
+      recentRuns,
       // Same bucket math as /api/athletes/prs and the badge award engine, so a
       // PR shown here is the one a "first 10K" badge fired on.
       prs,
