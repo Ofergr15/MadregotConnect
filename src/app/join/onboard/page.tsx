@@ -139,7 +139,7 @@ function OnboardContent() {
     try {
       const saveRes = await fetch('/api/athletes/update-group', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await apiHeaders(true),
         body: JSON.stringify({ email, groupId: selectedGroup, weekStartDay }),
       });
       guard401(saveRes);
