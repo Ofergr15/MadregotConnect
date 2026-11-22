@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { callbackQueryShape } from '@/lib/auth/login-error';
 import { NATIVE_STRAVA_RETURN } from '@/lib/data-sources/native';
+import { afterStravaConnect } from '@/lib/data-sources/after-connect';
 import { randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
@@ -425,7 +426,8 @@ export async function GET(request: Request) {
         // Migration 192, best effort and separate: pre-migration this write fails
         // on the missing column and must not take the connect down with it.
         await supabase.from('athletes').update({ strava_connected_at: new Date().toISOString() }).eq('id', linkAthleteId);
-        return NextResponse.redirect(`${NATIVE_STRAVA_RETURN}?result=connected`);
+        const { syncStarted } = afterStravaConnect(linkAthleteId);
+        return NextResponse.redirect(`${NATIVE_STRAVA_RETURN}?result=connected&syncStarted=${syncStarted ? 1 : 0}`);
       }
       return NextResponse.redirect(new URL(`${linkBack}${linkBack.includes('?') ? '&' : '?'}strava=connected`, origin));
     }
