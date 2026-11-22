@@ -43,6 +43,8 @@ export const FEATURES = {
   profile_badges: { label: 'כרטיס תגים בפרופיל', defaultEnabled: false },
   /** לוח המועדון: native club calendar (practices + events) with practice RSVP via POST /api/attendance. */
   calendar: { label: 'לוח המועדון', defaultEnabled: false },
+  /** Training attendance for staff (native coach shell), from GET /api/attendance/real. */
+  native_mgmt_attendance: { label: 'נוכחות באימונים (אפליקציה)', defaultEnabled: false },
   // ── Native management screens (coach shell, read-only), iOS native-mgmt-readonly.
   native_mgmt_registrations: { label: 'אישורי הרשמה (אפליקציה)', defaultEnabled: false },
   native_mgmt_groups: { label: 'קבוצות וחברים (אפליקציה)', defaultEnabled: false },
