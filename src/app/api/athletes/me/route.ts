@@ -87,6 +87,12 @@ async function handleGET(req: NextRequest) {
   // they used to go out one after another after it (4 waves → 1 on this every-screen call).
   const hrTraceRead = readHrTraceSetting(supabase, id);
   const bodyRead = readBody(supabase, id);
+  // Migration 193's read needs only the id too — it used to go out last, alone.
+  const defaultHiddenRead = readDefaultHidden(supabase, id);
+  // The cursor table is read whether or not this row turns out to hold a Garmin
+  // credential, so it overlaps the row instead of waiting behind it; the answer is
+  // only USED for a Garmin athlete, exactly as before.
+  const cursorsRead = readHistoryCursors(supabase).then((c) => c, () => null);
   let { data, error } = await supabase.from('athletes').select(FULL_COLUMNS).eq('id', id).single();
   // '42703' = raw Postgres undefined_column; 'PGRST204' = PostgREST's own
   // schema-cache check rejecting an unknown column before SQL is generated
@@ -122,7 +128,8 @@ async function handleGET(req: NextRequest) {
   let historyImport: HistoryImportStatus = { state: 'none', oldest: null, imported: 0 };
   if (data.garmin_auth) {
     try {
-      const cursors = await readHistoryCursors(supabase);
+      const cursors = await cursorsRead;
+      if (!cursors) throw new Error('cursors unavailable');
       historyImport = historyImportStatus(cursors[data.id as string], true);
     } catch { /* bookkeeping — never fail the profile over it */ }
   }
@@ -185,7 +192,7 @@ async function handleGET(req: NextRequest) {
       pendingGroup,
       hrTracePublic,
       // Migration 193; null while unapplied (the Privacy screen then hides the switches).
-      defaultHiddenFields: await readDefaultHidden(supabase, id),
+      defaultHiddenFields: await defaultHiddenRead,
       ...(await bodyRead),
     },
   });

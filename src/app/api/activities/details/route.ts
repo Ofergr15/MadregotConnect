@@ -108,11 +108,16 @@ async function handleGET(request: Request) {
 
     const r = row as any;
     // A pending runner's activity reads as not there to the rest of the club (#77).
-    if (r.athlete_id && !seesPending(caller, r.athlete_id) && (await isPendingAthlete(supabase, r.athlete_id))) {
+    // A QA test account's runs read as not there to everyone but itself and staff (migration 201).
+    // Both checks are asked at once (they were two round trips in a row); either one hides it.
+    const [pendingHidden, testHidden] = await Promise.all([
+      r.athlete_id && !seesPending(caller, r.athlete_id) ? isPendingAthlete(supabase, r.athlete_id) : false,
+      r.athlete_id && !caller.isStaff && caller.athleteId !== r.athlete_id ? isTestAccount(supabase, r.athlete_id) : false,
+    ]);
+    if (pendingHidden) {
       return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
     }
-    // A QA test account's runs read as not there to everyone but itself and staff (migration 201).
-    if (r.athlete_id && !caller.isStaff && caller.athleteId !== r.athlete_id && (await isTestAccount(supabase, r.athlete_id))) {
+    if (testHidden) {
       return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
     }
     // The splits the UI draws, on the kilometre grid it labels them with — from
@@ -124,10 +129,27 @@ async function handleGET(request: Request) {
     // laps were all there.
     const splits = displaySplits(r.splits, r.laps);
 
+    // Everything below that needs only the row's ids goes out now, together; each is
+    // awaited where it was awaited before, so what is read — and for whom — is unchanged.
+    const include = new Set((searchParams.get('include') ?? '').split(',').filter(Boolean));
+    const own = !!caller.athleteId && caller.athleteId === r.athlete_id;
+    const wantsStream = (splits.length && r.source === 'garmin') || (include.has('hr') && own);
+    // One stream read, shared: the power pass and the HR trace used to fetch it twice.
+    const streamRead = wantsStream ? loadActivityStream(supabase, r.id) : null;
+    const wantsSteps = include.has('steps') && own;
+    const ewRead = wantsSteps
+      ? Promise.resolve(supabase.from('athlete_activities').select('executed_workout').eq('id', r.id).maybeSingle())
+      : null;
+    const laneRead = wantsSteps ? groupNumberForAthlete(supabase, r.athlete_id) : null;
+    const hiddenRead = !mayActFor(caller, r.athlete_id) ? readHiddenStats(supabase, r.id) : null;
+    // Started early but maybe never awaited (no segments → no lane): mark them handled so a
+    // failure that nobody asks about can't surface as an unhandled rejection. An await still throws.
+    for (const p of [streamRead, ewRead, laneRead, hiddenRead]) p?.catch(() => {});
+
     // Power and performance condition live only in the per-sample trace (#74).
     // Laps already carrying power (Strava with a meter) keep their own number.
     if (splits.length && r.source === 'garmin') {
-      const stream = await loadActivityStream(supabase, r.id);
+      const stream = await streamRead;
       const series = stream?.series;
       if (series?.pc || series?.pw) {
         const pc = perKmFromStream(splits, series.d, series.pc);
@@ -139,25 +161,22 @@ async function handleGET(request: Request) {
       }
     }
 
-    const include = new Set((searchParams.get('include') ?? '').split(',').filter(Boolean));
-    const own = !!caller.athleteId && caller.athleteId === r.athlete_id;
     let hrTrace: HrTrace | undefined;
     if (include.has('hr') && own) {
-      const series = (await loadActivityStream(supabase, r.id))?.series;
+      const series = (await streamRead)?.series;
       hrTrace = series ? thinHrTrace(series.d, series.hr) : [];
     }
     let stepBands: PlanSegment[] | null | undefined;
     if (include.has('steps') && own) {
       // Its own read: `executed_workout` is migration 095, and an unapplied column
       // must cost the targets, not the whole detail response.
-      const { data: ew } = await supabase
-        .from('athlete_activities').select('executed_workout').eq('id', r.id).maybeSingle();
+      const { data: ew } = (await ewRead)!;
       // Stored already narrowed (see the segments route), so it is read as it is.
       const stored = (ew as { executed_workout?: ExecutedWorkout | null } | null)?.executed_workout ?? null;
       const workout = stored && Array.isArray(stored.steps) ? stored : null;
       const segments = segmentsFromSteps(normalizeStoredLaps(r.laps), workout);
       stepBands = segments
-        ? withTargets(segments, workout, (await groupNumberForAthlete(supabase, r.athlete_id)) as Lane)
+        ? withTargets(segments, workout, (await laneRead) as Lane)
         : null;
     }
 
@@ -186,7 +205,7 @@ async function handleGET(request: Request) {
     // (lib/feed/project.ts maskHiddenStats). Total distance and time stay. A per-km split's
     // duration IS its pace, so it goes with pace; its distance stays.
     if (!mayActFor(caller, r.athlete_id)) {
-      const hidden = await readHiddenStats(supabase, r.id);
+      const hidden = (await hiddenRead)!;
       if (hidden.has('pace')) {
         activity.average_pace = null;
         for (const sp of splits as unknown as Array<Record<string, unknown>>) { sp.averagePace = null; sp.duration = null; }

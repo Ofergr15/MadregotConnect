@@ -54,6 +54,12 @@ async function handleGET(request: Request) {
     }
 
     const supabase = createServerClient();
+    // Who is still waiting for approval, and who is a test account, depend on
+    // neither the squad nor the page — so both go out now, overlapping the squad
+    // lookup AND the page read instead of only the latter. Neither ever rejects
+    // (a failed read is an empty set), so an early return below leaves nothing dangling.
+    const pendingRead = pendingAthleteIds(supabase);
+    const testRead = testAccountIds(supabase);
 
     // Squad narrowing (373ebe89). Server-side for the same reason `types` is: a
     // page of 20 that happens to be all Group A runs would come back empty after
@@ -131,8 +137,6 @@ async function handleGET(request: Request) {
     // alongside it rather than after it: one function↔DB round trip (~225 ms to
     // Tokyo) less on the request the first card waits for. pendingAthleteIds never
     // rejects (a failed read is an empty set).
-    const pendingRead = pendingAthleteIds(supabase);
-    const testRead = testAccountIds(supabase); // never rejects either
     const { data: rows, error } = await query;
     if (error) throw error;
 

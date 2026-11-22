@@ -38,9 +38,10 @@ describe('every surface that showed a pending runner checks for one', () => {
 
   it('single feed item, athlete stats and activity details 404 for a teammate', () => {
     for (const p of ['src/app/api/feed/items/[id]/route.ts', 'src/app/api/athletes/[id]/stats/route.ts', 'src/app/api/activities/details/route.ts']) {
-      // Either asked in line, or (stats, 2026-10-17) in the same round as the reads
+      // Either asked in line, in one Promise.all with the test-account check (details,
+      // 2026-11-22), or (stats, 2026-10-17) in the same round as the reads
       // and decided before anything is returned.
-      expect(src(p), p).toMatch(/await hiddenFromCaller\(|hiddenFromCaller\(supabase, caller, id\),[\s\S]*if \(pending\) return NextResponse\.json\(\{ error: 'Athlete not found' \}, \{ status: 404 \}\)|!seesPending\([^)]*\) && \(await isPendingAthlete|seesPending\(caller, id\) \? Promise\.resolve\(false\) : isPendingAthlete\([\s\S]*if \(pending\) return NextResponse\.json\(\{ error: 'Athlete not found' \}, \{ status: 404 \}\)/);
+      expect(src(p), p).toMatch(/await hiddenFromCaller\(|hiddenFromCaller\(supabase, caller, id\),[\s\S]*if \(pending\) return NextResponse\.json\(\{ error: 'Athlete not found' \}, \{ status: 404 \}\)|!seesPending\([^)]*\) && \(await isPendingAthlete|!seesPending\([^)]*\) \? isPendingAthlete\([\s\S]*if \(pendingHidden\) \{\s*return NextResponse\.json\(\{ error: 'Activity not found' \}, \{ status: 404 \}\)|seesPending\(caller, id\) \? Promise\.resolve\(false\) : isPendingAthlete\([\s\S]*if \(pending\) return NextResponse\.json\(\{ error: 'Athlete not found' \}, \{ status: 404 \}\)/);
     }
   });
 
