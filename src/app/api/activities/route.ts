@@ -69,6 +69,10 @@ export async function GET(request: Request) {
     // ever REMOVE columns from a row the gate has already authorised, so there
     // is no value of this parameter that widens what anyone can see.
     const volumeShape = searchParams.get('shape') === 'volume';
+    // `shape=list` (perf S2) — the profile's activity list + progress cards asked for
+    // 200 rows WITH the `laps` and `splits` jsonb, which are most of the bytes and
+    // which a list never draws. Same narrowing-only guarantee as `volume`.
+    const listShape = searchParams.get('shape') === 'list';
     // `since` — an ISO date floor, for callers that want a window rather than a
     // count. `limit` can't express "the last twelve weeks": it's a row count, so
     // the answer changes with how often someone runs, and a high-mileage athlete
@@ -102,6 +106,12 @@ export async function GET(request: Request) {
     // later — if a caller needs another field it should say so here, so the cost
     // of widening this stays visible.
     const volumeCols = `id, athlete_id, start_time, distance`;
+
+    const listCols = `
+        id, athlete_id, source, activity_name, activity_type,
+        start_time, distance, duration, moving_duration, average_pace, average_hr,
+        elevation_gain, has_polyline, created_at,
+        athletes (name)`;
 
     const baseCols = `
         id, athlete_id, garmin_activity_id, strava_activity_id, source,
@@ -141,6 +151,8 @@ export async function GET(request: Request) {
       // whole point of this shape is to not ship blobs), and a caller that sends
       // both should get the narrow answer rather than the wide one.
       ({ data: activities, error } = await runQuery(volumeCols));
+    } else if (listShape) {
+      ({ data: activities, error } = await runQuery(listCols));
     } else if (includeGps) {
       // gps_points is a large JSONB blob; only select it when a caller
       // explicitly asks for it. Fall back to the lean columns if the
