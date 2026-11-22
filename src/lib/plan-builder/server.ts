@@ -292,7 +292,11 @@ export async function runScheduledPlanPublishes(db: Db, now = new Date()): Promi
       // row can point at a version since superseded or unpublished; pushing that body would
       // replace the athlete's same-day workouts with a plan the coach withdrew. Such rows are
       // closed as skipped/stale_version so they stop retrying. Manual retryPush is unchanged.
-      const { data: v } = await db.from('weekly_plan_versions').select('id, week_start, state').eq('id', vid).maybeSingle();
+      const { data: v, error: vErr } = await db.from('weekly_plan_versions').select('id, week_start, state').eq('id', vid).maybeSingle();
+      // A failed lookup is not evidence of staleness: no push and no row update, so the
+      // pending retry survives to the next tick. (versionsFor throws on its own errors,
+      // which the catch below turns into the same "leave it alone".)
+      if (vErr) { fired.push(`planPushRetryDeferred ${ids.length}`); continue; }
       const current = v ? live(await versionsFor(db, (v as { week_start: string }).week_start)) : null;
       if (!current || current.id !== vid) {
         await db.from('plan_push_status').update({ state: 'skipped', error_code: 'stale_version', retry_at: null, updated_at: new Date().toISOString() })

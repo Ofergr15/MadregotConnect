@@ -16,13 +16,16 @@ const version = { id: 'v1', week_start: '2026-11-22', plan_id: 'p1', version: 2,
 const athlete = { id: 'a1', name: 'A', garmin_auth: 'x', is_academy: false, group_id: 'g', groups: { name: 'קבוצה 1' } };
 
 /** Chainable fake Supabase: every builder method returns the builder; awaiting resolves via `answer`. */
-function fakeDb(answer: (table: string, ops: string[]) => any) {
+function fakeDb(answer: (table: string, ops: string[]) => any, errorFor?: (table: string, ops: string[]) => any) {
   const writes: { table: string; op: string; arg: any }[] = [];
   const from = (table: string) => {
     const ops: string[] = [];
     const b: any = new Proxy({}, {
       get(_t, k: string) {
-        if (k === 'then') return (res: any, rej: any) => Promise.resolve({ data: answer(table, ops), error: null }).then(res, rej);
+        if (k === 'then') return (res: any, rej: any) => {
+          const err = errorFor?.(table, ops) ?? null;
+          return Promise.resolve(err ? { data: null, error: err } : { data: answer(table, ops), error: null }).then(res, rej);
+        };
         return (arg?: any) => {
           ops.push(`${k}:${typeof arg === 'string' ? arg : ''}`);
           if (['upsert', 'update', 'insert'].includes(k)) writes.push({ table, op: k, arg });
@@ -69,6 +72,21 @@ describe('runScheduledPlanPublishes', () => {
     expect(pushed).toEqual([]);
     expect(fired).toEqual(['planPushRetrySkippedStale 1']);
     expect(writes.find((w) => w.table === 'plan_push_status' && w.op === 'update')?.arg).toMatchObject({ state: 'skipped', error_code: 'stale_version' });
+  });
+
+  it('a TRANSIENT error on the version lookup: no push and NO update — the retry survives', async () => {
+    const { db: db2, writes } = fakeDb(
+      (t, ops) => {
+        if (t === 'plan_push_status' && ops.includes('eq:state')) return [{ version_id: 'v1', athlete_id: 'a1' }];
+        if (t === 'weekly_plan_versions') return [];
+        return [];
+      },
+      (t, ops) => (t === 'weekly_plan_versions' && has(ops, 'maybeSingle') ? { message: 'timeout' } : null),
+    );
+    const fired = await runScheduledPlanPublishes(db2, new Date('2026-11-22T10:00:00Z'));
+    expect(pushed).toEqual([]);
+    expect(fired).toEqual(['planPushRetryDeferred 1']);
+    expect(writes.filter((w) => w.table === 'plan_push_status')).toEqual([]);
   });
 
   it('a backoff row for an UNPUBLISHED version is not pushed', async () => {
