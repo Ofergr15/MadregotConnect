@@ -7,9 +7,16 @@
 # No approval, or an approval already shipped: nothing happens, in seconds.
 # See src/lib/release-notes.ts.
 #
-# Owner decision 2026-11-22: a release goes out right after approval, not at
-# 05:00. The 05:00 mode is kept behind the RELEASE_AT_0500 repo variable (off). The workflow has no secrets (the app cannot dispatch it), so it checks
-# every 10 minutes instead; GitHub may run a scheduled job a few minutes late.
+# Owner decision 2026-11-22: ONE release a day, at 20:00 Israel time — everything
+# ready and approved by 19:00, out by 20:00 at the latest.
+#   - The hour is the repo variable RELEASE_HOUR (Settings → Secrets and variables →
+#     Actions → Variables): unset = 20; another hour 0-23; or "now" = ship ~10 min
+#     after any approval (and no once-a-day limit).
+#   - The workflow runs every 10 minutes and ships only in that Israel hour, so it is
+#     DST-proof. GitHub may run a scheduled job a few minutes late.
+#   - Once a day: if production was already deployed since today's HOUR:00, a later
+#     approval waits for tomorrow's release.
+#   - A manual run (workflow_dispatch) always ships right away — the escape hatch.
 # The name stays "Daily release" so existing references keep working.
 name: Daily release
 
@@ -20,6 +27,7 @@ on:
 
 permissions:
   contents: write
+  deployments: read
 
 concurrency:
   group: daily-release
@@ -38,15 +46,24 @@ jobs:
       - name: Ship the approved commit
         id: ship
         env:
-          # Kept switch, OFF by default (owner 2026-11-22: "now to now"). Set the repo variable
-          # RELEASE_AT_0500=true (Settings → Secrets and variables → Actions → Variables) to go
-          # back to the 05:00 Israel release: then only the run in the 05:00 hour ships.
-          RELEASE_AT_0500: ${{ vars.RELEASE_AT_0500 }}
+          RELEASE_HOUR: ${{ vars.RELEASE_HOUR }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "$RELEASE_AT_0500" = "true" ] && [ "${{ github.event_name }}" = "schedule" ] \
-             && [ "$(TZ=Asia/Jerusalem date +%H)" != "05" ]; then
-            echo "RELEASE_AT_0500 is on — waiting for the 05:00 run."
-            exit 0
+          HOUR="${RELEASE_HOUR:-20}"
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$HOUR" != "now" ]; then
+            if [ "$((10#$(TZ=Asia/Jerusalem date +%H)))" != "$((10#$HOUR))" ]; then
+              echo "Release hour is ${HOUR}:00 Israel — not now."
+              exit 0
+            fi
+            # One release a day: production already deployed in today's release window
+            # (since HOUR:00 Israel today) → the next approval waits for tomorrow. A deploy
+            # earlier in the day (manual run, redeploy) does not use up the evening release.
+            LAST=$(gh api "repos/${{ github.repository }}/deployments?environment=Production&per_page=1" --jq '.[0].created_at // empty' || true)
+            WINDOW=$(TZ=Asia/Jerusalem date -d "$(TZ=Asia/Jerusalem date +%F) $((10#$HOUR)):00" +%s)
+            if [ -n "$LAST" ] && [ "$(date -d "$LAST" +%s)" -ge "$WINDOW" ]; then
+              echo "Already released today ($LAST) — next release tomorrow at ${HOUR}:00."
+              exit 0
+            fi
           fi
           SHA=$(curl -fsS https://www.madregot.app/api/release/approved | jq -r '.sha // empty')
           if [ -z "$SHA" ]; then
