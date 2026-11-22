@@ -45,6 +45,15 @@ function adminClient() {
 // confirming membership to anyone who asked.
 export async function POST(request: NextRequest) {
   try {
+    // The one cookie-authenticated route. SameSite=Lax already keeps the cookie off cross-site
+    // POSTs; this refuses a browser request from another site outright (defence in depth).
+    // Native and same-origin callers send no Origin or a matching one.
+    const origin = request.headers.get('origin');
+    if (origin) {
+      let sameHost = false;
+      try { sameHost = new URL(origin).host === request.nextUrl.host; } catch { /* malformed → refuse */ }
+      if (!sameHost) return NextResponse.json({ error: 'forbidden_origin' }, { status: 403 });
+    }
     const email = readDeviceToken(request.cookies.get(DEVICE_COOKIE)?.value);
     if (!email) {
       // No proof this browser ever logged in. The caller falls back to a real

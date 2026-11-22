@@ -7,6 +7,7 @@ import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { JOURNEY, JourneyCard, JourneyHero, JourneyScreen, PrimaryButton } from '@/components/onboarding/journey-ui';
 import { RegisterReceived } from '@/app/register/RegisterReceived';
+import { U21RegisterEntry } from '@/app/register/U21RegisterEntry';
 import { DISTANCE_KM, DISTANCE_LABEL, clock, equivalent, kmh, packGoal, paceOf, parseTime, recommend, type Distance } from '@/lib/join/pace';
 import { HEARD_FROM, HEARD_LABEL, type HeardFrom } from '@/lib/join/intake';
 
@@ -145,6 +146,13 @@ export function JoinFlow({ initialPath }: { initialPath?: 'club' | 'academy' | n
         </button>
       ))}
       <p className="px-1 text-[13px]" style={{ color: JOURNEY.soft }}>לא בטוח/ה? בחר/י מועדון — אפשר לסמן שמעניין אותך לשמוע גם על האקדמיה, ונחזור אליך.</p>
+
+      {/* U21 demo entry — Ofer (Nov 19): the registration page gets a bottom
+          section with no Strava/Google ask, then track selection and straight
+          in. THIS is the live registration screen (JOIN_UNIFIED_FOR_ALL), so
+          this is where the section renders; the page-level placements cover
+          the flag-off looks. Feasibility demo: no billing, no eligibility. */}
+      <U21RegisterEntry className="px-0 pb-0 pt-2" />
     </JourneyScreen>
   );
 

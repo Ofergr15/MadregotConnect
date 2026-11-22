@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { requireMember } from '@/lib/auth/self-or-staff';
+import { testAccountIds } from '@/lib/athletes/test-accounts';
 import { rethrowIfDynamicBailout } from '@/lib/dynamic-bailout';
 import { resolveGroup, getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
 
@@ -51,12 +52,15 @@ export async function GET(request: Request) {
     const weekStart = getActivityWeekStart(now); // Monday — the one window every metric uses
 
     // 1) Active athletes with a squad.
-    const { data: athletes, error: aErr } = await supabase
+    const { data: athletesRaw, error: aErr } = await supabase
       .from('athletes')
       .select('id, group_id, groups!group_id(name)')
       .eq('coach_id', COACH_ID)
       .eq('status', 'active');
     if (aErr) throw aErr;
+    // Test accounts (migration 201) never count toward squad standings.
+    const testIds = await testAccountIds(supabase);
+    const athletes = (athletesRaw || []).filter((a: { id: string }) => !testIds.has(a.id));
 
     const withSquad = (athletes || []).filter((a: any) => a.group_id);
     if (withSquad.length === 0) return NextResponse.json({ squads: [] });

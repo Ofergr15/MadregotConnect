@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { notifyAdminNewAcademyRegistration, notifyAcademyFormReceived } from '@/lib/email';
+import { isTestAccount } from '@/lib/athletes/test-accounts';
 import { formNameProblem, normalizeDisplayName } from '@/lib/names/latin';
 import { clientIp, createRateLimiter, isBotSubmit, looksLikeToken } from '@/lib/academy/intake';
 import { invitePrefill, recordFormCandidate } from '@/lib/academy/intake-server';
@@ -210,7 +211,8 @@ export async function POST(request: Request) {
         if (r.accepted || (r as { reason?: string }).reason === 'already') { letIn = true; return; }
       }
       if (candidateId && !(await claimFormMail(supabase, candidateId))) return;
-      await notifyAdminNewAcademyRegistration({
+      // A QA test account (migration 201) gets its own receipt below but emails no admin.
+      if (!(await isTestAccount(supabase, athleteId))) await notifyAdminNewAcademyRegistration({
         name: fullName, email: normEmail, phone, existingMember, candidateId,
         intake: intakeObj, likelyMember, existingTrainee,
       });

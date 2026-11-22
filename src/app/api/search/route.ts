@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { isCoreRunner } from '@/lib/core-runner';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { testAccountIds, hiddenTestAccountsFor } from '@/lib/athletes/test-accounts';
 import { containsPattern, quoteFilterValue } from '@/lib/db/like';
 import { nameMatches, textMatches } from '@/lib/search/match';
 import { STORE_OPEN } from '@/lib/nav-items';
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
     // `?start=1`: what the screen shows before anything is typed (mockup search-mockup.html,
     // Ofer 2026-10-19) — the caller's pack, the next races, the newest photo albums.
-    if (searchParams.get('start')) return NextResponse.json(await startOf(supabase, caller.athleteId));
+    if (searchParams.get('start')) return NextResponse.json(await startOf(supabase, caller.athleteId, hiddenTestAccountsFor(await testAccountIds(supabase), caller)));
     if (q.length < MIN_QUERY_LENGTH) {
       return NextResponse.json({ members: [], events: [], products: [], perks: [], albums: [], runs: EMPTY_RUNS });
     }
@@ -102,8 +103,9 @@ export async function GET(request: Request) {
     // Not the ones waiting to be let in (approved = false), the same reading as runs.ts and
     // the feed: a pending applicant is not a club member a teammate can find yet.
     const pending = await pendingAthleteIds(supabase as never).catch(() => new Set<string>());
+    const hiddenTest = hiddenTestAccountsFor(await testAccountIds(supabase), caller);
     const matched = (membersRes.error ? [] : membersRes.data || [])
-      .filter((a: { id: string; name: string | null }) => !pending.has(a.id) && nameMatches(a.name, q))
+      .filter((a: { id: string; name: string | null }) => !pending.has(a.id) && !hiddenTest.has(a.id) && nameMatches(a.name, q))
       .slice(0, RESULT_LIMIT) as Array<{ id: string; name: string; avatar_url: string | null; group_id?: string | null }>;
     // What you can do with the person (mockup search-proposal, "אלון"): their pack and their
     // last run, for the top match's quick links.
@@ -198,7 +200,7 @@ async function albumRows(folders: PhotoFolder[]) {
 }
 
 /** Before typing: the caller's pack, the next three races, the three newest albums. */
-async function startOf(supabase: Db, athleteId: string | null | undefined) {
+async function startOf(supabase: Db, athleteId: string | null | undefined, hiddenTest: Set<string> = new Set()) {
   const today = israelToday();
   const { data: me } = athleteId
     ? await supabase.from('athletes').select('group_id').eq('id', athleteId).maybeSingle()
@@ -214,7 +216,7 @@ async function startOf(supabase: Db, athleteId: string | null | undefined) {
   ]);
   const hiddenRaces = await hiddenEventIds(supabase);
   return {
-    pack: ((packRes.error ? [] : packRes.data) || []).map((a: { id: string; name: string; avatar_url: string | null }) => ({ id: a.id, name: a.name, avatarUrl: a.avatar_url })),
+    pack: ((packRes.error ? [] : packRes.data) || []).filter((a: { id: string }) => !hiddenTest.has(a.id)).map((a: { id: string; name: string; avatar_url: string | null }) => ({ id: a.id, name: a.name, avatarUrl: a.avatar_url })),
     packName: (groupRes.data as { name?: string } | null)?.name ?? null,
     races: ((racesRes.error ? [] : racesRes.data) || []).filter((e: { id: string }) => !hiddenRaces.has(e.id)) as Array<{ id: string; name: string; kind: string; date: string; location: string }>,
     // The pinned folder leads the photos home; here it is the newest that matter.

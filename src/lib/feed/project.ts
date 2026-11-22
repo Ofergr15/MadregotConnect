@@ -480,6 +480,9 @@ export interface ProjectContext {
    * plans simply ships no badge.
    */
   planVerdictsByActivity?: Map<string, FeedPlanVerdict>;
+  /** feed_item_id -> likes / live comments by test accounts hidden from this viewer. */
+  hiddenLikeCountByItem?: Map<string, number>;
+  hiddenCommentCountByItem?: Map<string, number>;
   /** activity_id -> the quality session's name, for the runs that are it. */
   qualityNameByActivity?: Map<string, string>;
 }
@@ -528,8 +531,9 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
     // A club-record card whose pace is hidden carries no times (lib/records/club-record-card.ts).
     payload: maskClubRecordPayload(payload),
     occurredAt: row.occurred_at,
-    likeCount: row.like_count ?? 0,
-    commentCount: row.comment_count ?? 0,
+    // Minus a test account's rows this viewer can't see (lib/feed/test-account-filter.ts).
+    likeCount: Math.max(0, (row.like_count ?? 0) - (ctx.hiddenLikeCountByItem?.get(row.id) ?? 0)),
+    commentCount: Math.max(0, (row.comment_count ?? 0) - (ctx.hiddenCommentCountByItem?.get(row.id) ?? 0)),
     likedByMe: ctx.likedItemIds.has(row.id),
     likePreview: ctx.likersByItem?.get(row.id) ?? [],
     commentPreview: ctx.commentsByItem?.get(row.id) ?? [],

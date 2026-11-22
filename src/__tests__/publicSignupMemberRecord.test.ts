@@ -66,9 +66,12 @@ vi.mock('@/lib/email', () => ({
 
 const { POST } = await import('@/app/api/public/signup/route');
 
+// One client IP per call: the route's rate limiter (5/min per person) is not this suite's subject.
+let ipSeq = 0;
 const post = (email: string, groupId?: string) =>
   POST(new Request('https://example.test/api/public/signup', {
     method: 'POST',
+    headers: { 'x-forwarded-for': `10.1.0.${ipSeq++ % 250}` },
     body: JSON.stringify({ email, groupId }),
   }));
 

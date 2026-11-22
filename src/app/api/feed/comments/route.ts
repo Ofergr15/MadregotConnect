@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, requireAthlete, authError } from '@/lib/auth-session';
 import { notifyFeedInteraction, notifyMentions, loadFeedItemMeta } from '@/lib/feed/notify';
 import { COMMENT_SELECT, projectComment, validateCommentBody } from '@/lib/feed/comments';
+import { hiddenInteractorsFor, visibleItemCount, withoutHiddenInteractors } from '@/lib/feed/test-account-filter';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +18,8 @@ export async function GET(request: Request) {
     if (!itemId) return NextResponse.json({ error: 'itemId required' }, { status: 400 });
 
     const supabase = createServerClient();
+    // A test account's comment is hidden from other non-staff members (migration 201).
+    const hiddenRead = hiddenInteractorsFor(supabase as never, auth.user);
     const { data, error } = await supabase
       .from('feed_comments')
       .select(COMMENT_SELECT)
@@ -26,7 +29,7 @@ export async function GET(request: Request) {
       .limit(200);
     if (error) throw error;
 
-    const comments = (data || []).map((row) =>
+    const comments = withoutHiddenInteractors(data || [], await hiddenRead).map((row) =>
       projectComment(row, auth.user.athleteId, auth.user.isStaff),
     );
     return NextResponse.json({ comments });
@@ -92,7 +95,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       comment: projectComment(data, auth.user.athleteId, auth.user.isStaff),
-      commentCount: item?.comment_count ?? 0,
+      commentCount: await visibleItemCount(supabase as never, 'feed_comments', itemId, item?.comment_count, auth.user),
     });
   } catch (err: unknown) {
     console.error('Feed comment create error:', err);
@@ -136,7 +139,7 @@ export async function DELETE(request: Request) {
       .eq('id', comment.feed_item_id)
       .maybeSingle();
 
-    return NextResponse.json({ success: true, commentCount: item?.comment_count ?? 0 });
+    return NextResponse.json({ success: true, commentCount: await visibleItemCount(supabase as never, 'feed_comments', comment.feed_item_id, item?.comment_count, auth.user) });
   } catch (err: unknown) {
     console.error('Feed comment delete error:', err);
     return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });

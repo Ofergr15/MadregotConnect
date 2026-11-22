@@ -35,6 +35,7 @@ import { paceGroupKeyFor } from '@/lib/plans/pace-group';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { isTestAccount } from '@/lib/athletes/test-accounts';
 import { readHiddenStats } from '@/lib/activities/hidden-stats';
 import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
 import { displaySplits } from '@/lib/activities/km-splits';
@@ -107,6 +108,10 @@ export async function GET(request: Request) {
     const r = row as any;
     // A pending runner's activity reads as not there to the rest of the club (#77).
     if (r.athlete_id && !seesPending(caller, r.athlete_id) && (await isPendingAthlete(supabase, r.athlete_id))) {
+      return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
+    }
+    // A QA test account's runs read as not there to everyone but itself and staff (migration 201).
+    if (r.athlete_id && !caller.isStaff && caller.athleteId !== r.athlete_id && (await isTestAccount(supabase, r.athlete_id))) {
       return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
     }
     // The splits the UI draws, on the kilometre grid it labels them with — from
@@ -231,6 +236,6 @@ export async function GET(request: Request) {
     });
   } catch (error: any) {
     console.error('Activity details error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch' }, { status: 500 });
   }
 }

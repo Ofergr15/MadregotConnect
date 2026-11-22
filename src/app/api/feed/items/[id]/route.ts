@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, requireSession, authError } from '@/lib/auth-session';
 import { FEED_SELECT, projectFeedItem } from '@/lib/feed/project';
-import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
+import { hiddenFromCaller } from '@/lib/athletes/test-accounts';
 import { loadFeedContext } from '@/lib/feed/context';
 import { sanitizeMediaList } from '@/lib/feed/media';
 
@@ -55,7 +55,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (!data) return NextResponse.json({ error: 'Feed item not found' }, { status: 404 });
     // Same rule as the feed: a pending runner's post reads as not there (#77).
     const author = (data as { author_athlete_id?: string | null }).author_athlete_id;
-    if (author && !seesPending(auth.user, author) && (await isPendingAthlete(supabase, author))) {
+    if (author && (await hiddenFromCaller(supabase, auth.user, author))) {
       return NextResponse.json({ error: 'Feed item not found' }, { status: 404 });
     }
 

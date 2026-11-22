@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { isTestAccount } from '@/lib/athletes/test-accounts';
 import webpush from 'web-push';
 import { msUntilQuietEnds, quietDecision, readQuietHours, QUIET_DEFERRED_KIND } from '@/lib/notifications/quiet-hours';
 import { DEFERRED_SOURCE_PREFIX } from '@/lib/notifications/quiet-deferred';
@@ -16,6 +17,7 @@ import {
 import { KUDOS_ACTION_LABEL, teammateActivityCopy } from '@/lib/notifications/copy';
 import { apnsConfig, buildApnsPayload, sendApns } from '@/lib/apns';
 import { duplicateInstalls, siblingGhosts, type SubDevice, type SubHealth } from '@/lib/push-ghosts';
+import { isDevSurface } from '@/lib/dev-api-allowlist';
 
 /**
  * Given the maintenance allowlist (lowercased emails) and the athlete rows for
@@ -39,7 +41,7 @@ export function computeMaintenanceAllowedIds(
  * maintenance allowlist (or an approver) may receive push. Returns the subs
  * unchanged when maintenance is off. Fails OPEN (returns all) on error.
  */
-async function filterForMaintenance(subs: SubRow[]): Promise<SubRow[]> {
+export async function filterForMaintenance<T extends { athlete_id: string }>(subs: T[]): Promise<T[]> {
   try {
     const supabase = createServerClient();
     const { data } = await supabase.from('app_settings').select('key, value').in('key', ['maintenance_mode', 'maintenance_allow']);
@@ -144,12 +146,12 @@ export function actionScopeFor(payload: PushPayload): string | null {
  */
 type SubRow = { id: string; endpoint: string; p256dh: string; auth: string; athlete_id: string; apns_token?: string };
 
-type DeliveryRow = { nid: string; athlete_id: string | null; subscription_id: string | null; kind: string | null; title: string; accepted: boolean; error: string | null };
+export type DeliveryRow = { nid: string; athlete_id: string | null; subscription_id: string | null; kind: string | null; title: string; accepted: boolean; error: string | null };
 /**
  * One row per push per device (migration 171, lib/push-deliveries). Best effort: a missing
  * table (171 not pasted) or a failed write never touches the send itself.
  */
-async function recordDeliveries(rows: DeliveryRow[]): Promise<void> {
+export async function recordDeliveries(rows: DeliveryRow[]): Promise<void> {
   if (!rows.length) return;
   try {
     await createServerClient().from('push_deliveries').insert(rows);
@@ -190,7 +192,7 @@ export function computeMutedAthleteIds(
  * has ever opened the notification settings, would keep receiving the social
  * firehose this change exists to quiet.
  */
-async function filterByCategory(subs: SubRow[], category?: NotificationCategory): Promise<SubRow[]> {
+export async function filterByCategory<T extends { athlete_id: string }>(subs: T[], category?: NotificationCategory): Promise<T[]> {
   if (!category || subs.length === 0) return subs;
   try {
     const supabase = createServerClient();
@@ -393,7 +395,7 @@ export async function sendPushLocalized(
   return { sent, byAthlete };
 }
 
-async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string, number>> {
+export async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
   if (athleteIds.length === 0) return counts;
   const supabase = createServerClient();
@@ -520,6 +522,11 @@ export async function sendPushDetailed(
 ): Promise<{ sent: number; byAthlete: Record<string, number> }> {
   const empty = { sent: 0, byAthlete: {} as Record<string, number> };
   if (subs.length === 0) return empty;
+  // Dev surface: no web push to anyone (the dev DB may hold a real person's old subscription).
+  if (isDevSurface()) {
+    console.warn(`[push] dev surface — suppressed "${payload.title}" for ${subs.length} subscription(s)`);
+    return empty;
+  }
   // This push's own number, the same on every device (lib/push-deliveries, migration 171): each
   // device's row says whether the push service took it, and the phone stamps it when shown.
   const nid = randomUUID();
@@ -959,6 +966,8 @@ export async function notifyTeammatesOfActivity(activity: {
   if (!athlete) return 0;
   // Not approved yet (#77): the club doesn't hear about their runs until they're in.
   if ((athlete as { approved?: boolean | null }).approved === false) return 0;
+  // A test account's runs never notify followers (migration 201).
+  if (await isTestAccount(supabase, activity.athleteId)) return 0;
 
   const { data: followerLinks } = await supabase
     .from('athlete_follows')
@@ -1151,6 +1160,9 @@ export interface NotifyResult {
 }
 
 export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<NotifyResult> {
+  // A QA test account (migration 201) acting on someone else notifies nobody: no push,
+  // no inbox row. What it does to itself, and anything with no actor, is untouched.
+  if (await suppressedForTestActor(opts.actorAthleteId, opts.athleteId)) return { subscriptions: 0, delivered: 0 };
   // The recipient's language, resolved once and used for both the push and the
   // history row — they must agree, or opening the app would undo the setting.
   const { title, body } = opts.copy
@@ -1195,6 +1207,19 @@ export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<NotifyR
     url: opts.url,
   }], byAthlete);
   return { subscriptions, delivered: byAthlete ? byAthlete[opts.athleteId] ?? 0 : null };
+}
+
+/**
+ * True when `actorAthleteId` is a test account and the recipient is somebody else.
+ * Fails open (isTestAccount → false on a missing column or any error).
+ */
+export async function suppressedForTestActor(actorAthleteId: string | null | undefined, recipientId: string): Promise<boolean> {
+  if (!actorAthleteId || actorAthleteId === recipientId) return false;
+  try {
+    return await isTestAccount(createServerClient(), actorAthleteId);
+  } catch {
+    return false;
+  }
 }
 
 /** All athlete ids of the club (for computing non-responders). */

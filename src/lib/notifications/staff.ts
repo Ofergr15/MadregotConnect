@@ -9,6 +9,7 @@ import {
 } from '@/lib/push';
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
 import { recipientsForKind } from '@/lib/notifications/routing';
+import { isTestAccount } from '@/lib/athletes/test-accounts';
 
 type PushCopy = { title: string; body: string };
 
@@ -141,7 +142,11 @@ export async function notifyStaff(opts: {
     // is a choice the screen allows and this must honour rather than "helpfully"
     // falling back to the admins.
     const routed = await recipientsForKind(opts.kind);
-    const recipients = [...new Set([...(routed ?? (await staffRecipientIds())), ...(opts.extraRecipientIds ?? [])])];
+    let recipients = [...new Set([...(routed ?? (await staffRecipientIds())), ...(opts.extraRecipientIds ?? [])])];
+    // A QA test account's action alerts nobody but (if it is staff-routed) itself.
+    if (opts.actorAthleteId && (await isTestAccount(createServerClient(), opts.actorAthleteId))) {
+      recipients = recipients.filter((id) => id === opts.actorAthleteId);
+    }
     if (recipients.length === 0) return { recipients: 0, sent: 0 };
 
     const subs = await subscriptionsForAthletes(recipients);

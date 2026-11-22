@@ -7,6 +7,7 @@ import {
   LIKE_PREVIEW_COUNT,
   projectLike,
 } from '@/lib/feed/project';
+import { hiddenInteractorsFor, hiddenCountsByItem, visibleCount, withoutHiddenInteractors } from '@/lib/feed/test-account-filter';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,24 +62,28 @@ export async function POST(request: Request) {
       });
     }
 
-    const [{ data: item }, { data: topLikes }] = await Promise.all([
+    // A test account's like is hidden from other non-staff members (migration 201).
+    const hidden = await hiddenInteractorsFor(supabase as never, auth.user);
+    const [{ data: item }, { data: topLikes }, hiddenCounts] = await Promise.all([
       supabase.from('feed_items').select('like_count').eq('id', itemId).maybeSingle(),
       supabase
         .from('feed_likes')
         .select(LIKER_SELECT)
         .eq('feed_item_id', itemId)
         .order('created_at', { ascending: false })
-        .limit(LIKE_PREVIEW_COUNT),
+        .limit(LIKE_PREVIEW_COUNT + hidden.size),
+      hiddenCountsByItem(supabase as never, 'feed_likes', [itemId], hidden),
     ]);
 
-    const likePreview = (topLikes || [])
+    const likePreview = withoutHiddenInteractors(topLikes || [], hidden)
+      .slice(0, LIKE_PREVIEW_COUNT)
       .map(projectLike)
       .filter(projected => projected !== null)
       .map(projected => projected.liker);
 
-    return NextResponse.json({ liked, likeCount: item?.like_count ?? 0, likePreview });
+    return NextResponse.json({ liked, likeCount: visibleCount(item?.like_count, hiddenCounts.get(itemId)), likePreview });
   } catch (err: unknown) {
     console.error('Feed like error:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

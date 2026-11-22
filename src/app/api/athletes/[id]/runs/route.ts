@@ -2,7 +2,7 @@ import { routeForViewer } from '@/lib/privacy/route-trim';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
+import { hiddenFromCaller } from '@/lib/athletes/test-accounts';
 import { buildRangeRuns, parseRunsRange } from '@/lib/athletes/runs-range';
 
 export const dynamic = 'force-dynamic';
@@ -33,7 +33,7 @@ export async function GET(
     if (!range) return NextResponse.json({ error: 'from and to are required, at most 42 days apart' }, { status: 400 });
 
     const supabase = createServerClient();
-    if (!seesPending(caller, id) && (await isPendingAthlete(supabase, id))) {
+    if ((await hiddenFromCaller(supabase, caller, id))) {
       return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
     }
 

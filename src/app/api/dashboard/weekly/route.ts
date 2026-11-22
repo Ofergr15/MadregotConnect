@@ -1,3 +1,4 @@
+import { withoutDraftsFor } from '@/lib/plans/scope';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { WEEKLY_PLANS_TAG } from '@/lib/plans/cache';
@@ -56,7 +57,7 @@ export async function GET(request: Request) {
       academyOnlyReader(me),
       daySessionWorkouts(currentWeekStart).then((v) => ({ ok: true as const, v }), (e: unknown) => ({ ok: false as const, e })),
     ]);
-    const plansDesc = plansDescRaw ? rowsForReader(withoutOwnRows(plansDescRaw, ownCounts), me, academyOnly) : plansDescRaw;
+    const plansDesc = plansDescRaw ? withoutDraftsFor(rowsForReader(withoutOwnRows(plansDescRaw, ownCounts), me, academyOnly), !!caller.isStaff || !!caller.isSuperUser) : plansDescRaw;
     const plans = plansDesc ? [...plansDesc].reverse() : plansDesc;
 
     // Deduplicate plans by week: the caller's own week first, then 'pushed'
@@ -148,7 +149,9 @@ export async function GET(request: Request) {
 
     // Week-over-week delta
     const currentAvg = (weekTotalMin + weekTotalMax) / 2;
-    const weekDelta = prevWeekTotal > 0 ? Math.round(((currentAvg - prevWeekTotal) / prevWeekTotal) * 100) : 0;
+    // No plan this week is no comparison (0, the pill hides) — not a -100% "drop" against last week.
+    const hasCurrent = !!currentPlan || dayWorkouts.length > 0;
+    const weekDelta = hasCurrent && prevWeekTotal > 0 ? Math.round(((currentAvg - prevWeekTotal) / prevWeekTotal) * 100) : 0;
 
     return NextResponse.json({
       dailyDistances,

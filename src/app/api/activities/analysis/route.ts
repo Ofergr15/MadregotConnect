@@ -14,6 +14,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { isTestAccount } from '@/lib/athletes/test-accounts';
 import { readHiddenStats, type MaskedStat } from '@/lib/activities/hidden-stats';
 import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
 import { loadActivityStream } from '@/lib/garmin/stream-store';
@@ -87,6 +88,10 @@ export async function GET(request: Request) {
     if (error) throw error;
     if (!row) return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
     if (row.athlete_id && !seesPending(caller, row.athlete_id) && (await isPendingAthlete(supabase, row.athlete_id))) {
+      return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
+    }
+    // A QA test account's runs read as not there to everyone but itself and staff (migration 201).
+    if (row.athlete_id && !caller.isStaff && caller.athleteId !== row.athlete_id && (await isTestAccount(supabase, row.athlete_id))) {
       return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
     }
     // Stats the runner hid in the share sheet: masked for everyone but the runner and staff;

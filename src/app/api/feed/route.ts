@@ -4,6 +4,7 @@ import { requireSession, authError } from '@/lib/auth-session';
 import { FEED_SELECT, projectFeedItem, type FeedItem } from '@/lib/feed/project';
 import { clampFeedLimit, parseFeedCursor } from '@/lib/feed/pagination';
 import { pendingAthleteIds, withoutPendingAuthors } from '@/lib/auth/pending-athletes';
+import { testAccountIds, hiddenTestAccountsFor } from '@/lib/athletes/test-accounts';
 import { loadFeedContext } from '@/lib/feed/context';
 import { parseSquadParam } from '@/lib/feed/squad-filter';
 
@@ -130,6 +131,7 @@ export async function GET(request: Request) {
     // Tokyo) less on the request the first card waits for. pendingAthleteIds never
     // rejects (a failed read is an empty set).
     const pendingRead = pendingAthleteIds(supabase);
+    const testRead = testAccountIds(supabase); // never rejects either
     const { data: rows, error } = await query;
     if (error) throw error;
 
@@ -140,6 +142,9 @@ export async function GET(request: Request) {
     // raw order — a page may come back short, never skipped.
     const pending = await pendingRead;
     if (auth.user.athleteId) pending.delete(auth.user.athleteId);
+    // Test accounts (migration 201): hidden from other members, visible to
+    // themselves and staff — dropped through the same filter as pending authors.
+    for (const id of hiddenTestAccountsFor(await testRead, auth.user)) pending.add(id);
     // A birthday set to "circle only" (story_instances.placement, 162) lives on the circles, not in the list.
     const page = (withoutPendingAuthors(raw as { author_athlete_id?: string | null }[], pending) as typeof raw)
       .filter((r) => !((r as { payload?: { circleOnly?: unknown } | null }).payload?.circleOnly));
@@ -160,6 +165,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ items, nextCursor });
   } catch (err: unknown) {
     console.error('Feed fetch error:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed to load feed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load feed' }, { status: 500 });
   }
 }

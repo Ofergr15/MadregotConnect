@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { seesPending } from '@/lib/auth/pending-athletes';
+import { isTestAccount } from '@/lib/athletes/test-accounts';
 import { coachIdsOf, joinHebrewList } from '@/lib/academy/trainee-coaches';
 import {
   buildPublicProfile,
@@ -41,7 +42,7 @@ export async function GET(
 
     if (error) throw error;
     // A pending runner reads as not there, except to themselves and to staff.
-    if (!athlete || (athlete.approved === false && !seesPending(caller, id))) {
+    if (!athlete || (!seesPending(caller, id) && (athlete.approved === false || (await isTestAccount(supabase, id))))) {
       return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
     }
 

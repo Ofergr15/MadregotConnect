@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { readEmailConfig } from './config';
+import { isDevSurface } from '@/lib/dev-api-allowlist';
 import { activeTransport } from './transport';
 
 /**
@@ -100,6 +101,20 @@ function recipients(to: string | string[]): string[] {
  * Dropped here rather than at each of the eight call sites, for the same reason
  * everything else about sending lives in this file.
  */
+/**
+ * On the dev surface (the u21-personal-coach preview, `lib/dev-api-allowlist.ts`) mail goes ONLY to
+ * the controlled test identities listed in MC_DEV_MAIL_ALLOW; everyone else (staff inboxes included)
+ * is skipped as `dev-surface-guard`. No list → no mail at all (fail closed). Production, other
+ * previews and local dev are unaffected.
+ */
+export function devSurfaceBlocks(address: string, env: Record<string, string | undefined> = process.env): boolean {
+  if (!isDevSurface(env)) return false;
+  // Dev surface: deny by default. Only the explicitly approved, controlled test identities in
+  // MC_DEV_MAIL_ALLOW (exact addresses, comma-separated) may receive mail; missing → nobody.
+  const allow = (env.MC_DEV_MAIL_ALLOW || '').split(',').map((x) => x.toLowerCase().trim()).filter(Boolean);
+  return !allow.includes(address.toLowerCase().trim());
+}
+
 function isSynthetic(address: string): boolean {
   return address.toLowerCase().endsWith('.local');
 }
@@ -133,7 +148,8 @@ export async function sendEmail(msg: OutboundEmail): Promise<SendResult> {
   const cfg = readEmailConfig();
   const from = senderWithName(cfg.from, msg.fromName);
   const asked = recipients(msg.to);
-  const to = asked.filter(a => !isSynthetic(a));
+  const blockedOnDev = asked.filter((a) => devSurfaceBlocks(a));
+  const to = asked.filter(a => !isSynthetic(a) && !blockedOnDev.includes(a));
 
   const base = {
     template: msg.template,
@@ -145,6 +161,10 @@ export async function sendEmail(msg: OutboundEmail): Promise<SendResult> {
     ...(msg.candidateId ? { candidate_id: msg.candidateId } : {}),
   };
 
+  if (!to.length && blockedOnDev.length) {
+    const logId = await writeLog({ ...base, recipients: asked, status: 'skipped', error_code: 'dev-surface-guard' });
+    return { ok: false, status: 'skipped', code: 'dev-surface-guard', reason: 'Not sent from the dev deployment to a staff inbox.', logId } as never;
+  }
   if (!to.length && asked.length) {
     // Every address was synthetic: this person has no inbox, by design. Recorded as
     // SKIPPED, the same category as "no key in this environment" — not refused and

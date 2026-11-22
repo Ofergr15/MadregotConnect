@@ -59,8 +59,9 @@ vi.mock('@/lib/onboarding/events', () => ({ recordOnbEvent: vi.fn(async () => {}
 
 const { POST } = await import('@/app/api/public/signup/route');
 
+let ipSeq = 0; // one client IP per call: the rate limiter is not this suite's subject
 const postBody = (body: Record<string, unknown>) =>
-  POST(new Request('https://example.test/api/public/signup', { method: 'POST', body: JSON.stringify(body) }));
+  POST(new Request('https://example.test/api/public/signup', { method: 'POST', headers: { 'x-forwarded-for': `10.2.0.${ipSeq++ % 250}` }, body: JSON.stringify(body) }));
 
 const VICTIM = 'victim@example.com';
 const updates = () => ops.filter(o => o.table === 'signup_requests' && o.op === 'update');

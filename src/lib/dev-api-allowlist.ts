@@ -144,6 +144,7 @@ export const DEV_API_ALLOWLIST: ReadonlyArray<readonly [string, string]> = [
   ['GET', '/api/events'],
   ['GET', '/api/events/*'],
   ['GET', '/api/events/*/answers'],
+  ['GET', '/api/events/*/forecast'],
   ['GET', '/api/events/*/pace-groups'],
   ['GET', '/api/events/*/registrations'],
   ['GET', '/api/features/me'],
@@ -284,6 +285,8 @@ export const DEV_API_ALLOWLIST: ReadonlyArray<readonly [string, string]> = [
   ['POST', '/api/runs/meetups/pin-check'],
   ['POST', '/api/runs/meetups/requests'],
   ['POST', '/api/shoes'],
+  // U21 questionnaire submit: public like the web /u21 form, own env guard pinned to the dev project.
+  ['POST', '/api/u21/register'],
   ['POST', '/api/workout-feedback'],
   ['POST', '/api/workout-feedback/*/messages'],
   ['POST', '/api/workout-feedback/handled'],

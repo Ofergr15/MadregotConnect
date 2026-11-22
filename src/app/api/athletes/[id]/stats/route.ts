@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
+import { hiddenFromCaller } from '@/lib/athletes/test-accounts';
 import { computeDistanceBests, filterQualifyingRuns, type RunActivityRow } from '@/lib/prs/pr-buckets';
 import { applyPrLaps, loadPrLaps } from '@/lib/prs/attach-laps';
 import { applyPrOverrides } from '@/lib/prs/overrides';
@@ -89,7 +89,7 @@ export async function GET(
     // teammate gets it — no owner-only reads — so the preview is the server's projection.
     const self = caller.athleteId === id && new URL(request.url).searchParams.get('as') !== 'member';
     const reads = Promise.all([
-      seesPending(caller, id) ? Promise.resolve(false) : isPendingAthlete(supabase, id),
+      hiddenFromCaller(supabase, caller, id),
       fetchAllRows<RunActivityRow>((from, to) =>
       supabase
         .from('athlete_activities')

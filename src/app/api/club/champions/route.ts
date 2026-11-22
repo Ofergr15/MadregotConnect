@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { testAccountIds, hiddenTestAccountsFor } from '@/lib/athletes/test-accounts';
 import { israelToday } from '@/lib/utils';
 import { readResults, readSuggestions } from '@/lib/champions/server';
 import { CHAMP_DISTANCES, board, type ChampScope, type ChampSex } from '@/lib/champions/table';
@@ -16,7 +17,10 @@ export async function GET(request: Request) {
   const { denied, caller } = await resolveVerifiedCaller(request);
   if (denied) return denied;
   const db = createServerClient();
-  const { ready, rows } = await readResults(db);
+  const { ready, rows: allRows } = await readResults(db);
+  // Test accounts (migration 201) stay off the boards for other members; staff keep them.
+  const hiddenTest = hiddenTestAccountsFor(await testAccountIds(db), caller);
+  const rows = allRows.filter((r) => !hiddenTest.has(r.athleteId));
   const today = israelToday();
   const boards: Record<string, ReturnType<typeof board>> = {};
   for (const distance of CHAMP_DISTANCES)

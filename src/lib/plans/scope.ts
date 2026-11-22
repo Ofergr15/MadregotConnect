@@ -54,3 +54,12 @@ export function isAcademyOnly(row: { is_academy?: boolean | null; group_id?: str
 export function rowsForReader<T extends Row>(rows: T[] | null | undefined, athleteId: string | null | undefined, academyOnly: boolean): T[] {
   return academyOnly ? (rows || []).filter((r) => !!athleteId && r.athlete_id === athleteId) : (rows || []);
 }
+
+/**
+ * A draft is the coach's work in progress, never a runner's plan (plan H3, 2026-11-20): for a
+ * reader who is not staff, draft rows are dropped BEFORE picking, so a draft-only week reads as
+ * no plan and a draft can't outrank a sent ('pushed' / 'partial') row. Staff keep them to preview.
+ */
+export function withoutDraftsFor<T extends Row>(rows: T[] | null | undefined, isStaff: boolean): T[] {
+  return isStaff ? (rows || []) : (rows || []).filter((r) => r.status !== 'draft');
+}

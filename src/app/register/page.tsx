@@ -6,6 +6,7 @@ import { JOIN_UNIFIED_FOR_ALL } from '@/lib/join/flag';
 import { useEffect, useState } from 'react';
 import { usePreviewOnboardingV2 } from '@/lib/install/v2';
 import { RegisterReceived } from './RegisterReceived';
+import { U21RegisterEntry } from './U21RegisterEntry';
 import { Check, CheckCircle2, Mail } from 'lucide-react';
 import { Button, LoadingBlock } from '@/components/ui';
 import { cn, resolveGroup } from '@/lib/utils';
@@ -637,6 +638,7 @@ function LegacyRegister() {
     return (
       // The form wraps the whole screen so the submit pill in the bottom bar
       // (JourneyScreen's `actions`) is inside it.
+      <>
       <form onSubmit={submit}>
         <JourneyScreen
           testId="register-v2"
@@ -720,6 +722,10 @@ function LegacyRegister() {
           )}
         </JourneyScreen>
       </form>
+      {/* U21 demo entry — the bottom section of the registration page. Same
+          placement as the classic look below; see U21RegisterEntry's header. */}
+      <U21RegisterEntry />
+      </>
     );
   }
 
@@ -888,6 +894,16 @@ function LegacyRegister() {
 
         <PoweredBy />
       </div>
+
+      {/* ── U21 ENTRY, BELOW THE FOLD ───────────────────────────────────────
+          Ofer (Nov 19): "בעמוד הרשמה יהיה למטה סקשן שבו לא נבקש סטראבה או גוגל
+          או משהו ואז יהיה בחירת מסלול וכניסה קדימה" — a feasibility demo, no
+          billing or eligibility check yet. It lives BELOW the min-h-viewport
+          screen: the one-screen no-scroll rule above still governs the sign-up
+          itself, and the demo section is the first thing a scroll finds. The
+          dark band continues the photo's polarity so the white card reads as
+          part of the page, not a pasted-on strip. */}
+      <U21RegisterEntry className="bg-neutral-950" />
     </div>
   );
 }

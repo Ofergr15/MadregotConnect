@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { testAccountIds, hiddenTestAccountsFor } from '@/lib/athletes/test-accounts';
 import { addDaysToDateStr, israelToday, memberPackName } from '@/lib/utils';
 import { filterQualifyingRuns } from '@/lib/prs/pr-buckets';
 
@@ -34,6 +35,7 @@ export async function GET(request: Request) {
     const dow = new Date(`${today}T12:00:00Z`).getUTCDay();
     const sunday = addDaysToDateStr(today, -dow);
     const lastSunday = addDaysToDateStr(sunday, -7);
+    const testRead = testAccountIds(supabase);
     const [{ data: acts }, { data: athletes }, { data: groups }] = await Promise.all([
       supabase
         .from('athlete_activities')
@@ -44,7 +46,9 @@ export async function GET(request: Request) {
       supabase.from('athletes').select('id, name, avatar_url, group_id').eq('coach_id', COACH_ID).eq('status', 'active'),
       supabase.from('groups').select('id, name'),
     ]);
-    const member = new Map(((athletes || []) as Ath[]).map((a) => [a.id, a]));
+    // Test accounts (migration 201) count only for themselves and staff.
+    const hiddenTest = hiddenTestAccountsFor(await testRead, caller);
+    const member = new Map(((athletes || []) as Ath[]).filter((a) => !hiddenTest.has(a.id)).map((a) => [a.id, a]));
     const runs = filterQualifyingRuns((acts || []) as Act[]).filter((a) => member.has(a.athlete_id));
 
     // ── The club today ──

@@ -73,9 +73,12 @@ export async function loadRow(db: Db, id: string): Promise<UpdateRow | null> {
 }
 
 /** Newest first, pinned ones included wherever they fall (the client lifts them). */
-export async function listUpdates(db: Db, viewerId: string | null, opts: { limit: number; since?: string | null }): Promise<{ updates: ClubUpdate[]; missing: boolean }> {
+export async function listUpdates(db: Db, viewerId: string | null, opts: { limit: number; since?: string | null; topicIds?: string[] }): Promise<{ updates: ClubUpdate[]; missing: boolean }> {
+  // A filter that resolved to no topic matches nothing — never fall back to the whole stream.
+  if (opts.topicIds && opts.topicIds.length === 0) return { updates: [], missing: false };
   let q = db.from('club_updates').select(COLUMNS).is('deleted_at', null).order('created_at', { ascending: false }).limit(opts.limit);
   if (opts.since) q = q.gte('created_at', opts.since);
+  if (opts.topicIds) q = q.in('topic_id', opts.topicIds);
   const { data, error } = await q;
   if (error) {
     if (isMissingTable(error)) return { updates: [], missing: true };
@@ -84,10 +87,44 @@ export async function listUpdates(db: Db, viewerId: string | null, opts: { limit
   const rows = (data || []) as UpdateRow[];
   // A pinned update stays at the top of the stream, and in the feed, however old it is.
   {
-    const { data: pins } = await db.from('club_updates').select(COLUMNS).is('deleted_at', null).eq('pinned', true).order('created_at', { ascending: false }).limit(3);
+    let pq = db.from('club_updates').select(COLUMNS).is('deleted_at', null).eq('pinned', true);
+    if (opts.topicIds) pq = pq.in('topic_id', opts.topicIds);
+    const { data: pins } = await pq.order('created_at', { ascending: false }).limit(3);
     for (const p of (pins || []) as UpdateRow[]) if (!rows.some((r) => r.id === p.id)) rows.push(p);
   }
   return { updates: await project(db, rows, viewerId), missing: false };
+}
+
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export interface ClubUpdateTopic {
+  id: string;
+  eventId: string | null;
+  name: string;
+  pinnedText: string | null;
+  opensAt: string;
+  closesAt: string | null;
+}
+
+interface TopicRow { id: string; name: string; event_id: string | null; pinned_text: string | null; opens_at: string; closes_at: string | null }
+const TOPIC_COLUMNS = 'id, name, event_id, pinned_text, opens_at, closes_at';
+
+/** Topics (migration 154) by event and/or id, earliest-opening first. `missing` when the table isn't there. */
+export async function listTopics(db: Db, by: { eventId?: string; ids?: string[] }): Promise<{ topics: ClubUpdateTopic[]; missing: boolean }> {
+  let q = db.from('club_update_topics').select(TOPIC_COLUMNS);
+  if (by.eventId) q = q.eq('event_id', by.eventId);
+  if (by.ids) q = q.in('id', by.ids);
+  const { data, error } = await q.order('opens_at', { ascending: true });
+  if (error) {
+    if (isMissingTable(error)) return { topics: [], missing: true };
+    throw error;
+  }
+  return {
+    topics: ((data || []) as TopicRow[]).map((t) => ({
+      id: t.id, eventId: t.event_id, name: t.name, pinnedText: t.pinned_text, opensAt: t.opens_at, closesAt: t.closes_at,
+    })),
+    missing: false,
+  };
 }
 
 export async function project(db: Db, rows: UpdateRow[], viewerId: string | null): Promise<ClubUpdate[]> {

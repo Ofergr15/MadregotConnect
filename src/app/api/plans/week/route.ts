@@ -1,3 +1,4 @@
+import { withoutDraftsFor } from '@/lib/plans/scope';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { WEEKLY_PLANS_TAG } from '@/lib/plans/cache';
@@ -78,7 +79,7 @@ export async function GET(req: NextRequest) {
     const rows = forOther && !asTrainee ? (rowsRaw || []).filter((r) => !r.athlete_id) : rowsForReader(withoutOwnRows(rowsRaw, ownCounts), whose, academyOnly);
 
     // The caller's own academy week first, never another trainee's (lib/plans/scope.ts).
-    const plan = pickPlan(rows, whose);
+    const plan = pickPlan(withoutDraftsFor(rows, !!caller.isStaff || !!caller.isSuperUser), whose);
 
     // One-day sessions on days the plan leaves empty are the week's too (lib/day-session/week-merge.ts).
     const dayWorkouts = academyOnly ? [] : daySessionsAll;

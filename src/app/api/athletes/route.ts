@@ -5,6 +5,7 @@ import { APP_URL, COACH_ID, isProtectedEmail } from '@/lib/constants';
 import { groupDisplayName, israelToday } from '@/lib/utils';
 import { syncClubFollows } from '@/lib/follows/club-sync';
 import { authError, requireSession, type SessionUser } from '@/lib/auth-session';
+import { testAccountIds, hiddenTestAccountsFor } from '@/lib/athletes/test-accounts';
 import { athleteWriteError, denyAthleteWrite } from '@/lib/auth/athlete-write-scope';
 import { groupChangeDate } from '@/lib/groups/pending-change';
 import { afterPackMove, notifyPackScheduled } from '@/lib/groups/pack-move';
@@ -85,6 +86,10 @@ export async function GET(request: Request) {
     }
 
     if (error) throw error;
+
+    // Test accounts (migration 201) leave the roster for other members; staff keep them.
+    const hiddenTest = hiddenTestAccountsFor(await testAccountIds(supabase), auth.user);
+    if (hiddenTest.size) athletes = (athletes || []).filter((a: { id: string }) => !hiddenTest.has(a.id));
 
     // Transform data to include group name and last synced
     const transformedAthletes = athletes?.map(athlete => ({
