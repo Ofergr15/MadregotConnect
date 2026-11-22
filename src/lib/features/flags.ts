@@ -94,6 +94,10 @@ export const FEATURES = {
   // ── Native build 21.
   /** Coach-tools hub in the coach shell. */
   native_mgmt_coach_tools: { label: 'כלי מאמן (אפליקציה)', defaultEnabled: false },
+  /** Athletes directory for staff. */
+  native_mgmt_athletes: { label: 'רשימת הרצים (אפליקציה)', defaultEnabled: false },
+  /** Photos gallery (read-only, Drive-sourced). */
+  native_photos: { label: 'גלריית תמונות (אפליקציה)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
