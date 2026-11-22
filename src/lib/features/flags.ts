@@ -70,6 +70,8 @@ export const FEATURES = {
   data_sources: { label: 'חיבור שעון באפליקציה', defaultEnabled: false },
   /** Native season program (read-only, member routes). */
   season_program: { label: 'תוכנית העונה (אפליקציה)', defaultEnabled: false },
+  /** Native profile editing (own profile). */
+  profile_edit: { label: 'עריכת פרופיל (אפליקציה)', defaultEnabled: false },
   // ── Native management screens (coach shell, read-only), iOS native-mgmt-readonly.
   native_mgmt_registrations: { label: 'אישורי הרשמה (אפליקציה)', defaultEnabled: false },
   native_mgmt_groups: { label: 'קבוצות וחברים (אפליקציה)', defaultEnabled: false },
