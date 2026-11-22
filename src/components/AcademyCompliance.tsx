@@ -8,7 +8,7 @@ import { formatPace } from '@/lib/garmin/pace';
 import { useApi } from '@/lib/api';
 import { Spinner, LoadingBlock, EmptyState } from '@/components/ui';
 import { ExecutionRing } from '@/components/activity/ExecutionRing';
-import { DIRECTION_COLOR, type ExecutionSummary } from '@/lib/plan-execution/verdict';
+import { DIRECTION_COLOR, directionKey, type ExecutionSummary } from '@/lib/plan-execution/verdict';
 import type { EffortReport } from '@/lib/academy/segments';
 import { WorkoutFeedbackPanel } from '@/components/academy/WorkoutFeedback';
 import { useSegmentReport } from '@/components/academy/useSegmentReport';
@@ -604,7 +604,7 @@ function dotTitle(wk: WorkoutAdherence, t: ExecutionTranslator): string {
   if (!wk.completed) return 'לא בוצע';
   const score = wk.execution?.score;
   if (score == null || !wk.execution) return 'בוצע · אין ציון דיוק';
-  return `${score}% ${t('accuracyShort')} · ${t(`dir_${wk.execution.direction}` as 'dir_unknown')}`;
+  return `${score}% ${t('accuracyShort')} · ${t(directionKey(wk.execution) as 'dir_unknown')}`;
 }
 
 function paceBandLabel(min: number | null, max: number | null): string {

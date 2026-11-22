@@ -35,6 +35,7 @@ import {
   type ExecutionMetric,
   type ExecutionRep,
   type ExecutionVerdict,
+  directionKey,
 } from '@/lib/plan-execution/verdict';
 import type { PlannedKmPoint } from '@/lib/academy/segments';
 import { ExecutionRing } from './ExecutionRing';
@@ -83,7 +84,7 @@ function verdictDetail(
   // The count, not a pace: `incomplete` is only ever set from the rep search, and
   // what it knows is how many of the reps the plan asked for are in the run.
   if (direction === 'incomplete' && verdict.effortCounts) {
-    return t('detail_incomplete', {
+    return t(verdict.partsNotReps ? 'detail_incomplete_parts' : 'detail_incomplete', {
       found: verdict.effortCounts.found,
       needed: verdict.effortCounts.needed,
     });
@@ -762,7 +763,7 @@ export function ExecutionQuality({
           <div className="min-w-0 flex-1">
             <p className="text-2xs font-semibold text-ink-400">{t('title')}</p>
             <p className="truncate text-sm font-bold leading-tight" style={{ color: ink }}>
-              {t(`dir_${verdict.direction}` as 'dir_on_target')}
+              {t(directionKey(verdict) as 'dir_on_target')}
             </p>
             <p className="truncate text-xs text-ink-500">{summaryLine}</p>
           </div>
@@ -780,7 +781,7 @@ export function ExecutionQuality({
                 this coloured headline and the ring already say it three ways. A
                 chip repeating these exact words sat directly under them. */}
             <h3 className="mt-1.5 text-xl font-black leading-tight" style={{ color: ink }}>
-              {t(`dir_${verdict.direction}` as 'dir_on_target')}
+              {t(directionKey(verdict) as 'dir_on_target')}
             </h3>
             <p className="mt-1 text-sm leading-relaxed text-ink-500">{verdictDetail(verdict, t)}</p>
             {verdict.workoutName && (

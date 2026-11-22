@@ -15,7 +15,7 @@
 import { useTranslations } from 'next-intl';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { DIRECTION_COLOR, DIRECTION_INK, type ExecutionSummary } from '@/lib/plan-execution/verdict';
+import { DIRECTION_COLOR, DIRECTION_INK, directionKey, type ExecutionSummary } from '@/lib/plan-execution/verdict';
 import { ExecutionRing } from './ExecutionRing';
 
 export function ExecutionBadge({
@@ -50,7 +50,7 @@ export function ExecutionBadge({
           ariaLabel={t('ringLabel', { score: summary.score })}
         />
         <p className="min-w-0 flex-1 truncate text-xs font-bold" style={{ color: ink }}>
-          {t('feedLabel')} · {t(`dir_${summary.direction}` as 'dir_on_target')}
+          {t('feedLabel')} · {t(directionKey(summary) as 'dir_on_target')}
         </p>
         {showChevron && <ChevronRight className="h-4 w-4 shrink-0 text-ink-300 rtl:rotate-180" />}
       </div>
@@ -79,7 +79,7 @@ export function ExecutionBadge({
       <div className="min-w-0 flex-1">
         <p className="text-3xs font-bold uppercase tracking-wide text-ink-400">{t('feedLabel')}</p>
         <p className="truncate text-sm font-bold leading-tight" style={{ color: ink }}>
-          {t(`dir_${summary.direction}` as 'dir_on_target')}
+          {t(directionKey(summary) as 'dir_on_target')}
         </p>
         {summary.workoutName && (
           <p className="truncate text-2xs text-ink-400">{summary.workoutName}</p>
