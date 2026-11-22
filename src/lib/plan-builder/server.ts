@@ -276,9 +276,9 @@ export function defaultOpts(o: Partial<PublishOpts> = {}): PublishOpts {
 /** cron/tick: publish every scheduled version whose time has come. Never throws. */
 export async function runScheduledPlanPublishes(db: Db, now = new Date()): Promise<string[]> {
   const { data, error } = await db.from('weekly_plan_versions').select('*').eq('state', 'scheduled').lte('publish_at', now.toISOString());
-  if (error || !data?.length) return [];
   const fired: string[] = [];
-  for (const v of data as VersionRow[]) {
+  // No early return: a tick with nothing due to publish must still run the expired retries below.
+  for (const v of (error ? [] : (data as VersionRow[] | null) ?? [])) {
     try { await publishVersion(db, v, defaultOpts(v.publish_opts ?? {}), null); fired.push(`planPublish ${v.week_start} v${v.version}`); }
     catch (e) { console.error('[plan-builder] scheduled publish failed', v.id, e); }
   }
