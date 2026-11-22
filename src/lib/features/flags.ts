@@ -72,6 +72,10 @@ export const FEATURES = {
   season_program: { label: 'תוכנית העונה (אפליקציה)', defaultEnabled: false },
   /** Native profile editing (own profile). */
   profile_edit: { label: 'עריכת פרופיל (אפליקציה)', defaultEnabled: false },
+  /** Native club updates: publish from the phone (club-updates routes, resolveVerifiedCaller). */
+  native_club_updates: { label: 'עדכוני מועדון (אפליקציה)', defaultEnabled: false },
+  /** Native day / quality session for coaches. */
+  native_mgmt_day_session: { label: 'אימון איכות ויום אימון (אפליקציה)', defaultEnabled: false },
   // ── Native management screens (coach shell, read-only), iOS native-mgmt-readonly.
   native_mgmt_registrations: { label: 'אישורי הרשמה (אפליקציה)', defaultEnabled: false },
   native_mgmt_groups: { label: 'קבוצות וחברים (אפליקציה)', defaultEnabled: false },
