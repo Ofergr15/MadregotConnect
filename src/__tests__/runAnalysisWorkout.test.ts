@@ -73,3 +73,18 @@ describe('Auto Lap inside a step that is not a distance (2026-10-20)', () => {
     expect(w.reps[0].meters).toBe(1400);
   });
 });
+
+describe('bestEffort — a stream clock includes pauses, the watch does not', () => {
+  // 4 m/s for 300 s, a 120 s stop at a light (one sample, no distance), 4 m/s again.
+  const t: number[] = []; const d: number[] = [];
+  for (let s = 0; s <= 300; s++) { t.push(s); d.push(s * 4); }
+  t.push(420); d.push(1200);
+  for (let s = 1; s <= 300; s++) { t.push(420 + s); d.push(1200 + s * 4); }
+  it('removes a ≥5 s gap that covered ≤2 m from the time axis (same rule as traceFromStream)', () => {
+    expect(bestEffort({ t, d }, 1609)!.seconds).toBeCloseTo(403, 0); // 1609 m at 4 m/s, not 523
+  });
+  it('keeps a slow stretch that covered ground', () => {
+    const tt = [0, 10, 20]; const dd = [0, 30, 1030];
+    expect(bestEffort({ t: tt, d: dd }, 1000)!.seconds).toBe(10);
+  });
+});

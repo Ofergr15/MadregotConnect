@@ -87,7 +87,7 @@ const PAUSE_MAX_M = 2;
  * this trace slightly faster than `average_pace` — which is the honest answer to
  * "how fast were you running".
  */
-function movingTimeAxis(d: number[], t: number[]): number[] {
+export function movingTimeAxis(d: number[], t: number[]): number[] {
   const out = [t[0]];
   let shift = 0;
   for (let i = 1; i < t.length; i++) {
