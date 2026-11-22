@@ -139,6 +139,13 @@ export interface FeedItem {
   commentPreview: FeedComment[];
   canDelete: boolean;
   activity: FeedActivity | null;
+  /**
+   * The athlete hid pace on this run (payload.hiddenFields has 'pace'). Pace fields
+   * are already null, but distance and duration/movingDuration still ship, so pace
+   * remains derivable — clients must not compute or show it. Whether to hide time too
+   * is undecided (review-2026-11-20/DECISIONS-PENDING.md).
+   */
+  paceHidden?: boolean;
 }
 
 /**
@@ -494,6 +501,7 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
   const row = value as RawFeedRow;
   const isOwn = !!row.author_athlete_id && row.author_athlete_id === ctx.viewerAthleteId;
   const payload = (row.payload as Record<string, unknown> | null) ?? null;
+  const hiddenFields = readHiddenFields(payload);
   const projected = row.athlete_activities
     ? maskHiddenStats(
       projectActivity(
@@ -501,7 +509,7 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
         ctx.planVerdictsByActivity?.get(row.athlete_activities.id) ?? null,
         ctx.qualityNameByActivity?.get(row.athlete_activities.id) ?? null,
       ),
-      readHiddenFields(payload),
+      hiddenFields,
     )
     : null;
   // Start/finish privacy zone (lib/privacy/route-trim.ts): other members get the
@@ -543,6 +551,7 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
       (row.type === 'post' && (ctx.viewerIsStaff || isOwn)) ||
       (row.type === 'announcement' && ctx.viewerIsStaff),
     activity,
+    paceHidden: hiddenFields.has('pace'),
   };
 }
 
