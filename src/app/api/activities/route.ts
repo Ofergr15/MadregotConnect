@@ -158,10 +158,25 @@ export async function GET(request: Request) {
     // with athlete_name:'Unknown' would both add bytes and invent a fact.
     if (volumeShape) return NextResponse.json({ activities: activities || [] });
 
+    // `include=plan` — stamps `plan_matched` (bool) from activity_plan_matches for
+    // the rows already returned. Narrowing-only like the rest: it reads matches for
+    // ids the gate has authorised and never adds a row. A missing table / failed
+    // read leaves the field off, so a caller can tell "unknown" from "not matched".
+    let matched: Set<string> | null = null;
+    if (searchParams.get('include') === 'plan' && activities?.length) {
+      const ids = activities.map((a: any) => a.id);
+      const { data: m, error: mErr } = await supabase
+        .from('activity_plan_matches')
+        .select('activity_id')
+        .in('activity_id', ids);
+      if (!mErr) matched = new Set((m || []).map((r: any) => r.activity_id));
+    }
+
     const enriched = (activities || []).map((a: any) => ({
       ...a,
       athlete_name: a.athletes?.name || 'Unknown',
       athletes: undefined,
+      ...(matched ? { plan_matched: matched.has(a.id) } : {}),
     }));
 
     return NextResponse.json({ activities: enriched });
