@@ -28,6 +28,8 @@ export const FEATURES = {
   week_health: { label: 'השבוע — עיצוב בריאות', defaultEnabled: false },
   /** Race-day live tracking + milestone pushes (lib/race-live, migration 196). */
   race_live: { label: 'מעקב חי במרוץ', defaultEnabled: false },
+  /** Native app: staff get the coach shell (CoachTabView) instead of the runner tabs. iOS build 15+. */
+  native_coach: { label: 'מסכי מאמן באפליקציה', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
