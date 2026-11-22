@@ -1,3 +1,4 @@
+import { movingTimeAxis } from '@/lib/academy/execution';
 /**
  * The workout a run actually was, read off the watch (mockup ~/.cache/madregot/run-page-v4.html,
  * Ofer 2026-10-20). Pure, so it can be tested.
@@ -303,14 +304,17 @@ function planRows(segs: Seg[], reps: Seg[], steps: Map<number, WStep>, packIndex
 
 export interface Trace { t: number[]; d: number[]; hr?: number[]; cad?: number[] }
 
-/** The fastest stretch of `meters` anywhere in the run (two-pointer over the trace). */
+/** The fastest stretch of `meters` anywhere in the run (two-pointer over the trace).
+ *  Timed on the MOVING axis (`movingTimeAxis`, the rule traceFromStream uses): the raw
+ *  stream clock runs through every stop at a light, which made a mile read 8:35 against
+ *  a 5:19 km on the same run. `start` stays on the raw clock the chart is drawn on. */
 export function bestEffort(tr: Trace, meters: number): { seconds: number; start: number } | null {
-  const { t, d } = tr; let j = 0; let best: { seconds: number; start: number } | null = null;
+  const { d } = tr; const raw = tr.t; const t = movingTimeAxis(d, raw); let j = 0; let best: { seconds: number; start: number } | null = null;
   for (let i = 0; i < d.length; i++) {
     while (j < d.length && d[j] - d[i] < meters) j++;
     if (j >= d.length) break;
     const s = t[j] - t[i];
-    if (s > 0 && (!best || s < best.seconds)) best = { seconds: s, start: t[i] };
+    if (s > 0 && (!best || s < best.seconds)) best = { seconds: s, start: raw[i] };
   }
   return best;
 }
