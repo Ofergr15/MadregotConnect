@@ -167,6 +167,8 @@ const KNOWN_AMBIGUOUS: Record<string, string[]> = {
   // 125 pending_group_id. Every `groups(` embed in src is hinted — see the test below.
   'athletes->groups': ['group_id', 'pending_group_id'],
   'benchmark_results->athletes': ['athlete_id', 'submitted_by'],
+  // 197: the athlete and the coach who marked them. Nothing embeds across it.
+  'practice_presence->athletes': ['athlete_id', 'marked_by'],
   'run_chats->athletes': ['athlete_id', 'coach_id'],
 };
 
