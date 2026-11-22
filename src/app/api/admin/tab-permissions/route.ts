@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
+import { requireMember } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// GET stays open: Header and BottomTabBar read it on every page load, including
-// before an athlete's session resolves, and it only reveals which tabs a role
-// can see. PUT is staff-only — it decides what every role in the club can reach.
+// GET is member-gated (verified JWT via resolveVerifiedCaller): every reader —
+// Header, BottomTabBar, Settings, the native Access screen — is inside the
+// signed-in shell and sends the bearer. It used to be open to the internet. PUT is staff-only — it decides what every role in the club can reach.
 
 // ── Why this is memoised ─────────────────────────────────────────────────────
 // It sits on the critical path of every single screen (the nav can't render
@@ -33,8 +34,10 @@ export const revalidate = 0;
 const MEMO_TTL_MS = 30_000;
 let memo: { permissions: unknown[]; expires: number } | null = null;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const denied = await requireMember(request);
+    if (denied) return denied;
     if (memo && memo.expires > Date.now()) {
       return NextResponse.json({ permissions: memo.permissions });
     }

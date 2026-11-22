@@ -87,6 +87,8 @@ vi.mock('@/lib/auth-session', () => ({
   authError: () => new Response('unauthorized', { status: 401 }),
 }));
 
+vi.mock('@/lib/auth/self-or-staff', () => ({ requireMember: async () => null }));
+
 vi.mock('@/lib/auth/require-approver', () => ({
   requireApprover: async () => ({ denied: null }),
 }));
@@ -112,8 +114,8 @@ describe('GET /api/admin/tab-permissions — memoised', () => {
   it('answers the second caller without touching the database', async () => {
     const { GET } = await load();
 
-    const first = await (await GET()).json();
-    const second = await (await GET()).json();
+    const first = await (await GET(new Request('https://madregot.app/api/admin/tab-permissions'))).json();
+    const second = await (await GET(new Request('https://madregot.app/api/admin/tab-permissions'))).json();
 
     expect(second).toEqual(first);
     expect(second.permissions).toEqual(PERMISSIONS);
@@ -122,9 +124,9 @@ describe('GET /api/admin/tab-permissions — memoised', () => {
 
   it('reads again once the window has passed', async () => {
     const { GET } = await load();
-    await GET();
+    await GET(new Request('https://madregot.app/api/admin/tab-permissions'));
     vi.advanceTimersByTime(31_000);
-    await GET();
+    await GET(new Request('https://madregot.app/api/admin/tab-permissions'));
     expect(permissionReads).toBe(2);
   });
 
@@ -133,7 +135,7 @@ describe('GET /api/admin/tab-permissions — memoised', () => {
     // notice staleness is the admin editing the matrix, and their own write
     // invalidates it on the instance they are talking to.
     const { GET, PUT } = await load();
-    await GET();
+    await GET(new Request('https://madregot.app/api/admin/tab-permissions'));
     expect(permissionReads).toBe(1);
 
     const res = await PUT(new Request('https://madregot.app/api/admin/tab-permissions', {
@@ -142,7 +144,7 @@ describe('GET /api/admin/tab-permissions — memoised', () => {
     }));
     expect(res.status).toBe(200);
 
-    await GET();
+    await GET(new Request('https://madregot.app/api/admin/tab-permissions'));
     expect(permissionReads).toBe(2);
   });
 });
@@ -212,8 +214,8 @@ describe('GET /api/reminder-config — memoised', () => {
     // Four components on one dashboard load read this route.
     const { GET } = await load();
 
-    const first = await (await GET()).json();
-    const second = await (await GET()).json();
+    const first = await (await GET(new Request('https://madregot.app/api/admin/tab-permissions'))).json();
+    const second = await (await GET(new Request('https://madregot.app/api/admin/tab-permissions'))).json();
 
     expect(second.config).toMatchObject({ teamDays: [1, 4], workoutHour: 19 });
     expect(second).toEqual(first);
@@ -228,16 +230,16 @@ describe('GET /api/reminder-config — memoised', () => {
     settingFails = true;
     const { GET } = await load();
 
-    const res = await (await GET()).json();
+    const res = await (await GET(new Request('https://madregot.app/api/admin/tab-permissions'))).json();
     expect(res.config).toMatchObject({ teamDays: [2, 5] });
-    await GET();
+    await GET(new Request('https://madregot.app/api/admin/tab-permissions'));
 
     expect(settingReads).toBe(2);
   });
 
   it('drops the memo when an approver saves new reminder times', async () => {
     const { GET, PUT } = await load();
-    await GET();
+    await GET(new Request('https://madregot.app/api/admin/tab-permissions'));
     expect(settingReads).toBe(1);
 
     const res = await PUT(new Request('https://madregot.app/api/reminder-config', {
@@ -246,7 +248,7 @@ describe('GET /api/reminder-config — memoised', () => {
     }));
     expect(res.status).toBe(200);
 
-    await GET();
+    await GET(new Request('https://madregot.app/api/admin/tab-permissions'));
     expect(settingReads).toBe(2);
   });
 });
