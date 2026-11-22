@@ -1,4 +1,5 @@
 import { hiddenEventIds } from '@/lib/events/server';
+import { pendingAthleteIds } from '@/lib/auth/pending-athletes';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { isCoreRunner } from '@/lib/core-runner';
@@ -98,8 +99,11 @@ export async function GET(request: Request) {
       perksQuery,
     ]);
 
+    // Not the ones waiting to be let in (approved = false), the same reading as runs.ts and
+    // the feed: a pending applicant is not a club member a teammate can find yet.
+    const pending = await pendingAthleteIds(supabase as never).catch(() => new Set<string>());
     const matched = (membersRes.error ? [] : membersRes.data || [])
-      .filter((a: { name: string | null }) => nameMatches(a.name, q))
+      .filter((a: { id: string; name: string | null }) => !pending.has(a.id) && nameMatches(a.name, q))
       .slice(0, RESULT_LIMIT) as Array<{ id: string; name: string; avatar_url: string | null; group_id?: string | null }>;
     // What you can do with the person (mockup search-proposal, "אלון"): their pack and their
     // last run, for the top match's quick links.

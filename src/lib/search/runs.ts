@@ -3,6 +3,7 @@ import { pendingAthleteIds } from '@/lib/auth/pending-athletes';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { containsPattern, quoteFilterValue } from '@/lib/db/like';
 import { israelToday } from '@/lib/utils';
+import { parseHiddenStats } from '@/lib/activities/hidden-stats';
 
 type Db = ReturnType<typeof createServerClient>;
 
@@ -29,7 +30,7 @@ export function workoutQuery(q: string): string {
  * no more — active members only, not the ones waiting to be let in — and a run that came
  * from Strava only to its owner (Strava's terms: a member's data to that member).
  */
-export async function searchRuns(supabase: Db, q: string, caller: { athleteId?: string | null; isStaff?: boolean }): Promise<RunResults> {
+export async function searchRuns(supabase: Db, q: string, caller: { athleteId?: string | null; isStaff?: boolean; isSuperUser?: boolean }): Promise<RunResults> {
   const wq = workoutQuery(q);
   const like = quoteFilterValue(containsPattern(wq));
   const since = new Date(Date.now() - 120 * 86_400_000).toISOString().slice(0, 10);
@@ -53,11 +54,26 @@ export async function searchRuns(supabase: Db, q: string, caller: { athleteId?: 
   const visible = rows.filter((r) => r.athlete_id === me || (name.has(r.athlete_id) && !pending.has(r.athlete_id)
     // A Strava-sourced row stores the negated Strava id: the owner's only.
     && !((r.garmin_activity_id ?? 0) < 0)));
+  // Pace the runner hid in the share sheet (feed_items.payload.hiddenFields) is withheld from
+  // everyone but the runner and staff, as on the feed (maskHiddenStats) and the run detail
+  // (lib/activities/hidden-stats.ts). A failed read hides it: "could not tell" never publishes.
+  const sees = caller.isStaff || caller.isSuperUser;
+  const others = sees ? [] : visible.filter((r) => r.athlete_id !== me).map((r) => r.id);
+  let paceHidden = new Set<string>();
+  if (others.length) {
+    try {
+      const { data, error } = await supabase.from('feed_items').select('activity_id, payload').in('activity_id', others);
+      if (error) paceHidden = new Set(others);
+      else for (const f of (data || []) as Array<{ activity_id: string; payload?: { hiddenFields?: unknown } | null }>) {
+        if (parseHiddenStats(f.payload?.hiddenFields).has('pace')) paceHidden.add(f.activity_id);
+      }
+    } catch { paceHidden = new Set(others); }
+  }
   const today = israelToday();
   const hits: RunHit[] = visible.map((r) => ({
     id: r.id, athleteId: r.athlete_id, name: name.get(r.athlete_id) || '',
     title: r.workout_title || r.activity_name || '', date: String(r.start_time).slice(0, 10),
-    km: Math.round((r.distance || 0) / 100) / 10, pace: r.average_pace, mine: r.athlete_id === me,
+    km: Math.round((r.distance || 0) / 100) / 10, pace: paceHidden.has(r.id) ? null : r.average_pace, mine: r.athlete_id === me,
   }));
   // Today's, by workout: one row for the session the club ran together.
   const groups = new Map<string, RunHit[]>();

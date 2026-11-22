@@ -21,6 +21,7 @@ function from(table: string) {
   const rows = () => {
     if (table === 'athletes') {
       let r = ROSTER;
+      if (f.approved === false) return []; // pendingAthleteIds: nobody here is pending
       if (f.id) r = r.filter((a) => a.id === f.id);
       if (f.group_id) r = r.filter((a) => a.group_id === f.group_id && a.id !== f.neq);
       return r;
