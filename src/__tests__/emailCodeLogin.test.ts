@@ -20,7 +20,11 @@ describe('sign in with a code by email', () => {
 
   it('never says whether an address is a member, and only an approved one gets a code', () => {
     const r = read('app/api/auth/email-code/route.ts');
-    expect(r).toMatch(/if \(!member\) return;/);
+    // A stranger and a removed member get the same { ok } (the removed one is told why
+    // by mail — gap 6, see emailCodeClosedAccount.test.ts).
+    const noMember = r.slice(r.indexOf('if (!member) {'), r.indexOf('const since', r.indexOf('return NextResponse.json({ ok: true });')));
+    expect(noMember).toMatch(/return NextResponse\.json\(\{ ok: true \}\);\n      \}\n/);
+    expect(noMember).not.toMatch(/status: 4\d\d/);
     expect(r).toMatch(/data\.approved !== true \|\| data\.status === 'removed'/);
   });
 
@@ -29,8 +33,10 @@ describe('sign in with a code by email', () => {
     expect(r).toMatch(/\(count \?\? 0\) >= MAX_SENDS/);
     expect(r).toMatch(/row\.attempts >= MAX_ATTEMPTS/);
     expect(r).toMatch(/await supabase\.from\('login_codes'\)\.delete\(\)\.eq\('email', email\);/);
-    expect(r).toMatch(/if \(member\.status === 'invited'\) await supabase\.from\('athletes'\)\.update\(\{ status: 'active' \}\)/);
-    expect(r).toMatch(/createSyntheticSession\(admin, email,/);
+    expect(r).toMatch(/mintMemberSession\(supabase, \{ \.\.\.member, email \}\)/);
+    const mint = read('lib/auth/member-session.ts');
+    expect(mint).toMatch(/if \(member\.status === 'invited'\) await supabase\.from\('athletes'\)\.update\(\{ status: 'active' \}\)/);
+    expect(mint).toMatch(/createSyntheticSession\(admin, member\.email,/);
   });
 
   it('is offered on the landing page under Strava', () => {

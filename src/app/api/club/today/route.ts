@@ -46,7 +46,7 @@ export async function GET(request: Request) {
       supabase.from('athletes').select('id, name, avatar_url, group_id').eq('coach_id', COACH_ID).eq('status', 'active'),
       supabase.from('groups').select('id, name'),
     ]);
-    // Test accounts (migration 182) count only for themselves and staff.
+    // Test accounts (migration 201) count only for themselves and staff.
     const hiddenTest = hiddenTestAccountsFor(await testRead, caller);
     const member = new Map(((athletes || []) as Ath[]).filter((a) => !hiddenTest.has(a.id)).map((a) => [a.id, a]));
     const runs = filterQualifyingRuns((acts || []) as Act[]).filter((a) => member.has(a.athlete_id));

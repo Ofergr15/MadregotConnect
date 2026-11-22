@@ -1,3 +1,5 @@
+import { maskClubRecordPayload } from '@/lib/records/club-record-card';
+import { seesFullRoute, trimRouteEnds } from '@/lib/privacy/route-trim';
 import { birthdayBodyAsOf } from '@/lib/feed/birthday';
 import { israelToday } from '@/lib/utils';
 /**
@@ -492,7 +494,7 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
   const row = value as RawFeedRow;
   const isOwn = !!row.author_athlete_id && row.author_athlete_id === ctx.viewerAthleteId;
   const payload = (row.payload as Record<string, unknown> | null) ?? null;
-  const activity = row.athlete_activities
+  const projected = row.athlete_activities
     ? maskHiddenStats(
       projectActivity(
         row.athlete_activities,
@@ -502,6 +504,17 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
       readHiddenFields(payload),
     )
     : null;
+  // Start/finish privacy zone (lib/privacy/route-trim.ts): other members get the
+  // route minus its first and last 200 m; the runner and staff get all of it.
+  const activity = projected && !seesFullRoute(
+    { athleteId: ctx.viewerAthleteId, isStaff: ctx.viewerIsStaff },
+    row.athlete_activities?.athlete_id,
+  )
+    ? (() => {
+      const trimmed = trimRouteEnds(projected.routePreview);
+      return { ...projected, routePreview: trimmed, hasRoute: !!trimmed };
+    })()
+    : projected;
 
   return {
     id: row.id,
@@ -515,7 +528,8 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
     // A birthday post kept up for days says "אתמול" the day after (lib/feed/birthday.ts).
     body: birthdayBodyAsOf(row.body, (payload as Record<string, unknown> | null)?.date, israelToday()),
     media: toMedia(row.media),
-    payload,
+    // A club-record card whose pace is hidden carries no times (lib/records/club-record-card.ts).
+    payload: maskClubRecordPayload(payload),
     occurredAt: row.occurred_at,
     // Minus a test account's rows this viewer can't see (lib/feed/test-account-filter.ts).
     likeCount: Math.max(0, (row.like_count ?? 0) - (ctx.hiddenLikeCountByItem?.get(row.id) ?? 0)),

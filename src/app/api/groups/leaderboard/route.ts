@@ -75,7 +75,7 @@ async function computeLeaderboard() {
     .eq('status', 'active');
 
   if (athError) throw athError;
-  // Test accounts (migration 182) never enter the club ranking. This is computed
+  // Test accounts (migration 201) never enter the club ranking. This is computed
   // once and cached for every viewer, so they are dropped for staff too.
   const testIds = await testAccountIds(supabase);
   const athletes = (athletesRaw || []).filter(a => !testIds.has(a.id));

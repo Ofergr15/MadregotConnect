@@ -1,13 +1,12 @@
-import { NextResponse, after } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { createSyntheticSession } from '@/lib/auth/synthetic-session';
+import { mintMemberSession } from '@/lib/auth/member-session';
+import { devFixedCodeFor } from '@/lib/auth/dev-login';
 import { DEVICE_COOKIE, DEVICE_COOKIE_OPTIONS, signDeviceToken } from '@/lib/auth/device-token';
 import { CODE_TTL_MS, MAX_ATTEMPTS, MAX_SENDS, SEND_WINDOW_MS, codeMatches, hashCode, newCode, normaliseCode } from '@/lib/auth/email-code';
 import { isLikelyEmail, normaliseEmail } from '@/lib/signup';
-import { notifyLoginCode } from '@/lib/email';
+import { notifyAccountClosed, notifyLoginCode } from '@/lib/email';
 import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
-import { clientIp, createRateLimiter } from '@/lib/academy/intake';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,19 +24,6 @@ export const dynamic = 'force-dynamic';
 
 type Db = ReturnType<typeof createServerClient>;
 
-// Rate limits that run BEFORE anything looks at membership, so they bite a member and a
-// stranger alike (the old per-address counter only ever counted members, and its 429
-// was the membership oracle). Keyed per person and, much higher, per IP — a club event
-// shares one Wi-Fi. Best effort per instance, the same as academy/register.
-const allowPerson = createRateLimiter(5, 60_000);
-const allowFromIp = createRateLimiter(40, 60_000);
-
-/** Every failed verify answers this, whatever the reason: no code, expired, used up or wrong. */
-const BAD_CODE = { error: 'wrong-code' } as const;
-/** The nil uuid: never issued as a login_codes id, so a CAS against it matches nothing. */
-const NO_SUCH_CODE_ID = '00000000-0000-0000-0000-000000000000';
-const badCode = () => NextResponse.json(BAD_CODE, { status: 401 });
-
 async function memberFor(supabase: Db, email: string) {
   const { data } = await supabase
     .from('athletes')
@@ -48,40 +34,11 @@ async function memberFor(supabase: Db, email: string) {
   return data;
 }
 
-/**
- * The deferred half of `send`, run after the response. It does the same work for any
- * address — the member lookup, the recent-codes count, a fresh code and its hash — and
- * only then stops short for a non-member, so the two differ in nothing but the write
- * and the mail that must not happen for a stranger. Every early return is silent: past
- * the cap no new code and no mail (each probe used to mail a real member), and a missing
- * hash secret or login_codes table is logged for us, never told to the caller.
- */
-async function sendCodeIfMember(supabase: Db, email: string, ua: string | null): Promise<void> {
-  const member = await memberFor(supabase, email);
-  const since = new Date(Date.now() - SEND_WINDOW_MS).toISOString();
-  const { count } = await supabase.from('login_codes').select('id', { count: 'exact', head: true }).eq('email', email).gte('created_at', since);
-  const code = newCode();
-  const hash = hashCode(email, code);
-  if (!member) return;
-  if ((count ?? 0) >= MAX_SENDS) { console.warn('[email-code] send cap reached'); return; }
-  if (!hash) { console.error('[email-code] not configured (no hash secret)'); return; }
-  const { error } = await supabase.from('login_codes').insert({ email, code_hash: hash, expires_at: new Date(Date.now() + CODE_TTL_MS).toISOString() });
-  // Migration 132 not pasted yet.
-  if (error && (error.code === '42P01' || error.code === 'PGRST205')) { console.error('[email-code] login_codes missing'); return; }
-  if (error) throw error;
-  // The count above is read-then-insert: N concurrent sends (N instances, or one instance
-  // under a burst) all read count < MAX_SENDS and would all insert and mail. Recount after
-  // our own insert; if the window now holds more than the cap, withdraw OUR row and send
-  // nothing. Under a race every racer may withdraw (fail-closed: fewer mails, never more).
-  const { count: after_ } = await supabase.from('login_codes').select('id', { count: 'exact', head: true }).eq('email', email).gte('created_at', since);
-  if ((after_ ?? 0) > MAX_SENDS) {
-    await supabase.from('login_codes').delete().eq('email', email).eq('code_hash', hash);
-    console.warn('[email-code] send cap reached (concurrent)');
-    return;
-  }
-  const mail = await notifyLoginCode({ email, code, name: member.name, athleteId: member.id });
-  if (!mail.ok) console.error('[email-code] mail not sent', mail.code, mail.reason);
-  await recordOnbEvent({ step: 'code_sent', athleteId: member.id, device: deviceFromUa(ua), meta: { mailed: mail.ok } });
+/** An approved row whose access was taken away (gap 6). Never signs in. */
+async function closedMemberFor(supabase: Db, email: string) {
+  const { data } = await supabase.from('athletes').select('id, name, status, approved').eq('email', email).maybeSingle();
+  if (!data || data.approved !== true) return null;
+  return data.status === 'removed' || data.status === 'disconnected' ? data : null;
 }
 
 /**
@@ -126,22 +83,46 @@ export async function POST(request: Request) {
     return NextResponse.json({ firstName: name.split(/\s+/)[0] || null, maskedEmail: maskEmail(email) });
   }
 
-  if (body?.action === 'send' || body?.action === 'verify') {
-    const ip = clientIp(request.headers);
-    if (!allowFromIp(ip) || !allowPerson(`${body.action}|${ip}|${email}`)) {
-      return NextResponse.json({ error: 'too-many' }, { status: 429 });
-    }
-  }
-
   try {
     if (body?.action === 'send') {
-      // The answer is decided before anything looks at the address: every send gets the
-      // same {ok:true} at the same moment. The member lookup, the cap, the code and the
-      // mail all run after the response (after()), so a member and a stranger differ in
-      // nothing the caller can see — status, body or time — and a database fault there
-      // is logged, never answered (it used to be a 500 only a member could reach).
-      const ua = request.headers.get('user-agent');
-      after(() => sendCodeIfMember(supabase, email, ua).catch((err) => console.error('[email-code] send failed:', err)));
+      const member = await memberFor(supabase, email);
+      if (!member) {
+        // Gap 6: a removed member is told why — in their inbox, never on this screen,
+        // which answers the same { ok } as for a stranger. The send window still
+        // applies (a placeholder row with an unusable hash counts it), so the form
+        // cannot be used to flood that inbox either.
+        const closed = await closedMemberFor(supabase, email);
+        if (closed) {
+          const since = new Date(Date.now() - SEND_WINDOW_MS).toISOString();
+          const { count } = await supabase.from('login_codes').select('id', { count: 'exact', head: true }).eq('email', email).gte('created_at', since);
+          if ((count ?? 0) < MAX_SENDS) {
+            const placeholder = hashCode(email, `closed:${newCode()}:${Date.now()}`);
+            if (placeholder) await supabase.from('login_codes').insert({ email, code_hash: placeholder, expires_at: new Date().toISOString(), attempts: MAX_ATTEMPTS });
+            const mail = await notifyAccountClosed({ email, name: closed.name, athleteId: closed.id });
+            if (!mail.ok) console.error('[email-code] closed-account mail not sent', mail.code, mail.reason);
+          }
+        }
+        return NextResponse.json({ ok: true });
+      }
+      const since = new Date(Date.now() - SEND_WINDOW_MS).toISOString();
+      const { count } = await supabase.from('login_codes').select('id', { count: 'exact', head: true }).eq('email', email).gte('created_at', since);
+      if ((count ?? 0) >= MAX_SENDS) return NextResponse.json({ error: 'too-many' }, { status: 429 });
+      // Gap 1: dev project + seeded test address only (lib/auth/dev-login). Never prod.
+      const code = devFixedCodeFor(email) ?? newCode();
+      const hash = hashCode(email, code);
+      if (!hash) return NextResponse.json({ error: 'not-configured' }, { status: 500 });
+      const { error } = await supabase.from('login_codes').insert({ email, code_hash: hash, expires_at: new Date(Date.now() + CODE_TTL_MS).toISOString() });
+      // Migration 132 not pasted yet: say so, rather than fail as if the address were wrong.
+      if (error && (error.code === '42P01' || error.code === 'PGRST205')) return NextResponse.json({ error: 'not-ready' }, { status: 503 });
+      if (error) throw error;
+      // Dev backend only (no mail service there): print the code to the local server log.
+      // Needs BOTH an explicit flag and a non-production build, so it can never run live.
+      if (process.env.DEV_LOGIN_CODE_LOG === '1' && process.env.NODE_ENV !== 'production') {
+        console.log(`[email-code] DEV code for ${email}: ${code}`);
+      }
+      const mail = await notifyLoginCode({ email, code, name: member.name, athleteId: member.id });
+      if (!mail.ok) console.error('[email-code] mail not sent', mail.code, mail.reason);
+      await recordOnbEvent({ step: 'code_sent', athleteId: member.id, device: deviceFromUa(request.headers.get('user-agent')), meta: { mailed: mail.ok } });
       return NextResponse.json({ ok: true });
     }
 
@@ -155,15 +136,8 @@ export async function POST(request: Request) {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      // No code, expired, used up and wrong all answer badCode(): told apart, they said
-      // "this address is a member who asked for a code".
-      // Same work shape as a live code (one select, one CAS update, one HMAC of the code), so a
-      // no-code verify is not a round trip faster than a wrong code: the CAS targets an id
-      // that cannot exist (login_codes.id is a uuid; the nil uuid is never issued).
       if (!row || Date.parse(row.expires_at) < Date.now() || row.attempts >= MAX_ATTEMPTS) {
-        await supabase.from('login_codes').update({ attempts: MAX_ATTEMPTS }).eq('id', NO_SUCH_CODE_ID).eq('attempts', 0).lt('attempts', MAX_ATTEMPTS).select('id');
-        hashCode(email, code); // the HMAC a live code's compare costs; compared against nothing
-        return badCode();
+        return NextResponse.json({ error: 'expired' }, { status: 401 });
       }
       // Claim the attempt BEFORE comparing the code, atomically: the UPDATE matches only
       // while `attempts` still holds the value read above. Read-then-write let N parallel
@@ -176,38 +150,23 @@ export async function POST(request: Request) {
         .eq('attempts', row.attempts)
         .lt('attempts', MAX_ATTEMPTS)
         .select('id');
-      if (!claimed || claimed.length === 0) return badCode();
-      if (!codeMatches(email, code, row.code_hash)) return badCode();
-      const member = await memberFor(supabase, email);
-      if (!member) return badCode();
-      // Mint FIRST, consume after (2026-11-20). The code used to be deleted before the session
-      // was minted, so a mint failure (a Supabase hiccup) spent a correct code and forced a new
-      // send against the 3-per-15-min cap. Now a failed mint leaves the code valid until its TTL;
-      // the CAS above already charged this attempt, so retries stay inside MAX_ATTEMPTS.
-      const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      });
-      const auth = await createSyntheticSession(admin, email, { athlete_id: member.id, name: member.name });
-      if (auth.error || !auth.session) {
-        console.error('[email-code] session mint failed:', auth.error);
-        return NextResponse.json({ error: 'failed', retry: 'same-code' }, { status: 500 });
+      if (!claimed || claimed.length === 0) {
+        return NextResponse.json({ error: 'too-many' }, { status: 429 });
       }
-      // One use: every code for this address goes, now that the sign-in has succeeded.
+      if (!codeMatches(email, code, row.code_hash)) {
+        return NextResponse.json({ error: 'wrong-code', left: Math.max(0, MAX_ATTEMPTS - row.attempts - 1) }, { status: 401 });
+      }
+      const member = await memberFor(supabase, email);
+      if (!member) return NextResponse.json({ error: 'expired' }, { status: 401 });
+      // One use: every code for this address goes.
       await supabase.from('login_codes').delete().eq('email', email);
-      // Approved but still 'invited' reads as "access removed" once inside; signing
-      // in IS joining, the same flip /api/athletes/connect makes.
-      if (member.status === 'invited') await supabase.from('athletes').update({ status: 'active' }).eq('id', member.id);
+      const minted = await mintMemberSession(supabase, { ...member, email });
+      if (!minted.ok) {
+        console.error('[email-code] session mint failed:', minted.error);
+        return NextResponse.json({ error: 'failed' }, { status: 500 });
+      }
       await recordOnbEvent({ step: 'code_verified', athleteId: member.id, device: deviceFromUa(request.headers.get('user-agent')) });
-      const response = NextResponse.json({
-        ok: true,
-        email,
-        name: member.name,
-        athleteId: member.id,
-        groupId: member.group_id,
-        role: (member as { role?: string | null }).role ?? null,
-        isAcademy: !!(member as { is_academy?: boolean | null }).is_academy,
-        session: auth.session,
-      });
+      const response = NextResponse.json(minted.body);
       const device = signDeviceToken(email);
       if (device) response.cookies.set(DEVICE_COOKIE, device, DEVICE_COOKIE_OPTIONS);
       return response;

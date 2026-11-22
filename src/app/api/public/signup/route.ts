@@ -16,6 +16,7 @@ import { clientIp, createRateLimiter } from '@/lib/academy/intake';
 // same per-person + per-IP keying as academy/register (a club event shares one Wi-Fi).
 const allowSubmit = createRateLimiter(5, 60_000);
 const allowFromIp = createRateLimiter(40, 60_000);
+import { hashStatusSecret, newStatusSecret } from '@/lib/onboarding/signup-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -217,10 +218,29 @@ export async function POST(request: Request) {
     // won is the one we wanted, so this is a success, not a collision to report.
     if (insertError && insertError.code !== '23505') throw insertError;
     // The funnel's first server-side step (lib/onboarding/events). Never allowed to fail the request.
+    let created: { id?: string; created_at?: string } | null = null;
     try {
-      const { data: created } = await supabase.from('signup_requests').select('id').eq('email', email).eq('status', 'pending').order('created_at', { ascending: false }).limit(1).maybeSingle();
-      await recordOnbEvent({ step: 'register_submitted', signupRequestId: (created as { id?: string } | null)?.id ?? null, device: deviceFromUa(request.headers.get('user-agent')) });
+      ({ data: created } = await supabase.from('signup_requests').select('id, created_at').eq('email', email).eq('status', 'pending').order('created_at', { ascending: false }).limit(1).maybeSingle());
+      await recordOnbEvent({ step: 'register_submitted', signupRequestId: created?.id ?? null, device: deviceFromUa(request.headers.get('user-agent')) });
     } catch { /* recording is best-effort */ }
+
+    // Gap 2 (migration 189): the applicant's key to their OWN request's status, handed
+    // out exactly once — only to the submission that CREATED the row. A resubmission
+    // ('pending' above) gets none, so typing somebody's address never yields theirs.
+    // Missing column → no secret; the app then says "we'll email you" and doesn't poll.
+    let statusKey: { id: string; secret: string; createdAt: string | null } | null = null;
+    if (!insertError && created?.id) {
+      try {
+        const secret = newStatusSecret();
+        const { data: stamped, error: stampError } = await supabase
+          .from('signup_requests')
+          .update({ status_secret_hash: hashStatusSecret(secret) })
+          .eq('id', created.id)
+          .is('status_secret_hash', null)
+          .select('id');
+        if (!stampError && stamped && stamped.length > 0) statusKey = { id: created.id, secret, createdAt: created.created_at ?? null };
+      } catch { /* pre-189: no status polling, the approval mail still goes */ }
+    }
 
     if (!insertError) {
       // This form asks for an address and a group and nothing else, so the local
@@ -267,7 +287,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, state: 'new' });
+    return NextResponse.json({ ok: true, state: 'new', ...(statusKey ? { request: statusKey } : {}) });
   } catch (err) {
     console.error('Failed to record signup request:', err);
     return NextResponse.json({ error: 'failed' }, { status: 500 });

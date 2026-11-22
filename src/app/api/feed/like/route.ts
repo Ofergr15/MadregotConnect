@@ -62,7 +62,7 @@ export async function POST(request: Request) {
       });
     }
 
-    // A test account's like is hidden from other non-staff members (migration 182).
+    // A test account's like is hidden from other non-staff members (migration 201).
     const hidden = await hiddenInteractorsFor(supabase as never, auth.user);
     const [{ data: item }, { data: topLikes }, hiddenCounts] = await Promise.all([
       supabase.from('feed_items').select('like_count').eq('id', itemId).maybeSingle(),

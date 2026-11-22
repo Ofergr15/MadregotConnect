@@ -19,10 +19,17 @@ import { MONDAY_WEEK, weekStartDayOf, type WeekStartDay } from '@/lib/utils';
  * exactly as it was before the preference existed, which is the only safe answer:
  * silently re-cutting somebody's km is worse than not offering the choice yet.
  */
+/** Off since settings rev 3. */
+export const PERSONAL_WEEK_START_ENABLED = false;
+
 export async function readWeekStartDay(
   supabase: SupabaseClient,
   athleteId: string,
 ): Promise<WeekStartDay> {
+  // Settings rev 3 (Ofer, 2026-11-21, Q7): the personal week start is REMOVED. Every
+  // activity-km figure is the watch week (Mon–Sun) and the plan week stays Sunday —
+  // two week notions, not three. The column (119) stays for history but is not read.
+  if (!PERSONAL_WEEK_START_ENABLED) return MONDAY_WEEK;
   const { data, error } = await supabase
     .from('athletes')
     .select('week_start_day')

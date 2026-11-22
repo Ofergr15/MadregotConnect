@@ -12,6 +12,8 @@ import { parseFeedbackInput } from '@/lib/feedback-scales';
 
 export const dynamic = 'force-dynamic';
 
+const VS_PLAN: unknown[] = ['easier', 'as_planned', 'harder', 'unfinished'];
+
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
 interface ThreadMessage {
@@ -389,34 +391,52 @@ export async function POST(request: Request) {
 
     // What was saved before, so a re-save of the same answer does not alert anyone twice:
     // each flag below fires only when it turns on.
-    type Before = { pain?: boolean | null; difficulty?: number | null; wants_feedback?: boolean | null };
+    type Before = { pain?: boolean | null; difficulty?: number | null; wants_feedback?: boolean | null; feel?: number | null; pain_detail?: string | null; comment?: string | null };
     let before: Before | null = null;
     if (garminActivityId != null) {
       const { data: prev } = await supabase
         .from('workout_feedback')
-        .select('pain, difficulty, wants_feedback')
+        .select('pain, difficulty, wants_feedback, feel, pain_detail, comment')
         .eq('athlete_id', athleteId)
         .eq('garmin_activity_id', garminActivityId)
         .maybeSingle();
       before = (prev as Before | null) ?? null;
     }
 
-    const { error } = await supabase
-      .from('workout_feedback')
-      .upsert(
-        {
-          athlete_id: athleteId,
-          garmin_activity_id: garminActivityId,
-          difficulty,
-          feel,
-          pain,
-          pain_detail: painDetail || null,
-          wants_feedback: wantsFeedback ?? null,
-          comment: comment || null,
-        },
-        { onConflict: 'athlete_id,garmin_activity_id' },
-      );
+    // A field the request does not carry keeps what was saved: the upsert writes the whole
+    // row, so a one-field save (the native app's feel tap sends only `feel`) used to null the
+    // difficulty, pain and comment already saved for that run. A field sent as null still clears.
+    const has = (k: string) => Object.prototype.hasOwnProperty.call(body, k);
+    const keep = <T,>(k: string, sent: T, prev: T | undefined): T | null => (has(k) || !before ? sent : (prev ?? null));
+    const baseRow = {
+      athlete_id: athleteId,
+      garmin_activity_id: garminActivityId,
+      difficulty: keep('difficulty', difficulty, before?.difficulty),
+      feel: keep('feel', feel, before?.feel),
+      pain: keep('pain', pain, before?.pain),
+      pain_detail: keep('painDetail', painDetail || null, before?.pain_detail),
+      wants_feedback: keep('wantsFeedback', wantsFeedback ?? null, before?.wants_feedback),
+      comment: keep('comment', comment || null, before?.comment),
+    };
+    // Migration 191: vs-plan, edit stamp, and re-submitting clears a soft withdraw.
+    // A database without 191 gets the row without them (42703 → retry), so the PWA
+    // keeps working before the paste.
+    const vsPlan = VS_PLAN.includes(body?.vsPlan) ? (body.vsPlan as string) : null;
+    const with191 = {
+      ...baseRow,
+      ...(vsPlan ? { vs_plan: vsPlan } : {}),
+      ...(before ? { edited_at: new Date().toISOString(), withdrawn_at: null } : {}),
+    };
+    let { error } = await supabase.from('workout_feedback').upsert(with191, { onConflict: 'athlete_id,garmin_activity_id' });
+    if (error && (error as { code?: string }).code === '42703') {
+      ({ error } = await supabase.from('workout_feedback').upsert(baseRow, { onConflict: 'athlete_id,garmin_activity_id' }));
+    }
     if (error) throw error;
+    // The prompt this answers (feedback_prompts, 191) — cards in פיד and השבוע clear together.
+    try {
+      await supabase.from('feedback_prompts').update({ answered_at: new Date().toISOString() })
+        .eq('athlete_id', athleteId).eq('activity_id', String(garminActivityId)).is('answered_at', null);
+    } catch { /* table missing pre-191 */ }
 
     // Team alert (PRD §1): high difficulty (>=9), reported pain, or an explicit
     // request for feedback → push the coaches so they can reach out.

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { callbackQueryShape } from '@/lib/auth/login-error';
+import { NATIVE_STRAVA_RETURN } from '@/lib/data-sources/native';
 import { randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
@@ -7,6 +8,7 @@ import { encrypt } from '@/lib/encryption';
 import { COACH_ID } from '@/lib/constants';
 import { resolveAppOrigin, stravaAuthEmail } from '@/lib/strava/client';
 import { createSyntheticSession } from '@/lib/auth/synthetic-session';
+import { clearLinkReturn, consumeLinkState, readLinkReturn, reserveLinkState, verifyLinkState } from '@/lib/strava/link-state';
 import {
   duplicatesToFold,
   isSyntheticAuthEmail,
@@ -93,6 +95,14 @@ export async function GET(request: Request) {
   // session established here — park it in login_handoffs and let the app collect
   // it instead.
   const { isLogin, challenge, joinToken } = parseLoginState(state);
+  // A connect started from the native app (/api/me/data-sources/strava, self-only) is an
+  // ordinary SIGNED link state whose reservation says return 'app': same verification and
+  // link write as below, then back to the app's scheme instead of a web page. Read before
+  // anything else (a valid signature costs one DB read) so even a cancel returns to the app.
+  let fromApp = false;
+  if (!isLogin && !joinToken && verifyLinkState(state)) {
+    try { fromApp = (await readLinkReturn(createServerClient(), state)) === 'app'; } catch { /* web page then */ }
+  }
   // Localhost stays local even if .env still points at production.
   // Behind a Cloudflare tunnel (non-localhost host), prefer NEXT_PUBLIC_APP_URL.
   const origin = resolveAppOrigin(request);
@@ -117,6 +127,7 @@ export async function GET(request: Request) {
   if (query.error) {
     console.info(`[auth-debug:${debugId}] callback:strava_error`, { error: query.error });
     const reason = query.error === 'access_denied' ? 'denied' : 'missing_params';
+    if (fromApp) return NextResponse.redirect(`${NATIVE_STRAVA_RETURN}?result=${reason}`);
     return NextResponse.redirect(new URL(`/?strava=error&reason=${reason}&debug=${debugId}`, origin));
   }
   if (!code || !state) {
@@ -126,6 +137,48 @@ export async function GET(request: Request) {
   if (!process.env.STRAVA_CLIENT_ID || !process.env.STRAVA_CLIENT_SECRET) {
     console.error(`[auth-debug:${debugId}] callback:not_configured`);
     return NextResponse.redirect(new URL('/?strava=error&reason=not_configured', origin));
+  }
+
+  // Link mode (neither login nor join): only a state this server signed for one
+  // athlete in the last 10 minutes (lib/strava/link-state.ts). Checked BEFORE the
+  // code is exchanged, so a forged or bare-id state never reaches Strava's token
+  // endpoint or any write.
+  // Signature and expiry first (no DB), then the one-use reservation (one DELETE).
+  // Where a link-mode answer lands. The profile unless a coach started it (recorded with
+  // the reservation): a replayed, expired, forged or missing state has no trusted origin,
+  // and the profile is the one screen every role has that also says how it went.
+  let linkBack = '/dashboard/profile?tab=datasource';
+  let linkAthleteId: string | null = null;
+  if (!isLogin && !joinToken) {
+    const signedLinkId = verifyLinkState(state);
+    // Where to send them back: their profile when they started it, else the athletes page.
+    // Only for a state whose signature checks out — a forged one costs no DB read.
+    if (signedLinkId) {
+      try {
+        if ((await readLinkReturn(createServerClient(), state)) === 'athletes') linkBack = '/dashboard/athletes';
+      } catch { /* the profile, then; the reservation below still decides */ }
+    }
+    let consumed: 'ok' | 'not_found' | 'error' = 'not_found';
+    if (signedLinkId) {
+      try {
+        consumed = await consumeLinkState(createServerClient(), state, signedLinkId);
+      } catch {
+        consumed = 'error';
+      }
+    }
+    // The hint goes once the state is settled — used ('ok') or dead ('not_found'). On a store
+    // error the reservation may still stand, so the hint stays for the retry.
+    if (signedLinkId && consumed !== 'error') {
+      try { await clearLinkReturn(createServerClient(), state); } catch { /* expires */ }
+    }
+    if (consumed !== 'ok') {
+      // Fail closed either way; the reason tells a store outage from a bad state.
+      const reason = consumed === 'error' ? 'link_unavailable' : 'bad_state';
+      console.warn(`[auth-debug:${debugId}] callback:link_state_rejected`, { reason, signed: !!signedLinkId });
+      if (fromApp) return NextResponse.redirect(`${NATIVE_STRAVA_RETURN}?result=error`);
+      return NextResponse.redirect(new URL(`${linkBack}${linkBack.includes('?') ? '&' : '?'}strava=error&reason=${reason}`, origin));
+    }
+    linkAthleteId = signedLinkId;
   }
 
   try {
@@ -150,6 +203,14 @@ export async function GET(request: Request) {
       if (isInvalidCode && isLogin) {
         console.info(`[auth-debug:${debugId}] callback:duplicate_code`);
         return NextResponse.redirect(`${origin}/auth/resolve`);
+      }
+      // Link mode: nothing was written yet, so put the reservation back and let the
+      // member retry this same callback (a transient Strava failure). An invalid code
+      // cannot succeed on a retry, so it is not restored.
+      if (linkAthleteId && !isInvalidCode) {
+        // With the screen it was started from (its hint was cleared when the state was used).
+        const back = fromApp ? 'app' : linkBack === '/dashboard/athletes' ? 'athletes' : 'profile';
+        try { await reserveLinkState(createServerClient(), state, linkAthleteId, back); } catch { /* retry from the app */ }
       }
       throw exchangeErr;
     }
@@ -327,13 +388,15 @@ export async function GET(request: Request) {
 
     // ── Coach link mode ──────────────────────────────────────────────────────
     if (!isLogin) {
+      // linkAthleteId was verified before the code exchange, above.
+      if (!linkAthleteId) throw new Error('unreachable: link state not verified');
       const supabase = createServerClient();
       // Whether Garmin is already connected decides one field below, so it is read
       // before the write rather than after.
       const { data: linkTarget } = await supabase
         .from('athletes')
         .select('garmin_auth')
-        .eq('id', state)
+        .eq('id', linkAthleteId)
         .maybeSingle();
       const { error } = await supabase
         .from('athletes')
@@ -350,14 +413,21 @@ export async function GET(request: Request) {
           ...(linkTarget?.garmin_auth ? {} : { data_source: 'strava' }),
           ...(avatar ? { avatar_url: avatar } : {}),
         })
-        .eq('id', state);
+        .eq('id', linkAthleteId);
       if (error) {
         console.error('Failed to save Strava auth:', error);
+        if (fromApp) return NextResponse.redirect(`${NATIVE_STRAVA_RETURN}?result=error`);
         return NextResponse.redirect(
-          new URL('/dashboard/athletes?strava=error&reason=save_failed', origin),
+          new URL(`${linkBack}${linkBack.includes('?') ? '&' : '?'}strava=error&reason=save_failed`, origin),
         );
       }
-      return NextResponse.redirect(new URL('/dashboard/athletes?strava=connected', origin));
+      if (fromApp) {
+        // Migration 192, best effort and separate: pre-migration this write fails
+        // on the missing column and must not take the connect down with it.
+        await supabase.from('athletes').update({ strava_connected_at: new Date().toISOString() }).eq('id', linkAthleteId);
+        return NextResponse.redirect(`${NATIVE_STRAVA_RETURN}?result=connected`);
+      }
+      return NextResponse.redirect(new URL(`${linkBack}${linkBack.includes('?') ? '&' : '?'}strava=connected`, origin));
     }
 
     // ── Login mode ───────────────────────────────────────────────────────────
@@ -424,27 +494,29 @@ export async function GET(request: Request) {
       if (existing) matchedBy = 'name_real';
     }
 
-    // ── Reconcile, on EVERY login rather than only the first ──────────────────
+    // ── A name is not an identity ────────────────────────────────────────────
     //
-    // This is what repairs the duplicates that already exist, without anybody
-    // having to do anything. Somebody in that state is recognised above by their
-    // Strava id — which sits on the DUPLICATE, since a previous login put it there
-    // — so `existing` is the empty shell and their real account, with their group
-    // and their history, is still sitting beside it. The name key finds it, and
-    // then both halves are in hand at once. That only ever happens here.
-    if (existing && isSyntheticAuthEmail(existing.email)) {
-      const real = matchAthleteByNameKey(roster, existing.name) || matchAthleteByNameKey(roster, name)
-        // A name too short for the skeleton (Chen Becher): the exact name, real rows only.
-        || matchRealRowByName(roster, existing.name, typedNames) || matchRealRowByName(roster, name, typedNames);
-      if (real && real.id !== existing.id) {
-        console.info(`[auth-debug:${debugId}] callback:reclaimed_roster_row`, {
-          shell: existing.id,
-          real: real.id,
-        });
-        existing = real;
-        matchedBy = `${matchedBy}+reclaimed`;
-      }
+    // Everything above that matched by NAME (exact, cross-script skeleton, or the
+    // name typed at sign-up) only says that somebody with a Strava account calls
+    // themselves what a member is called. Taking that as the member wrote the
+    // caller's Strava id onto the member's row and signed them in as the member —
+    // an admin included. So a name match signs nobody in and writes nothing: the
+    // member proves the registered email once (the email-code sign-in) and connects
+    // Strava from inside the app, where the link is signed for their own row, or a
+    // coach links them. Already-linked members (strava_identity) are unchanged, and
+    // somebody the roster does not know still gets a pending membership below.
+    if (existing && matchedBy !== 'strava_identity') {
+      console.info(`[auth-debug:${debugId}] callback:name_match_needs_email`, { matchedBy });
+      return NextResponse.redirect(new URL('/?strava=error&reason=verify_email', origin));
     }
+
+    // ── No reconcile by name ──────────────────────────────────────────────────
+    //
+    // This used to "repair" a duplicate on every login: a pending shell recognised by
+    // its Strava id was swapped for the member whose NAME it shared, and merged into
+    // them. That is the same name-as-identity step as above, one login later, so it is
+    // gone: such a shell stays a pending shell until a coach merges it or the member
+    // links Strava from inside the app.
 
     // Fold away every shell that claimed this same Strava identity. Restricted to
     // `claiming` on purpose: those rows matched on the id or the address being

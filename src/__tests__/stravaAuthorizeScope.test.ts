@@ -1,4 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { verifyLinkState } from '@/lib/strava/link-state';
+import { createMemoryDb } from './helpers/memory-db';
+
+const settingsDb = createMemoryDb({ schema: { app_settings: ['key', 'value', 'updated_at'] }, unique: { app_settings: [['key']] } });
+vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => settingsDb.client }));
 
 /**
  * `GET /api/strava?athleteId=…` was a complete account takeover, and the whole
@@ -65,6 +70,8 @@ async function stateOf(res: Response): Promise<string | null> {
 beforeEach(() => {
   requireSession.mockReset();
   process.env.STRAVA_CLIENT_ID = 'test-client-id';
+  settingsDb.tables.app_settings.length = 0;
+  process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY && process.env.ENCRYPTION_KEY.length >= 32 ? process.env.ENCRYPTION_KEY : 'test-key-'.padEnd(40, 'x');
 });
 
 describe('GET /api/strava — link branch', () => {
@@ -86,14 +93,17 @@ describe('GET /api/strava — link branch', () => {
     requireSession.mockResolvedValue(session());
     const res = await get(`?athleteId=${ME}`);
     expect(res.status).toBe(200);
-    expect(await stateOf(res)).toBe(ME);
+    expect(verifyLinkState(await stateOf(res))).toBe(ME);
+    // One reservation for that athlete, nothing for anybody else (lib/strava/link-state.ts).
+    expect(settingsDb.tables.app_settings.filter((r) => String(r.key).startsWith('stravalink:') && r.value === ME)).toHaveLength(1);
+    expect(res.headers.get('set-cookie')).toBeNull();
   });
 
   it('lets a coach connect anyone — that is what the athletes page does', async () => {
     requireSession.mockResolvedValue(session({ role: 'coach', isStaff: true }));
     const res = await get(`?athleteId=${VICTIM}`);
     expect(res.status).toBe(200);
-    expect(await stateOf(res)).toBe(VICTIM);
+    expect(verifyLinkState(await stateOf(res))).toBe(VICTIM);
   });
 
   it('honours mode=link the same way, since that reaches the same branch', async () => {

@@ -91,7 +91,7 @@ describe('GET /api/events', () => {
 describe('GET /api/events/[id]', () => {
   it('→ { event: Event }', async () => {
     answer = () => ({ data: EVENT, error: null });
-    expect(await (await eventOne.GET(new Request('http://x'), ctx('e1'))).json()).toEqual({ event: EVENT });
+    expect(await (await eventOne.GET(new Request('http://x'), ctx('e1'))).json()).toEqual({ event: EVENT, blocks: null });
   });
   it('missing → 404 { error: "Event not found" }', async () => {
     const res = await eventOne.GET(new Request('http://x'), ctx('nope'));

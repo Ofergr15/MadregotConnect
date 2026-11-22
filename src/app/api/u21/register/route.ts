@@ -72,7 +72,7 @@ export async function POST(request: Request) {
       const recent = await recentSubmits(supabase, email, track);
       if (recent && (recent.sameTrackRecent || recent.lastHour >= U21_MAX_PER_EMAIL_PER_HOUR)) return null;
       let { error } = await supabase.from('u21_registrations').insert({ ...row, dedupe_key: u21DedupeKey(email, track) });
-      // Migration 183 not pasted yet: store without the key, as before.
+      // Migration 202 not pasted yet: store without the key, as before.
       if (error && isMissingDedupeColumn(error)) ({ error } = await supabase.from('u21_registrations').insert(row));
       // A concurrent identical submit on another instance won the unique index: same registration.
       if (error && isDedupeConflict(error)) return null;

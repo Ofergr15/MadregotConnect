@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { isCourseGpxUrl } from '@/lib/events';
 
-/** V11: an event's course map (events.course_gpx_url, migration 181 — not applied yet). */
+/** V11: an event's course map (events.course_gpx_url, migration 200 — not applied yet). */
 
 vi.mock('@/lib/auth-session', () => ({
   requireSession: async () => ({ ok: true, user: { isStaff: true, athleteId: 'coach-1' } }),
@@ -14,10 +14,12 @@ vi.mock('@/lib/supabase/server', () => ({
   createServerClient: () => ({
     from: () => {
       const c: any = {};
+      let writing = false;
       for (const m of ['select', 'eq']) c[m] = () => c;
-      c.insert = (r: Record<string, unknown>) => { written = r; return c; };
-      c.update = (r: Record<string, unknown>) => { written = r; return c; };
-      c.single = async () => ({ data: dbError ? null : { id: 'e1', ...written }, error: dbError });
+      c.insert = (r: Record<string, unknown>) => { written = r; writing = true; return c; };
+      c.update = (r: Record<string, unknown>) => { written = r; writing = true; return c; };
+      // The schema error belongs to the write; PATCH first reads the current row (events v2).
+      c.single = async () => (writing && dbError ? { data: null, error: dbError } : { data: { id: 'e1', ...written }, error: null });
       c.maybeSingle = c.single;
       return c;
     },
@@ -41,7 +43,7 @@ describe('isCourseGpxUrl', () => {
 });
 
 describe('POST /api/events', () => {
-  it('without course_gpx_url the insert has no such key (works before migration 181)', async () => {
+  it('without course_gpx_url the insert has no such key (works before migration 200)', async () => {
     expect((await post(BASE)).status).toBe(200);
     expect(written).not.toHaveProperty('course_gpx_url');
   });
@@ -66,10 +68,10 @@ describe('PATCH /api/events/[id]', () => {
     expect((await patch({ course_gpx_url: 'ftp://x' })).status).toBe(400);
     expect(written).toBeNull();
   });
-  it('before migration 181: 503 naming the migration, not a 500', async () => {
+  it('before migration 200: 503 naming the migration, not a 500', async () => {
     dbError = { code: '42703', message: 'column "course_gpx_url" does not exist' };
     const res = await patch({ course_gpx_url: 'https://cdn.example/v.gpx' });
     expect(res.status).toBe(503);
-    expect(await res.json()).toEqual({ error: 'migration 181 not applied' });
+    expect(await res.json()).toEqual({ error: 'migration 200 not applied' });
   });
 });

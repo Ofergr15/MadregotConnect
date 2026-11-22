@@ -14,7 +14,9 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { hiddenFromCaller } from '@/lib/athletes/test-accounts';
+import { isTestAccount } from '@/lib/athletes/test-accounts';
+import { readHiddenStats, type MaskedStat } from '@/lib/activities/hidden-stats';
+import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
 import { loadActivityStream } from '@/lib/garmin/stream-store';
 import { normalizeStoredLaps } from '@/lib/garmin/laps';
 import { mayViewHrTrace, readHrTracePublic } from '@/lib/athletes/hr-trace-privacy';
@@ -29,7 +31,7 @@ import { readPrExclusions } from '@/lib/prs/exclusions-store';
 import { classifyWorkout } from '@/lib/plans/session-summary';
 import { workoutPlanForGroup } from '@/lib/plans/match-athlete-activities';
 import type { ParsedWorkout } from '@/lib/ai/types';
-import { bestEffort, heatCostSec, readWorkout, recoveries, technique, type WStep } from '@/lib/run-analysis/workout';
+import { bestEffort, heatCostSec, readWorkout, recoveries, technique, type Seg, type Workout, type WStep } from '@/lib/run-analysis/workout';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +52,12 @@ async function weather(lat: number, lng: number, localIso: string): Promise<{ te
     if (i < 0 || h.temperature_2m[i] == null) return null;
     return { tempC: h.temperature_2m[i], dewC: h.dew_point_2m[i], humidity: h.relative_humidity_2m[i], feelsC: h.apparent_temperature?.[i] ?? null };
   } catch { return null; }
+}
+
+/** The workout with every heart-rate figure removed (the runner hid heart rate on this run). */
+function withoutHr(w: Workout): Workout {
+  const strip = (s: Seg): Seg => ({ ...s, hr: null, maxHr: null });
+  return { ...w, segments: w.segments.map(strip), reps: w.reps.map(strip), strides: w.strides.map(strip), avgHr: null };
 }
 
 /** The club's own line between a long run and a normal one (lib/plans/session-summary). */
@@ -79,10 +87,20 @@ export async function GET(request: Request) {
       .eq('id', activityId).maybeSingle();
     if (error) throw error;
     if (!row) return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
-    if (row.athlete_id && (await hiddenFromCaller(supabase, caller, row.athlete_id))) {
+    if (row.athlete_id && !seesPending(caller, row.athlete_id) && (await isPendingAthlete(supabase, row.athlete_id))) {
       return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
     }
-    const hrOk = mayActFor(caller, row.athlete_id) || mayViewHrTrace({ isSelfOrStaff: false, runnerAllows: await readHrTracePublic(supabase, row.athlete_id), hiddenOnThisRun: false });
+    // A QA test account's runs read as not there to everyone but itself and staff (migration 201).
+    if (row.athlete_id && !caller.isStaff && caller.athleteId !== row.athlete_id && (await isTestAccount(supabase, row.athlete_id))) {
+      return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
+    }
+    // Stats the runner hid in the share sheet: masked for everyone but the runner and staff;
+    // a failed read hides them all (lib/activities/hidden-stats). Hidden heart rate now also
+    // closes the trace here, as /api/activities/stream already did.
+    const selfOrStaff = mayActFor(caller, row.athlete_id);
+    const hidden: Set<MaskedStat> = selfOrStaff ? new Set() : await readHiddenStats(supabase, row.id);
+    const hidePace = hidden.has('pace');
+    const hrOk = selfOrStaff || mayViewHrTrace({ isSelfOrStaff: false, runnerAllows: await readHrTracePublic(supabase, row.athlete_id), hiddenOnThisRun: hidden.has('heart_rate') });
 
     const [stream, who, groups, te] = await Promise.all([
       loadActivityStream(supabase, row.id),
@@ -157,14 +175,24 @@ export async function GET(request: Request) {
     const pace = row.average_pace || (total ? (row.duration || 0) / (total / 1000) : 0);
     const teRow = te.error ? null : (te.data as { training_effect?: { aerobic?: number; anaerobic?: number; label?: string | null; load?: number | null; recoveryHours?: number | null } | null } | null)?.training_effect ?? null;
 
+    // Hidden pace: the blocks that are a pace or derived from one are withheld — the rep
+    // paces (workout), best efforts and the records they are held against, similar sessions'
+    // average pace, and the heat cost in seconds per km. Heart-rate recovery (gated by hrOk
+    // above), cadence/stride per rep, the weather itself, the linked cool-down's distance and
+    // the training effect are not pace and stay.
+    // Hidden heart rate: the lap averages inside the workout (every segment's, rep's and
+    // stride's hr / maxHr, and avgHr) go too — /details and /stream already null them. Only
+    // an explicit hide does this: a runner who merely switched the HR line off (hrOk false,
+    // nothing hidden) keeps the lap averages teammates have always seen.
+    const shownWorkout = !workout || hidePace ? null : hidden.has('heart_rate') ? withoutHr(workout) : workout;
     return NextResponse.json({
-      workout,
+      workout: shownWorkout,
       linked: extra,
-      similar,
-      efforts, prs,
+      similar: hidePace ? [] : similar,
+      efforts: hidePace ? [] : efforts, prs: hidePace ? {} : prs,
       recovery: tr && workout ? recoveries(tr, workout) : [],
       technique: tr && workout ? technique(tr, workout) : [],
-      conditions: cond ? { ...cond, costSec: workout ? heatCostSec(cond.tempC, cond.dewC, workout.avgPace) : heatCostSec(cond.tempC, cond.dewC, pace), calc: paceMatters } : null,
+      conditions: cond ? { ...cond, costSec: hidePace ? null : workout ? heatCostSec(cond.tempC, cond.dewC, workout.avgPace) : heatCostSec(cond.tempC, cond.dewC, pace), calc: hidePace ? false : paceMatters } : null,
       trainingEffect: teRow,
       hrVisible: hrOk,
     // Without the trace (it lands minutes after the run) the answer is partial: never kept.

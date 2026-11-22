@@ -150,7 +150,8 @@ describe('GET /api/feed — item shape', () => {
         startTime: '2026-11-19T06:10:00+00:00', distance: 4400, duration: 1218, movingDuration: 1200,
         averagePace: 277, averageHr: 158, maxHr: 181, calories: 320, elevationGain: 12, locationName: 'תל אביב',
         perceivedRpe: null, perceivedFeel: null,
-        routePreview: [{ lat: 32.1, lng: 34.8 }, { lat: 32.11, lng: 34.81 }], routeHd: false, hasRoute: true,
+        // A two-point trace sits wholly inside the start/finish privacy zone (route-trim.ts): nothing to draw.
+        routePreview: null, routeHd: false, hasRoute: false,
         paceBands: expect.any(Array),
         lapBands: [{ m: 2000, pace: 300, hr: 140 }, { m: 1000, pace: 220, hr: 170 }, { m: 400, pace: 450, hr: 150 }, { m: 1000, pace: 218, hr: 172 }],
         stepBands: null, planVerdict: null, qualityName: null,

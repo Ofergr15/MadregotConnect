@@ -34,7 +34,7 @@ describe('U21 admin list page', () => {
     expect(container.querySelector('table')).toBeNull();
   });
 
-  it('table not migrated: names migration 180, shows no table', () => {
+  it('table not migrated: names migration 199, shows no table', () => {
     h.state = { data: { data: [], ready: false } };
     const { container } = render(<U21AdminPage />);
     expect(container.textContent).toContain('מיגרציה 180');

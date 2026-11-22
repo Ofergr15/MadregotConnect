@@ -2,123 +2,137 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, authError } from '@/lib/auth-session';
 import { notifyAthlete } from '@/lib/push';
-import { meetupJoinedCopy, meetupAcceptedCopy } from '@/lib/notifications/copy';
+import { meetupJoinedCopy, meetupAcceptedCopy, meetupRequestCopy, meetupPromotedCopy } from '@/lib/notifications/copy';
 import { israelToday } from '@/lib/utils';
-import { isUpcomingMeetup, meetupVisibleTo } from '@/lib/runs/meetups';
-import { roster } from '@/lib/runs/meetups-server';
+import { isUpcomingMeetup } from '@/lib/runs/meetups';
+import { rosterFull, factsFor, visibleTo, type MeetupRow, type RequestRow } from '@/lib/runs/meetups-server';
+import { decideJoin, nextFromWaitlist, parseVisibility } from '@/lib/runs/together';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Asking to join a run, and the host answering (398963c7).
+ * Joining, leaving and the host answering. Every verb derives its actor from the
+ * session — never an id in the body.
  *
- * Every verb here derives its actor from the session — the requester on POST and
- * DELETE, the host on PATCH — so there is no id in a body that decides who is
- * allowed to do something. The host check on PATCH is a filter inside the UPDATE
- * rather than a read-then-write, so there is no window between the two.
+ * v3 (migration 190): club/squad joins are instant, private runs wait on the host,
+ * a full run waitlists. Capacity is enforced with insert-then-recount: two people
+ * taking the last place at once both insert 'accepted', both re-read the accepted rows
+ * ordered by created_at, and whoever is past capacity demotes THEMSELVES to the
+ * waitlist — so the run never ends up over capacity without a lock.
  */
 
 const MEETUP_URL = '/dashboard/run-together';
+type Db = ReturnType<typeof createServerClient>;
 
-// POST /api/runs/meetups/requests { meetupId }
-// Ask to join. Idempotent: asking again is a no-op, and in particular it does NOT
-// re-notify the host or resurrect a request they already declined.
+async function loadRun(db: Db, meetupId: string) {
+  const [{ data: meetup }, { data: reqs }, inv] = await Promise.all([
+    db.from('run_meetups').select('*').eq('id', meetupId).maybeSingle(),
+    db.from('run_meetup_requests').select('id, meetup_id, athlete_id, status, created_at').eq('meetup_id', meetupId),
+    db.from('run_meetup_invites').select('meetup_id, athlete_id').eq('meetup_id', meetupId),
+  ]);
+  return { meetup: meetup as MeetupRow | null, reqs: (reqs || []) as RequestRow[], invites: inv.error ? [] : (inv.data || []) as Array<{ meetup_id: string; athlete_id: string }> };
+}
+
+/** Re-count after an insert; anyone accepted past capacity (by created_at) goes to the waitlist. */
+async function enforceCapacity(db: Db, m: MeetupRow, athleteId: string): Promise<'accepted' | 'waitlist'> {
+  if (m.capacity == null) return 'accepted';
+  const { data } = await db.from('run_meetup_requests').select('athlete_id, created_at, id').eq('meetup_id', m.id).eq('status', 'accepted').order('created_at').order('id');
+  const order = ((data || []) as Array<{ athlete_id: string }>).map((r) => r.athlete_id).filter((a) => a !== m.host_athlete_id);
+  const places = m.capacity - 1; // the host holds one
+  if (order.indexOf(athleteId) < places) return 'accepted';
+  await db.from('run_meetup_requests').update({ status: 'waitlist' }).eq('meetup_id', m.id).eq('athlete_id', athleteId);
+  return 'waitlist';
+}
+
+// POST /api/runs/meetups/requests { meetupId } → { status: 'accepted' | 'pending' | 'waitlist' }
 export async function POST(request: Request) {
   const auth = await requireAthlete(request);
   if (!auth.ok) return authError(auth);
-
   try {
     const body = await request.json().catch(() => ({}));
     const meetupId = typeof body.meetupId === 'string' ? body.meetupId.trim() : '';
     if (!meetupId) return NextResponse.json({ error: 'meetupId is required' }, { status: 400 });
-
-    const supabase = createServerClient();
-    const { data: meetup, error: meetupError } = await supabase
-      .from('run_meetups')
-      .select('*')
-      .eq('id', meetupId)
-      .maybeSingle();
-    if (meetupError) throw meetupError;
+    const me = auth.user.athleteId;
+    const db = createServerClient();
+    const { meetup, reqs, invites } = await loadRun(db, meetupId);
     if (!meetup) return NextResponse.json({ error: 'No such meetup' }, { status: 404 });
-    // Outside the run's audience (the host's pack only) it can't be joined — nor seen.
-    {
-      const people = await roster(supabase);
-      const ok = meetupVisibleTo({
-        hostId: meetup.host_athlete_id, audience: meetup.audience === 'pack' ? 'pack' : 'club',
-        hostPack: people.get(meetup.host_athlete_id)?.pack ?? null, goingIds: [],
-      }, { id: auth.user.athleteId, pack: people.get(auth.user.athleteId)?.pack ?? null });
-      if (!ok) return NextResponse.json({ error: 'No such meetup' }, { status: 404 });
-    }
-
-    // A run that already happened, or one the host called off. Refused here so
-    // the answer is a reason and not a request that silently never gets answered.
+    const ros = await rosterFull(db);
+    const f = factsFor(meetup, reqs, invites, me);
+    if (!visibleTo(meetup, f, { id: me, groupId: ros.groupOf.get(me) ?? null }, ros.groupOf.get(meetup.host_athlete_id))) return NextResponse.json({ error: 'No such meetup' }, { status: 404 });
     if (!isUpcomingMeetup({ date: meetup.date, status: meetup.status }, israelToday())) {
       return NextResponse.json({ error: 'This run is no longer open' }, { status: 409 });
     }
-    if (meetup.host_athlete_id === auth.user.athleteId) {
-      return NextResponse.json({ error: 'You are the host' }, { status: 400 });
+    if (meetup.host_athlete_id === me) return NextResponse.json({ error: 'You are the host' }, { status: 400 });
+    // Idempotent: already in (or already asked / queued) → same answer, no second push.
+    if (f.myStatus === 'accepted' || f.myStatus === 'pending' || f.myStatus === 'waitlist') return NextResponse.json({ status: f.myStatus });
+    // A host's "no" is not reopened by asking again.
+    if (f.myStatus === 'declined') return NextResponse.json({ status: 'declined' });
+
+    const visibility = parseVisibility(meetup.visibility, meetup.audience);
+    let status: 'accepted' | 'pending' | 'waitlist' = decideJoin({ visibility, capacity: meetup.capacity ?? null, acceptedCount: f.joinedIds.length });
+    // created_at reset so a re-join after leaving queues at the back.
+    const { error } = await db.from('run_meetup_requests').upsert(
+      { meetup_id: meetupId, athlete_id: me, status, created_at: new Date().toISOString() },
+      { onConflict: 'meetup_id,athlete_id' },
+    );
+    if (error) {
+      // Pre-190 the status check refuses 'waitlist': join as before.
+      if (status === 'waitlist') {
+        status = 'accepted';
+        const r2 = await db.from('run_meetup_requests').upsert({ meetup_id: meetupId, athlete_id: me, status }, { onConflict: 'meetup_id,athlete_id' });
+        if (r2.error) throw r2.error;
+      } else throw error;
     }
+    if (status === 'accepted') status = await enforceCapacity(db, meetup, me);
 
-    const { data: inserted, error } = await supabase
-      .from('run_meetup_requests')
-      // v2 (2026-10-19): joining is one tap — the request goes in accepted, no waiting
-      // on the host. A runner who had asked under v1 is moved to accepted too.
-      .upsert(
-        { meetup_id: meetupId, athlete_id: auth.user.athleteId, status: 'accepted' },
-        { onConflict: 'meetup_id,athlete_id' },
-      )
-      .select('id');
-    if (error) throw error;
-
-    // Only a genuinely new row notifies — same test as the follow route uses, and
-    // for the same reason: a host should not get the same "wants to join" twice
-    // because somebody's phone retried.
-    if ((inserted || []).length > 0) {
+    if (status !== 'waitlist') {
       try {
-        const [{ data: me }, { count }] = await Promise.all([
-          supabase.from('athletes').select('name, avatar_url').eq('id', auth.user.athleteId).maybeSingle(),
-          supabase.from('run_meetup_requests').select('id', { count: 'exact', head: true }).eq('meetup_id', meetupId).eq('status', 'accepted'),
-        ]);
+        const person = ros.people.get(me);
         await notifyAthlete({
-          athleteId: meetup.host_athlete_id,
-          kind: 'meetup_joined',
-          actorAthleteId: auth.user.athleteId,
-          url: `${MEETUP_URL}/${meetupId}`,
-          tag: `meetup-join-${meetupId}`,
-          category: 'teammates',
-          icon: (me as { avatar_url?: string | null } | null)?.avatar_url || undefined,
-          copy: locale =>
-            meetupJoinedCopy(locale, { name: me?.name, date: meetup.date, startTime: meetup.start_time, place: meetup.location, going: (count ?? 0) + 1, today: israelToday() }),
+          athleteId: meetup.host_athlete_id, kind: status === 'pending' ? 'meetup_request' : 'meetup_joined', actorAthleteId: me,
+          url: `${MEETUP_URL}/${meetupId}`, tag: `meetup-join-${meetupId}`, category: 'teammates', icon: person?.avatarUrl || undefined,
+          copy: (locale) => status === 'pending'
+            ? meetupRequestCopy(locale, { name: person?.name, date: meetup.date, startTime: meetup.start_time })
+            : meetupJoinedCopy(locale, { name: person?.name, date: meetup.date, startTime: meetup.start_time, place: meetup.location, going: f.joinedIds.length + 2, today: israelToday() }),
         });
-      } catch { /* push is best-effort and never blocks the request itself */ }
+      } catch { /* best-effort */ }
     }
-
-    return NextResponse.json({ status: 'accepted' });
+    return NextResponse.json({ status });
   } catch (err: unknown) {
     console.error('Meetup request error:', err);
     return NextResponse.json({ error: 'Failed to send request' }, { status: 500 });
   }
 }
 
-// DELETE /api/runs/meetups/requests?meetupId=<id>
-// Withdraw your own request. The host is not told — somebody changing their mind
-// before the run is not an event worth a push.
+// DELETE /api/runs/meetups/requests?meetupId=<id> — leave (or withdraw an ask / leave the
+// waitlist). A place that opens goes to the first waitlister, who is pushed.
 export async function DELETE(request: Request) {
   const auth = await requireAthlete(request);
   if (!auth.ok) return authError(auth);
-
   try {
     const meetupId = (new URL(request.url).searchParams.get('meetupId') || '').trim();
     if (!meetupId) return NextResponse.json({ error: 'meetupId is required' }, { status: 400 });
-
-    const supabase = createServerClient();
-    const { error } = await supabase
-      .from('run_meetup_requests')
-      .delete()
-      .eq('meetup_id', meetupId)
-      .eq('athlete_id', auth.user.athleteId);
+    const db = createServerClient();
+    const me = auth.user.athleteId;
+    let { error } = await db.from('run_meetup_requests').update({ status: 'left' }).eq('meetup_id', meetupId).eq('athlete_id', me);
+    // Pre-190 'left' isn't allowed: delete as before.
+    if (error) ({ error } = await db.from('run_meetup_requests').delete().eq('meetup_id', meetupId).eq('athlete_id', me));
     if (error) throw error;
 
+    const { meetup, reqs } = await loadRun(db, meetupId);
+    if (meetup && meetup.status === 'open' && meetup.date >= israelToday()) {
+      const next = nextFromWaitlist(reqs.map((r) => ({ athleteId: r.athlete_id, status: r.status, createdAt: r.created_at || '' })), meetup.capacity ?? null);
+      if (next) {
+        const { data: moved } = await db.from('run_meetup_requests').update({ status: 'accepted' })
+          .eq('meetup_id', meetupId).eq('athlete_id', next).eq('status', 'waitlist').select('id');
+        if (moved?.length) {
+          await notifyAthlete({
+            athleteId: next, kind: 'meetup_promoted', url: `${MEETUP_URL}/${meetupId}`, tag: `meetup-${meetupId}`, category: 'teammates',
+            copy: (locale) => meetupPromotedCopy(locale, { startTime: meetup.start_time, title: locale === 'he' ? 'הריצה' : 'The run' }),
+          }).catch(() => {});
+        }
+      }
+    }
     return NextResponse.json({ status: null });
   } catch (err: unknown) {
     console.error('Meetup request withdraw error:', err);
@@ -126,74 +140,47 @@ export async function DELETE(request: Request) {
   }
 }
 
-// PATCH /api/runs/meetups/requests { requestId, status: 'accepted' | 'declined' }
-// The host answers.
+// PATCH /api/runs/meetups/requests { requestId, status: 'accepted' | 'declined' } — the host answers (private runs).
 export async function PATCH(request: Request) {
   const auth = await requireAthlete(request);
   if (!auth.ok) return authError(auth);
-
   try {
     const body = await request.json().catch(() => ({}));
     const requestId = typeof body.requestId === 'string' ? body.requestId.trim() : '';
+    // Or by athlete — the native host sheet knows people, not request ids.
+    const meetupIdIn = typeof body.meetupId === 'string' ? body.meetupId.trim() : '';
+    const athleteIdIn = typeof body.athleteId === 'string' ? body.athleteId.trim() : '';
     const status = body.status === 'accepted' || body.status === 'declined' ? body.status : null;
-    if (!requestId || !status) {
-      return NextResponse.json({ error: 'requestId and a valid status are required' }, { status: 400 });
+    if ((!requestId && !(meetupIdIn && athleteIdIn)) || !status) {
+      return NextResponse.json({ error: 'requestId (or meetupId + athleteId) and a valid status are required' }, { status: 400 });
     }
-
-    const supabase = createServerClient();
-
-    // Load the request WITH its meetup so the host check and the notification copy
-    // come from one read.
-    const { data: reqRow, error: reqError } = await supabase
-      .from('run_meetup_requests')
-      .select('id, athlete_id, meetup_id, run_meetups!inner(id, host_athlete_id, date, start_time, location)')
-      .eq('id', requestId)
-      .maybeSingle();
+    const db = createServerClient();
+    let q = db.from('run_meetup_requests').select('id, athlete_id, meetup_id');
+    q = requestId ? q.eq('id', requestId) : q.eq('meetup_id', meetupIdIn).eq('athlete_id', athleteIdIn);
+    const { data: reqRow, error: reqError } = await q.maybeSingle();
     if (reqError) throw reqError;
     if (!reqRow) return NextResponse.json({ error: 'No such request' }, { status: 404 });
+    const { data: meetup } = await db.from('run_meetups').select('*').eq('id', reqRow.meetup_id).maybeSingle();
+    const m = meetup as MeetupRow | null;
+    if (!m || m.host_athlete_id !== auth.user.athleteId) return NextResponse.json({ error: 'Not your meetup' }, { status: 403 });
 
-    const meetup = reqRow.run_meetups as unknown as {
-      host_athlete_id: string;
-      date: string;
-      start_time: string;
-      location: string;
-    };
-    if (meetup.host_athlete_id !== auth.user.athleteId) {
-      return NextResponse.json({ error: 'Not your meetup' }, { status: 403 });
-    }
-
-    const { error } = await supabase.from('run_meetup_requests').update({ status }).eq('id', requestId);
+    const { error } = await db.from('run_meetup_requests').update({ status }).eq('id', reqRow.id);
     if (error) throw error;
+    let final: string = status;
+    if (status === 'accepted') final = await enforceCapacity(db, m, reqRow.athlete_id);
 
-    // Accepting notifies; declining does not. A "no" that arrives on a lock
-    // screen is a worse version of the same information the board already shows,
-    // and in a 24-person club it is a person, not a system, saying it.
-    if (status === 'accepted') {
+    // Accepting notifies; declining does not (a person, not a system, saying no).
+    if (final === 'accepted') {
       try {
-        const { data: host } = await supabase
-          .from('athletes')
-          .select('name')
-          .eq('id', auth.user.athleteId)
-          .maybeSingle();
+        const { data: host } = await db.from('athletes').select('name').eq('id', auth.user.athleteId).maybeSingle();
         await notifyAthlete({
-          athleteId: reqRow.athlete_id,
-          kind: 'meetup_accepted',
-          actorAthleteId: auth.user.athleteId,
-          url: MEETUP_URL,
-          tag: `meetup-accepted-${reqRow.meetup_id}`,
-          category: 'teammates',
-          copy: locale =>
-            meetupAcceptedCopy(locale, {
-              name: host?.name,
-              date: meetup.date,
-              startTime: meetup.start_time,
-              location: meetup.location,
-            }),
+          athleteId: reqRow.athlete_id, kind: 'meetup_accepted', actorAthleteId: auth.user.athleteId,
+          url: `${MEETUP_URL}/${m.id}`, tag: `meetup-accepted-${m.id}`, category: 'teammates',
+          copy: (locale) => meetupAcceptedCopy(locale, { name: host?.name, date: m.date, startTime: m.start_time, location: m.location }),
         });
       } catch { /* best-effort */ }
     }
-
-    return NextResponse.json({ status });
+    return NextResponse.json({ status: final });
   } catch (err: unknown) {
     console.error('Meetup answer error:', err);
     return NextResponse.json({ error: 'Failed to answer request' }, { status: 500 });

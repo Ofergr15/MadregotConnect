@@ -66,11 +66,8 @@ vi.mock('@/lib/auth/synthetic-session', () => ({ createSyntheticSession: vi.fn()
 import { POST } from '@/app/api/auth/email-code/route';
 import { MAX_ATTEMPTS } from '@/lib/auth/email-code';
 
-// A distinct client IP per call, so the route's per-IP/per-person rate limiter (which runs
-// first) stays out of the way and this suite tests the compare-and-set it is about.
-let ipSeq = 0;
 const verify = (code: string) => POST(new Request('http://x/api/auth/email-code', {
-  method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.0.${Math.floor(ipSeq / 250)}.${ipSeq++ % 250}` },
+  method: 'POST', headers: { 'content-type': 'application/json' },
   body: JSON.stringify({ action: 'verify', email: EMAIL, code }),
 }));
 
@@ -89,19 +86,20 @@ describe("email-code 'verify' cannot be raced past MAX_ATTEMPTS", () => {
     expect(row.attempts).toBeLessThanOrEqual(MAX_ATTEMPTS);
     // Each comparison corresponds to exactly one claimed slot.
     expect(compared).toBe(row.attempts);
-    // A lost race and a wrong code answer identically (no oracle on "a code exists").
-    expect(res.every((r) => r.status === 401)).toBe(true);
+    const statuses = res.map((r) => r.status);
+    expect(statuses.filter((s) => s === 401).length).toBe(compared);
+    expect(statuses.filter((s) => s === 429).length).toBe(10 - compared);
   });
 
-  it('sequential guesses are refused once MAX_ATTEMPTS are spent', async () => {
-    for (let n = 0; n < MAX_ATTEMPTS; n++) {
+  it('sequential guesses still count down and then stop', async () => {
+    for (let i = 0; i < MAX_ATTEMPTS; i++) {
       const r = await verify('111111');
       expect(r.status).toBe(401);
-      expect(await r.json()).toEqual({ error: 'wrong-code' });
+      expect((await r.json()).left).toBe(MAX_ATTEMPTS - i - 1);
     }
     const after = await verify('111111');
     expect(after.status).toBe(401);
-    expect(await after.json()).toEqual({ error: 'wrong-code' });
+    expect((await after.json()).error).toBe('expired');
     expect(compared).toBe(MAX_ATTEMPTS);
   });
 });

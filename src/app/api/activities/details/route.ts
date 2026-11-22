@@ -27,15 +27,17 @@
  * the repeat lengths, which need the step list (`executed_workout`). Own run only, as
  * with `hr` — the targets are the athlete's plan.
  */
+import { routeForViewer, seesFullRoute } from '@/lib/privacy/route-trim';
 import { qualityNames } from '@/lib/activities/quality-name';
 import { COACH_ID } from '@/lib/constants';
 import { repTarget, type RepTarget } from '@/lib/activities/rep-target';
 import { paceGroupKeyFor } from '@/lib/plans/pace-group';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { maskDetailForViewer, readHiddenFields, type HiddenFieldKey } from '@/lib/feed/project';
-import { hiddenFromCaller } from '@/lib/athletes/test-accounts';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { isTestAccount } from '@/lib/athletes/test-accounts';
+import { readHiddenStats } from '@/lib/activities/hidden-stats';
+import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
 import { displaySplits } from '@/lib/activities/km-splits';
 import { perKmFromStream } from '@/lib/activities/stream-per-km';
 import { loadActivityStream } from '@/lib/garmin/stream-store';
@@ -105,7 +107,11 @@ export async function GET(request: Request) {
 
     const r = row as any;
     // A pending runner's activity reads as not there to the rest of the club (#77).
-    if (r.athlete_id && (await hiddenFromCaller(supabase, caller, r.athlete_id))) {
+    if (r.athlete_id && !seesPending(caller, r.athlete_id) && (await isPendingAthlete(supabase, r.athlete_id))) {
+      return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
+    }
+    // A QA test account's runs read as not there to everyone but itself and staff (migration 201).
+    if (r.athlete_id && !caller.isStaff && caller.athleteId !== r.athlete_id && (await isTestAccount(supabase, r.athlete_id))) {
       return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
     }
     // The splits the UI draws, on the kilometre grid it labels them with — from
@@ -134,20 +140,6 @@ export async function GET(request: Request) {
 
     const include = new Set((searchParams.get('include') ?? '').split(',').filter(Boolean));
     const own = !!caller.athleteId && caller.athleteId === r.athlete_id;
-    // The athlete's share-sheet choice (feed_items.payload.hiddenFields), enforced for
-    // everyone but the athlete — the feed's own rule names this page as the place the
-    // owner still sees their full numbers. A failed read hides nothing extra (as before).
-    let hidden = new Set<HiddenFieldKey>();
-    if (!own) {
-      const { data: fi } = await supabase
-        .from('feed_items')
-        .select('payload')
-        .eq('activity_id', r.id)
-        .is('deleted_at', null)
-        .limit(1)
-        .maybeSingle();
-      hidden = readHiddenFields((fi?.payload as Record<string, unknown> | null) ?? null);
-    }
     let hrTrace: HrTrace | undefined;
     if (include.has('hr') && own) {
       const series = (await loadActivityStream(supabase, r.id))?.series;
@@ -173,17 +165,38 @@ export async function GET(request: Request) {
     // already the top-level `gpsPoints`/`splits`, and repeating a 60KB trace
     // doubles the response.
     const { gps_points, laps: _laps, splits: _splits, athletes, shoes, ...rest } = r;
-    const masked = maskDetailForViewer(
-      {
-        ...rest,
-        athlete_name: athletes?.name || 'Unknown',
-        athlete_avatar_url: athletes?.avatar_url ?? null,
-        shoe_name: shoes?.name ?? null,
-      },
-      splits,
-      hidden,
-    );
-    const activity = masked.row;
+    const activity = {
+      ...rest,
+      athlete_name: athletes?.name || 'Unknown',
+      athlete_avatar_url: athletes?.avatar_url ?? null,
+      shoe_name: shoes?.name ?? null,
+    };
+    // Exact coordinates follow the same rule as the trace (route-trim.ts): a teammate never
+    // gets the start point — it is where the runner lives far more often than the trimmed
+    // 200 m hides. Owner and staff keep them. `location_name` (a place name the feed already
+    // shows members) stays.
+    if (!seesFullRoute(caller, r.athlete_id)) {
+      (activity as Record<string, unknown>).start_lat = null;
+      (activity as Record<string, unknown>).start_lng = null;
+    }
+
+    // Stats the runner hid in the share sheet (feed_items.payload.hiddenFields) are withheld
+    // here too from everyone but the runner and staff, as the feed card already does
+    // (lib/feed/project.ts maskHiddenStats). Total distance and time stay. A per-km split's
+    // duration IS its pace, so it goes with pace; its distance stays.
+    if (!mayActFor(caller, r.athlete_id)) {
+      const hidden = await readHiddenStats(supabase, r.id);
+      if (hidden.has('pace')) {
+        activity.average_pace = null;
+        for (const sp of splits as unknown as Array<Record<string, unknown>>) { sp.averagePace = null; sp.duration = null; }
+      }
+      if (hidden.has('heart_rate')) {
+        activity.average_hr = null;
+        activity.max_hr = null;
+        for (const sp of splits as unknown as Array<Record<string, unknown>>) sp.averageHR = null;
+      }
+      if (hidden.has('calories')) activity.calories = null;
+    }
 
     // The coach's name for the day's quality session, when this run is it — the same
     // rule as the feed card (lib/activities/quality-name.ts). Never fails the page.
@@ -212,8 +225,9 @@ export async function GET(request: Request) {
     return NextResponse.json({
       qualityName,
       repTarget: repTargetOut,
-      gpsPoints: gps_points || [],
-      splits: masked.splits,
+      // Start/finish privacy zone: a teammate never receives the first/last 200 m.
+      gpsPoints: routeForViewer(gps_points || [], caller, r.athlete_id) ?? [],
+      splits,
       hasPolyline: !!r.has_polyline,
       source: r.source || 'strava',
       activity,

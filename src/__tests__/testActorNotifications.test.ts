@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Item 8: an action BY a QA test account (migration 182) must notify nobody else.
+// Item 8: an action BY a QA test account (migration 201) must notify nobody else.
 // Pinned at the two central senders (notifyAthlete, notifyStaff) and at the email
 // call site that has no central sender (signup-queue → notifyAdminNewSignupRequest).
 // No real sends: the database is a fake, push/email/routing are mocked.

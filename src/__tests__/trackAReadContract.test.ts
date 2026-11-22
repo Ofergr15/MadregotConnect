@@ -50,7 +50,7 @@ describe('GET /api/u21/registrations', () => {
     expect(body).toEqual({ data: [ROW], ready: true });
     expect(Object.keys(body.data[0]).sort()).toEqual(['age_band', 'created_at', 'first_name', 'id', 'last_name', 'red_flag', 'status', 'track']);
   });
-  it('empty → { data: [], ready: true }; migration 180 missing → { data: [], ready: false }', async () => {
+  it('empty → { data: [], ready: true }; migration 199 missing → { data: [], ready: false }', async () => {
     who = { isSuperUser: true, role: 'runner' };
     expect(await (await list(new Request('http://x'))).json()).toEqual({ data: [], ready: true });
     answer = { data: null, error: { code: '42P01' } };

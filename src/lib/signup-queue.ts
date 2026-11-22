@@ -145,7 +145,7 @@ export async function announceSignupRequest(input: {
       copy: (locale) => signupRequestCopy(locale, { name: who, pending: count ?? 1 }),
     });
 
-    // Test accounts (migration 182) never email the approvers.
+    // Test accounts (migration 201) never email the approvers.
     if (!(await isTestAccount(supabase, input.athleteId))) try {
       await notifyAdminNewSignupRequest({
         email: input.contactEmail || input.email,

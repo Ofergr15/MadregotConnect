@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
+import { requireStaffCaller } from '@/lib/auth/self-or-staff';
 
 // Self-or-staff, like PUT /api/athletes: the coach switches any athlete's data
 // source from the athletes screen, and an athlete with both watches connected
@@ -46,7 +47,12 @@ export async function PATCH(request: Request) {
   }
 }
 
-export async function GET() {
+// Every athlete's name, data source and which providers they have connected:
+// staff only. It had no gate at all; its one member-side reader (the profile
+// screen) moved to /api/athletes/me, and no web screen reads it any more.
+export async function GET(request: Request) {
+  const { denied } = await requireStaffCaller(request);
+  if (denied) return denied;
   try {
     const supabase = createServerClient();
     let data: any[] | null = null;

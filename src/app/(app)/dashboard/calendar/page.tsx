@@ -43,6 +43,8 @@ interface EventRow {
   lng: number | null;
   website: string | null;
   race_class: string | null;
+  // Events v2 (migration 184) — absent before it is applied.
+  status?: 'draft' | 'scheduled' | 'published';
 }
 
 // Local-date ISO (YYYY-MM-DD) — NOT toISOString(), which converts to UTC and
@@ -292,7 +294,7 @@ export default function CalendarPage() {
                 key={event.id}
                 icon={KIND_ICON[event.kind]}
                 iconBg={KIND_COLOR[event.kind]}
-                label={event.name}
+                label={event.status && event.status !== 'published' ? `${event.name} · ${t(event.status === 'draft' ? 'statusDraft' : 'statusScheduled')}` : event.name}
                 sublabel={[event.start_time ? event.start_time.slice(0, 5) : null, event.location].filter(Boolean).join(' · ')}
                 href={`/dashboard/calendar/${event.id}`}
               />

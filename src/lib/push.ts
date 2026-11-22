@@ -1,6 +1,9 @@
 import { randomUUID } from 'crypto';
 import { isTestAccount } from '@/lib/athletes/test-accounts';
 import webpush from 'web-push';
+import { msUntilQuietEnds, quietDecision, readQuietHours, QUIET_DEFERRED_KIND } from '@/lib/notifications/quiet-hours';
+import { DEFERRED_SOURCE_PREFIX } from '@/lib/notifications/quiet-deferred';
+export { QUIET_DEFERRED_KIND };
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID, isStaffRole } from '@/lib/constants';
 import { streamUnreadForAthlete, streamUnreadForAthletes } from './stream/unread';
@@ -12,8 +15,8 @@ import {
   type NotificationLocale,
 } from '@/lib/notifications/locale';
 import { KUDOS_ACTION_LABEL, teammateActivityCopy } from '@/lib/notifications/copy';
+import { apnsConfig, buildApnsPayload, sendApns } from '@/lib/apns';
 import { duplicateInstalls, siblingGhosts, type SubDevice, type SubHealth } from '@/lib/push-ghosts';
-import { apnsConfig } from '@/lib/apns';
 import { isDevSurface } from '@/lib/dev-api-allowlist';
 
 /**
@@ -114,6 +117,11 @@ export interface PushPayload {
   kudosActivityId?: string;
   /** What kind of push this is, for its delivery rows (lib/push-deliveries); notifyAthlete fills it. */
   kind?: string;
+  /** Set by the quiet-hours re-send so it isn't deferred a second time. */
+  deferred?: boolean;
+  /** Who the push is about (a pain alert's runner). Kept on a quiet-hours deferral so the
+   *  re-send can re-check eligibility (lib/notifications/quiet-deferred.ts). */
+  actorAthleteId?: string | null;
 }
 
 // The scope an action button on this payload is allowed to act within, or null
@@ -130,7 +138,13 @@ export function actionScopeFor(payload: PushPayload): string | null {
   return null;
 }
 
-type SubRow = { id: string; endpoint: string; p256dh: string; auth: string; athlete_id: string };
+/**
+ * A device to push to. Web-push rows come from `push_subscriptions`; a native iOS
+ * device (an `athlete_devices` row with an APNs token) rides the same pipeline with
+ * `apns_token` set and `id` = the athlete_devices id, so every filter below
+ * (maintenance, category, quiet hours, blocked) applies to it unchanged.
+ */
+type SubRow = { id: string; endpoint: string; p256dh: string; auth: string; athlete_id: string; apns_token?: string };
 
 export type DeliveryRow = { nid: string; athlete_id: string | null; subscription_id: string | null; kind: string | null; title: string; accepted: boolean; error: string | null };
 /**
@@ -521,9 +535,14 @@ export async function sendPushDetailed(
     for (const s of list) deliveries.push({ nid, athlete_id: s.athlete_id || null, subscription_id: s.id, kind: payload.kind ?? payload.category ?? null, title: payload.title.slice(0, 120), accepted, error });
   };
   if (!ensureConfigured()) {
-    console.warn(`[push] VAPID keys missing — dropped "${payload.title}" for ${subs.length} subscription(s)`);
-    return empty;
+    // Web-push can't go out, but an iOS device still can (APNs has its own keys).
+    const web = subs.filter((s) => !s.apns_token);
+    if (web.length > 0) console.warn(`[push] VAPID keys missing — dropped "${payload.title}" for ${web.length} subscription(s)`);
+    subs = subs.filter((s) => s.apns_token);
+    if (subs.length === 0) return empty;
   }
+  const apns = apnsConfig();
+  subs = subs.filter((s) => !s.apns_token || apns);
   const supabase = createServerClient();
 
   // While maintenance mode is ON, only the allowlist (+ approvers) may receive
@@ -547,6 +566,46 @@ export async function sendPushDetailed(
     await recordDeliveries(deliveries);
     console.warn(`[push] category "${payload.category}" muted by all ${beforeCategory} recipient(s) of "${payload.title}"`);
     return empty;
+  }
+
+  // Quiet hours (lib/notifications/quiet-hours.ts): inside a recipient's window the
+  // buzz is dropped (the inbox row is still written by the sender), a direct coach
+  // message breaks through, and a staff pain alert is re-sent when THEIR window ends.
+  // Fails open: a failed read sends as before.
+  if (!payload.deferred) {
+    try {
+      const ids = [...new Set(subs.map((s) => s.athlete_id).filter(Boolean))];
+      const { data: qrows } = await supabase.from('athletes').select('id, notification_prefs').in('id', ids);
+      const now = Date.now();
+      const quietDrop = new Set<string>();
+      for (const r of (qrows || []) as Array<{ id: string; notification_prefs: unknown }>) {
+        const q = readQuietHours(r.notification_prefs);
+        const d = quietDecision(payload.kind, q, now);
+        if (d === 'send') continue;
+        quietDrop.add(r.id);
+        if (d === 'defer') {
+          await supabase.from('scheduled_notifications').insert({
+            kind: QUIET_DEFERRED_KIND,
+            // The source context, so delivery re-checks eligibility instead of trusting a
+            // stale copy (2026-11-22): the original kind (in created_by — no migration) and
+            // the runner it is about.
+            created_by: `${DEFERRED_SOURCE_PREFIX}${payload.kind ?? ''}`,
+            actor_athlete_id: payload.actorAthleteId ?? null,
+            title_he: payload.title, body_he: payload.body,
+            url: payload.url ?? null,
+            audience_type: 'athlete', audience_id: r.id,
+            schedule_type: 'once', status: 'scheduled',
+            next_run_at: new Date(now + msUntilQuietEnds(q, now)).toISOString(),
+          });
+        }
+      }
+      if (quietDrop.size > 0) {
+        const kept = subs.filter((s) => !quietDrop.has(s.athlete_id));
+        note(subs.filter((s) => quietDrop.has(s.athlete_id)), false, 'quiet');
+        subs = kept;
+        if (subs.length === 0) { await recordDeliveries(deliveries); return empty; }
+      }
+    } catch { /* fail open */ }
   }
 
   // Ghosts a working sibling exposes (lib/push-ghosts.ts): deleted, and not sent to.
@@ -582,6 +641,7 @@ export async function sendPushDetailed(
   let sent = 0;
   const byAthlete: Record<string, number> = {};
   const deadIds: string[] = [];
+  const deadApns: string[] = [];
   const failures: string[] = [];
   const scope = actionScopeFor(payload);
 
@@ -603,6 +663,20 @@ export async function sendPushDetailed(
         athleteId: s.athlete_id,
         ...(actionToken ? { actionToken } : {}),
       });
+      if (s.apns_token) {
+        if (!apns) return;
+        const r = await sendApns(apns, s.apns_token, buildApnsPayload(payload, { nid, badge, athleteId: s.athlete_id }), { collapseId: payload.tag });
+        if (r.ok) {
+          sent++;
+          byAthlete[s.athlete_id] = (byAthlete[s.athlete_id] || 0) + 1;
+          note([s], true, null);
+        } else {
+          note([s], false, `apns:${r.status}${r.reason ? ` ${r.reason}` : ''}`.slice(0, 80));
+          if (r.dead) deadApns.push(s.id);
+          else failures.push(`apns:${s.apns_token.slice(0, 8)}…=${r.status} ${r.reason ?? ''}`);
+        }
+        return;
+      }
       try {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
@@ -626,6 +700,11 @@ export async function sendPushDetailed(
 
   if (deadIds.length > 0) {
     await supabase.from('push_subscriptions').delete().in('id', deadIds);
+  }
+  if (deadApns.length > 0) {
+    // 410 Unregistered: the app was deleted. Clear the token, keep the device row
+    // (its watch-delivery credentials are a separate thing); the app sends a fresh one if reinstalled.
+    try { await supabase.from('athlete_devices').update({ apns_token: null }).in('id', deadApns); } catch { /* best effort */ }
   }
   await recordDeliveries(deliveries);
 
@@ -735,7 +814,35 @@ export async function subscriptionsForAthletes(athleteIds: string[]): Promise<Su
     .from('push_subscriptions')
     .select('id, endpoint, p256dh, auth, athlete_id')
     .in('athlete_id', athleteIds);
-  return filterBlockedRecipients((subs || []) as SubRow[]);
+  const ios = await apnsDevicesForAthletes(athleteIds);
+  return filterBlockedRecipients([...((subs || []) as SubRow[]), ...ios]);
+}
+
+/**
+ * The athletes' live iOS devices with an APNs token, as SubRows. Empty when APNs
+ * isn't configured (env vars absent) or migration 138 isn't applied — never throws.
+ */
+async function apnsDevicesForAthletes(athleteIds: string[]): Promise<SubRow[]> {
+  if (athleteIds.length === 0 || !apnsConfig()) return [];
+  try {
+    const { data, error } = await createServerClient()
+      .from('athlete_devices')
+      .select('id, athlete_id, apns_token')
+      .in('athlete_id', athleteIds)
+      .is('revoked_at', null)
+      .not('apns_token', 'is', null);
+    if (error || !data) return [];
+    const seen = new Set<string>();
+    const out: SubRow[] = [];
+    for (const d of data as Array<{ id: string; athlete_id: string; apns_token: string | null }>) {
+      if (!d.apns_token || seen.has(d.apns_token)) continue; // one token = one phone
+      seen.add(d.apns_token);
+      out.push({ id: d.id, endpoint: 'apns', p256dh: '', auth: '', athlete_id: d.athlete_id, apns_token: d.apns_token });
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -859,7 +966,7 @@ export async function notifyTeammatesOfActivity(activity: {
   if (!athlete) return 0;
   // Not approved yet (#77): the club doesn't hear about their runs until they're in.
   if ((athlete as { approved?: boolean | null }).approved === false) return 0;
-  // A test account's runs never notify followers (migration 182).
+  // A test account's runs never notify followers (migration 201).
   if (await isTestAccount(supabase, activity.athleteId)) return 0;
 
   const { data: followerLinks } = await supabase
@@ -1053,7 +1160,7 @@ export interface NotifyResult {
 }
 
 export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<NotifyResult> {
-  // A QA test account (migration 182) acting on someone else notifies nobody: no push,
+  // A QA test account (migration 201) acting on someone else notifies nobody: no push,
   // no inbox row. What it does to itself, and anything with no actor, is untouched.
   if (await suppressedForTestActor(opts.actorAthleteId, opts.athleteId)) return { subscriptions: 0, delivered: 0 };
   // The recipient's language, resolved once and used for both the push and the
@@ -1072,24 +1179,10 @@ export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<NotifyR
   try {
     const subs = await subscriptionsForAthletes([opts.athleteId]);
     subscriptions = subs.length;
-    // iPhone app (APNs), alongside web push. OFF unless every APNS_* setting is present
-    // (lib/apns.ts apnsConfig): with no config this branch reads nothing and sends nothing,
-    // so behaviour is exactly the web-only path. Dynamic import: push-native imports this file.
-    let native: Record<string, number> = {};
-    if (apnsConfig()) {
-      try {
-        const { sendPushNativeToAthletes } = await import('@/lib/push-native');
-        ({ byAthlete: native } = await sendPushNativeToAthletes([opts.athleteId], {
-          kind: opts.kind, title, body, url: opts.url, tag: opts.tag, category: opts.category,
-        }));
-      } catch { /* best-effort, like web push */ }
-    }
-    const nativeSent = native[opts.athleteId] ?? 0;
-    if (subs.length === 0 && nativeSent > 0) {
-      byAthlete = { [opts.athleteId]: nativeSent };
-    } else if (subs.length > 0) {
+    if (subs.length > 0) {
       ({ byAthlete } = await sendPushDetailed(subs, {
         kind: opts.kind,
+        actorAthleteId: opts.actorAthleteId ?? null,
         title,
         body,
         url: opts.url,
@@ -1097,7 +1190,6 @@ export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<NotifyR
         category: opts.category,
         ...(opts.icon ? { icon: opts.icon } : {}),
       }));
-      if (nativeSent > 0 && byAthlete) byAthlete[opts.athleteId] = (byAthlete[opts.athleteId] ?? 0) + nativeSent;
     } else {
       // No subscription at all: the row below is inbox-only by definition, and
       // saying so beats recording a phantom delivery.

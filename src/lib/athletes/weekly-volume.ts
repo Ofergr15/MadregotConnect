@@ -43,10 +43,12 @@ export interface WeekBucket {
   meters: number;
   runs: number;
   seconds: number;
+  /** Elevation gain, metres (the weekly chart's climb metric). */
+  climbM: number;
 }
 
 /** Rows this needs, which is `RunActivityRow` plus who ran it. */
-type VolumeRow = RunActivityRow & { athlete_id: string };
+type VolumeRow = RunActivityRow & { athlete_id: string; elevation_gain?: number | null };
 
 /**
  * Supabase caps a select at 1000 rows (PostgREST `db-max-rows`) and returns the
@@ -85,7 +87,7 @@ export async function fetchWeeklyVolume(
   const startDay = opts.startDay ?? MONDAY_WEEK;
   const axis = weekAxis(opts.currentWeekStart, opts.weeks);
   const byAthlete = new Map<string, WeekBucket[]>();
-  const blank = () => axis.map((weekStart) => ({ weekStart, meters: 0, runs: 0, seconds: 0 }));
+  const blank = () => axis.map((weekStart) => ({ weekStart, meters: 0, runs: 0, seconds: 0, climbM: 0 }));
   for (const id of opts.athleteIds) byAthlete.set(id, blank());
   if (opts.athleteIds.length === 0 || axis.length === 0) return { weeks: axis, byAthlete };
 
@@ -99,7 +101,7 @@ export async function fetchWeeklyVolume(
   for (;;) {
     const { data, error } = await supabase
       .from('athlete_activities')
-      .select('athlete_id, start_time, distance, duration, activity_type')
+      .select('athlete_id, start_time, distance, duration, activity_type, elevation_gain')
       .in('athlete_id', opts.athleteIds)
       .gte('start_time', axis[0])
       .order('id')
@@ -119,6 +121,7 @@ export async function fetchWeeklyVolume(
       bucket[i].meters += r.distance;
       bucket[i].runs += 1;
       bucket[i].seconds += r.duration || 0;
+      bucket[i].climbM += Number((r as { elevation_gain?: number | null }).elevation_gain) || 0;
     }
 
     if (rows.length < PAGE) break;

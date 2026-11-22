@@ -1,3 +1,4 @@
+import { routeForViewer } from '@/lib/privacy/route-trim';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
@@ -40,6 +41,12 @@ export async function GET(request: Request) {
     if (!access.allowed) return NextResponse.json({ story: null });
     const story = await loadStory(supabase, athleteId, today, { preview: access.preview, lookbackDays: 31 });
     if (!story || (!access.preview && legacyClosed(story.config))) return NextResponse.json({ story: null });
+    // Start/finish privacy zone (lib/privacy/route-trim.ts): a teammate opening someone's
+    // birthday story gets the run of the year minus its first/last 200 m.
+    if (story.stats?.moment?.route) {
+      const shown = routeForViewer(story.stats.moment.route, { athleteId: caller.athleteId, isStaff: caller.isStaff, isSuperUser: caller.isSuperUser }, athleteId);
+      story.stats.moment = shown ? { ...story.stats.moment, route: shown } : null;
+    }
     const headline = access.instance?.custom_text?.headline || null;
     return NextResponse.json({ story, preview: access.preview, tester: access.tester, headline, viewingAs: !!caller.viewingAsBy });
   } catch (err) {

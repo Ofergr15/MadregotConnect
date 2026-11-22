@@ -1,3 +1,4 @@
+import { hiddenEventIds } from '@/lib/events/server';
 import { after, NextResponse } from 'next/server';
 import { sendEveningWatchReminders } from '@/lib/watch/evening-reminder';
 import { sendMeetupReminders } from '@/lib/runs/meetups-server';
@@ -26,6 +27,7 @@ import { CLUB_ACCOUNT_ROLE } from '@/lib/notifications/prefs';
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
 import type { PushCopy } from '@/lib/notifications/copy';
 import { claimJoinedPolls } from '@/lib/surveys';
+import { runPainFollowups } from '@/lib/feedback/followups-server';
 import { israelNow, israelToday, getPlanWeekStart, addDaysToDateStr } from '@/lib/utils';
 import { readStorySettings, storyGateMany } from '@/lib/stories/gate';
 import { effectiveFor, readInstances } from '@/lib/stories/instances';
@@ -429,7 +431,9 @@ async function run(request: Request) {
       .select('id, name, kind, location, start_time')
       .eq('date', tomorrowDate);
 
+    const hiddenTomorrow = await hiddenEventIds(supabase, now);
     for (const ev of (upcomingEvents || []) as any[]) {
+      if (hiddenTomorrow.has(ev.id)) continue;
       const tag = `eventReminder:${ev.id}:${tomorrowDate}`;
       if (await already(tag)) continue;
 
@@ -469,7 +473,9 @@ async function run(request: Request) {
       .select('id, name')
       .eq('registration_deadline', tomorrowDate);
 
+    const hiddenClosing = await hiddenEventIds(supabase, now);
     for (const ev of (closingEvents || []) as any[]) {
+      if (hiddenClosing.has(ev.id)) continue;
       const tag = `regDeadline:${ev.id}:${tomorrowDate}`;
       if (await already(tag)) continue;
 
@@ -716,6 +722,14 @@ async function run(request: Request) {
   const setupSnapshot = await runSetupSnapshots(supabase, now);
   if (setupSnapshot.sent) fired.push(`setupSnapshot → ${setupSnapshot.sent}`);
 
+  // ── Plan builder: scheduled publishes + Garmin backoff retries (lib/plan-builder) ──
+  try {
+    const { runScheduledPlanPublishes } = await import('@/lib/plan-builder/server');
+    fired.push(...(await runScheduledPlanPublishes(supabase, now)));
+  } catch (err) {
+    console.error('[cron/tick] plan publishes failed', err);
+  }
+
   // ── הזמנת פודיום (lib/podium/notify): "open", "closes tomorrow", "closed" — each once ──
   try {
     const { runPodiumPushes } = await import('@/lib/podium/notify');
@@ -745,6 +759,18 @@ async function run(request: Request) {
   // Through the 10:00 hour (the ledger keeps it to one per person), 48 hours after approval.
   // ── Still waiting for approval after a day (lib/onboarding/pending-reminder) ──
   // Every morning at 09:00 while anyone has waited over 24 hours; one push per day.
+  // ── Pain-report follow-ups (lib/feedback/followups-server, migration 191) ──
+  // 09:00 Israel: "how is it today?" on the cadence in lib/feedback/pain.ts; after
+  // 14 days the runner's coaches are told once instead. A pre-191 DB finds nothing.
+  if (hour === 9) {
+    try {
+      const pain = await runPainFollowups(supabase, now);
+      if (pain.asked || pain.escalated) fired.push(`painFollowup → ${pain.asked} asked, ${pain.escalated} escalated`);
+    } catch (err) {
+      console.error('[tick] pain follow-ups failed:', err);
+    }
+  }
+
   if (hour === 9) {
     try {
       const waiting = await runPendingReminders(supabase, now, { already, markFired });
@@ -964,6 +990,26 @@ async function run(request: Request) {
       }
     } catch (err) {
       console.error('[tick] meetup reminders failed:', err);
+    }
+  }
+
+  {
+    // Run together v3 (migration 190): T−60 push and group-run links.
+    // Every tick; each job is idempotent. Pre-190 the column reads fail and are swallowed.
+    // No automatic chat purge: no retention policy was approved, so no scheduled job may
+    // hard-delete run_meetup_messages. purgeExpiredChats stays in together-cron.ts but is
+    // NOT called from here (pinned by cronTickNoChatPurge.test.ts).
+    try {
+      const { sendSoonReminders, linkGroupRuns } = await import('@/lib/runs/together-cron');
+      const nowIl = { date: israelToday(now), minute: hour * 60 + minute };
+      const soon = await sendSoonReminders(supabase, nowIl);
+      if (soon) fired.push(`meetupSoon → ${soon}`);
+      if (minute < 5) {
+        const linked = await linkGroupRuns(supabase, nowIl.date);
+        if (linked) fired.push(`groupRuns → ${linked}`);
+      }
+    } catch (err) {
+      console.error('[tick] run-together jobs failed:', err);
     }
   }
 

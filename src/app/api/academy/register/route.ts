@@ -211,7 +211,7 @@ export async function POST(request: Request) {
         if (r.accepted || (r as { reason?: string }).reason === 'already') { letIn = true; return; }
       }
       if (candidateId && !(await claimFormMail(supabase, candidateId))) return;
-      // A QA test account (migration 182) gets its own receipt below but emails no admin.
+      // A QA test account (migration 201) gets its own receipt below but emails no admin.
       if (!(await isTestAccount(supabase, athleteId))) await notifyAdminNewAcademyRegistration({
         name: fullName, email: normEmail, phone, existingMember, candidateId,
         intake: intakeObj, likelyMember, existingTrainee,
@@ -291,6 +291,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, ...(imported ? { letIn } : {}), ...(alreadyIn ? { alreadyIn } : {}) });
   } catch (error: any) {
     console.error('Academy register error:', error);
+    // Public route, and the form shows `error` to the applicant: the database's own
+    // message stays in the log above.
     return NextResponse.json({ error: 'Registration failed' }, { status: 500 });
   }
 }

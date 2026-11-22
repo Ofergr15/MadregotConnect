@@ -95,7 +95,7 @@ unknown join token (404) — the token is itself the credential.
 
 ## u21_registrations — what it holds, who reads it, retention
 
-**Stored per submit (migration 180):** name, email, phone, birth date + age band, framework,
+**Stored per submit (migration 199):** name, email, phone, birth date + age band, framework,
 track; for 16–17-year-olds the **guardian's name and phone** and a consent flag; four
 **health red-flag booleans** (chest pain, fainting, bone pain, acute injury) + `red_flag`; the full
 questionnaire as `intake` jsonb (injuries, sleep, training history — free text included); status;

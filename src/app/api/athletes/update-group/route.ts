@@ -4,9 +4,10 @@ import { syncClubFollows } from '@/lib/follows/club-sync';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 /**
- * Sets an athlete's pace group during sign-up. Deliberately NOT session-gated,
- * because its one caller — src/app/join/onboard/page.tsx:97 — runs before the
- * athlete has a session (that page signs out on purpose).
+ * Sets an athlete's pace group during sign-up. Session-gated since 2026-11-22: its
+ * sign-up caller, /join/onboard, runs AFTER a Supabase sign-in (/auth/resolve) and sends
+ * its bearer; the page signs out only on its own done/back buttons. (The note below
+ * predates that and describes the earlier narrowing.)
  *
  * It is narrowed instead. The athlete is looked up by an `email` taken straight
  * from a query string, so ungated this was an open write on any member's row:
@@ -38,6 +39,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'email is required' }, { status: 400 });
     }
 
+    // Authenticate first: an anonymous caller learns nothing, not even whether the address exists.
+    const { denied: unverified, caller } = await resolveVerifiedCaller(req);
+    if (unverified) return unverified;
+    const ownEmail = (caller.email || '').toLowerCase().trim();
+    const ownsAddress = !!ownEmail && ownEmail === String(email).toLowerCase().trim();
+
     const supabase = createServerClient();
 
     const { data: athlete, error: findError } = await supabase
@@ -47,12 +54,25 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (!athlete) {
-      return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
+      // Only the owner of the address hears "not found"; anyone else gets the same 403 as for
+      // someone else's row.
+      return ownsAddress
+        ? NextResponse.json({ error: 'Athlete not found' }, { status: 404 })
+        : NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 
     if (athlete.status === 'active') {
       const denied = await gateEstablishedMember(req, athlete.id);
       if (denied) return denied;
+    } else {
+      // A not-yet-active row (2026-11-22): a verified session that OWNS the address, is
+      // already linked to the row, or is staff. Before, any caller could regroup a pending
+      // applicant — and activate an approved-null one — by naming an email. /join/onboard
+      // (reached after a Supabase sign-in) sends its bearer; same rule as
+      // /api/athletes/connect (bcce5059).
+      if (!ownsAddress && caller.athleteId !== athlete.id && !mayActFor(caller, athlete.id)) {
+        return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+      }
     }
 
     // Onboarding must NOT self-activate. A public sign-up only becomes 'active'

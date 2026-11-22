@@ -1,6 +1,6 @@
 # Test-account isolation — contract
 
-A test account (`athletes.is_test_account = true`, migration 182 — written, **not
+A test account (`athletes.is_test_account = true`, migration 201 — written, **not
 applied**) is a synthetic QA athlete. Rule, on every surface:
 
 - its content is **hidden from other non-staff members** (a per-item read answers 404,
@@ -53,7 +53,7 @@ Tests: `src/__tests__/testAccountIsolation.test.ts` (feed, notifications) and
 - **Club records** (`getClubRecords`) is one shared, cached snapshot for every viewer,
   so it cannot be viewer-scoped: `testAccountIds` are excluded when the snapshot is
   computed (staff also lose test rows there, acceptable for a members' honours board).
-  A snapshot cached before migration 182 is applied still holds them until its TTL
+  A snapshot cached before migration 201 is applied still holds them until its TTL
   (6 h) — force a `?refresh=1` once the migration is pasted.
 - **Avatars / storage**: objects live in a public bucket; a URL, once known, is readable
   by anyone. Every server route above stops handing the URL out, which is the only

@@ -7,7 +7,7 @@ Tests: `valenciaContract.test.ts`, `eventForecast.test.ts`, `clubUpdatesTopics.t
 - `GET /api/events?kind=&from=YYYY-MM-DD&to=YYYY-MM-DD` → `{ events: Event[] }` (raw rows, snake_case,
   upcoming-by-overlap by default; bad dates → 400 `{ error }`).
 - `GET /api/events/{id}` → `{ event }` · 404 `{ error: "Event not found" }`.
-- `Event.course_gpx_url`: https URL of the course GPX, or `null` / absent (absent until migration 181
+- `Event.course_gpx_url`: https URL of the course GPX, or `null` / absent (absent until migration 200
   is applied). No map → fall back to `lat`/`lng`, `waze_url`, `distances`.
 
 ## Forecast: `GET /api/events/{id}/forecast`

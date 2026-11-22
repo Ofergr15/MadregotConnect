@@ -11,7 +11,7 @@ Each note is backed by tests that run the real route handlers against a fake dat
 | Valencia tab: events, forecast, course map, updates by event, surveys | `valencia.md` | `valenciaContract`, `eventForecast`, `clubUpdatesTopics`, `eventCourseGpx` |
 | Week boundaries per screen (plan vs activity week) | `week-boundaries.md` | `weeklyDashboardContract` |
 | JWT binding, athlete states, APNs env separation | `jwt-and-apns-audit.md` | `authErrorContract`, `apnsSender` |
-| Migration review 181–183 (idempotency, rollback) | `migrations-181-183-review.md` | — |
+| Migration review 200–202 (idempotency, rollback) | `migrations-200-202-review.md` | — |
 | Schema dependencies per path (dev / prod) | `schema-dependencies.md` | — |
 | Remote phone backend: options + exact route coverage | `remote-native-backend.md` | `devAllowlistE2E` |
 | Sign-in, session, refresh | `auth-session.md` | `devAllowlistE2E`, `syntheticSessionFailClosed` |

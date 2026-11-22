@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { testAccountIds, hiddenTestAccountsFor } from '@/lib/athletes/test-accounts';
 
 /**
- * Test accounts (migration 182) on likes and comments: a test account's like or
+ * Test accounts (migration 201) on likes and comments: a test account's like or
  * comment on a real member's item is hidden from other non-staff viewers, and the
  * counts shown beside the lists drop it too, so "3 likes" never sits above two faces.
  *

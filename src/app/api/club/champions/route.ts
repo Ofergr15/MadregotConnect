@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   if (denied) return denied;
   const db = createServerClient();
   const { ready, rows: allRows } = await readResults(db);
-  // Test accounts (migration 182) stay off the boards for other members; staff keep them.
+  // Test accounts (migration 201) stay off the boards for other members; staff keep them.
   const hiddenTest = hiddenTestAccountsFor(await testAccountIds(db), caller);
   const rows = allRows.filter((r) => !hiddenTest.has(r.athleteId));
   const today = israelToday();

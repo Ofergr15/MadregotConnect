@@ -83,7 +83,7 @@ export async function notifyFeedInteraction(opts: {
 }): Promise<void> {
   const { feedItemId, authorAthleteId, actorAthleteId, actorName, kind, commentBody, itemType } = opts;
   if (!shouldNotifyFeedInteraction(opts)) return;
-  // A test account's likes/comments never reach a real member (migration 182).
+  // A test account's likes/comments never reach a real member (migration 201).
   if (await isTestAccount(createServerClient(), actorAthleteId)) return;
 
   const { isKudos, historyKind } = likeAnnouncement(itemType);

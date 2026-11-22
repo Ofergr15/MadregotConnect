@@ -5,6 +5,7 @@ import { revalidateWeeklyPlans } from '@/lib/plans/cache';
 import { requireSession, authError } from '@/lib/auth-session';
 import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
 import { academyTraineesNotYours } from '@/lib/academy/pairing-server';
+import { COACH_ID } from '@/lib/constants';
 
 /**
  * POST /api/plans - Create a new weekly plan
@@ -28,6 +29,13 @@ export async function POST(req: NextRequest) {
         { error: 'coach_id, week_start_date, and parsed_workouts are required' },
         { status: 400 }
       );
+    }
+
+    // Single-club app: every plan lives under the club's COACH_ID (all 23 prod rows do), and
+    // readers look it up there. A body-supplied coach_id is a caller-chosen identity, so it is
+    // checked, never trusted: anything else would write a plan no screen reads.
+    if (coach_id !== COACH_ID) {
+      return NextResponse.json({ error: 'Unknown coach_id' }, { status: 400 });
     }
 
     // A personal week for an academy trainee is their coaches' and the manager's

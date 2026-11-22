@@ -31,7 +31,7 @@ export async function GET(request: Request) {
       .order('created_at', { ascending: false })
       .limit(500);
     if (error) {
-      // Migration 180 not applied yet → an empty list with a hint, not a broken screen.
+      // Migration 199 not applied yet → an empty list with a hint, not a broken screen.
       if (error.code === '42P01' || error.code === 'PGRST205') return NextResponse.json({ data: [], ready: false });
       console.error('u21 registrations read failed', error);
       return NextResponse.json({ error: 'Could not load' }, { status: 500 });

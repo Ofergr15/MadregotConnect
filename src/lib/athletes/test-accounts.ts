@@ -1,5 +1,5 @@
 /**
- * Synthetic QA athletes (migration 182, `athletes.is_test_account`).
+ * Synthetic QA athletes (migration 201, `athletes.is_test_account`).
  *
  * A test account can write runs, likes, comments etc. without becoming visible to
  * — or notifying — other members. Its own content stays visible to itself and to staff.

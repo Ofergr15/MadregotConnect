@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { hiddenFromCaller, hiddenTestAccountsFor } from '@/lib/athletes/test-accounts';
 
 /**
- * Test accounts (migration 182) on the per-athlete read paths and the member-facing
+ * Test accounts (migration 201) on the per-athlete read paths and the member-facing
  * aggregates: hidden from other members, visible to themselves and staff, and an
  * unapplied migration changes nothing. See docs/contracts/test-account-isolation.md.
  */
@@ -69,11 +69,13 @@ describe('aggregate filtering (member / self / staff)', () => {
 
 describe('routes apply the gate', () => {
   const src = (p: string) => readFileSync(p, 'utf8');
+  // Run detail + analysis keep main's own pending gate (seesPending) and add the test-account check.
+  it.each(['src/app/api/activities/details/route.ts', 'src/app/api/activities/analysis/route.ts'])('%s hides test accounts', (p) => {
+    expect(src(p)).toMatch(/isTestAccount\(supabase/);
+  });
   it.each([
     'src/app/api/feed/items/[id]/route.ts',
-    'src/app/api/activities/details/route.ts',
     'src/app/api/activities/stream/route.ts',
-    'src/app/api/activities/analysis/route.ts',
     'src/app/api/athletes/[id]/runs/route.ts',
     'src/app/api/athletes/[id]/stats/route.ts',
     'src/app/api/athletes/[id]/records/run/[activityId]/route.ts',

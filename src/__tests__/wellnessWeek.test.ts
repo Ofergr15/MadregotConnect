@@ -50,7 +50,7 @@ describe('nightly sweep window', () => {
 
   it('is scheduled, and health data is only folded into your own profile', () => {
     expect(readFileSync('vercel.json', 'utf8')).toMatch(/"\/api\/cron\/wellness"/);
-    expect(readFileSync('src/app/api/athletes/[id]/stats/route.ts', 'utf8')).toMatch(/caller\.athleteId === id\s*\n?\s*\? withWellness/);
+    expect(readFileSync('src/app/api/athletes/[id]/stats/route.ts', 'utf8')).toMatch(/last7: self\s*\n?\s*\? withWellness/);
     expect(readFileSync('src/app/api/wellness/route.ts', 'utf8')).toMatch(/auth\.user\.athleteId/);
   });
 });

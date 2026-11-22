@@ -1,8 +1,8 @@
-import { Resend } from 'resend';
 import { createServerClient } from '@/lib/supabase/server';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { readEmailConfig } from './config';
 import { isDevSurface } from '@/lib/dev-api-allowlist';
+import { activeTransport } from './transport';
 
 /**
  * THE ONE PLACE AN EMAIL LEAVES THIS APP.
@@ -191,7 +191,8 @@ export async function sendEmail(msg: OutboundEmail): Promise<SendResult> {
 
   // Preview deployments legitimately have no key. Recorded rather than silently
   // dropped, so a missing mail in staging is still explainable afterwards.
-  if (!cfg.hasKey) {
+  const transport = activeTransport();
+  if (!cfg.hasKey && transport.name === 'resend') {
     const logId = await writeLog({ ...base, status: 'skipped', error_code: 'email-not-configured' });
     return {
       ok: false,
@@ -203,13 +204,11 @@ export async function sendEmail(msg: OutboundEmail): Promise<SendResult> {
   }
 
   try {
-    const { data, error } = await new Resend(process.env.RESEND_API_KEY!).emails.send({
-      from,
-      to,
-      subject: msg.subject,
-      html: msg.html,
-      ...(msg.replyTo ? { replyTo: msg.replyTo } : {}),
-    });
+    // The transport (lib/email/transport.ts) is the pluggable part; this file keeps
+    // the rules: a result not an exception, never throw, log every attempt.
+    const sent = await transport.send({ from, to, subject: msg.subject, html: msg.html, replyTo: msg.replyTo });
+    const error = sent.ok ? null : { name: sent.code, message: sent.reason };
+    const data = sent.ok ? { id: sent.id ?? null } : null;
 
     // ⚠️ THE LINE THE WHOLE FILE IS ABOUT. A resolved promise is not a sent email.
     if (error) {

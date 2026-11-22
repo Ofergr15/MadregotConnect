@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Test-account isolation (migration 182) on the three surfaces the first pass left
+ * Test-account isolation (migration 201) on the three surfaces the first pass left
  * open: club records, like/comment lists (+ their counts), and feed paging.
  * See docs/contracts/test-account-isolation.md.
  */

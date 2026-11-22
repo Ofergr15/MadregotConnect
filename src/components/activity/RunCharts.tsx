@@ -184,7 +184,10 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
   const t = useTranslations('runPage');
   // Distance or time along the bottom (the coarse per-km fallback has no time axis).
   const [axis, setAxis] = useState<'d' | 't'>('d');
-  const byTime = axis === 't' && !!view;
+  // The time axis needs one elapsed second per distance bin. A run whose pace the runner hid
+  // arrives with `t: []` (time over the shared distance axis is the pace) — offer distance only.
+  const hasTime = !!view && view.t.length > 0 && view.t.length === view.d.length;
+  const byTime = axis === 't' && hasTime;
   const series = useMemo(() => (view ? fromView(view, byTime) : fromSplits(splits)), [view, splits, byTime]);
   const [cursor, setCursor] = useState<number | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -192,6 +195,8 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
   const lanes = useMemo<Lane[]>(() => {
     if (!series) return [];
     const out: Lane[] = [];
+    // No pace at all (hidden by the runner): no empty pace chart — a one-line note instead.
+    if (series.pace.some((p) => p != null)) {
     const [plo, phi] = extent(series.pace);
     out.push({
       // The slow end stops near the run's own pace: the walks between reps (10:00/km)
@@ -200,6 +205,7 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
       lo: Math.max(plo - 8, 120), hi: Math.min(phi + 12, 15 * 60, (avgPace || phi) + 100),
       stroke: '#1525FF', fill: 'rgba(21,37,255,0.10)', avg: avgPace, format: (v) => formatPace(v),
     });
+    }
     if (series.hr) {
       const [hlo, hhi] = extent(series.hr, 0.01, 0.995);
       out.push({
@@ -235,6 +241,7 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
     return out;
   }, [series, avgPace, avgHr]);
 
+  const paceShown = lanes.some((l) => l.metric === 'pace');
   if (!series || !lanes.length) return null;
   const total = series.x[series.x.length - 1] || 1;
 
@@ -268,7 +275,7 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
   return (
     <div className={className}>
       {/* The readout: averages at rest, the values under the finger while dragging. */}
-      {view && (
+      {hasTime && (
         <div className="mb-2 flex justify-end">
           <div className="flex rounded-[10px] bg-page p-0.5 text-xs font-bold">
             {(['d', 't'] as const).map((a) => (
@@ -279,6 +286,7 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
           </div>
         </div>
       )}
+      {!paceShown && <p className="mb-2 rounded-lg bg-page/60 px-2 py-1 text-xs text-ink-500">{t('paceNotShown')}</p>}
       {/* The readout up here; each chart also shows its own value at the finger (header badge),
           so a chart far down the stack reads without looking back up. */}
       <div className="mb-2 flex min-h-[28px] flex-wrap items-center gap-1.5 text-xs" aria-live="polite">

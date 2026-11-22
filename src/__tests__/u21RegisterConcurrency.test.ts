@@ -5,7 +5,7 @@ import { recentSubmits, serializeByKey, u21DedupeKey, U21_MAX_PER_EMAIL_PER_HOUR
  * POST /api/u21/register under concurrent identical submits, and the per-email hourly cap.
  * The fake DB reads a snapshot when the statement starts and answers a tick later, so two
  * concurrent requests both read before either inserts — the read-then-insert race.
- * `unique` models migration 183's partial unique index on dedupe_key; `noColumn` models 183
+ * `unique` models migration 202's partial unique index on dedupe_key; `noColumn` models 183
  * not yet pasted (PostgREST rejects the unknown column). Synthetic data only.
  */
 
@@ -102,7 +102,7 @@ describe('POST /api/u21/register — concurrent identical submits', () => {
     expect(rows).toHaveLength(1);
   });
 
-  it('before migration 183: the missing dedupe_key column falls back to a plain insert', async () => {
+  it('before migration 202: the missing dedupe_key column falls back to a plain insert', async () => {
     noColumn = true;
     const r = await POST(req({ track: 'pro', answers }));
     expect([r.status, await r.text()]).toEqual([200, RECEIVED]);

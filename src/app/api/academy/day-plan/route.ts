@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { setIndividualPlanStatus, writeIndividualWeek } from '@/lib/plan-builder/server';
 import { getStreamServerClient } from '@/lib/stream/server';
 import { postAcademyDayWorkout } from '@/lib/academy/thread-server';
 import { createServerClient } from '@/lib/supabase/server';
@@ -265,21 +266,14 @@ export async function POST(request: Request) {
       // Published by the send itself, watch or not (plan-status.ts sentPlanStatus): a
       // draft is invisible to run detail, the feed badge and the matcher.
       const status = sentPlanStatus({ otherDays: others > 0 });
-      const write = planId
-        ? await supabase.from('weekly_plans').update({ parsed_workouts: parsed, status }).eq('id', planId).select('id').single()
-        : await supabase.from('weekly_plans').insert({
-          coach_id: COACH_ID,
-          week_start_date: weekStart,
-          original_input: '[built in-app]',
-          parsed_workouts: parsed,
-          status,
-          athlete_id: decision.id,
-        }).select('id').single();
-      if (write.error || !write.data) {
-        results.push({ athleteId: decision.id, name: label, status: 'failed', reason: 'save-failed', detail: write.error?.message ?? null });
+      // Through the plan builder, the only plan writer (owner decision 2026-11-22): the
+      // trainee's newest row, recorded as their published version of the week.
+      const write = await writeIndividualWeek(supabase, { athleteId: decision.id, weekStart, parsed, status, by: caller.athleteId ?? null, planId });
+      if (write.error || !write.planId) {
+        results.push({ athleteId: decision.id, name: label, status: 'failed', reason: 'save-failed', detail: write.error ?? null });
         continue;
       }
-      planId = String(write.data.id);
+      planId = write.planId;
       assigned += 1;
 
       const athlete = athleteRow.get(decision.id);
@@ -308,11 +302,11 @@ export async function POST(request: Request) {
         cleanDayOnce: caller.isSuperUser,
       });
       if (push.status === 'success') {
-        await supabase.from('weekly_plans').update({ status: others ? 'partial' : 'pushed' }).eq('id', planId);
+        await setIndividualPlanStatus(supabase, planId, others ? 'partial' : 'pushed');
         results.push({ athleteId: decision.id, name: label, status: 'sent', ...(decision.basis === 'band' || decision.basis === 'coach' ? { paceBasis: decision.basis } : {}) });
         told.push({ athleteId: decision.id, onWatch: true });
       } else {
-        await supabase.from('weekly_plans').update({ status: sentPlanStatus({ otherDays: others > 0, delivered: false }) }).eq('id', planId);
+        await setIndividualPlanStatus(supabase, planId, sentPlanStatus({ otherDays: others > 0, delivered: false }));
         results.push({ athleteId: decision.id, name: label, status: 'failed', reason: 'push-failed', detail: push.error ?? null });
         await notifyPlanSaved({ athleteId: decision.id, actorId: caller.athleteId, date, days: 1, failedWatch: true });
       }

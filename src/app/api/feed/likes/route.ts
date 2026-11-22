@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
 
     // Uses the index behind UNIQUE(feed_item_id, athlete_id).
-    // A test account's like is hidden from other non-staff members (migration 182).
+    // A test account's like is hidden from other non-staff members (migration 201).
     const hiddenRead = hiddenInteractorsFor(supabase as never, auth.user);
     const { data, error } = await supabase
       .from('feed_likes')

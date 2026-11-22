@@ -200,7 +200,8 @@ export async function garminLogin(email: string, password: string): Promise<
   } catch (err: any) {
     // A raw network/library exception message here is never something a
     // Hebrew-speaking athlete needs to see — log it, show a safe fallback.
-    console.error('Garmin login error:', err.message);
+    // Name + status only: a library error can carry the request (password, ticket).
+    console.error('Garmin login error:', err?.name, err?.response?.status);
     return { error: 'ההתחברות נכשלה. נסו שוב.' };
   }
 }
@@ -267,7 +268,8 @@ export async function garminVerifyMfa(sessionId: string, code: string): Promise<
 
     const ticketMatch = TICKET_RE.exec(html);
     if (!ticketMatch) {
-      console.error('MFA verify - no ticket. Status:', res.status, 'HTML:', (html || '').substring(0, 500));
+      // Status only: the page body is Garmin's SSO form (CSRF, session state).
+      console.error('MFA verify - no ticket. Status:', res.status);
       if (html.includes('incorrect') || html.includes('Invalid') || html.includes('invalid')) {
         return { error: 'קוד אימות שגוי. נסו שוב.' };
       }
@@ -278,12 +280,20 @@ export async function garminVerifyMfa(sessionId: string, code: string): Promise<
     const tokens = await exchangeTicketForTokens(ticket);
     return { success: true, tokens };
   } catch (err: any) {
-    console.error('Garmin MFA verify error:', err.message);
+    console.error('Garmin MFA verify error:', err?.name, err?.response?.status);
     return { error: 'אימות הזיהוי הדו-שלבי נכשל. נסו שוב.' };
   }
 }
 
-async function exchangeTicketForTokens(ticket: string): Promise<{ oauth1: any; oauth2: any }> {
+/**
+ * Ticket → OAuth1 → OAuth2. `loginUrl` must be the `service=` the ticket was
+ * issued for: SSO tickets are bound to their service, so a ticket minted for the
+ * native app's return URL is exchanged with that URL, not with `sso/embed`.
+ */
+export async function exchangeTicketForTokens(
+  ticket: string,
+  loginUrl: string = SSO_EMBED,
+): Promise<{ oauth1: any; oauth2: any }> {
   // Fetch OAuth consumer credentials
   const consumerRes = await axios.get(OAUTH_CONSUMER_URL);
   const consumer = consumerRes.data;
@@ -300,7 +310,7 @@ async function exchangeTicketForTokens(ticket: string): Promise<{ oauth1: any; o
 
   const preAuthParams = {
     ticket,
-    'login-url': SSO_EMBED,
+    'login-url': loginUrl,
     'accepts-mfa-tokens': true,
   };
   const preAuthUrl = `${OAUTH_URL}/preauthorized?${qs.stringify(preAuthParams)}`;

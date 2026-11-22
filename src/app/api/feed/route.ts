@@ -142,7 +142,7 @@ export async function GET(request: Request) {
     // raw order — a page may come back short, never skipped.
     const pending = await pendingRead;
     if (auth.user.athleteId) pending.delete(auth.user.athleteId);
-    // Test accounts (migration 182): hidden from other members, visible to
+    // Test accounts (migration 201): hidden from other members, visible to
     // themselves and staff — dropped through the same filter as pending authors.
     for (const id of hiddenTestAccountsFor(await testRead, auth.user)) pending.add(id);
     // A birthday set to "circle only" (story_instances.placement, 162) lives on the circles, not in the list.

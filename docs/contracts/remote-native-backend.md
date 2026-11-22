@@ -43,5 +43,5 @@ not a TestFlight path: testers' phones can't reach it.
 (exposes every other branch's preview, whose full API may point at production data).
 
 ## Recommendation
-A for remote testing now. Production (B) only after merge approval, with migrations 180–183 applied in production and
+A for remote testing now. Production (B) only after merge approval, with migrations 199–183 applied in production and
 `public/*` behaviour decided.

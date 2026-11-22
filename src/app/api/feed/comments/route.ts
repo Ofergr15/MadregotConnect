@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     if (!itemId) return NextResponse.json({ error: 'itemId required' }, { status: 400 });
 
     const supabase = createServerClient();
-    // A test account's comment is hidden from other non-staff members (migration 182).
+    // A test account's comment is hidden from other non-staff members (migration 201).
     const hiddenRead = hiddenInteractorsFor(supabase as never, auth.user);
     const { data, error } = await supabase
       .from('feed_comments')

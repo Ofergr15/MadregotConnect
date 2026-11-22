@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
- * Test accounts (migration 182): a synthetic QA athlete can write without being
+ * Test accounts (migration 201): a synthetic QA athlete can write without being
  * seen by — or notifying — other members. Its own content stays visible to itself
  * and to staff, and an unapplied migration changes nothing (fail open).
  */

@@ -58,7 +58,7 @@ export async function GET(request: Request) {
       .eq('coach_id', COACH_ID)
       .eq('status', 'active');
     if (aErr) throw aErr;
-    // Test accounts (migration 182) never count toward squad standings.
+    // Test accounts (migration 201) never count toward squad standings.
     const testIds = await testAccountIds(supabase);
     const athletes = (athletesRaw || []).filter((a: { id: string }) => !testIds.has(a.id));
 

@@ -5,7 +5,7 @@
 //     one after the other, so the second one's dedupe read sees the first one's row.
 //  2. recentSubmits — DB, cross-instance: the 10-minute email+track dedupe and the
 //     per-email hourly cap, both read from u21_registrations itself.
-//  3. dedupe_key + unique index (migration 183, NOT applied) — the only thing that closes the
+//  3. dedupe_key + unique index (migration 202, NOT applied) — the only thing that closes the
 //     cross-instance read-then-insert race; a 23505 on it is answered as the same 200.
 
 /** Same email + track inside this window = the same submit (no second row). */

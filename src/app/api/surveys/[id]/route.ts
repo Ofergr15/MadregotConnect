@@ -64,7 +64,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           .order('created_at');
         // An anonymous poll (164): the members get the counts, never who — the ids are
         // replaced, not only the names, since an id opens a profile. Staff still see names.
-        // Test accounts (migration 182): out of the counts and names for other members.
+        // Test accounts (migration 201): out of the counts and names for other members.
         const hiddenTest = hiddenTestAccountsFor(await testAccountIds(supabase), caller);
         const hide = survey.anonymous === true && !caller.isStaff && !caller.isSuperUser;
         let n = 0;

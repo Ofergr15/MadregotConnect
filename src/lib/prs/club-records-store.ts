@@ -7,6 +7,8 @@ import type { PrOverride } from './overrides';
 import { UNDEFINED_TABLE } from './overrides-store';
 import { readAllPrExclusions } from './exclusions-store';
 import { testAccountIds } from '@/lib/athletes/test-accounts';
+import { recordBreaks, realBreaks } from './record-history';
+import { postClubRecordCards } from '@/lib/records/club-record-card-server';
 import { computeClubRecords, type ClubRecordAthlete, type ClubRecordBucket } from './club-records';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
@@ -58,7 +60,16 @@ export interface ClubRecordsSnapshot {
   buckets: ClubRecordBucket[];
   /** Athletes considered — surfaced so the page can say what "the club" meant. */
   athleteCount: number;
+  /**
+   * bucket key → athlete id → that athlete's real record breaks (record-history,
+   * same bucketEffort), for the שיאים tab's club record history and progress chart.
+   * Optional: a snapshot written before this field existed has none until it recomputes.
+   * Unfiltered — never serve it raw; lib/records/board.ts filters opt-out / hidden pace.
+   */
+  breaks?: Record<string, Record<string, ClubSnapshotBreak[]>>;
 }
+
+export interface ClubSnapshotBreak { date: string; seconds: number; activityId: string | null; activityName: string | null }
 
 /** The stored snapshot, or null when absent/unparseable. */
 export async function readClubRecords(supabase: SupabaseServer): Promise<ClubRecordsSnapshot | null> {
@@ -121,7 +132,7 @@ export async function computeClubRecordsSnapshot(supabase: SupabaseServer): Prom
     .eq('status', 'active');
   if (athError) throw athError;
 
-  // Test accounts (migration 182) never hold a club record. The snapshot is shared
+  // Test accounts (migration 201) never hold a club record. The snapshot is shared
   // by every viewer, so it can't be viewer-scoped: excluded for everyone, staff
   // included. Fails open (no column → nobody excluded).
   const testIds = await testAccountIds(supabase as never);
@@ -204,10 +215,21 @@ export async function computeClubRecordsSnapshot(supabase: SupabaseServer): Prom
     overridesByAthlete.set(row.athlete_id, list);
   }
 
+  const exclusionsByAthlete = await readAllPrExclusions(supabase);
+  const breaks: Record<string, Record<string, ClubSnapshotBreak[]>> = {};
+  for (const b of PR_BUCKETS) {
+    breaks[b.key] = {};
+    for (const [athleteId, list] of runsByAthlete) {
+      const real = realBreaks(recordBreaks(list, b.key, exclusionsByAthlete?.get(athleteId)));
+      if (real.length) breaks[b.key][athleteId] = real.map((r) => ({ date: r.date, seconds: r.seconds, activityId: r.activityId, activityName: r.activityName }));
+    }
+  }
+
   return {
     computedAt: new Date().toISOString(),
-    buckets: computeClubRecords({ athletes, runsByAthlete, overridesByAthlete, exclusionsByAthlete: await readAllPrExclusions(supabase) }),
+    buckets: computeClubRecords({ athletes, runsByAthlete, overridesByAthlete, exclusionsByAthlete }),
     athleteCount: athletes.length,
+    breaks,
   };
 }
 
@@ -240,7 +262,11 @@ export async function getClubRecords(
 
   try {
     const fresh = await computeClubRecordsSnapshot(supabase);
-    if (!opts.readOnly) await writeClubRecords(supabase, fresh);
+    if (!opts.readOnly) {
+      await writeClubRecords(supabase, fresh);
+      // A record that fell since the last snapshot gets the club its feed card (שיאים, shot 11).
+      await postClubRecordCards(supabase, stored?.buckets ?? null, fresh.buckets);
+    }
     return { snapshot: fresh, recomputed: true };
   } catch (err) {
     if (stored) {

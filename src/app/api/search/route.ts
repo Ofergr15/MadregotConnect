@@ -1,3 +1,5 @@
+import { hiddenEventIds } from '@/lib/events/server';
+import { pendingAthleteIds } from '@/lib/auth/pending-athletes';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { isCoreRunner } from '@/lib/core-runner';
@@ -98,10 +100,12 @@ export async function GET(request: Request) {
       perksQuery,
     ]);
 
+    // Not the ones waiting to be let in (approved = false), the same reading as runs.ts and
+    // the feed: a pending applicant is not a club member a teammate can find yet.
+    const pending = await pendingAthleteIds(supabase as never).catch(() => new Set<string>());
     const hiddenTest = hiddenTestAccountsFor(await testAccountIds(supabase), caller);
     const matched = (membersRes.error ? [] : membersRes.data || [])
-      .filter((a: { name: string | null }) => nameMatches(a.name, q))
-      .filter((a: { id?: string }) => !hiddenTest.has(a.id as string))
+      .filter((a: { id: string; name: string | null }) => !pending.has(a.id) && !hiddenTest.has(a.id) && nameMatches(a.name, q))
       .slice(0, RESULT_LIMIT) as Array<{ id: string; name: string; avatar_url: string | null; group_id?: string | null }>;
     // What you can do with the person (mockup search-proposal, "אלון"): their pack and their
     // last run, for the top match's quick links.
@@ -123,7 +127,8 @@ export async function GET(request: Request) {
 
     // events (migration 055) may not be applied in every environment —
     // degrade to no event results rather than failing the whole search.
-    const events = (eventsRes.error ? [] : eventsRes.data || []).map(
+    const hiddenEvents = await hiddenEventIds(supabase);
+    const events = (eventsRes.error ? [] : eventsRes.data || []).filter((e: { id: string }) => !hiddenEvents.has(e.id)).map(
       (e: { id: string; name: string; kind: string; date: string; location: string }) => ({
         id: e.id,
         name: e.name,
@@ -209,10 +214,11 @@ async function startOf(supabase: Db, athleteId: string | null | undefined, hidde
     supabase.from('events').select('id, name, kind, date, location').eq('kind', 'race').gte('date', today).order('date').limit(3),
     foldersInTime(),
   ]);
+  const hiddenRaces = await hiddenEventIds(supabase);
   return {
     pack: ((packRes.error ? [] : packRes.data) || []).filter((a: { id: string }) => !hiddenTest.has(a.id)).map((a: { id: string; name: string; avatar_url: string | null }) => ({ id: a.id, name: a.name, avatarUrl: a.avatar_url })),
     packName: (groupRes.data as { name?: string } | null)?.name ?? null,
-    races: ((racesRes.error ? [] : racesRes.data) || []) as Array<{ id: string; name: string; kind: string; date: string; location: string }>,
+    races: ((racesRes.error ? [] : racesRes.data) || []).filter((e: { id: string }) => !hiddenRaces.has(e.id)) as Array<{ id: string; name: string; kind: string; date: string; location: string }>,
     // The pinned folder leads the photos home; here it is the newest that matter.
     albums: await albumRows(folders.filter((f) => !f.pinned && hasMedia(f)).slice(0, 3)),
     today,

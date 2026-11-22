@@ -38,7 +38,12 @@ export async function GET(request: Request) {
     // long-run progression), none of which need the full all-time history.
     // Fetch newest-first so the LIMIT keeps the recent rows, then restore
     // ascending order for the rest of the function's week-over-week math.
-    const [{ data: plansDescRaw }, ownCounts, academyOnly] = await Promise.all([
+    // The day sessions depend only on the week, not on anything read below, so they start in
+    // the same round trip instead of after it (one DB hop off every Today/home open, native and
+    // PWA alike). An academy-only reader's result is still discarded below, exactly as before —
+    // and so is its failure: the read is settled here and only rethrown for a reader who would
+    // have awaited it before, so a throw still means 500 for them and nothing for anyone else.
+    const [{ data: plansDescRaw }, ownCounts, academyOnly, daySessionsAll] = await Promise.all([
       supabase
         .from('weekly_plans')
         .select('id, week_start_date, parsed_workouts, status, created_at, athlete_id')
@@ -50,6 +55,7 @@ export async function GET(request: Request) {
       ownPlanRowsCount(me),
       // An academy-only trainee (no club group) gets no club rows: their week is their own or none.
       academyOnlyReader(me),
+      daySessionWorkouts(currentWeekStart).then((v) => ({ ok: true as const, v }), (e: unknown) => ({ ok: false as const, e })),
     ]);
     const plansDesc = plansDescRaw ? withoutDraftsFor(rowsForReader(withoutOwnRows(plansDescRaw, ownCounts), me, academyOnly), !!caller.isStaff || !!caller.isSuperUser) : plansDescRaw;
     const plans = plansDesc ? [...plansDesc].reverse() : plansDesc;
@@ -82,7 +88,11 @@ export async function GET(request: Request) {
     // A one-day session the coach typed for a date this week, on a day the plan leaves empty,
     // is a session of the week like any other (lib/day-session/week-merge.ts).
     // The club's one-day sessions are not an academy-only trainee's either.
-    const dayWorkouts = academyOnly ? [] : await daySessionWorkouts(currentWeekStart);
+    let dayWorkouts: Awaited<ReturnType<typeof daySessionWorkouts>> = [];
+    if (!academyOnly) {
+      if (!daySessionsAll.ok) throw daySessionsAll.e;
+      dayWorkouts = daySessionsAll.v;
+    }
 
     // Previous week = 7 days before the DISPLAYED week (keeps the delta correct
     // after the Saturday-evening rollover).

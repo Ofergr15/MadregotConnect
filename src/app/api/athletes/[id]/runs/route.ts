@@ -1,3 +1,4 @@
+import { routeForViewer } from '@/lib/privacy/route-trim';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
@@ -45,7 +46,8 @@ export async function GET(
       .order('start_time', { ascending: false });
     if (error) throw error;
 
-    return NextResponse.json({ runs: buildRangeRuns(data ?? []) });
+    const runs = buildRangeRuns(data ?? []).map((r) => ({ ...r, routePreview: routeForViewer(r.routePreview, caller, id) }));
+    return NextResponse.json({ runs });
   } catch (error) {
     console.error('Failed to fetch athlete runs:', error);
     return NextResponse.json({ error: 'Failed to fetch athlete runs' }, { status: 500 });

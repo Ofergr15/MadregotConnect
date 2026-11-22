@@ -22,7 +22,7 @@ export function isEventKind(value: unknown): value is EventKind {
   return typeof value === 'string' && (EVENT_KINDS as readonly string[]).includes(value);
 }
 
-/** A course map is an https link to a GPX file (migration 181), or null to clear it. */
+/** A course map is an https link to a GPX file (migration 200), or null to clear it. */
 export function isCourseGpxUrl(value: unknown): value is string | null {
   if (value === null) return true;
   if (typeof value !== 'string' || value.length > 2000) return false;

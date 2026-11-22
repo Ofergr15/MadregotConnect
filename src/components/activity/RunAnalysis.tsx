@@ -29,7 +29,8 @@ export interface RunAnalysisData {
   efforts: Array<{ key: string; meters: number; seconds: number; start: number; rep: number | null }>;
   prs: Record<string, { seconds: number; date: string | null } | null>;
   recovery: Array<{ rep: number; from: number; to: number }>;
-  technique: Array<{ rep: number; cadence: number; stride: number }>;
+  /** `stride` may be null/absent (e.g. withheld because it would reveal hidden pace): the chart then shows cadence alone. */
+  technique: Array<{ rep: number; cadence: number; stride?: number | null }>;
   conditions: { tempC: number; dewC: number; humidity: number; feelsC: number | null; costSec: number; calc?: boolean } | null;
   trainingEffect: { aerobic?: number; anaerobic?: number; label?: string | null; load?: number | null; recoveryHours?: number | null } | null;
   hrVisible: boolean;
@@ -384,18 +385,21 @@ export function KmSplitsList({ splits, maxHr }: { splits: StreamKmSplit[]; maxHr
   if (splits.length < 2) return null;
   const folded = splits.length > SPLITS_FOLD && !open;
   const full = splits.filter((s) => s.distance >= 900);
-  const ps = full.map((s) => s.pace); const lo = Math.min(...ps); const hi = Math.max(...ps);
+  // A kilometre with no pace (the runner hid it) gets a plain grey bar: no ranking, no "fast".
+  const ps = full.map((s) => s.pace).filter((p): p is number => p != null);
+  const lo = ps.length ? Math.min(...ps) : 0; const hi = ps.length ? Math.max(...ps) : 0;
   return (
     <Card title={t('splits')}>
       <div className="grid grid-cols-[22px_1fr_38px_34px] gap-2 pb-1.5 text-[10.5px] font-extrabold text-ink-400"><span className="text-center">{t('km')}</span><span>{t('pace')}</span><span className="text-center">{t('elev')}</span><span className="text-center">♥</span></div>
       {(folded ? splits.slice(0, SPLITS_PEEK) : splits).map((s) => {
-        const fast = s.pace <= lo + (hi - lo) * 0.35;
-        const w = hi > lo ? 30 + (1 - (s.pace - lo) / (hi - lo)) * 70 : 100;
+        const noPace = s.pace == null;
+        const fast = !noPace && s.pace <= lo + (hi - lo) * 0.35;
+        const w = !noPace && hi > lo ? 30 + (1 - (s.pace - lo) / (hi - lo)) * 70 : 100;
         const el = Math.round(s.elevationGain - s.elevationLoss);
         return (
           <div key={s.km} className="grid grid-cols-[22px_1fr_38px_34px] items-center gap-2 py-[3px] text-xs">
             <span className="text-center font-extrabold text-ink-400">{s.km}</span>
-            <span className="relative flex h-[18px] items-center"><i className="absolute inset-y-[2px] start-0 block rounded" style={{ width: `${w}%`, background: fast ? BLUE : '#AEB8FF' }} /><b className={cn('relative ps-1.5 text-[11.5px] font-black', fast ? 'text-white' : 'text-ink-900')}><B>{formatPace(s.pace)}</B></b></span>
+            <span className="relative flex h-[18px] items-center"><i className="absolute inset-y-[2px] start-0 block rounded" style={{ width: `${w}%`, background: noPace ? '#E5E7EB' : fast ? BLUE : '#AEB8FF' }} /><b className={cn('relative ps-1.5 text-[11.5px] font-black', fast ? 'text-white' : 'text-ink-900')}><B>{formatPace(s.pace)}</B></b></span>
             <span className="text-center text-[11px] text-ink-400"><B>{el > 0 ? `+${el}` : el}</B></span>
             <span className="text-center font-extrabold" style={{ color: s.hr ? ZONE_COLOR[zoneOf(s.hr, maxHr)] : undefined }}><B>{s.hr ?? '—'}</B></span>
           </div>
@@ -486,9 +490,17 @@ export function RecoveryChart({ items }: { items: RunAnalysisData['recovery'] })
   );
 }
 
-export function TechniqueChart({ items }: { items: RunAnalysisData['technique'] }) {
+const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+export function TechniqueChart({ items: raw }: { items: RunAnalysisData['technique'] }) {
   const t = useTranslations('runAnalysis');
-  if (items.length < 2) return null;
+  // Only reps with a real cadence are drawn. Stride is drawn only when EVERY such rep has a real
+  // one — a partial or missing stride is never plotted as 0 or filled in; the stride line, axis,
+  // legend entry and note disappear and cadence is shown on its own.
+  const reps = (raw || []).filter((x) => x && finite(x.cadence));
+  if (reps.length < 2) return null;
+  if (!reps.every((x) => finite(x.stride))) return <CadenceOnlyChart items={reps} />;
+  const items = reps as Array<{ rep: number; cadence: number; stride: number }>;
   const W = 330; const H = 150; const PT = 14; const PB = 20; const ih = H - PT - PB; const iw = W - 40; const n = items.length; const slot = iw / n;
   const st = items.map((x) => x.stride); const cd = items.map((x) => x.cadence);
   const slo = Math.min(...st) - 0.05; const shi = Math.max(...st) + 0.05; const clo = Math.min(...cd) - 3; const chi = Math.max(...cd) + 3;
@@ -505,6 +517,26 @@ export function TechniqueChart({ items }: { items: RunAnalysisData['technique'] 
       </svg>
       <Legend items={[{ label: t('strideM'), color: BLUE }, { label: t('cadence'), color: TEAL }]} />
       <Insight>{t('techniqueNote', { rep: best.rep, stride: best.stride.toFixed(2), cad: best.cadence, cad0: first.cadence })}</Insight>
+    </Card>
+  );
+}
+
+function CadenceOnlyChart({ items }: { items: Array<{ rep: number; cadence: number }> }) {
+  const t = useTranslations('runAnalysis');
+  const W = 330; const H = 150; const PT = 14; const PB = 20; const ih = H - PT - PB; const iw = W - 40; const n = items.length; const slot = iw / n;
+  const cd = items.map((x) => x.cadence);
+  const clo = Math.min(...cd) - 3; const chi = Math.max(...cd) + 3;
+  const yc = (v: number) => PT + ((chi - v) / (chi - clo)) * ih;
+  const x = (i: number) => 4 + i * slot + slot / 2;
+  const first = items[0]; const last = items[n - 1];
+  return (
+    <Card title={t('techniqueTitle')} sub={t('techniqueSubCadence')}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" style={{ height: H, direction: 'ltr' }} role="img" data-technique="cadence-only">
+        <polyline points={items.map((v, i) => `${x(i)},${yc(v.cadence)}`).join(' ')} fill="none" stroke={TEAL} strokeWidth={2.2} />
+        {items.map((v, i) => <g key={i}><circle cx={x(i)} cy={yc(v.cadence)} r={3} fill={TEAL} /><text x={x(i)} y={H - 4} textAnchor="middle" className="fill-ink-400 text-[10px]">{v.rep}</text></g>)}
+      </svg>
+      <Legend items={[{ label: t('cadence'), color: TEAL }]} />
+      <Insight>{t('techniqueNoteCadence', { rep0: first.rep, cad0: first.cadence, rep: last.rep, cad: last.cadence })}</Insight>
     </Card>
   );
 }

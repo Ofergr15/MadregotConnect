@@ -39,6 +39,7 @@ vi.mock('@/lib/auth/self-or-staff', () => ({
     denied: denied ? new Response(JSON.stringify({ error: denied.error }), { status: denied.status }) : null,
     caller,
   }),
+  mayActFor: (c: Caller, id: string | null) => !!c.isStaff || !!c.isSuperUser || (!!id && c.athleteId === id),
 }));
 
 const { GET } = await import('@/app/api/activities/details/route');
@@ -121,20 +122,23 @@ describe('GET /api/activities/details — errors', () => {
 });
 
 describe('GET /api/activities/details — shape', () => {
-  it('a teammate gets the whole run, GPS trace included (club-visible)', async () => {
+  it('a teammate gets the run inside the privacy zone: trimmed trace, no start coordinates', async () => {
     as({ athleteId: MATE });
     const res = await get(`?activityId=${ACT_ID}`);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(Object.keys(body).sort()).toEqual(['activity', 'gpsPoints', 'hasPolyline', 'qualityName', 'repTarget', 'source', 'splits']);
-    expect(body).toMatchObject({ gpsPoints: GPS, hasPolyline: true, source: 'garmin', qualityName: null, repTarget: null });
+    expect(body).toMatchObject({ hasPolyline: true, source: 'garmin', qualityName: null, repTarget: null });
+    // Start/finish privacy zone (route-trim.ts): a teammate never receives the first/last 200 m.
+    expect(Array.isArray(body.gpsPoints)).toBe(true);
+    expect(body.gpsPoints.length).toBeLessThan(GPS.length);
     expect(body.splits).toHaveLength(2);
     expect(body.splits[0]).toMatchObject({ distance: 1000, averagePace: 300 });
     // `activity` is the raw row, snake_case, minus gps_points/laps/splits and the embeds,
     // plus three flattened names.
     const { gps_points: _g, laps: _l, splits: _s, athletes: _a, shoes: _sh, ...rest } = ROW;
-    expect(body.activity).toEqual({ ...rest, athlete_name: 'הבעלים', athlete_avatar_url: 'https://cdn/a.jpg', shoe_name: 'Pegasus' });
-    // No hiddenFields on this run's feed item → nothing masked (masking is maskDetailForViewer).
+    expect(body.activity).toEqual({ ...rest, start_lat: null, start_lng: null, athlete_name: 'הבעלים', athlete_avatar_url: 'https://cdn/a.jpg', shoe_name: 'Pegasus' });
+    // No hiddenFields on this run's feed item → nothing masked (masking is readHiddenStats, lib/activities/hidden-stats).
     expect(body.activity).toMatchObject({ average_hr: 150, max_hr: 170, calories: 150, average_pace: 300 });
     // start_time is the stored wall-clock-as-UTC string, untouched.
     expect(body.activity.start_time).toBe('2026-11-19T06:10:00+00:00');

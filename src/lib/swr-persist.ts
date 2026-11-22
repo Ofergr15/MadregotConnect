@@ -53,6 +53,17 @@ const MAX_TOTAL_BYTES = 1024 * 1024;
 const FLUSH_DEBOUNCE_MS = 1500;
 
 /**
+ * Responses that must never rest on the device (CLAUDE.md 2026-09-07: "if you add a
+ * route whose response should never touch disk, it needs an explicit skip"). Pain
+ * reports are named health data with a body location, and the club shares phones.
+ */
+const NEVER_PERSIST = [/\/api\/pain-reports/, /\/api\/workout-feedback/, /\/api\/feedback-prompts/];
+
+export function neverPersisted(key: string): boolean {
+  return NEVER_PERSIST.some((re) => re.test(key));
+}
+
+/**
  * The answers behind the cards ABOVE the feed (NextSessionCard, FeedHighlightCard,
  * QualitySessionRow, PushDeadBanner),
  * kept across a deploy. The saved feed page survives one (lib/feed/feed-cache), so
@@ -189,6 +200,7 @@ function save(map: CacheMap, identity: string): void {
     // request/length bookkeeping). Nothing in this app creates them, and none of
     // them means anything to a fresh page.
     if (typeof key !== 'string' || key.startsWith('$')) continue;
+    if (neverPersisted(key)) continue;
     const data = dataOf(value);
     if (data === undefined) continue;
     let serialized: string;
