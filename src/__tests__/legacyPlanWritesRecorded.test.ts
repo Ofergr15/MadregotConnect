@@ -87,6 +87,17 @@ describe('POST/PUT /api/plans record a builder version', () => {
 });
 
 describe('recordLegacyPlanWrite', () => {
+  it('an identical re-save whose stored body came back with reordered keys adds no version and keeps the schedule', async () => {
+    db.tables.weekly_plan_versions.push(
+      // as jsonb hands it back: same content, keys in another order
+      { id: 'v1', week_start: W, athlete_id: null, version: 1, state: 'published', body: { workouts: [{ steps: [], name: 'club', dayOfWeek: 1 }] } },
+      { id: 'v2', week_start: W, athlete_id: null, version: 2, state: 'scheduled', publish_at: '2026-11-23T18:00:00Z', body: wk('later') },
+    );
+    await recordLegacyPlanWrite(db.client as any, { weekStart: W, parsed: wk('club'), status: 'published', planId: 'p1', kind: 'pwa' });
+    expect(db.tables.weekly_plan_versions).toHaveLength(2);
+    expect((db.tables.weekly_plan_versions as any[]).find((v) => v.id === 'v2')).toMatchObject({ state: 'scheduled' });
+  });
+
   it('a grouped row is recorded from group1 (the same reading copyLastWeek uses)', async () => {
     await recordLegacyPlanWrite(db.client as any, { weekStart: W, parsed: { group1: wk('g1'), group2: wk('g2') }, status: 'pushed', planId: 'p1', kind: 'reimport' });
     expect(versions(null)[0].body.workouts[0].name).toBe('g1');

@@ -475,13 +475,20 @@ export async function writeIndividualWeek(db: Db, w: IndividualWrite): Promise<{
  * retries once. Best effort before migration 198: a missing column skips the record, never
  * the write — and a trainee record never touches the group stream.
  */
+/** JSON with object keys sorted at every level: jsonb does not keep key order, so a plain
+ *  JSON.stringify of a stored body and an identical incoming one can differ. */
+export function stableJson(v: unknown): string {
+  return JSON.stringify(v, (_k, x) => (x && typeof x === 'object' && !Array.isArray(x)
+    ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, (x as Record<string, unknown>)[k]])) : x));
+}
+
 async function recordPublishedVersion(db: Db, who: Who, week: string, body: ParsedWeeklyPlan, planId: string, by: string | null, kind: string) {
   try {
     for (let attempt = 0; attempt < 2; attempt++) {
       const vs = await versionsFor(db, week, who);
       const prev = live(vs);
       // A status-only save (same workouts) is not a new version.
-      if (prev && JSON.stringify(prev.body) === JSON.stringify(body)) return;
+      if (prev && stableJson(prev.body) === stableJson(body)) return;
       const now = new Date().toISOString();
       const ins = await db.from('weekly_plan_versions').insert({
         week_start: week, ...(who ? { athlete_id: who } : {}), version: (vs[0]?.version ?? 0) + 1, body, state: 'published',
