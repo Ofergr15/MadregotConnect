@@ -126,6 +126,7 @@ export const FEATURES = {
   search: { label: 'חיפוש (אפליקציה)', defaultEnabled: false },
   teammate_full: { label: 'פרופיל חבר מלא (אפליקציה)', defaultEnabled: false },
   native_mgmt_pack_stories: { label: 'סטוריז דבוקה (אפליקציה)', defaultEnabled: false },
+  native_review: { label: 'סקירה (אפליקציה, מתאמן)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
