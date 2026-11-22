@@ -11,6 +11,8 @@ import { createServerClient } from '@/lib/supabase/server';
 import { canAccessChat } from '@/lib/run-chat/access';
 import type { StravaLap } from '@/lib/strava/client';
 import { enrichActivityRowFromStrava } from '@/lib/strava/enrich';
+import { mayActFor } from '@/lib/auth/self-or-staff';
+import { readHiddenStats } from '@/lib/activities/hidden-stats';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -61,15 +63,29 @@ export async function GET(request: NextRequest) {
     }
 
     const laps = (Array.isArray(activity.laps) ? activity.laps : []) as StravaLap[];
+
+    // The runner's share-sheet hidden stats (CLAUDE.md "hidden fields"): withheld from
+    // anyone who is not the runner and not staff. readHiddenStats fails closed. Lap
+    // times count as pace here — distance is shipped, so time per lap IS the pace.
+    const hidden = mayActFor(auth.user, activity.athlete_id)
+      ? new Set<string>()
+      : await readHiddenStats(supabase, activityId);
+    const paceHidden = hidden.has('pace');
+    const hrHidden = hidden.has('heart_rate');
+
     return NextResponse.json({
+      paceHidden,
+      hrHidden,
       laps: laps.map((lap, index) => ({
         lap_index: lap.lap_index ?? index + 1,
         name: lap.name,
         distance: lap.distance,
-        moving_time: lap.moving_time,
-        elapsed_time: lap.elapsed_time,
-        average_speed: lap.average_speed,
-        ...(lap.average_heartrate ? { average_heartrate: lap.average_heartrate } : {}),
+        moving_time: paceHidden ? null : lap.moving_time,
+        elapsed_time: paceHidden ? null : lap.elapsed_time,
+        average_speed: paceHidden ? null : lap.average_speed,
+        ...(hrHidden
+          ? { average_heartrate: null }
+          : lap.average_heartrate ? { average_heartrate: lap.average_heartrate } : {}),
       })),
     });
   } catch (error: unknown) {

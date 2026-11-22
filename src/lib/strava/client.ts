@@ -333,6 +333,8 @@ export function formatDistance(meters: number): string {
 }
 
 export function formatDuration(seconds: number): string {
+  // null when the runner hid pace (GET /api/run-chat/laps): a dash, not "0:00".
+  if (!Number.isFinite(seconds)) return '—';
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = Math.round(seconds % 60);
