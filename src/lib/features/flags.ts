@@ -98,6 +98,8 @@ export const FEATURES = {
   native_mgmt_athletes: { label: 'רשימת הרצים (אפליקציה)', defaultEnabled: false },
   /** Photos gallery (read-only, Drive-sourced). */
   native_photos: { label: 'גלריית תמונות (אפליקציה)', defaultEnabled: false },
+  /** Native cache-first paint: main tabs show the saved copy instantly, refresh in the background. */
+  perf_cache_first: { label: 'פתיחה מיידית מהעותק השמור (אפליקציה)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
