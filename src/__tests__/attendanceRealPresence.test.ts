@@ -16,6 +16,7 @@ const G2 = uid();
 let staff = true;
 vi.mock('@/lib/auth/self-or-staff', () => ({
   resolveVerifiedCaller: async () => ({ denied: null, caller: { isSuperUser: false, isStaff: staff, athleteId: COACH } }),
+  requireStaffCaller: async () => ({ denied: null, caller: { isSuperUser: false, isStaff: true, athleteId: COACH } }),
 }));
 vi.mock('@/lib/attendance/real-server', async (orig) => ({
   ...(await orig<typeof import('@/lib/attendance/real-server')>()),
@@ -92,6 +93,15 @@ describe('GET /api/attendance/real — presence and roster', () => {
     expect(days[0].presence).toBeNull();
     expect(days[0].presenceMarks).toBeNull();
     expect(days[0].roster[1]).toHaveLength(2);
+  });
+
+  it('an unmarked athlete drops out of presence and presenceMarks', async () => {
+    const { PUT } = await import('@/app/api/attendance/presence/route');
+    const r = await PUT(new Request('http://x/api/attendance/presence', { method: 'PUT', body: JSON.stringify({ athleteId: B, weekStart: '2026-11-22', day: 2, present: null }) }));
+    expect(r.status).toBe(200);
+    const s = (await (await get()).json()).days[0];
+    expect(s.presence).toEqual({ [A]: true });
+    expect(Object.keys(s.presenceMarks)).toEqual([A]);
   });
 
   it('non-staff still gets 403', async () => {

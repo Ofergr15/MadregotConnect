@@ -10,7 +10,7 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_MARKS = 200;
 
-type Mark = { athleteId: string; present: boolean; groupLabel?: unknown };
+type Mark = { athleteId: string; present: boolean | null; groupLabel?: unknown };
 const bad = (error: string) => NextResponse.json({ error }, { status: 400 });
 
 /**
@@ -19,6 +19,10 @@ const bad = (error: string) => NextResponse.json({ error }, { status: 400 });
  * Single `{athleteId, weekStart, day, present, groupLabel?}` or bulk
  * `{weekStart, day, groupLabel?, marks: [{athleteId, present, groupLabel?}]}` (≤200);
  * a mark's own groupLabel wins over the top-level default.
+ * `present: null` is an UNMARK: the (athlete, weekStart, day) row is deleted, putting the
+ * runner back to "no mark" (the native app's undo). Idempotent — clearing a row that
+ * isn't there is still a success. Reply `{ok, saved, cleared}`: rows upserted, and
+ * unmarks applied (counted per requested athlete, whether or not a row existed).
  * `marked_by` is always the verified caller — never read from the body.
  */
 export async function PUT(request: Request) {
@@ -46,24 +50,36 @@ export async function PUT(request: Request) {
   }
   for (const m of marks) {
     if (!m || typeof m.athleteId !== 'string' || !UUID.test(m.athleteId)) return bad('athleteId must be a uuid');
-    if (typeof m.present !== 'boolean') return bad('present must be boolean');
+    if (typeof m.present !== 'boolean' && m.present !== null) return bad('present must be boolean or null');
   }
   // Last mark wins for a repeated athlete, so one upsert never hits the same row twice.
   const byAthlete = new Map(marks.map((m) => [m.athleteId, m]));
   const markedAt = new Date().toISOString();
-  const rows = [...byAthlete.values()].map((m) => ({
+  const unmark = [...byAthlete.values()].filter((m) => m.present === null).map((m) => m.athleteId);
+  const rows = [...byAthlete.values()].filter((m) => m.present !== null).map((m) => ({
     athlete_id: m.athleteId, week_start: weekStart, day, group_label: label(m.groupLabel) ?? defaultLabel, present: m.present,
     marked_by: caller.athleteId, marked_at: markedAt,
   }));
 
   try {
     const db = createServerClient();
-    const { error } = await db.from('practice_presence').upsert(rows, { onConflict: 'athlete_id,week_start,day' });
+    const missing = () => NextResponse.json({ error: 'presence table missing — migration 197 not applied' }, { status: 503 });
+    if (unmark.length) {
+      const { error } = await db.from('practice_presence').delete()
+        .eq('week_start', weekStart).eq('day', day).in('athlete_id', unmark);
+      if (error) {
+        if (isMissingTable(error)) return missing();
+        return NextResponse.json({ error: 'Failed to clear presence', details: error.message }, { status: 500 });
+      }
+    }
+    const { error } = rows.length
+      ? await db.from('practice_presence').upsert(rows, { onConflict: 'athlete_id,week_start,day' })
+      : { error: null };
     if (error) {
-      if (isMissingTable(error)) return NextResponse.json({ error: 'presence table missing — migration 197 not applied' }, { status: 503 });
+      if (isMissingTable(error)) return missing();
       return NextResponse.json({ error: 'Failed to save presence', details: error.message }, { status: 500 });
     }
-    return NextResponse.json({ ok: true, saved: rows.length });
+    return NextResponse.json({ ok: true, saved: rows.length, cleared: unmark.length });
   } catch (err: any) {
     console.error('attendance/presence failed:', err);
     return NextResponse.json({ error: err?.message || 'Failed to save presence' }, { status: 500 });
