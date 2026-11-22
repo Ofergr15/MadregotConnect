@@ -29,7 +29,18 @@ vi.mock('@/lib/supabase/server', () => ({
       for (const m of ['select', 'eq', 'not', 'order', 'limit']) c[m] = () => c;
       c.single = async () => ({ data: { id: 'ath-1', name: 'Synthetic', email: 'synthetic@example.test', approved: false, group_id: 'g1', first_seen_at: null }, error: null });
       c.maybeSingle = async () => ({ data: null, error: null });
-      c.update = (r: Record<string, unknown>) => { h.updates.push(r); return { eq: async () => ({ error: null }) }; };
+      // Models the conditional approve write (B30, a71affb4 patch 9): update → eq → or → select
+      // returns the row it flipped. Awaiting update().eq() directly (older writes) still works.
+      c.update = (r: Record<string, unknown>) => {
+        h.updates.push(r);
+        const w: any = {
+          eq: () => w,
+          or: () => w,
+          select: async () => ({ data: [{ id: 'ath-1' }], error: null }),
+          then: (res: (v: unknown) => unknown) => Promise.resolve({ error: null }).then(res),
+        };
+        return w;
+      };
       return c;
     },
   }),
