@@ -26,8 +26,14 @@ export async function gate(req: Request): Promise<{ denied: Response | null; me:
   if (!UUID_RE.test(who)) {
     return { denied: NextResponse.json({ error: 'athleteId must be a uuid' }, { status: 400 }), me: '', caller: null, who: null };
   }
-  const { denied, caller } = await requireTraineeAccess(req, who);
-  return { denied, me: caller?.athleteId || caller?.email, caller, who };
+  const { denied, caller, pair } = await requireTraineeAccess(req, who);
+  if (denied) return { denied, me: '', caller, who };
+  // A personal week only for an academy trainee: one for a club runner would shadow the
+  // group plan they follow (every reader prefers an individual row).
+  if (!pair?.isAcademy) {
+    return { denied: NextResponse.json({ error: 'not an academy trainee', code: 'not_academy' }, { status: 403 }), me: '', caller, who };
+  }
+  return { denied: null, me: caller?.athleteId || caller?.email, caller, who };
 }
 
 export const WEEK_RE = /^\d{4}-\d{2}-\d{2}$/;

@@ -15,8 +15,8 @@ vi.mock('@/lib/notifications/routing', () => ({ recipientsForKind: vi.fn(async (
 vi.mock('@/lib/plans/cache', () => ({ revalidateWeeklyPlans: vi.fn() }));
 vi.mock('@/lib/ai/parser', () => ({ parseWorkoutPlan: vi.fn(), EmptyParseError: class extends Error {} }));
 
-let access: { denied: Response | null; caller: any };
-const traineeAccess = vi.fn(async () => ({ ...access, pair: null }));
+let access: { denied: Response | null; caller: any; pair?: any };
+const traineeAccess = vi.fn(async () => ({ pair: { isAcademy: true }, ...access }));
 vi.mock('@/lib/academy/pairing-server', () => ({ requireTraineeAccess: (...a: unknown[]) => (traineeAccess as any)(...a) }));
 let staffCaller: { denied: Response | null; caller: any };
 vi.mock('@/lib/auth/self-or-staff', () => ({ requireStaffCaller: async () => staffCaller }));
@@ -60,6 +60,12 @@ function from(table: string) {
     }
     const match = (r: Row) => filters.every((f) => f(r));
     let out: Row[];
+    // The real unique keys (migration 198): locks per (week, athlete), versions per (week, athlete, version).
+    const key = (r: Row) => table === 'plan_edit_locks' ? `${r.week_start}|${r.athlete_id ?? ''}`
+      : table === 'weekly_plan_versions' ? `${r.week_start}|${r.athlete_id ?? ''}|${r.version}` : null;
+    if (op === 'insert' && key({ athlete_id: null, ...payload }) && t.some((x) => key(x) === key({ athlete_id: null, ...payload }))) {
+      return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } };
+    }
     if (op === 'insert') { const r = { id: `${table}-${++seq}`, created_at: new Date(seq * 1000).toISOString(), athlete_id: null, ...payload }; t.push(r); out = [r]; }
     else if (op === 'upsert') { t.push({ ...payload }); out = [payload!]; }
     else if (op === 'update') { out = t.filter(match); out.forEach((r) => Object.assign(r, payload)); }
@@ -395,5 +401,79 @@ describe('routes with ?athleteId', () => {
     expect(tables.weekly_plan_versions[0].state).toBe('draft');
     // and the group week still reads pre-migration
     expect((await weekRoute.GET(req(''), wk)).status).toBe(200);
+  });
+});
+
+describe('follow-up review fixes', () => {
+  beforeEach(() => { access = { denied: null, caller: coach }; staffCaller = { denied: null, caller: coach }; });
+
+  it('two coaches taking a free lock at once: the loser gets ok:false with the winner\'s lock, not a 500', async () => {
+    // c1's insert lands between c2's read (free) and c2's insert.
+    const realFrom = db.from;
+    let raced = false;
+    db.from = (t: string) => {
+      const q = realFrom(t);
+      if (t === 'plan_edit_locks' && !raced) {
+        const ins = q.insert;
+        q.insert = (row: Row) => { raced = true; tables.plan_edit_locks.push({ week_start: W, athlete_id: MAYA, editor_id: 'c1', editor_name: 'One', heartbeat_at: new Date().toISOString() }); return ins(row); };
+      }
+      return q;
+    };
+    try {
+      const r = await S.takeLock(db, W, 'c2', 'Two', MAYA);
+      expect(r.ok).toBe(false);
+      expect(r.lock).toMatchObject({ state: 'other', editorName: 'One' });
+    } finally { db.from = realFrom; }
+  });
+
+  it('?athleteId of a non-academy club runner is 403 not_academy, and nothing is written', async () => {
+    access = { denied: null, caller: coach, pair: { isAcademy: false } };
+    const res = await weekRoute.PUT(req(`?athleteId=${NOA}`, 'PUT', { body: { workouts: [] } }), wk);
+    expect(res.status).toBe(403);
+    expect((await res.json()).code).toBe('not_academy');
+    expect(tables.weekly_plan_versions).toEqual([]);
+  });
+
+  it('a removed (inactive) trainee is neither pushed nor notified on publish', async () => {
+    tables.athletes[0].status = 'removed';
+    const draft = ver({ id: 'm1', state: 'draft', athlete_id: MAYA }) as any;
+    tables.weekly_plan_versions.push(draft);
+    const r = await S.publishVersion(db, draft, S.defaultOpts({ notify: true, push: true }), 'c1');
+    expect(r).toMatchObject({ notified: 0, pushed: 0 });
+    expect(pushed).toEqual([]);
+    expect(notified).toEqual([]);
+  });
+
+  it('an academy send cancels a pending SCHEDULED trainee version (kept as draft), so it cannot wipe the send later', async () => {
+    tables.weekly_plan_versions.push(ver({ id: 'm1', version: 1, state: 'scheduled', athlete_id: MAYA, publish_at: '2026-11-23T00:00:00Z' }), ver({ id: 'g1', state: 'scheduled', publish_at: '2026-11-23T00:00:00Z' }));
+    await S.writeIndividualWeek(db, { athleteId: MAYA, weekStart: W, parsed: body('day'), status: 'published' });
+    expect(tables.weekly_plan_versions.find((v) => v.id === 'm1')).toMatchObject({ state: 'draft', publish_at: null });
+    expect(tables.weekly_plan_versions.find((v) => v.id === 'g1')!.state).toBe('scheduled'); // group untouched
+    const fired = await S.runScheduledPlanPublishes(db, new Date('2026-11-24T00:00:00Z'));
+    expect(fired.every((f) => !f.includes(MAYA))).toBe(true);
+    expect(plans(MAYA)[0].parsed_workouts).toEqual(body('day'));
+  });
+
+  it('a plain trainee draft is left alone by an academy send', async () => {
+    tables.weekly_plan_versions.push(ver({ id: 'm1', version: 1, state: 'draft', athlete_id: MAYA }));
+    await S.writeIndividualWeek(db, { athleteId: MAYA, weekStart: W, parsed: body('day'), status: 'published' });
+    expect(tables.weekly_plan_versions.find((v) => v.id === 'm1')!.state).toBe('draft');
+  });
+
+  it('a concurrent version insert re-reads and takes the next number instead of losing the record', async () => {
+    const realFrom = db.from;
+    let raced = false;
+    db.from = (t: string) => {
+      const q = realFrom(t);
+      if (t === 'weekly_plan_versions' && !raced) {
+        const ins = q.insert;
+        q.insert = (row: Row) => { raced = true; tables.weekly_plan_versions.push(ver({ id: 'other', version: 1, state: 'draft', athlete_id: MAYA })); return ins(row); };
+      }
+      return q;
+    };
+    try {
+      await S.writeIndividualWeek(db, { athleteId: MAYA, weekStart: W, parsed: body('day'), status: 'published' });
+    } finally { db.from = realFrom; }
+    expect(versions(MAYA).map((v) => [v.version, v.state]).sort()).toEqual([[1, 'draft'], [2, 'published']]);
   });
 });

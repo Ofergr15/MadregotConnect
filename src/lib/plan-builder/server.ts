@@ -234,7 +234,15 @@ export async function takeLock(db: Db, week: string, me: string, name: string | 
       return sc ? scopeTo(q as any, who) : q;
     });
   } else {
-    await scoped(who, (sc) => db.from('plan_edit_locks').insert({ week_start: week, ...patch, ...(sc && who ? { athlete_id: who } : {}) }));
+    try {
+      await scoped(who, (sc) => db.from('plan_edit_locks').insert({ week_start: week, ...patch, ...(sc && who ? { athlete_id: who } : {}) }));
+    } catch (e: any) {
+      // Two coaches taking a free lock at once: the unique (week, athlete) key lets one
+      // insert win (23505 for the other). The loser re-reads, exactly like a held lock.
+      if (!/duplicate key|23505/.test(e?.message || '')) throw e;
+      const now = await readLock(db, week, who);
+      return { ok: now?.editor_id === me, lock: lockView(now, me) };
+    }
   }
   return { ok: true as const, lock: lockView(await readLock(db, week, who), me) };
 }
@@ -259,8 +267,9 @@ export async function requestRelease(db: Db, week: string, me: string, myName: s
 
 async function athletesForPush(db: Db, groups: GroupNo[] | null, who: Who = null) {
   let q = db.from('athletes').select('id, name, garmin_auth, is_academy, group_id, groups!group_id(name, pace_profile)');
-  // A trainee week reaches that trainee only, whatever their status filter on the club list.
-  q = who ? q.eq('id', who) : q.eq('status', 'active');
+  // A trainee week reaches that trainee only — and only while active: a removed trainee is
+  // neither pushed nor notified.
+  q = who ? q.eq('id', who).eq('status', 'active') : q.eq('status', 'active');
   const rows = (check(await q) as any[]) || [];
   if (who) return rows;
   return rows
@@ -466,15 +475,30 @@ export async function writeIndividualWeek(db: Db, w: IndividualWrite): Promise<{
  */
 async function recordIndividualVersion(db: Db, who: string, week: string, body: ParsedWeeklyPlan, planId: string, by: string | null) {
   try {
-    const vs = await versionsFor(db, week, who);
-    const prev = live(vs);
-    const now = new Date().toISOString();
-    const ins = await db.from('weekly_plan_versions').insert({
-      week_start: week, athlete_id: who, version: (vs[0]?.version ?? 0) + 1, body, state: 'published',
-      plan_id: planId, published_at: now, published_by: by, created_by: by, source: { kind: 'academy' },
-    }).select('id').single();
-    if (ins.error) throw new Error(ins.error.message);
-    if (prev) await db.from('weekly_plan_versions').update({ state: 'superseded' }).eq('id', prev.id);
+    // Two attempts: a concurrent version insert (23505 on the (week, athlete, version) key)
+    // re-reads the stream and takes the next number, instead of losing the record.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const vs = await versionsFor(db, week, who);
+      const prev = live(vs);
+      const now = new Date().toISOString();
+      const ins = await db.from('weekly_plan_versions').insert({
+        week_start: week, athlete_id: who, version: (vs[0]?.version ?? 0) + 1, body, state: 'published',
+        plan_id: planId, published_at: now, published_by: by, created_by: by, source: { kind: 'academy' },
+      }).select('id').single();
+      if (ins.error) {
+        if (attempt === 0 && (ins.error.code === '23505' || /duplicate key/.test(ins.error.message || ''))) continue;
+        throw new Error(ins.error.message);
+      }
+      if (prev) await db.from('weekly_plan_versions').update({ state: 'superseded' }).eq('id', prev.id);
+      // A SCHEDULED trainee version would publish later and silently wipe this send. Its
+      // schedule is cancelled — it stays as the draft, so the coach still sees and can
+      // publish it by hand. A plain draft is left alone: nothing publishes it unasked.
+      const pending = draftOf(vs);
+      if (pending?.state === 'scheduled') {
+        await db.from('weekly_plan_versions').update({ state: 'draft', publish_at: null }).eq('id', pending.id).eq('state', 'scheduled');
+      }
+      return;
+    }
   } catch (e) {
     if (!(e instanceof MigrationPending)) console.error('[plan-builder] academy version record failed', who, week, e);
   }
