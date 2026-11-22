@@ -145,7 +145,7 @@ export interface FeedItem {
    * remains derivable — clients must not compute or show it. Whether to hide time too
    * is undecided (review-2026-11-20/DECISIONS-PENDING.md).
    */
-  paceHidden: boolean;
+  paceHidden?: boolean;
 }
 
 /**
