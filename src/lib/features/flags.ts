@@ -58,6 +58,8 @@ export const FEATURES = {
   native_mgmt_control_room: { label: 'חדר בקרה (אפליקציה)', defaultEnabled: false },
   native_mgmt_push_health: { label: 'בריאות התראות (אפליקציה)', defaultEnabled: false },
   native_mgmt_data_check: { label: 'בדיקת נתונים (אפליקציה)', defaultEnabled: false },
+  /** Staff numbers: מדרגות במספרים + נפח הצוות (club-numbers, coach/volume). */
+  native_mgmt_numbers: { label: 'מדרגות במספרים (אפליקציה)', defaultEnabled: false },
   // ── Native management screens (coach shell, read-only), iOS native-mgmt-readonly.
   native_mgmt_registrations: { label: 'אישורי הרשמה (אפליקציה)', defaultEnabled: false },
   native_mgmt_groups: { label: 'קבוצות וחברים (אפליקציה)', defaultEnabled: false },
