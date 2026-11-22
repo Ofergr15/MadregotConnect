@@ -28,6 +28,9 @@ jobs:
       - run: npm ci
 
       - name: Typecheck
+        # The native server code roughly doubled the type graph; the default ~2 GB heap OOMs.
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: npm run typecheck
 
       - name: Unit tests
