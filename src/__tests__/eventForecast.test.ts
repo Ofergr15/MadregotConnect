@@ -12,7 +12,7 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 
 import { GET } from '@/app/api/events/[id]/forecast/route';
-import { eventDateRange, parseOpenMeteo, raceDayOf } from '@/lib/events/forecast';
+import { eventDateRange, isCalendarDate, parseOpenMeteo, raceDayOf } from '@/lib/events/forecast';
 import { FRESH_MS, STALE_MAX_ENTRIES, STALE_MAX_MS, forecastCacheSize, rememberForecast, resetForecastCache, venueKey } from '@/lib/events/forecast-cache';
 
 const call = (id = 'e1') => GET(new Request(`http://x/api/events/${id}/forecast`), { params: Promise.resolve({ id }) });
@@ -250,6 +250,125 @@ describe('v1 compatibility (docs/contracts/valencia.md parsers keep working)', (
     const r = await call();
     expect(r.status).toBe(200);
     expect(await r.json()).toMatchObject({ status: 'ok', days: [{ date: '2026-12-06', status: 'error' }] });
+  });
+});
+
+describe('review 17:39: weather correctness', () => {
+  const nullDay = (p: ReturnType<typeof payload>, date: string) => {
+    const i = p.daily.time.indexOf(date);
+    for (const k of ['temperature_2m_max', 'temperature_2m_min', 'precipitation_probability_max', 'wind_speed_10m_max', 'weather_code'] as const) {
+      if (p.daily[k]) (p.daily[k] as (number | null)[])[i] = null;
+    }
+    return p;
+  };
+  it('a race date present with every field null is NOT available: unavailable / no_data, v1 day error', async () => {
+    eventRow = race();
+    fetchMock.mockResolvedValue(ok(nullDay(payload('2026-11-21'), '2026-12-06')));
+    const b = await (await call()).json();
+    expect(b).toMatchObject({ raceDayStatus: 'unavailable', raceDayReason: 'no_data' });
+    expect(b.days).toEqual([{ date: '2026-12-06', status: 'error' }]);
+  });
+  it('a multi-day race with one null-only day is partial / no_data', async () => {
+    eventRow = race('2026-12-05', '2026-12-06');
+    fetchMock.mockResolvedValue(ok(nullDay(payload('2026-11-21'), '2026-12-06')));
+    expect(await (await call()).json()).toMatchObject({ raceDayStatus: 'partial', raceDayReason: 'no_data' });
+  });
+  it('an empty / junk 200 with no cache → unavailable invalid_payload, nothing cached', async () => {
+    eventRow = race();
+    for (const junk of [{}, { daily: { time: [] } }, { daily: { time: ['2026-11-20'] } }]) {
+      resetForecastCache();
+      fetchMock.mockResolvedValueOnce(ok(junk));
+      const r = await call();
+      expect(r.headers.get('cache-control')).toBe('no-store');
+      expect(await r.json()).toMatchObject({ unavailableReason: 'invalid_payload', stale: false, daily: [] });
+      expect(forecastCacheSize()).toBe(0);
+    }
+  });
+  it('a junk 200 never overwrites the last good answer: stale good weather is served, and still is next time', async () => {
+    eventRow = race();
+    fetchMock.mockResolvedValueOnce(ok(payload('2026-11-20')));
+    await call();
+    vi.setSystemTime(new Date(Date.now() + FRESH_MS + 1));
+    fetchMock.mockResolvedValueOnce(ok({}));
+    expect(await (await call()).json()).toMatchObject({ stale: true, validThrough: '2026-12-05', unavailableReason: null });
+    fetchMock.mockResolvedValueOnce(ok({ daily: { time: [] } }));
+    const again = await (await call()).json();
+    expect(again).toMatchObject({ stale: true, validThrough: '2026-12-05' });
+    expect(again.daily).toHaveLength(16);
+  });
+  it.each([['missing', undefined], ['malformed', 'not a zone!'], ['number', 3600]])(
+    'timezone %s → null, never a default zone', async (_n, value) => {
+      eventRow = race();
+      const p: Record<string, unknown> = { ...payload('2026-11-20') };
+      if (value === undefined) delete p.timezone; else p.timezone = value;
+      fetchMock.mockResolvedValue(ok(p));
+      expect((await (await call()).json()).timezone).toBeNull();
+    });
+  it.each([[95, 0], [-91, 0], [0, 181], [0, -180.5]])('coordinates out of bounds (%d, %d) → no_location, no request', async (lat, lng) => {
+    eventRow = { id: 'e1', date: '2026-12-06', end_date: null, lat, lng };
+    expect(await (await call()).json()).toMatchObject({ unavailableReason: 'no_location', location: null });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('downstream max-age is what is left of freshness: 1800 when just fetched, 180 when served 27 min later', async () => {
+    eventRow = race();
+    fetchMock.mockResolvedValue(ok(payload('2026-11-20')));
+    expect((await call()).headers.get('cache-control')).toBe('public, max-age=1800');
+    vi.setSystemTime(new Date(Date.now() + 27 * 60_000));
+    const r = await call();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(r.headers.get('cache-control')).toBe('public, max-age=180');
+  });
+});
+
+describe('review 17:56: zone and date hardening', () => {
+  it.each([['Fake/Zone'], ['Mars/Olympus'], ['Europe/Nowhere']])('a zone-shaped but unknown timezone (%s) → null', async (zone) => {
+    eventRow = race();
+    fetchMock.mockResolvedValue(ok({ ...payload('2026-11-20'), timezone: zone }));
+    expect((await (await call()).json()).timezone).toBeNull();
+  });
+  it.each([['Europe/Madrid'], ['UTC']])('a real zone (%s) is kept as given', async (zone) => {
+    eventRow = race();
+    fetchMock.mockResolvedValue(ok({ ...payload('2026-11-20'), timezone: zone }));
+    expect((await (await call()).json()).timezone).toBe(zone);
+  });
+  it('an impossible event date (2026-99-99) does not crash: 200, no race dates, current weather still shown', async () => {
+    eventRow = { id: 'e1', date: '2026-99-99', end_date: '2026-99-99', ...VALENCIA };
+    fetchMock.mockResolvedValue(ok(payload('2026-11-20')));
+    const r = await call();
+    expect(r.status).toBe(200);
+    const b = await r.json();
+    expect(b).toMatchObject({ raceDates: [], raceDate: '', raceDayStatus: 'unavailable', days: [] });
+    expect(b.current).not.toBeNull();
+  });
+  it('an impossible end date keeps the start date only', () => {
+    expect(eventDateRange('2026-12-06', '2026-02-30')).toEqual(['2026-12-06']);
+    expect(eventDateRange('2026-02-30', '2026-12-06')).toEqual([]);
+  });
+  it('isCalendarDate: real days only', () => {
+    for (const ok_ of ['2026-12-06', '2028-02-29']) expect(isCalendarDate(ok_)).toBe(true);
+    for (const bad of ['2026-99-99', '2026-02-30', '2027-02-29', '2026-12-6', '', null, 20261206]) expect(isCalendarDate(bad)).toBe(false);
+  });
+  it('provider dates that are not calendar days are dropped, never crash', () => {
+    const p = payload('2026-11-20', { days: 2 });
+    p.daily.time = ['2026-02-30', '2026-11-21'];
+    p.hourly.time = ['2026-99-99T08:00', '2026-11-21T08:00'];
+    const f = parseOpenMeteo(p);
+    expect(f.daily.map((d) => d.date)).toEqual(['2026-11-21']);
+    expect(f.hourly.map((h) => h.time)).toEqual(['2026-11-21T08:00']);
+  });
+  it('a current-only payload with every field null is junk: invalid_payload, nothing cached', async () => {
+    eventRow = race();
+    fetchMock.mockResolvedValue(ok({ timezone: 'Europe/Madrid', current: { time: '2026-11-20T11:00', temperature_2m: null,
+      apparent_temperature: null, precipitation: null, wind_speed_10m: null, weather_code: null } }));
+    expect(await (await call()).json()).toMatchObject({ unavailableReason: 'invalid_payload', current: null });
+    expect(forecastCacheSize()).toBe(0);
+  });
+  it('a current-only payload with real values is usable and cached (near-term weather without days)', async () => {
+    eventRow = race();
+    fetchMock.mockResolvedValue(ok({ timezone: 'Europe/Madrid', current: { time: '2026-11-20T11:00', temperature_2m: 16 } }));
+    const b = await (await call()).json();
+    expect(b).toMatchObject({ unavailableReason: null, current: { temperatureC: 16, windKmh: null }, daily: [], raceDayStatus: 'unavailable' });
+    expect(forecastCacheSize()).toBe(1);
   });
 });
 

@@ -1,0 +1,675 @@
+{
+  "_note": "Synthetic weather. Exact GET /api/events/:id/forecast v2 bodies, one per state, from the real buildDTO. daily[] trimmed to 2 entries where marked (_dailyTrimmedTo2Of; not a response field).",
+  "available_race_day": {
+    "version": 2,
+    "status": "ok",
+    "days": [
+      {
+        "status": "available",
+        "date": "2026-12-06",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      }
+    ],
+    "provider": "open-meteo",
+    "attribution": {
+      "name": "Open-Meteo",
+      "url": "https://open-meteo.com/"
+    },
+    "eventId": "00000000-0000-4000-8000-00000000e001",
+    "location": {
+      "lat": 39.4699,
+      "lng": -0.3763
+    },
+    "timezone": "Europe/Madrid",
+    "utcOffsetSec": 3600,
+    "fetchedAt": "2026-11-21T10:00:00.000Z",
+    "stale": false,
+    "validFrom": "2026-11-21",
+    "validThrough": "2026-12-06",
+    "current": {
+      "time": "2026-11-21T11:00",
+      "temperatureC": 17.2,
+      "apparentC": 16.1,
+      "precipitationMm": 0,
+      "windKmh": 9.4,
+      "weatherCode": 1
+    },
+    "daily": [
+      {
+        "date": "2026-11-21",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      },
+      {
+        "date": "2026-11-22",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      }
+    ],
+    "raceDate": "2026-12-06",
+    "raceDates": [
+      "2026-12-06"
+    ],
+    "raceDayStatus": "available",
+    "raceDayReason": null,
+    "raceHourly": [
+      {
+        "time": "2026-12-06T06:00",
+        "temperatureC": 11,
+        "precipProbPct": 10,
+        "windKmh": 8,
+        "weatherCode": 2
+      },
+      {
+        "time": "2026-12-06T07:00",
+        "temperatureC": 11,
+        "precipProbPct": 10,
+        "windKmh": 8,
+        "weatherCode": 2
+      },
+      {
+        "time": "2026-12-06T08:00",
+        "temperatureC": 11,
+        "precipProbPct": 10,
+        "windKmh": 8,
+        "weatherCode": 2
+      },
+      {
+        "time": "2026-12-06T09:00",
+        "temperatureC": 11,
+        "precipProbPct": 10,
+        "windKmh": 8,
+        "weatherCode": 2
+      },
+      {
+        "time": "2026-12-06T10:00",
+        "temperatureC": 11,
+        "precipProbPct": 10,
+        "windKmh": 8,
+        "weatherCode": 2
+      }
+    ],
+    "unavailableReason": null,
+    "_dailyTrimmedTo2Of": 16
+  },
+  "out_of_range_after_horizon": {
+    "version": 2,
+    "status": "ok",
+    "days": [
+      {
+        "date": "2026-12-06",
+        "status": "not_yet_available"
+      }
+    ],
+    "provider": "open-meteo",
+    "attribution": {
+      "name": "Open-Meteo",
+      "url": "https://open-meteo.com/"
+    },
+    "eventId": "00000000-0000-4000-8000-00000000e001",
+    "location": {
+      "lat": 39.4699,
+      "lng": -0.3763
+    },
+    "timezone": "Europe/Madrid",
+    "utcOffsetSec": 3600,
+    "fetchedAt": "2026-11-21T10:00:00.000Z",
+    "stale": false,
+    "validFrom": "2026-11-20",
+    "validThrough": "2026-12-05",
+    "current": {
+      "time": "2026-11-20T11:00",
+      "temperatureC": 17.2,
+      "apparentC": 16.1,
+      "precipitationMm": 0,
+      "windKmh": 9.4,
+      "weatherCode": 1
+    },
+    "daily": [
+      {
+        "date": "2026-11-20",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      },
+      {
+        "date": "2026-11-21",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      }
+    ],
+    "raceDate": "2026-12-06",
+    "raceDates": [
+      "2026-12-06"
+    ],
+    "raceDayStatus": "out_of_range",
+    "raceDayReason": "after_horizon",
+    "raceHourly": [],
+    "unavailableReason": null,
+    "_dailyTrimmedTo2Of": 16
+  },
+  "partial_multi_day": {
+    "version": 2,
+    "status": "ok",
+    "days": [
+      {
+        "status": "available",
+        "date": "2026-12-06",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      },
+      {
+        "date": "2026-12-07",
+        "status": "not_yet_available"
+      }
+    ],
+    "provider": "open-meteo",
+    "attribution": {
+      "name": "Open-Meteo",
+      "url": "https://open-meteo.com/"
+    },
+    "eventId": "00000000-0000-4000-8000-00000000e001",
+    "location": {
+      "lat": 39.4699,
+      "lng": -0.3763
+    },
+    "timezone": "Europe/Madrid",
+    "utcOffsetSec": 3600,
+    "fetchedAt": "2026-11-21T10:00:00.000Z",
+    "stale": false,
+    "validFrom": "2026-11-21",
+    "validThrough": "2026-12-06",
+    "current": {
+      "time": "2026-11-21T11:00",
+      "temperatureC": 17.2,
+      "apparentC": 16.1,
+      "precipitationMm": 0,
+      "windKmh": 9.4,
+      "weatherCode": 1
+    },
+    "daily": [
+      {
+        "date": "2026-11-21",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      },
+      {
+        "date": "2026-11-22",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      }
+    ],
+    "raceDate": "2026-12-06",
+    "raceDates": [
+      "2026-12-06",
+      "2026-12-07"
+    ],
+    "raceDayStatus": "partial",
+    "raceDayReason": "after_horizon",
+    "raceHourly": [],
+    "unavailableReason": null,
+    "_dailyTrimmedTo2Of": 16
+  },
+  "no_data_null_race_day": {
+    "version": 2,
+    "status": "ok",
+    "days": [
+      {
+        "date": "2026-12-06",
+        "status": "error"
+      }
+    ],
+    "provider": "open-meteo",
+    "attribution": {
+      "name": "Open-Meteo",
+      "url": "https://open-meteo.com/"
+    },
+    "eventId": "00000000-0000-4000-8000-00000000e001",
+    "location": {
+      "lat": 39.4699,
+      "lng": -0.3763
+    },
+    "timezone": "Europe/Madrid",
+    "utcOffsetSec": 3600,
+    "fetchedAt": "2026-11-21T10:00:00.000Z",
+    "stale": false,
+    "validFrom": "2026-11-21",
+    "validThrough": "2026-12-06",
+    "current": {
+      "time": "2026-11-21T11:00",
+      "temperatureC": 17.2,
+      "apparentC": 16.1,
+      "precipitationMm": 0,
+      "windKmh": 9.4,
+      "weatherCode": 1
+    },
+    "daily": [
+      {
+        "date": "2026-11-21",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      },
+      {
+        "date": "2026-11-22",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      }
+    ],
+    "raceDate": "2026-12-06",
+    "raceDates": [
+      "2026-12-06"
+    ],
+    "raceDayStatus": "unavailable",
+    "raceDayReason": "no_data",
+    "raceHourly": [],
+    "unavailableReason": null,
+    "_dailyTrimmedTo2Of": 16
+  },
+  "current_only": {
+    "version": 2,
+    "status": "ok",
+    "days": [
+      {
+        "date": "2026-12-06",
+        "status": "error"
+      }
+    ],
+    "provider": "open-meteo",
+    "attribution": {
+      "name": "Open-Meteo",
+      "url": "https://open-meteo.com/"
+    },
+    "eventId": "00000000-0000-4000-8000-00000000e001",
+    "location": {
+      "lat": 39.4699,
+      "lng": -0.3763
+    },
+    "timezone": "Europe/Madrid",
+    "utcOffsetSec": 3600,
+    "fetchedAt": "2026-11-21T10:00:00.000Z",
+    "stale": false,
+    "validFrom": null,
+    "validThrough": null,
+    "current": {
+      "time": "2026-11-21T11:00",
+      "temperatureC": 16,
+      "apparentC": null,
+      "precipitationMm": null,
+      "windKmh": null,
+      "weatherCode": null
+    },
+    "daily": [],
+    "raceDate": "2026-12-06",
+    "raceDates": [
+      "2026-12-06"
+    ],
+    "raceDayStatus": "unavailable",
+    "raceDayReason": null,
+    "raceHourly": [],
+    "unavailableReason": null
+  },
+  "timezone_missing_offset_present": {
+    "version": 2,
+    "status": "ok",
+    "days": [
+      {
+        "status": "available",
+        "date": "2026-12-06",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      }
+    ],
+    "provider": "open-meteo",
+    "attribution": {
+      "name": "Open-Meteo",
+      "url": "https://open-meteo.com/"
+    },
+    "eventId": "00000000-0000-4000-8000-00000000e001",
+    "location": {
+      "lat": 39.4699,
+      "lng": -0.3763
+    },
+    "timezone": null,
+    "utcOffsetSec": 3600,
+    "fetchedAt": "2026-11-21T10:00:00.000Z",
+    "stale": false,
+    "validFrom": "2026-11-21",
+    "validThrough": "2026-12-06",
+    "current": {
+      "time": "2026-11-21T11:00",
+      "temperatureC": 17.2,
+      "apparentC": 16.1,
+      "precipitationMm": 0,
+      "windKmh": 9.4,
+      "weatherCode": 1
+    },
+    "daily": [
+      {
+        "date": "2026-11-21",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      },
+      {
+        "date": "2026-11-22",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      }
+    ],
+    "raceDate": "2026-12-06",
+    "raceDates": [
+      "2026-12-06"
+    ],
+    "raceDayStatus": "available",
+    "raceDayReason": null,
+    "raceHourly": [],
+    "unavailableReason": null,
+    "_dailyTrimmedTo2Of": 16
+  },
+  "timezone_invalid_and_offset_invalid": {
+    "version": 2,
+    "status": "ok",
+    "days": [
+      {
+        "status": "available",
+        "date": "2026-12-06",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      }
+    ],
+    "provider": "open-meteo",
+    "attribution": {
+      "name": "Open-Meteo",
+      "url": "https://open-meteo.com/"
+    },
+    "eventId": "00000000-0000-4000-8000-00000000e001",
+    "location": {
+      "lat": 39.4699,
+      "lng": -0.3763
+    },
+    "timezone": null,
+    "utcOffsetSec": null,
+    "fetchedAt": "2026-11-21T10:00:00.000Z",
+    "stale": false,
+    "validFrom": "2026-11-21",
+    "validThrough": "2026-12-06",
+    "current": {
+      "time": "2026-11-21T11:00",
+      "temperatureC": 17.2,
+      "apparentC": 16.1,
+      "precipitationMm": 0,
+      "windKmh": 9.4,
+      "weatherCode": 1
+    },
+    "daily": [
+      {
+        "date": "2026-11-21",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      },
+      {
+        "date": "2026-11-22",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      }
+    ],
+    "raceDate": "2026-12-06",
+    "raceDates": [
+      "2026-12-06"
+    ],
+    "raceDayStatus": "available",
+    "raceDayReason": null,
+    "raceHourly": [],
+    "unavailableReason": null,
+    "_dailyTrimmedTo2Of": 16
+  },
+  "stale_after_provider_error": {
+    "version": 2,
+    "status": "ok",
+    "days": [
+      {
+        "status": "available",
+        "date": "2026-12-06",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      }
+    ],
+    "provider": "open-meteo",
+    "attribution": {
+      "name": "Open-Meteo",
+      "url": "https://open-meteo.com/"
+    },
+    "eventId": "00000000-0000-4000-8000-00000000e001",
+    "location": {
+      "lat": 39.4699,
+      "lng": -0.3763
+    },
+    "timezone": "Europe/Madrid",
+    "utcOffsetSec": 3600,
+    "fetchedAt": "2026-11-21T07:30:00.000Z",
+    "stale": true,
+    "validFrom": "2026-11-21",
+    "validThrough": "2026-12-06",
+    "current": {
+      "time": "2026-11-21T11:00",
+      "temperatureC": 17.2,
+      "apparentC": 16.1,
+      "precipitationMm": 0,
+      "windKmh": 9.4,
+      "weatherCode": 1
+    },
+    "daily": [
+      {
+        "date": "2026-11-21",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      },
+      {
+        "date": "2026-11-22",
+        "tMaxC": 18,
+        "tMinC": 9,
+        "precipProbPct": 20,
+        "windMaxKmh": 15,
+        "weatherCode": 3
+      }
+    ],
+    "raceDate": "2026-12-06",
+    "raceDates": [
+      "2026-12-06"
+    ],
+    "raceDayStatus": "available",
+    "raceDayReason": null,
+    "raceHourly": [],
+    "unavailableReason": null,
+    "_dailyTrimmedTo2Of": 16
+  },
+  "invalid_payload": {
+    "version": 2,
+    "status": "ok",
+    "days": [
+      {
+        "date": "2026-12-06",
+        "status": "error"
+      }
+    ],
+    "provider": "open-meteo",
+    "attribution": {
+      "name": "Open-Meteo",
+      "url": "https://open-meteo.com/"
+    },
+    "eventId": "00000000-0000-4000-8000-00000000e001",
+    "location": {
+      "lat": 39.4699,
+      "lng": -0.3763
+    },
+    "timezone": null,
+    "utcOffsetSec": null,
+    "fetchedAt": null,
+    "stale": false,
+    "validFrom": null,
+    "validThrough": null,
+    "current": null,
+    "daily": [],
+    "raceDate": "2026-12-06",
+    "raceDates": [
+      "2026-12-06"
+    ],
+    "raceDayStatus": "unavailable",
+    "raceDayReason": null,
+    "raceHourly": [],
+    "unavailableReason": "invalid_payload"
+  },
+  "rate_limited_no_cache": {
+    "version": 2,
+    "status": "ok",
+    "days": [
+      {
+        "date": "2026-12-06",
+        "status": "error"
+      }
+    ],
+    "provider": "open-meteo",
+    "attribution": {
+      "name": "Open-Meteo",
+      "url": "https://open-meteo.com/"
+    },
+    "eventId": "00000000-0000-4000-8000-00000000e001",
+    "location": {
+      "lat": 39.4699,
+      "lng": -0.3763
+    },
+    "timezone": null,
+    "utcOffsetSec": null,
+    "fetchedAt": null,
+    "stale": false,
+    "validFrom": null,
+    "validThrough": null,
+    "current": null,
+    "daily": [],
+    "raceDate": "2026-12-06",
+    "raceDates": [
+      "2026-12-06"
+    ],
+    "raceDayStatus": "unavailable",
+    "raceDayReason": null,
+    "raceHourly": [],
+    "unavailableReason": "rate_limited"
+  },
+  "timeout_no_cache": {
+    "version": 2,
+    "status": "ok",
+    "days": [
+      {
+        "date": "2026-12-06",
+        "status": "error"
+      }
+    ],
+    "provider": "open-meteo",
+    "attribution": {
+      "name": "Open-Meteo",
+      "url": "https://open-meteo.com/"
+    },
+    "eventId": "00000000-0000-4000-8000-00000000e001",
+    "location": {
+      "lat": 39.4699,
+      "lng": -0.3763
+    },
+    "timezone": null,
+    "utcOffsetSec": null,
+    "fetchedAt": null,
+    "stale": false,
+    "validFrom": null,
+    "validThrough": null,
+    "current": null,
+    "daily": [],
+    "raceDate": "2026-12-06",
+    "raceDates": [
+      "2026-12-06"
+    ],
+    "raceDayStatus": "unavailable",
+    "raceDayReason": null,
+    "raceHourly": [],
+    "unavailableReason": "timeout"
+  },
+  "no_location": {
+    "version": 2,
+    "status": "no_location",
+    "days": [],
+    "provider": "open-meteo",
+    "attribution": {
+      "name": "Open-Meteo",
+      "url": "https://open-meteo.com/"
+    },
+    "eventId": "00000000-0000-4000-8000-00000000e001",
+    "location": null,
+    "timezone": null,
+    "utcOffsetSec": null,
+    "fetchedAt": null,
+    "stale": false,
+    "validFrom": null,
+    "validThrough": null,
+    "current": null,
+    "daily": [],
+    "raceDate": "2026-12-06",
+    "raceDates": [
+      "2026-12-06"
+    ],
+    "raceDayStatus": "unavailable",
+    "raceDayReason": null,
+    "raceHourly": [],
+    "unavailableReason": "no_location"
+  }
+}

@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { buildDTO, buildForecastUrl, eventDateRange, parseOpenMeteo, type UnavailableReason } from '@/lib/events/forecast';
-import { coalesce, freshForecast, rememberForecast, staleForecast, venueKey } from '@/lib/events/forecast-cache';
+import { buildDTO, buildForecastUrl, eventDateRange, parseOpenMeteo, usableForecast, validCoords, type UnavailableReason } from '@/lib/events/forecast';
+import { FRESH_MS, coalesce, freshForecast, rememberForecast, staleForecast, venueKey } from '@/lib/events/forecast-cache';
 
 export const dynamic = 'force-dynamic';
 
-const FRESH_HEADERS = { 'Cache-Control': 'public, max-age=1800' };
+/** Downstream may keep an answer only for what is left of its freshness here, so nothing is ever older than FRESH_MS. */
+const freshHeaders = (fetchedAt: number) => {
+  const left = Math.floor((FRESH_MS - (Date.now() - fetchedAt)) / 1000);
+  return { 'Cache-Control': left > 0 ? `public, max-age=${left}` : 'no-store' };
+};
+const NO_LOCATION_HEADERS = { 'Cache-Control': 'public, max-age=1800' };
 const NO_STORE = { 'Cache-Control': 'no-store' };
 const TIMEOUT_MS = 5000;
 
@@ -29,16 +34,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const raceDates = eventDateRange(data.date, data.end_date);
     const lat = data.lat == null ? NaN : Number(data.lat);
     const lng = data.lng == null ? NaN : Number(data.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    if (!validCoords(lat, lng)) {
       return NextResponse.json(buildDTO({ eventId: id, lat: null, lng: null, raceDates, forecast: null, fetchedAt: null,
-        stale: false, unavailableReason: 'no_location' }), { headers: FRESH_HEADERS });
+        stale: false, unavailableReason: 'no_location' }), { headers: NO_LOCATION_HEADERS });
     }
 
     const key = venueKey(lat, lng);
     const fresh = freshForecast(key);
     if (fresh) {
       return NextResponse.json(buildDTO({ eventId: id, lat, lng, raceDates, forecast: fresh.forecast, fetchedAt: fresh.at,
-        stale: false, unavailableReason: null }), { headers: FRESH_HEADERS });
+        stale: false, unavailableReason: null }), { headers: freshHeaders(fresh.at) });
     }
 
     try {
@@ -51,10 +56,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         }
         if (res.status === 429) throw new ProviderError('rate_limited');
         if (!res.ok) throw new ProviderError('provider_error');
-        return rememberForecast(key, parseOpenMeteo(await res.json()));
+        const parsed = parseOpenMeteo(await res.json().catch(() => null));
+        // A 200 with nothing usable is a failure: it must not overwrite the last good answer.
+        if (!usableForecast(parsed)) throw new ProviderError('invalid_payload');
+        return rememberForecast(key, parsed);
       });
       return NextResponse.json(buildDTO({ eventId: id, lat, lng, raceDates, forecast: entry.forecast, fetchedAt: entry.at,
-        stale: false, unavailableReason: null }), { headers: FRESH_HEADERS });
+        stale: false, unavailableReason: null }), { headers: freshHeaders(entry.at) });
     } catch (e) {
       const reason = e instanceof ProviderError ? e.reason : 'provider_error';
       console.error('Event forecast fetch failed:', reason);
