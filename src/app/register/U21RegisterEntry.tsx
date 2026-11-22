@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { TEST_PREVIEW_NOTE, U21_TRACKS } from '@/lib/u21/intake';
 import { u21EntryHref } from '@/lib/u21/entry';
 import { cn } from '@/lib/utils';
@@ -17,14 +20,25 @@ import { cn } from '@/lib/utils';
  * dark photo layout and the light onboarding-v2 journey.
  */
 /**
- * Default OFF (gated rollout): renders only when the build sets NEXT_PUBLIC_U21_ENTRY=1. The
- * submit (/api/u21/register) is pinned to the dev Supabase project (lib/u21/env-guard.ts) and
- * answers 503 anywhere else, so production must not show an entry that leads to a failing form.
+ * Default OFF (gated rollout): renders only when the club-wide server flag `u21_entry` is on,
+ * read signed-out from GET /api/features/public. Unknown / error = off, so nothing flashes.
  */
-export const u21EntryEnabled = () => process.env.NEXT_PUBLIC_U21_ENTRY === '1';
+export function useU21EntryOn(): boolean {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    let live = true;
+    fetch('/api/features/public', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j) => { if (live) setOn(j?.features?.u21_entry === true); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
+  return on;
+}
 
 export function U21RegisterEntry({ className }: { className?: string }) {
-  if (!u21EntryEnabled()) return null;
+  const on = useU21EntryOn();
+  if (!on) return null;
   return (
     <section dir="rtl" lang="he" aria-label="מאמן אישי U21" className={cn('px-5 py-10', className)}>
       <div className="mx-auto w-full max-w-md rounded-2xl bg-white p-5 shadow-sm" data-testid="u21-register-entry">

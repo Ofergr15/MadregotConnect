@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { assertU21ServerEnv } from '@/lib/u21/env-guard';
+import { u21EntryOn } from '@/lib/u21/flag';
 import { clientIp, createRateLimiter, isBotSubmit } from '@/lib/academy/intake';
 import {
   U21_MAX_PER_EMAIL_PER_HOUR, isMissingDedupeColumn, isDedupeConflict, recentSubmits, serializeByKey, u21DedupeKey,
@@ -18,9 +19,11 @@ const RECEIVED = { ok: true, status: 'pending_review' } as const;
 
 export async function POST(request: Request) {
   try {
-    // Before rate limit, auth or any DB access: refuse unless wired to the approved dev project.
+    // Before rate limit, auth or any DB access: refuse a missing or inconsistent Supabase env (lib/u21/env-guard.ts).
     const guard = assertU21ServerEnv();
     if (guard.denied) return guard.denied;
+    // Default OFF: the club-wide u21_entry switch (Settings → feature flags) opens the submit.
+    if (!(await u21EntryOn(createServerClient()))) return NextResponse.json({ error: 'Not available' }, { status: 404 });
     if (!allowFromIp(clientIp(request.headers))) {
       return NextResponse.json({ error: 'Too many attempts' }, { status: 429 });
     }

@@ -41,6 +41,8 @@ export const FEATURES = {
   program_files: { label: 'רשימת קבצי התוכנית', defaultEnabled: false },
   /** Academy registration submitted from the app against the live club server. */
   academy_register: { label: 'הרשמה לאקדמיה מהאפליקציה', defaultEnabled: false },
+  /** U21 personal coach: the entry on the registration screen + POST /api/u21/register (club scope, signed-out readable). */
+  u21_entry: { label: 'הרשמה ל-U21 (מאמן אישי)', defaultEnabled: false },
   /** תגים card on Profile (read-only GET /api/athletes/badges). */
   profile_badges: { label: 'כרטיס תגים בפרופיל', defaultEnabled: false },
   /** לוח המועדון: native club calendar (practices + events) with practice RSVP via POST /api/attendance. */
@@ -103,7 +105,7 @@ export function isFeatureKey(v: unknown): v is FeatureKey {
  * on the signed-out gateway, where there is no caller to resolve. Only a club-wide switch is ever
  * disclosed — never a per-athlete/squad/role row.
  */
-export const PUBLIC_FEATURE_KEYS: readonly FeatureKey[] = ['academy_register'];
+export const PUBLIC_FEATURE_KEYS: readonly FeatureKey[] = ['academy_register', 'u21_entry'];
 
 /** The club-wide answer alone: only a `club` row counts; no row = the default (off). */
 export function resolveClubScope(feature: FeatureKey, rows: EnablementRow[]): boolean {

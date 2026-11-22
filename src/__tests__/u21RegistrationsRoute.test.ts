@@ -145,3 +145,19 @@ describe('env guard', () => {
     for (const s of [APPROVED_REF, OTHER_REF]) { expect(logged).not.toContain(s); expect(text).not.toContain(s); }
   });
 });
+
+describe('production go-live: the list stays admin-only on a production project', () => {
+  it('the pin is lifted, the admin gate is not', async () => {
+    const { checkU21ServerEnv } = await import('@/lib/u21/env-guard');
+    const b = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
+    const j = (p: object) => `${b({ alg: 'HS256' })}.${b(p)}.sig`;
+    const ref = 'njzldypndkicpsmdtyll';
+    expect(checkU21ServerEnv({
+      NEXT_PUBLIC_SUPABASE_URL: `https://${ref}.supabase.co`,
+      SUPABASE_SERVICE_ROLE_KEY: j({ role: 'service_role', ref }),
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: j({ role: 'anon', ref }),
+    })).toEqual({ ok: true });
+    const src = (await import('fs')).readFileSync('src/app/api/u21/registrations/route.ts', 'utf8');
+    expect(src).toMatch(/if \(!caller\.isSuperUser && caller\.role !== 'admin'\)/);
+  });
+});

@@ -53,6 +53,8 @@ function fakeDb() {
     },
   };
 }
+let u21FlagOn = true; // the club-wide u21_entry switch (lib/u21/flag)
+vi.mock('@/lib/u21/flag', () => ({ u21EntryOn: async () => u21FlagOn }));
 vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => fakeDb() }));
 
 import { POST } from '@/app/api/u21/register/route';
