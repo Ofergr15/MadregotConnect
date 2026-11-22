@@ -40,19 +40,43 @@ const has = (ops: string[], s: string) => ops.some((o) => o.startsWith(s));
 beforeEach(() => { pushed.length = 0; });
 
 describe('runScheduledPlanPublishes', () => {
-  it('runs an expired Garmin backoff retry on a tick with zero due publications', async () => {
-    const { db, writes } = fakeDb((t, ops) => {
-      if (t === 'weekly_plan_versions' && has(ops, 'single')) return version;
-      if (t === 'weekly_plan_versions') return [];
-      if (t === 'plan_push_status' && ops.includes('eq:state')) return [{ version_id: 'v1', athlete_id: 'a1' }];
-      if (t === 'plan_push_status' && has(ops, 'maybeSingle')) return { attempts: 1 };
-      if (t === 'athletes') return [athlete];
-      return [];
-    });
+  const published = { ...version, state: 'published' };
+  /** A tick with zero due publications and one expired backoff row for `v1`; the week's versions are `weekVersions`. */
+  const retryTick = (v1: any, weekVersions: any[]) => fakeDb((t, ops) => {
+    if (t === 'weekly_plan_versions' && has(ops, 'maybeSingle')) return v1;      // the guard's own read
+    if (t === 'weekly_plan_versions' && has(ops, 'single')) return v1;           // retryPush's read
+    if (t === 'weekly_plan_versions' && ops.includes('eq:week_start')) return weekVersions;
+    if (t === 'weekly_plan_versions') return [];                                   // nothing scheduled
+    if (t === 'plan_push_status' && ops.includes('eq:state')) return [{ version_id: 'v1', athlete_id: 'a1' }];
+    if (t === 'plan_push_status' && has(ops, 'maybeSingle')) return { attempts: 1 };
+    if (t === 'athletes') return [athlete];
+    return [];
+  });
+
+  it('runs an expired retry of the CURRENT published version on a tick with zero due publications', async () => {
+    const { db, writes } = retryTick(published, [published]);
     const fired = await runScheduledPlanPublishes(db, new Date('2026-11-22T10:00:00Z'));
     expect(pushed).toEqual(['a1']);
     expect(fired).toEqual(['planPushRetry 1']);
     expect(writes.find((w) => w.table === 'plan_push_status' && w.op === 'upsert')?.arg).toMatchObject({ state: 'sent', attempts: 2 });
+  });
+
+  it('a backoff row for a SUPERSEDED version is not pushed; it is closed as skipped/stale_version', async () => {
+    const superseded = { ...version, state: 'superseded' };
+    const newer = { ...version, id: 'v2', version: 3, state: 'published' };
+    const { db, writes } = retryTick(superseded, [newer, superseded]);
+    const fired = await runScheduledPlanPublishes(db, new Date('2026-11-22T10:00:00Z'));
+    expect(pushed).toEqual([]);
+    expect(fired).toEqual(['planPushRetrySkippedStale 1']);
+    expect(writes.find((w) => w.table === 'plan_push_status' && w.op === 'update')?.arg).toMatchObject({ state: 'skipped', error_code: 'stale_version' });
+  });
+
+  it('a backoff row for an UNPUBLISHED version is not pushed', async () => {
+    const unpublished = { ...version, state: 'unpublished' };
+    const { db } = retryTick(unpublished, [unpublished]);
+    const fired = await runScheduledPlanPublishes(db, new Date('2026-11-22T10:00:00Z'));
+    expect(pushed).toEqual([]);
+    expect(fired).toEqual(['planPushRetrySkippedStale 1']);
   });
 
   it('still publishes a due scheduled version as before', async () => {
