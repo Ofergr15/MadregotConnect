@@ -14,6 +14,11 @@ import { syncApprovedJoiner } from '@/lib/onboarding/approval-sync';
 
 const DEMO_COACH_ID = COACH_ID;
 
+function latestSync(...stamps: Array<string | null | undefined>): string | null {
+  const ms = stamps.map((x) => (x ? Date.parse(x) : NaN)).filter((n) => !Number.isNaN(n));
+  return ms.length ? new Date(Math.max(...ms)).toISOString() : null;
+}
+
 /**
  * Staff gate for creating and deleting athletes. GET requires a session but not
  * staff: the athletes, academy, profile and plan screens all read the roster, and
@@ -47,16 +52,26 @@ export async function GET(request: Request) {
     let athletes: any[] | null = null;
     let error: any = null;
 
-    const result = await supabase
+    const ROSTER = `id, name, email, status, created_at, garmin_auth:has_garmin, strava_auth:has_strava, data_source, strava_enabled, onboarding_status, is_academy, group_id,
+        groups!group_id(name)`;
+    // The real sync stamps (migration 101) first; a database without them keeps
+    // every other column rather than dropping to the core fallback below.
+    let result = await supabase
       .from('athletes')
-      .select(`
-        id, name, email, status, created_at, garmin_auth:has_garmin, strava_auth:has_strava, data_source, strava_enabled, onboarding_status, is_academy, group_id,
-        groups!group_id(name)
-      `)
+      .select(`${ROSTER}, garmin_last_sync_at, strava_last_sync_at`)
       .eq('coach_id', coachId)
       .order('created_at', { ascending: false });
-
     if (result.error) {
+      result = await supabase
+        .from('athletes')
+        .select(ROSTER)
+        .eq('coach_id', coachId)
+        .order('created_at', { ascending: false }) as typeof result;
+    }
+
+    let providerKnown = true;
+    if (result.error) {
+      providerKnown = false;
       const fallback = await supabase
         .from('athletes')
         .select(`id, name, email, status, created_at, garmin_auth:has_garmin, group_id, groups!group_id(name)`)
@@ -82,13 +97,23 @@ export async function GET(request: Request) {
       groupName: (athlete.groups as any)?.name ? groupDisplayName((athlete.groups as any).name) : null,
       groupId: athlete.group_id,
       group_id: athlete.group_id,
-      dataSource: (athlete as any).data_source || 'garmin',
+      // On the core fallback the Strava columns were not read, so the source is
+      // only known when Garmin is the one connected; otherwise it is unknown (null),
+      // not a confident 'garmin'.
+      dataSource: providerKnown
+        ? ((athlete as any).data_source || 'garmin')
+        : (athlete.garmin_auth ? 'garmin' : null),
       isAcademy: !!(athlete as any).is_academy,
       hasGarmin: !!athlete.garmin_auth,
-      hasStrava: !!(athlete as any).strava_auth,
-      stravaEnabled: !!(athlete as any).strava_enabled,
+      hasStrava: providerKnown ? !!(athlete as any).strava_auth : null,
+      stravaEnabled: providerKnown ? !!(athlete as any).strava_enabled : null,
       onboardingStatus: (athlete as any).onboarding_status || null,
-      lastSynced: athlete.garmin_auth || (athlete as any).strava_auth ? new Date().toISOString() : null,
+      // The latest REAL sync stamp of a connected provider, or null when none is
+      // recorded. It used to be `new Date()` for anyone connected: "synced just now".
+      lastSynced: latestSync(
+        athlete.garmin_auth ? (athlete as any).garmin_last_sync_at : null,
+        (athlete as any).strava_auth ? (athlete as any).strava_last_sync_at : null,
+      ),
       createdAt: athlete.created_at,
     }));
 
@@ -207,7 +232,10 @@ export async function PUT(request: Request) {
     if (!auth.ok) return authError(auth);
 
     const supabase = createServerClient();
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'invalid body' }, { status: 400 });
+    }
     const { id, groupId, status, isAcademy } = body;
 
     if (!id) {
@@ -278,9 +306,11 @@ export async function PUT(request: Request) {
       .eq('id', id)
       .eq('coach_id', DEMO_COACH_ID)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    // No row matched: the id is not an athlete of this club. A refusal, not a crash.
+    if (!athlete) return NextResponse.json({ error: 'Athlete not in this club' }, { status: 403 });
 
     // A move lands today: runs before it keep the old pack, the watch is checked,
     // and a member moved by someone else is told. After the response — none of it

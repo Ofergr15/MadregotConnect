@@ -147,6 +147,10 @@ export function createMemoryDb(opts: MemoryDbOptions) {
       const re = new RegExp('^' + pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.') + '$');
       return this.add(`${c}=like.${pattern}`, (r) => typeof r[c] === 'string' && re.test(r[c]));
     }
+    ilike(c: string, pattern: string) {
+      const re = new RegExp('^' + pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.') + '$', 'i');
+      return this.add(`${c}=ilike.${pattern}`, (r) => typeof r[c] === 'string' && re.test(r[c]));
+    }
     in(c: string, vs: unknown[]) { return this.add(`${c}=in.(${vs.join(',')})`, (r) => vs.includes(r[c])); }
     contains(c: string, vs: unknown[]) { return this.add(`${c}=cs.{${vs.join(',')}}`, (r) => Array.isArray(r[c]) && vs.every((v) => (r[c] as unknown[]).includes(v))); }
     gte(c: string, v: any) { return this.add(`${c}=gte.${v}`, (r) => r[c] != null && r[c] >= v); }
