@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Check } from 'lucide-react';
 import { signOutEverywhere } from '@/lib/auth/sign-out';
-import { bearerHeaders } from '@/lib/api';
+import { apiHeaders } from '@/lib/api';
 import { InsetSection, InsetRow, EmptyState, LoadingBlock, SegmentedControl } from '@/components/ui';
 import { ApprovalPushOptIn } from '@/components/PushOptIn';
 import { WhatsNewOnboardingCard } from '@/components/whats-new/WhatsNewOnboarding';
@@ -137,7 +137,7 @@ function OnboardContent() {
   const garminAuthenticate = async (payload: Record<string, unknown>) => {
     const post = async () => fetch('/api/garmin/authenticate', {
       method: 'POST',
-      headers: await bearerHeaders(true),
+      headers: await apiHeaders(true),
       body: JSON.stringify({ ...payload, signupEmail: email }),
     });
     let res = await post();
