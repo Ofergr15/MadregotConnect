@@ -43,6 +43,9 @@ export async function POST(request: Request) {
     if (r.status === 'garmin-not-connected') return NextResponse.json({ error: r.status }, { status: 409 });
     if (r.status === 'no-workout') return NextResponse.json({ error: 'no-workout' }, { status: 404 });
     if (r.status === 'failed') return NextResponse.json({ error: r.error }, { status: 502 });
+    // `garmin-not-connected | no-workout` share one union member, so the checks above don't
+    // narrow it away; test for 'ok' explicitly.
+    if (r.status !== 'ok') return NextResponse.json({ error: 'Failed to resend workout' }, { status: 500 });
     return NextResponse.json({ ok: true, sent: r.sent, date });
   } catch (error) {
     console.error('me/watch/resend error:', error);
