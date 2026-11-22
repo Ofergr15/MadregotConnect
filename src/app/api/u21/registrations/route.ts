@@ -16,7 +16,7 @@ export const U21_LIST_COLUMNS = 'id, first_name, last_name, age_band, track, red
  */
 export async function GET(request: Request) {
   try {
-    // Before rate limit, auth or any DB access: refuse unless wired to the approved dev project.
+    // Before rate limit, auth or any DB access: refuse a missing or inconsistent Supabase env (lib/u21/env-guard.ts).
     const guard = assertU21ServerEnv();
     if (guard.denied) return guard.denied;
     const { denied, caller } = await resolveVerifiedCaller(request);

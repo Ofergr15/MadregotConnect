@@ -16,6 +16,8 @@ stubEnv();
 
 
 let inserted: Record<string, unknown>[] = [];
+let u21FlagOn = true; // the club-wide u21_entry switch (lib/u21/flag)
+vi.mock('@/lib/u21/flag', () => ({ u21EntryOn: async () => u21FlagOn }));
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: () => ({
     from: (table: string) => ({
@@ -132,5 +134,28 @@ describe('env guard', () => {
     expect(inserted).toEqual([]);
     const logged = JSON.stringify(spy.mock.calls);
     for (const s of [APPROVED_REF, OTHER_REF]) { expect(logged).not.toContain(s); expect(text).not.toContain(s); }
+  });
+});
+
+describe('production go-live (2026-11-22)', () => {
+  const PROD_REF = 'njzldypndkicpsmdtyll';
+  afterEach(() => { stubEnv(); u21FlagOn = true; inserted = []; });
+  it('a self-consistent production project stores the registration (pin lifted)', async () => {
+    stubEnv({
+      NEXT_PUBLIC_SUPABASE_URL: `https://${PROD_REF}.supabase.co`,
+      SUPABASE_SERVICE_ROLE_KEY: fakeJwt({ role: 'service_role', ref: PROD_REF }),
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: fakeJwt({ role: 'anon', ref: PROD_REF }),
+    });
+    inserted = [];
+    const res = await POST(req({ track: 'basic', answers: base }, '5.5.5.' + Math.random()));
+    expect(res.status).toBe(200);
+    expect(inserted).toHaveLength(1);
+  });
+  it('u21_entry off → 404, nothing stored', async () => {
+    u21FlagOn = false;
+    inserted = [];
+    const res = await POST(req({ track: 'basic', answers: base }, '5.5.6.' + Math.random()));
+    expect(res.status).toBe(404);
+    expect(inserted).toEqual([]);
   });
 });

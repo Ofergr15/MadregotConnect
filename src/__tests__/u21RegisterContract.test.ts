@@ -20,6 +20,8 @@ const env = (over: Record<string, string | undefined> = {}) => {
 
 let rows: Record<string, unknown>[] = [];
 let dbError: unknown = null;
+let u21FlagOn = true; // the club-wide u21_entry switch (lib/u21/flag)
+vi.mock('@/lib/u21/flag', () => ({ u21EntryOn: async () => u21FlagOn }));
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: () => ({ from: (table: string) => {
     const f: Record<string, unknown> = {};
@@ -170,11 +172,11 @@ describe('env guard (runs before anything else) → 503 { error: "Service unavai
     env({ NEXT_PUBLIC_SUPABASE_URL: '', SUPABASE_SERVICE_ROLE_KEY: '', NEXT_PUBLIC_SUPABASE_ANON_KEY: '' });
     await refused();
   });
-  it('any other project, including a self-consistent one (production)', async () => {
+  it('keys from a different project than the URL (mixed config) — production go-live keeps this', async () => {
     const other = 'abcdefghijklmnopqrst';
     env({
       NEXT_PUBLIC_SUPABASE_URL: `https://${other}.supabase.co`,
-      SUPABASE_SERVICE_ROLE_KEY: fakeJwt({ role: 'service_role', ref: other }),
+      SUPABASE_SERVICE_ROLE_KEY: fakeJwt({ role: 'service_role', ref: 'zyxwvutsrqponmlkjihg' }),
       NEXT_PUBLIC_SUPABASE_ANON_KEY: fakeJwt({ role: 'anon', ref: other }),
     });
     await refused();

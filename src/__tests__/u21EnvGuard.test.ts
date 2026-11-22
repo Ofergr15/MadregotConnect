@@ -44,14 +44,17 @@ describe('checkU21ServerEnv', () => {
     expect(checkU21ServerEnv(good({ NEXT_PUBLIC_SUPABASE_URL: url }))).toEqual({ ok: false, check: 'url' });
   });
 
-  it('fails a self-consistent but non-approved project (pinned, not just consistent)', () => {
+  it('production go-live: any one self-consistent project passes; an explicit pin still refuses others', () => {
     const env = {
       NEXT_PUBLIC_SUPABASE_URL: `https://${OTHER}.supabase.co`,
       SUPABASE_SERVICE_ROLE_KEY: jwt({ role: 'service_role', ref: OTHER }),
       NEXT_PUBLIC_SUPABASE_ANON_KEY: jwt({ role: 'anon', ref: OTHER }),
     };
-    expect(checkU21ServerEnv(env)).toEqual({ ok: false, check: 'url' });
+    expect(checkU21ServerEnv(env)).toEqual({ ok: true });
     expect(checkU21ServerEnv(env, OTHER)).toEqual({ ok: true });
+    expect(checkU21ServerEnv(env, 'aaaaaaaaaaaaaaaaaaaa')).toEqual({ ok: false, check: 'url' });
+    // Keys from another project than the URL's still refuse (mixed config).
+    expect(checkU21ServerEnv({ ...env, SUPABASE_SERVICE_ROLE_KEY: jwt({ role: 'service_role', ref: 'aaaaaaaaaaaaaaaaaaaa' }) })).toEqual({ ok: false, check: 'service_key' });
   });
 
   it.each(['http://localhost:54321', 'http://127.0.0.1:54321', 'http://[::1]:54321'])('accepts loopback %s off Vercel, rejects it on Vercel', url => {

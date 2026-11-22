@@ -2,7 +2,7 @@
  * Fail-closed runtime isolation for the protected U21 preview.
  *
  * The U21 routes write minors' details with the service-role key, so before they
- * touch anything they check that the server is wired to the ONE approved dev
+ * touch anything they check that the server is wired to ONE consistent Supabase project (the dev pin was lifted for production on 2026-11-22; see checkU21ServerEnv). Originally: the ONE approved dev
  * Supabase project — pinned, not merely self-consistent: a URL and keys that all
  * agree on some other project (e.g. production) are refused just the same.
  *
@@ -10,6 +10,7 @@
  * returned; neither is the project ref. A failure reports only which check failed.
  */
 
+/** The dev project U21 was first pinned to; kept for callers that pin explicitly. */
 export const U21_ALLOWED_PROJECT_REF = 'rtcgklespcwvxashhamh';
 
 export type U21EnvCheck = 'url' | 'service_key' | 'anon_key';
@@ -39,7 +40,14 @@ function keyMatches(token: string | undefined, role: string, ref: string | null)
   return ref === null || c.ref === ref;
 }
 
-export function checkU21ServerEnv(env: Env = process.env, allowedRef: string = U21_ALLOWED_PROJECT_REF): U21EnvResult {
+/**
+ * Production go-live (owner decision 2026-11-22): the dev-only PIN is lifted — `allowedRef`
+ * defaults to null = any one Supabase cloud project. Everything else stays: an https
+ * *.supabase.co URL (or loopback off Vercel), and service + anon keys whose role AND project
+ * ref match that URL, so a deployment with mixed or swapped keys still refuses. Pass a ref to
+ * pin again.
+ */
+export function checkU21ServerEnv(env: Env = process.env, allowedRef: string | null = null): U21EnvResult {
   let url: URL;
   try {
     url = new URL(env.NEXT_PUBLIC_SUPABASE_URL ?? '');
@@ -54,7 +62,7 @@ export function checkU21ServerEnv(env: Env = process.env, allowedRef: string = U
     ref = null;
   } else {
     const m = url.protocol === 'https:' ? CLOUD_HOST.exec(url.hostname) : null;
-    if (!m || m[1] !== allowedRef || url.port !== '') return { ok: false, check: 'url' };
+    if (!m || (allowedRef !== null && m[1] !== allowedRef) || url.port !== '') return { ok: false, check: 'url' };
     ref = m[1];
   }
 

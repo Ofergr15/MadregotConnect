@@ -16,35 +16,48 @@ import { TEST_PREVIEW_NOTE, U21_TRACKS } from '@/lib/u21/intake';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: () => {} }) }));
 
-beforeEach(() => {
-  vi.stubEnv('NEXT_PUBLIC_U21_ENTRY', '1');
-  // JoinFlow asks for the pace groups on mount; the path step does not need them.
-  vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ json: () => Promise.resolve({ groups: [] }) })));
-});
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+// The server flag u21_entry, as GET /api/features/public answers it. JoinFlow also asks for the
+// pace groups on mount; the path step does not need them.
+let flag: boolean | undefined = true;
+const stubFetch = () => vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({
+  json: () => Promise.resolve(String(url).includes('/api/features/public') ? { features: flag === undefined ? {} : { u21_entry: flag } } : { groups: [] }),
+})));
+beforeEach(() => { flag = true; stubFetch(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+const tick = () => new Promise((r) => setTimeout(r, 20));
 
-describe('U21 entry is default OFF', () => {
-  it('renders nothing without NEXT_PUBLIC_U21_ENTRY=1, on its own and inside JoinFlow', () => {
-    vi.stubEnv('NEXT_PUBLIC_U21_ENTRY', '');
-    expect(render(<U21RegisterEntry />).queryByTestId('u21-register-entry')).toBeNull();
+describe('U21 entry is default OFF (server flag u21_entry)', () => {
+  it.each([false, undefined])('flag %s → nothing, on its own and inside JoinFlow', async (v) => {
+    flag = v;
+    const a = render(<U21RegisterEntry />);
+    await tick();
+    expect(a.queryByTestId('u21-register-entry')).toBeNull();
     cleanup();
-    expect(render(<JoinFlow />).queryByTestId('u21-register-entry')).toBeNull();
+    const b = render(<JoinFlow />);
+    await tick();
+    expect(b.queryByTestId('u21-register-entry')).toBeNull();
+  });
+  it('a failing flag read → nothing', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))));
+    const a = render(<U21RegisterEntry />);
+    await tick();
+    expect(a.queryByTestId('u21-register-entry')).toBeNull();
   });
 });
 
 describe('U21RegisterEntry (the section itself)', () => {
-  it('offers every track as a deep link into the intake, with the test-preview note', () => {
-    const { getByTestId } = render(<U21RegisterEntry />);
-    const sec = getByTestId('u21-register-entry');
+  it('offers every track as a deep link into the intake, with the test-preview note', async () => {
+    const { findByTestId } = render(<U21RegisterEntry />);
+    const sec = await findByTestId('u21-register-entry');
     expect(sec.textContent).toContain('U21');
     expect(sec.textContent).toContain(TEST_PREVIEW_NOTE);
     const hrefs = [...sec.querySelectorAll('a')].map(a => a.getAttribute('href'));
     expect(hrefs.sort()).toEqual(U21_TRACKS.map(t => `/u21?track=${t.id}`).sort());
   });
 
-  it('asks for no Strava/Google connection and shows no prices (demo stage)', () => {
-    const { getByTestId } = render(<U21RegisterEntry />);
-    const sec = getByTestId('u21-register-entry');
+  it('asks for no Strava/Google connection and shows no prices (demo stage)', async () => {
+    const { findByTestId } = render(<U21RegisterEntry />);
+    const sec = await findByTestId('u21-register-entry');
     expect(sec.textContent).toContain('סטראבה');
     expect(sec.textContent).toContain('גוגל');
     expect(sec.textContent).not.toContain('₪');
@@ -52,10 +65,10 @@ describe('U21RegisterEntry (the section itself)', () => {
 });
 
 describe('the live registration screen (JoinFlow path step)', () => {
-  it('renders the U21 section at the bottom, after the club/academy choice', () => {
-    const { getByTestId } = render(<JoinFlow />);
+  it('renders the U21 section at the bottom, after the club/academy choice', async () => {
+    const { getByTestId, findByTestId } = render(<JoinFlow />);
+    const sec = await findByTestId('u21-register-entry');
     const screen = getByTestId('join-path');
-    const sec = getByTestId('u21-register-entry');
     expect(screen.contains(sec)).toBe(true);
     // Bottom means after the "not sure?" guidance line that closes the picker.
     const unsure = [...screen.querySelectorAll('p')].find(p => p.textContent?.includes('לא בטוח'));
