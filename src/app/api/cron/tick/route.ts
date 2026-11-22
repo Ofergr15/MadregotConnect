@@ -994,17 +994,19 @@ async function run(request: Request) {
   }
 
   {
-    // Run together v3 (migration 190): T−60 push, chat purge 24 h after, group-run links.
+    // Run together v3 (migration 190): T−60 push and group-run links.
     // Every tick; each job is idempotent. Pre-190 the column reads fail and are swallowed.
+    // No automatic chat purge: no retention policy was approved, so no scheduled job may
+    // hard-delete run_meetup_messages. purgeExpiredChats stays in together-cron.ts but is
+    // NOT called from here (pinned by cronTickNoChatPurge.test.ts).
     try {
-      const { sendSoonReminders, purgeExpiredChats, linkGroupRuns } = await import('@/lib/runs/together-cron');
+      const { sendSoonReminders, linkGroupRuns } = await import('@/lib/runs/together-cron');
       const nowIl = { date: israelToday(now), minute: hour * 60 + minute };
       const soon = await sendSoonReminders(supabase, nowIl);
       if (soon) fired.push(`meetupSoon → ${soon}`);
       if (minute < 5) {
-        const purged = await purgeExpiredChats(supabase, nowIl);
         const linked = await linkGroupRuns(supabase, nowIl.date);
-        if (purged || linked) fired.push(`meetupChatPurge → ${purged}, groupRuns → ${linked}`);
+        if (linked) fired.push(`groupRuns → ${linked}`);
       }
     } catch (err) {
       console.error('[tick] run-together jobs failed:', err);
