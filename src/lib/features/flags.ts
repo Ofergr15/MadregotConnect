@@ -49,6 +49,13 @@ export const FEATURES = {
   academy_coach: { label: 'לשונית מאמן אקדמיה (אפליקציה)', defaultEnabled: false },
   /** Native academy trainee home + coach chat send. */
   academy_trainee: { label: 'בית מתאמן אקדמיה (אפליקציה)', defaultEnabled: false },
+  // ── Native admin ops (coach shell).
+  native_mgmt_entry_queue: { label: 'תור כניסה (אפליקציה)', defaultEnabled: false },
+  native_mgmt_onboarding_funnel: { label: 'משפך הצטרפות (אפליקציה)', defaultEnabled: false },
+  /** Includes the maintenance toggle (PUT /api/maintenance, canApprove): changes the app for everyone. */
+  native_mgmt_control_room: { label: 'חדר בקרה (אפליקציה)', defaultEnabled: false },
+  native_mgmt_push_health: { label: 'בריאות התראות (אפליקציה)', defaultEnabled: false },
+  native_mgmt_data_check: { label: 'בדיקת נתונים (אפליקציה)', defaultEnabled: false },
   // ── Native management screens (coach shell, read-only), iOS native-mgmt-readonly.
   native_mgmt_registrations: { label: 'אישורי הרשמה (אפליקציה)', defaultEnabled: false },
   native_mgmt_groups: { label: 'קבוצות וחברים (אפליקציה)', defaultEnabled: false },
