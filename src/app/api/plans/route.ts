@@ -6,6 +6,7 @@ import { requireSession, authError } from '@/lib/auth-session';
 import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
 import { academyTraineesNotYours } from '@/lib/academy/pairing-server';
 import { COACH_ID } from '@/lib/constants';
+import { recordLegacyPlanWrite } from '@/lib/plan-builder/server';
 
 /**
  * POST /api/plans - Create a new weekly plan
@@ -103,6 +104,8 @@ export async function POST(req: NextRequest) {
     // Athletes read the plan through a 300s-cached query; without this they keep
     // being told there is no plan for up to five minutes after there is one.
     revalidateWeeklyPlans();
+    // Option C (2026-11-22): a sent save is also recorded as a plan-builder version.
+    await recordLegacyPlanWrite(supabase, { weekStart: String(week_start_date), athleteId: athlete_id ? String(athlete_id) : null, parsed: insertRow.parsed_workouts, status, planId: String((data as any).id), by: auth.user.athleteId ?? null, kind: 'pwa' });
     // The club's week (not one runner's): in the week's log, and — when the coach uploaded it —
     // the admins hear it is their turn (lib/week-setup, Ofer 10-24). After the reply.
     if (!athlete_id) {
@@ -316,6 +319,9 @@ export async function PUT(req: NextRequest) {
     }
 
     revalidateWeeklyPlans();
+    // Option C (2026-11-22): a sent save is also recorded as a plan-builder version.
+    const row = data as any;
+    if (row) await recordLegacyPlanWrite(supabase, { weekStart: String(row.week_start_date), athleteId: row.athlete_id ?? null, parsed: row.parsed_workouts, status: row.status, planId: String(row.id), by: auth.user.athleteId ?? null, kind: 'pwa' });
     return NextResponse.json({ plan: data });
   } catch (error: any) {
     console.error('Update plan error:', error);
