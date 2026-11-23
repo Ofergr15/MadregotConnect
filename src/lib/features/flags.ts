@@ -30,6 +30,10 @@ export const FEATURES = {
   race_live: { label: 'מעקב חי במרוץ', defaultEnabled: false },
   /** Native היסטוריית אימונים: every own run, paged, month/type/plan filters (ios Features/History). */
   history: { label: 'היסטוריית אימונים', defaultEnabled: false },
+  /** Native "Sign in with Strava" (GET /api/strava?mode=login&native=1 → madregot://auth/strava). Signed-out readable. */
+  native_strava_signin: { label: 'כניסה עם סטרבה (אפליקציה)', defaultEnabled: false },
+  /** Native user management for staff (DELETE /api/admin/users). */
+  native_mgmt_users: { label: 'ניהול משתמשים (אפליקציה)', defaultEnabled: false },
   /** Native app: staff get the coach shell (CoachTabView) instead of the runner tabs. iOS build 15+. */
   native_coach: { label: 'מסכי מאמן באפליקציה', defaultEnabled: false },
   // ── Native build 16: build-15 surfaces no Release user could reach (review-2026-11-20 gap audit).
@@ -145,7 +149,7 @@ export function isFeatureKey(v: unknown): v is FeatureKey {
  * on the signed-out gateway, where there is no caller to resolve. Only a club-wide switch is ever
  * disclosed — never a per-athlete/squad/role row.
  */
-export const PUBLIC_FEATURE_KEYS: readonly FeatureKey[] = ['academy_register', 'u21_entry'];
+export const PUBLIC_FEATURE_KEYS: readonly FeatureKey[] = ['academy_register', 'u21_entry', 'native_strava_signin'];
 
 /** The club-wide answer alone: only a `club` row counts; no row = the default (off). */
 export function resolveClubScope(feature: FeatureKey, rows: EnablementRow[]): boolean {

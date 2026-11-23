@@ -27,6 +27,7 @@ import {
 } from '@/lib/names/latin';
 import { mergeAthleteRows } from '@/lib/auth/merge-athletes';
 import { HANDOFF_TTL_MS, parseLoginState } from '@/lib/auth/login-handoff';
+import { nativeLoginReturn, verifyNativeLoginState } from '@/lib/auth/native-login-state';
 import { queuePendingStravaSignup } from '@/lib/signup-queue';
 import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
 
@@ -95,7 +96,14 @@ export async function GET(request: Request) {
   // challenge means the login began in a standalone PWA, which cannot see a
   // session established here — park it in login_handoffs and let the app collect
   // it instead.
-  const { isLogin, challenge, joinToken } = parseLoginState(state);
+  // A native-app sign-in carries a state this server SIGNED (native-login-state.ts);
+  // a forged or expired one verifies to null and is handled as an ordinary web state.
+  const nativeChallenge = verifyNativeLoginState(state);
+  const nativeLogin = !!nativeChallenge;
+  const parsed = parseLoginState(state);
+  const isLogin = nativeLogin || parsed.isLogin;
+  const challenge = nativeChallenge ?? parsed.challenge;
+  const joinToken = nativeLogin ? null : parsed.joinToken;
   // A connect started from the native app (/api/me/data-sources/strava, self-only) is an
   // ordinary SIGNED link state whose reservation says return 'app': same verification and
   // link write as below, then back to the app's scheme instead of a web page. Read before
@@ -114,7 +122,7 @@ export async function GET(request: Request) {
   // `state` is logged by its kind only: it can carry an invite token.
   const query = callbackQueryShape(searchParams);
   console.info(`[auth-debug:${debugId}] callback:start`, {
-    stateKind: joinToken ? 'join' : challenge ? 'login:pwa' : isLogin ? 'login' : state ? 'link' : null,
+    stateKind: joinToken ? 'join' : nativeLogin ? 'login:native' : challenge ? 'login:pwa' : isLogin ? 'login' : state ? 'link' : null,
     hasCode: !!code,
     queryKeys: query.keys,
     stravaError: query.error,
@@ -129,6 +137,7 @@ export async function GET(request: Request) {
     console.info(`[auth-debug:${debugId}] callback:strava_error`, { error: query.error });
     const reason = query.error === 'access_denied' ? 'denied' : 'missing_params';
     if (fromApp) return NextResponse.redirect(`${NATIVE_STRAVA_RETURN}?result=${reason}`);
+    if (nativeLogin) return NextResponse.redirect(nativeLoginReturn(reason === 'denied' ? 'denied' : 'error', debugId));
     return NextResponse.redirect(new URL(`/?strava=error&reason=${reason}&debug=${debugId}`, origin));
   }
   if (!code || !state) {
@@ -676,7 +685,15 @@ export async function GET(request: Request) {
       });
       if (!handoffErr) {
         console.info(`[auth-debug:${debugId}] callback:handoff_parked`);
+        // Native: the fixed app URL closes the ASWebAuthenticationSession sheet; the
+        // app then claims the session with its verifier (POST /api/auth/claim-login).
+        if (nativeLogin) return NextResponse.redirect(nativeLoginReturn('ok', debugId));
         return NextResponse.redirect(`${origin}/auth/handoff?debug=${debugId}`);
+      }
+      // Never fall through to the session-in-URL path for the native app.
+      if (nativeLogin) {
+        console.error(`[auth-debug:${debugId}] callback:handoff_failed`, handoffErr);
+        return NextResponse.redirect(nativeLoginReturn('error', debugId));
       }
       // Migration 082 not applied yet, or the insert genuinely failed. Fall
       // through to establishing the session right here — which is the behaviour

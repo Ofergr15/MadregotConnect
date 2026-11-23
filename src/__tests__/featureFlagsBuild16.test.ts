@@ -12,7 +12,7 @@ describe('native build 16 flag keys', () => {
     }
   });
   it('only academy_register and u21_entry are readable signed out', () => {
-    expect([...PUBLIC_FEATURE_KEYS]).toEqual(['academy_register', 'u21_entry']);
+    expect([...PUBLIC_FEATURE_KEYS]).toEqual(['academy_register', 'u21_entry', 'native_strava_signin']);
   });
 });
 
