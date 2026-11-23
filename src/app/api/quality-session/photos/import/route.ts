@@ -4,6 +4,7 @@ import { authError, requireSession } from '@/lib/auth-session';
 import { isStoryEditor } from '@/lib/quality-session/access';
 import { MAX_SESSION_PHOTOS } from '@/lib/quality-session/photos';
 import { pullAlbumPhotos } from '@/lib/quality-session/album-fetch';
+import { isFeatureEnabled } from '@/lib/features/server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -25,7 +26,9 @@ export async function POST(request: Request) {
   const max = Math.min(Math.max(Number(body?.max) || MAX_SESSION_PHOTOS, 1), MAX_SESSION_PHOTOS);
   if (typeof body?.link !== 'string') return NextResponse.json({ error: 'unsupported' }, { status: 400 });
   try {
-    const out = await pullAlbumPhotos(supabase, body.link, { prefix: auth.user.athleteId, max });
+    // photos_drive_v2 (#101): importing the same album twice reuses the files instead of copying them again.
+    const stableKeys = await isFeatureEnabled('photos_drive_v2', auth.user.athleteId).catch(() => false);
+    const out = await pullAlbumPhotos(supabase, body.link, { prefix: auth.user.athleteId, max, stableKeys });
     if (!out.ok) return NextResponse.json({ error: out.error }, { status: out.error === 'unsupported' ? 400 : 422 });
     return NextResponse.json({ media: out.media, found: out.found });
   } catch (err) {

@@ -155,6 +155,9 @@ export const FEATURES = {
   native_onboarding_setup: { label: 'הצטרפות — צ׳קליסט הגדרה (אפליקציה)', defaultEnabled: false },
   /** אימוני כוח: קליטה מ-Garmin/Strava, כרטיס פיד, פירוט סטים, "בוצע" (review-2026-11-20/strength/plan.md). */
   strength_training: { label: 'אימוני כוח', defaultEnabled: false },
+  /** Drive photos v2 (night queue #101): mirror status for staff, each folder tied to its day's session,
+   *  album imports deduped. Source = the session-photos folder only. Face tagging stays off regardless. */
+  photos_drive_v2: { label: 'תמונות מ-Drive v2: סטטוס, קישור לאימון, בלי כפילויות', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;

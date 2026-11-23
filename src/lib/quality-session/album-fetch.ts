@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import sharp from 'sharp';
 import type { createServerClient } from '@/lib/supabase/server';
 import {
@@ -53,16 +54,33 @@ export async function albumPhotoUrls(link: string): Promise<{ ok: true; urls: st
  * The album's first `max` photos (after `skip`), each shrunk to 1600 px JPEG and
  * filed in feed-media under `prefix` — so the feed never depends on Drive later.
  */
+/**
+ * Where an imported photo is filed. Random by default (every import a new copy, as before); with
+ * `stableKeys` (photos_drive_v2, #101) a hash of the source — the album URL or the Drive file id — so a
+ * second import of the same album finds the files already there instead of storing them again.
+ */
+export function mediaPath(prefix: string, key: string | null): string {
+  if (!key) return `${prefix}/${crypto.randomUUID()}.jpg`;
+  return `${prefix}/import-${createHash('sha256').update(key).digest('hex').slice(0, 32)}.jpg`;
+}
+/** Supabase storage's "already exists" (409 / Duplicate) — the dedupe hit, not a failure. */
+export function isAlreadyThere(error: { message?: string; statusCode?: string | number } | null): boolean {
+  if (!error) return false;
+  return String(error.statusCode ?? '') === '409' || /already exists|duplicate/i.test(error.message || '');
+}
+
 export async function pullAlbumPhotos(
   supabase: Db,
   link: string,
-  opts: { prefix: string; max: number; skip?: number },
+  opts: { prefix: string; max: number; skip?: number; stableKeys?: boolean },
 ): Promise<AlbumResult> {
   const list = await albumPhotoUrls(link);
   if (!list.ok) return list;
   const media: PulledMedia[] = [];
+  const seen = new Set<string>();
   for (const src of list.urls.slice(opts.skip ?? 0)) {
     if (media.length >= opts.max) break;
+    if (opts.stableKeys) { if (seen.has(src)) continue; seen.add(src); }
     try {
       const res = await googleGet(src, IMAGE_HOSTS, 15_000);
       if (!res?.ok || !(res.headers.get('content-type') || '').startsWith('image/')) continue;
@@ -71,9 +89,10 @@ export async function pullAlbumPhotos(
       // .rotate() applies the EXIF orientation, so a portrait phone photo stays upright.
       const { data, info } = await sharp(buf).rotate().resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 82 }).toBuffer({ resolveWithObject: true });
-      const path = `${opts.prefix}/${crypto.randomUUID()}.jpg`;
+      const path = mediaPath(opts.prefix, opts.stableKeys ? `album:${src}` : null);
       const { error } = await supabase.storage.from('feed-media').upload(path, data, { contentType: 'image/jpeg', upsert: false });
-      if (error) continue;
+      // photos_drive_v2 (#101): the same file imported again lands on the same path — reuse it, store nothing.
+      if (error && !(opts.stableKeys && isAlreadyThere(error))) continue;
       media.push({ path, url: supabase.storage.from('feed-media').getPublicUrl(path).data.publicUrl, w: info.width, h: info.height });
     } catch { /* one unreadable file must not stop the rest */ }
   }
@@ -90,12 +109,14 @@ export async function pullAlbumPhotos(
 export async function pullDrivePhotos(
   supabase: Db,
   ids: string[],
-  opts: { prefix: string; max: number },
+  opts: { prefix: string; max: number; stableKeys?: boolean },
 ): Promise<AlbumResult> {
   const { fetchPhotoImage, FULL } = await import('@/lib/photos/drive-browse');
   const media: PulledMedia[] = [];
+  const seen = new Set<string>();
   for (const id of ids) {
     if (media.length >= opts.max) break;
+    if (opts.stableKeys) { if (seen.has(id)) continue; seen.add(id); }
     try {
       const img = await fetchPhotoImage(id, FULL);
       if (!img) continue;
@@ -103,9 +124,10 @@ export async function pullDrivePhotos(
       if (buf.length > MAX_IMAGE_BYTES) continue;
       const { data, info } = await sharp(buf).rotate().resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 82 }).toBuffer({ resolveWithObject: true });
-      const path = `${opts.prefix}/${crypto.randomUUID()}.jpg`;
+      const path = mediaPath(opts.prefix, opts.stableKeys ? `drive:${id}` : null);
       const { error } = await supabase.storage.from('feed-media').upload(path, data, { contentType: 'image/jpeg', upsert: false });
-      if (error) continue;
+      // photos_drive_v2 (#101): the same file imported again lands on the same path — reuse it, store nothing.
+      if (error && !(opts.stableKeys && isAlreadyThere(error))) continue;
       media.push({ path, url: supabase.storage.from('feed-media').getPublicUrl(path).data.publicUrl, w: info.width, h: info.height });
     } catch { /* one unreadable file must not stop the rest */ }
   }
