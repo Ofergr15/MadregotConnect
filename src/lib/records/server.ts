@@ -16,7 +16,7 @@ export interface RosterPerson extends BoardPerson, RecordFacts {
  * reads as `false`, never as an error.
  */
 export async function readRoster(db: Db, todayIso: string): Promise<RosterPerson[]> {
-  const base = 'id, name, group_id, gender, birth_date, default_hidden_fields, groups!group_id(name)';
+  const base = 'id, name, avatar_url, group_id, gender, birth_date, default_hidden_fields, groups!group_id(name)';
   let rows: any[] | null = null;
   const first = await db.from('athletes').select(`${base}, leaderboard_opt_out, squad_compare`)
     .eq('coach_id', COACH_ID).eq('status', 'active');
@@ -24,7 +24,7 @@ export async function readRoster(db: Db, todayIso: string): Promise<RosterPerson
     // Pre-195 (and possibly pre-193 for default_hidden_fields).
     const second = await db.from('athletes').select(base).eq('coach_id', COACH_ID).eq('status', 'active');
     if (second.error && isMissingColumn(second.error)) {
-      const third = await db.from('athletes').select('id, name, group_id, gender, birth_date, groups!group_id(name)')
+      const third = await db.from('athletes').select('id, name, avatar_url, group_id, gender, birth_date, groups!group_id(name)')
         .eq('coach_id', COACH_ID).eq('status', 'active');
       if (third.error) throw third.error;
       rows = third.data;
@@ -38,6 +38,7 @@ export async function readRoster(db: Db, todayIso: string): Promise<RosterPerson
     return {
       id: String(a.id),
       name: a.name ?? '',
+      avatarUrl: typeof a.avatar_url === 'string' && a.avatar_url ? a.avatar_url : null,
       groupId: a.group_id ? String(a.group_id) : null,
       groupIndex: g.index >= 0 ? g.index + 1 : null,
       optOut: !!a.leaderboard_opt_out,

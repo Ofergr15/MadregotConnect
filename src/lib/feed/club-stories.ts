@@ -59,3 +59,29 @@ export function pruneClubStories(list: ClubStory[], today: string): ClubStory[] 
   const cutoff = addDaysToDateStr(today, -14);
   return list.filter((s) => s.until >= cutoff).slice(0, 50);
 }
+
+/** Who posted a circle message, as members may see it (night queue #81, TOMORROW 9). */
+export interface StoryAuthor { name: string; avatarUrl: string | null }
+
+/**
+ * `createdBy` is the staff email the admin route stamped. Resolved to a name + avatar ONLY for a visible
+ * member: an active, approved athlete who is not a test account (migration 201). Anyone else — a pending
+ * row, a removed member, a test account, an address with no athlete — gets null, and the circle shows the
+ * message without a "who". The email itself never leaves the server.
+ */
+export async function storyAuthors(db: any, emails: Array<string | null | undefined>): Promise<Map<string, StoryAuthor>> {
+  const want = [...new Set(emails.filter((e): e is string => typeof e === 'string' && e.includes('@')).map((e) => e.trim().toLowerCase()))];
+  const out = new Map<string, StoryAuthor>();
+  if (!want.length) return out;
+  try {
+    const { data, error } = await db.from('athletes').select('id, email, name, avatar_url, status, approved').in('email', want);
+    if (error) return out;
+    const { testAccountIds } = await import('@/lib/athletes/test-accounts');
+    const tests = await testAccountIds(db);
+    for (const a of (data || []) as Array<{ id: string; email: string; name: string | null; avatar_url: string | null; status: string | null; approved: boolean | null }>) {
+      if (a.status !== 'active' || a.approved === false || tests.has(a.id) || !a.name) continue;
+      out.set(String(a.email || '').toLowerCase(), { name: a.name, avatarUrl: a.avatar_url ?? null });
+    }
+  } catch { /* the circle works without authors */ }
+  return out;
+}

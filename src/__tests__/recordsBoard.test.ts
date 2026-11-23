@@ -138,9 +138,9 @@ describe('monthlyChampions', () => {
         { athleteId: 'b', bucketKey: 'hm', seconds: 4960, date: '2026-11-01' },
       ],
     });
-    expect(c.mostImproved).toEqual({ athleteId: 'a', name: 'n-a', pct: 31 });
-    expect(c.streak).toEqual({ athleteId: 'b', name: 'n-b', weeks: 4 });
-    expect(c.newRecord).toEqual({ athleteId: 'b', name: 'n-b', bucketKey: 'hm', seconds: 4960 });
+    expect(c.mostImproved).toMatchObject({ athleteId: 'a', name: 'n-a', pct: 31 });
+    expect(c.streak).toMatchObject({ athleteId: 'b', name: 'n-b', weeks: 4 });
+    expect(c.newRecord).toMatchObject({ athleteId: 'b', name: 'n-b', bucketKey: 'hm', seconds: 4960 });
     expect(JSON.stringify(c)).not.toMatch(/"o"/);
   });
   it('trailingStreak counts only the unbroken tail', () => {
