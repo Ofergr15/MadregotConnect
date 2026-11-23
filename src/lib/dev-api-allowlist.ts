@@ -58,6 +58,7 @@ export const DEV_API_ALLOWLIST: ReadonlyArray<readonly [string, string]> = [
   ['DELETE', '/api/feed/posts'],
   ['DELETE', '/api/plan-builder/parse-jobs/*'],
   ['DELETE', '/api/plan-builder/weeks/*/lock'],
+  ['DELETE', '/api/plans/nutrition'],
   ['DELETE', '/api/runs/meetups'],
   ['DELETE', '/api/runs/meetups/requests'],
   ['DELETE', '/api/shoes'],
@@ -172,6 +173,7 @@ export const DEV_API_ALLOWLIST: ReadonlyArray<readonly [string, string]> = [
   ['GET', '/api/plan-builder/parse-jobs/*'],
   ['GET', '/api/plan-builder/weeks/*'],
   ['GET', '/api/plan-builder/weeks/*/push'],
+  ['GET', '/api/plans/nutrition'],
   ['GET', '/api/program-weeks'],
   ['GET', '/api/reminder-config'],
   ['GET', '/api/runs/meetups'],
@@ -280,6 +282,7 @@ export const DEV_API_ALLOWLIST: ReadonlyArray<readonly [string, string]> = [
   ['POST', '/api/plan-builder/weeks/*/push'],
   ['POST', '/api/plan-builder/weeks/*/release-request'],
   ['POST', '/api/plan-builder/weeks/*/unpublish'],
+  ['POST', '/api/plans/nutrition'],
   ['POST', '/api/program-weeks'],
   ['POST', '/api/runs/meetups'],
   ['POST', '/api/runs/meetups/*'],
@@ -312,6 +315,7 @@ export const DEV_API_ALLOWLIST: ReadonlyArray<readonly [string, string]> = [
   ['PUT', '/api/events/*/pace-groups'],
   ['PUT', '/api/me/data-source'],
   ['PUT', '/api/plan-builder/weeks/*'],
+  ['PUT', '/api/plans/nutrition'],
   ['PUT', '/api/reminder-config'],
 ];
 

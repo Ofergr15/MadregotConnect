@@ -512,6 +512,11 @@ errors are logged as name + HTTP status only — an axios error carries the pass
 or ticket in its request config. `garmin-callback` posts the ticket to its own origin
 instead of `'*'`. Pinned by `src/__tests__/garminCredentialServerSide.test.ts`.
 
+Recorded exposure change, **2026-11-23**: `GET /api/plans/nutrition` (the coach's written
+nutrition plans) was unauthenticated and is now `requireMember`. Its only caller is the
+native staff week screen, which sends a bearer token; no web page or public surface reads
+it. POST / PUT (in-place edit, new) / DELETE are JWT staff-gated (`auth.user.isStaff`).
+
 ## The AI parser — the accuracy-critical path
 
 `src/lib/ai/parser.ts` + `prompt.ts`. Two tiers:
