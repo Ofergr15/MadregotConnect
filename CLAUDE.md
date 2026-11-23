@@ -512,6 +512,24 @@ errors are logged as name + HTTP status only — an axios error carries the pass
 or ticket in its request config. `garmin-callback` posts the ticket to its own origin
 instead of `'*'`. Pinned by `src/__tests__/garminCredentialServerSide.test.ts`.
 
+Recorded exposure change, **2026-11-23** (owner decision, Ofer): **record times follow
+hidden pace.** A record is a time over a fixed distance — pace at a coarser grain — so a
+runner whose `athletes.default_hidden_fields` holds `pace` has their record times withheld
+from teammates; the runner and staff (`mayActFor`) keep everything, and the owner's own
+`?as=member` preview is masked like a teammate. The read is `athleteHidesPace()` in
+`src/lib/records/pace-privacy.ts` and it **fails closed** (error, throw or no row = hidden;
+only a missing column — 193 unpasted — reads as "not hiding", as `readRoster` does).
+Masked = `seconds: null` plus `paceHidden: true`; the distance/label stay, but the date and
+source run go too, because they lead straight back to the time. Where it applies:
+`GET /api/athletes/[id]/stats` (`prs`, `prHistory` → `[]`, `prYearBests` → null,
+`prExcluded` → `{}`, top-level `prsPaceHidden`), `GET /api/athletes/[id]/records/run/[activityId]`,
+and the "records before this run" in `GET /api/activities/analysis` (`prs: {}`,
+`prsPaceHidden`). Already compliant, unchanged: `/api/records/*` and `/api/club/records`
+(pace-hiders are dropped from every time table via `isOnTimeTable`, `progress` is self-only),
+`/api/athletes/prs` (self-or-staff), and club-record feed cards (`maskClubRecordPayload`).
+Pinned by `src/__tests__/recordsPaceHidden.test.ts` and `hiddenStatsAnalysis.test.ts`. A new
+surface that shows someone's record time needs the same check.
+
 ## The AI parser — the accuracy-critical path
 
 `src/lib/ai/parser.ts` + `prompt.ts`. Two tiers:
