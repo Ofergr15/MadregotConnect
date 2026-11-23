@@ -33,7 +33,7 @@ export interface FeedAuthor {
 
 export interface FeedActivity {
   /** Strength sessions only (lib/activities/strength-feed.ts): counts, never weights. */
-  strength?: { exercises: number; sets: number } | null;
+  strength?: { exercises: number; sets: number; aerobicTe?: number | null; relativeEffort?: number | null } | null;
   id: string;
   athleteId: string;
   garminActivityId: number | null;

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { isGarminStrength, isRunActivity, isStravaStrength, RUNS_ONLY_OR, STRENGTH_TYPE } from '@/lib/activities/kinds';
-import { exerciseCount, narrowExerciseSets, strengthRow, STRENGTH_SETS_PER_SYNC } from '@/lib/activities/strength';
+import { activeSets, exerciseCount, hrFromDetails, narrowExerciseSets, strengthRow, STRENGTH_OPTIONAL_COLUMNS, STRENGTH_SETS_PER_SYNC } from '@/lib/activities/strength';
 import { applyStrength, summarise } from '@/lib/activities/strength-feed';
 import { strengthVerdicts } from '@/lib/activities/strength-adherence';
 import { filterQualifyingRuns } from '@/lib/prs/pr-buckets';
@@ -69,20 +69,49 @@ describe('ingestion', () => {
     expect(isStravaStrength({ type: 'Run' }) || isStravaStrength({ type: 'Yoga' })).toBe(false);
   });
 
-  it('narrows Garmin exerciseSets: ACTIVE only, best guess, grams → kg, UNKNOWN → null', () => {
-    const sets = narrowExerciseSets({ exerciseSets: [
-      { setType: 'ACTIVE', repetitionCount: 10, weight: 40000, duration: 41.2, exercises: [{ category: 'SQUAT', name: 'BARBELL_BACK_SQUAT', probability: 98 }, { category: 'LUNGE', probability: 2 }] },
-      { setType: 'REST', duration: 90 },
+  it('narrows Garmin exerciseSets: REST kept as rest, best guess, grams → kg, UNKNOWN → null', () => {
+    const all = narrowExerciseSets({ exerciseSets: [
+      { setType: 'ACTIVE', startTime: '2026-11-16T05:10:00.0', repetitionCount: 10, weight: 40000, duration: 41.2, exercises: [{ category: 'SQUAT', name: 'BARBELL_BACK_SQUAT', probability: 98 }, { category: 'LUNGE', probability: 2 }] },
+      { setType: 'REST', startTime: '2026-11-16T05:10:41.2', duration: 90 },
       { setType: 'ACTIVE', repetitionCount: 10, weight: 40000, exercises: [{ category: 'SQUAT', name: 'BARBELL_BACK_SQUAT', probability: 95 }] },
       { setType: 'ACTIVE', duration: 45, exercises: [{ category: 'PLANK', name: null, probability: 90 }] },
       { setType: 'ACTIVE', repetitionCount: 15, exercises: [{ category: 'UNKNOWN', name: 'UNKNOWN', probability: 0 }] },
     ] })!;
+    expect(all).toHaveLength(5);
+    expect(all[1]).toEqual({ kind: 'rest', startTime: '2026-11-16T05:10:41.2', category: null, name: null, reps: null, weightKg: null, durationSec: 90 });
+    const sets = activeSets(all);
     expect(sets).toHaveLength(4);
-    expect(sets[0]).toEqual({ category: 'SQUAT', name: 'BARBELL_BACK_SQUAT', reps: 10, weightKg: 40, durationSec: 41 });
-    expect(sets[2]).toEqual({ category: 'PLANK', name: null, reps: null, weightKg: null, durationSec: 45 });
+    expect(sets[0]).toEqual({ kind: 'active', startTime: '2026-11-16T05:10:00.0', category: 'SQUAT', name: 'BARBELL_BACK_SQUAT', reps: 10, weightKg: 40, durationSec: 41 });
+    expect(sets[2]).toEqual({ kind: 'active', startTime: null, category: 'PLANK', name: null, reps: null, weightKg: null, durationSec: 45 });
+    expect(exerciseCount(all)).toBe(3);
+    expect(summarise(all)).toEqual({ exercises: 3, sets: 4 });
     expect(sets[3].category).toBeNull();
     expect(exerciseCount(sets)).toBe(3);
     expect(narrowExerciseSets(null)).toBeNull();
+  });
+
+  it('rows from before rest sets existed (no kind) read as work', () => {
+    expect(activeSets([{ category: 'SQUAT', name: null, reps: 5, weightKg: 60, durationSec: 30 }])).toHaveLength(1);
+  });
+
+  it('pulls a 5 s HR trace out of Garmin details, skipping empty samples', () => {
+    const rows = Array.from({ length: 40 }, (_, i) => ({ metrics: [i, i % 7 === 0 ? null : 100 + i] }));
+    const hr = hrFromDetails({ metricDescriptors: [{ key: 'sumElapsedDuration', metricsIndex: 0 }, { key: 'directHeartRate', metricsIndex: 1 }], activityDetailMetrics: rows })!;
+    expect(hr.t[0]).toBe(1);
+    expect(hr.t.every((t, i) => i === 0 || t - hr.t[i - 1] >= 5)).toBe(true);
+    expect(hr.hr.every(b => b > 100)).toBe(true);
+    expect(hrFromDetails({ metricDescriptors: [], activityDetailMetrics: [] })).toBeNull();
+    expect(hrFromDetails(null)).toBeNull();
+  });
+
+  it('writes TE, Relative Effort and the HR trace; all droppable before migration 203', () => {
+    const g = strengthRow({ athleteId: 'a', source: 'garmin', garminActivityId: 1, name: null, startTimeLocal: '2026-11-16T07:00:00', durationSec: 60, averageHr: null, maxHr: null, calories: null,
+      trainingEffect: { aerobic: 2.1, anaerobic: 3.4, label: 'ANAEROBIC', load: 64 }, hr: { t: [0, 5], hr: [90, 95] } });
+    expect(g.training_effect).toEqual({ aerobic: 2.1, anaerobic: 3.4, label: 'ANAEROBIC', load: 64 });
+    expect(g.strength_hr).toEqual({ t: [0, 5], hr: [90, 95] });
+    const s = strengthRow({ athleteId: 'a', source: 'strava', garminActivityId: -1, name: null, startTimeLocal: '2026-11-16T07:00:00', durationSec: 60, averageHr: 120, maxHr: null, calories: null, sufferScore: 41.6 });
+    expect(s.suffer_score).toBe(42);
+    for (const c of ['exercise_sets', 'strength_hr', 'suffer_score', 'training_effect']) expect(STRENGTH_OPTIONAL_COLUMNS).toContain(c);
   });
 
   it('fetches sets for a bounded number of sessions per sync', () => {
@@ -127,6 +156,15 @@ describe('privacy', () => {
     expect(summarise(null)).toBeNull();
   });
 
+  it('TE / Relative Effort ride on the card but follow a hidden heart rate', () => {
+    const extras = new Map([['act1', { te: 3.4, sufferScore: null }]]);
+    const withHr = { ...(item(STRENGTH_TYPE) as object), activity: { ...(item(STRENGTH_TYPE) as { activity: object }).activity, averageHr: 120 } } as never;
+    const [shown] = applyStrength([withHr], true, new Map(), extras) as unknown as Array<{ activity: { strength: unknown } }>;
+    expect(shown.activity.strength).toEqual({ exercises: 0, sets: 0, aerobicTe: 3.4, relativeEffort: null });
+    const [hidden] = applyStrength([item(STRENGTH_TYPE)], true, new Map(), extras) as unknown as Array<{ activity: { strength: unknown } }>;
+    expect(hidden.activity.strength).toBeNull();
+  });
+
   it('FEED_SELECT never names exercise_sets (an unpasted migration must not take the feed down)', () => {
     const src = readFileSync(join(process.cwd(), 'src/lib/feed/project.ts'), 'utf8');
     expect(src.slice(src.indexOf('export const FEED_SELECT'))).not.toContain('exercise_sets');
@@ -165,6 +203,8 @@ describe('migration 203', () => {
     expect(statSync(join(dir, f)).isFile()).toBe(true);
     const sql = readFileSync(join(dir, f), 'utf8');
     expect(sql).toMatch(/ADD COLUMN IF NOT EXISTS exercise_sets jsonb/);
+    expect(sql).toMatch(/ADD COLUMN IF NOT EXISTS strength_hr jsonb/);
+    expect(sql).toMatch(/ADD COLUMN IF NOT EXISTS suffer_score integer/);
     expect(sql).toMatch(/CREATE INDEX IF NOT EXISTS/);
   });
 });

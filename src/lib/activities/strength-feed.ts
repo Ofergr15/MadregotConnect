@@ -14,15 +14,30 @@ import type { createServerClient } from '@/lib/supabase/server';
 import type { FeedItem } from '@/lib/feed/project';
 import { isFeatureEnabled } from '@/lib/features/server';
 import { isStrengthType } from './kinds';
-import { exerciseCount, isMissingExerciseSetsColumn, type StrengthSet } from './strength';
+import { activeSets, exerciseCount, isMissingExerciseSetsColumn, type StrengthSet } from './strength';
 
 type Db = ReturnType<typeof createServerClient>;
 
-export interface FeedStrengthSummary { exercises: number; sets: number }
+export interface FeedStrengthSummary {
+  exercises: number;
+  sets: number;
+  /** Garmin aerobic Training Effect (0-5). HR-derived, so null when the athlete hid heart rate. */
+  aerobicTe?: number | null;
+  /** Strava Relative Effort. HR-derived, same rule. */
+  relativeEffort?: number | null;
+}
+
+export interface StrengthExtras { te: number | null; sufferScore: number | null }
 
 export function summarise(sets: StrengthSet[] | null | undefined): FeedStrengthSummary | null {
-  if (!Array.isArray(sets) || !sets.length) return null;
-  return { exercises: exerciseCount(sets), sets: sets.length };
+  const act = activeSets(Array.isArray(sets) ? sets : null);
+  if (!act.length) return null;
+  return { exercises: exerciseCount(act), sets: act.length };
+}
+
+function withExtras(base: FeedStrengthSummary | null, x: StrengthExtras | undefined, hrHidden: boolean): FeedStrengthSummary | null {
+  if (!x || hrHidden || (x.te == null && x.sufferScore == null)) return base;
+  return { ...(base ?? { exercises: 0, sets: 0 }), aerobicTe: x.te, relativeEffort: x.sufferScore };
 }
 
 /** Pure: which items stay, and what each strength card says. */
@@ -30,6 +45,7 @@ export function applyStrength(
   items: FeedItem[],
   viewerHasFlag: boolean,
   setsById: Map<string, StrengthSet[] | null>,
+  extrasById: Map<string, StrengthExtras> = new Map(),
 ): FeedItem[] {
   const out: FeedItem[] = [];
   for (const it of items) {
@@ -42,7 +58,8 @@ export function applyStrength(
         ...a,
         distance: 0, averagePace: null, routePreview: null, routeHd: false, hasRoute: false,
         paceBands: null, lapBands: null, stepBands: null, planVerdict: null,
-        strength: summarise(setsById.get(a.id) ?? null),
+        // averageHr arrives null when the athlete hid heart rate (project.ts maskHiddenStats) — TE / Relative Effort follow it.
+        strength: withExtras(summarise(setsById.get(a.id) ?? null), extrasById.get(a.id), a.averageHr == null),
       },
     });
   }
@@ -54,10 +71,20 @@ export async function strengthForFeed(db: Db, items: FeedItem[], viewerAthleteId
   if (!ids.length) return items;
   const viewerHasFlag = await isFeatureEnabled('strength_training', viewerAthleteId, db).catch(() => false);
   const setsById = new Map<string, StrengthSet[] | null>();
+  const extrasById = new Map<string, StrengthExtras>();
   if (viewerHasFlag) {
+    const { data: te } = await db.from('athlete_activities').select('id, training_effect').in('id', ids);
+    for (const r of (te || []) as Array<{ id: string; training_effect: { aerobic?: number | null } | null }>) {
+      extrasById.set(r.id, { te: r.training_effect?.aerobic ?? null, sufferScore: null });
+    }
+    const { data: ss } = await db.from('athlete_activities').select('id, suffer_score').in('id', ids);
+    for (const r of (ss || []) as Array<{ id: string; suffer_score: number | null }>) {
+      const cur = extrasById.get(r.id) ?? { te: null, sufferScore: null };
+      extrasById.set(r.id, { ...cur, sufferScore: r.suffer_score ?? null });
+    }
     const { data, error } = await db.from('athlete_activities').select('id, exercise_sets').in('id', ids);
     if (!error) for (const r of (data || []) as Array<{ id: string; exercise_sets: StrengthSet[] | null }>) setsById.set(r.id, r.exercise_sets);
     else if (!isMissingExerciseSetsColumn(error)) console.error('strength feed sets read failed', error.message);
   }
-  return applyStrength(items, viewerHasFlag, setsById);
+  return applyStrength(items, viewerHasFlag, setsById, extrasById);
 }

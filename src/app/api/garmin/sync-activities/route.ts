@@ -226,7 +226,8 @@ export async function runSyncRequest(request: Request) {
         let strength: Awaited<ReturnType<typeof syncGarminStrength>> | null = null;
         try {
           strength = await syncGarminStrength(supabase, athlete.id, activities.filter(a => isGarminStrength(a.activityType)),
-            (id) => withTimeout(client.getExerciseSets(id), GARMIN_CALL_TIMEOUT_MS, 'Garmin exercise sets'));
+            (id) => withTimeout(client.getExerciseSets(id), GARMIN_CALL_TIMEOUT_MS, 'Garmin exercise sets'),
+            (id) => withTimeout(client.getActivityDetails(id, 1000), GARMIN_CALL_TIMEOUT_MS, 'Garmin strength HR'));
         } catch (e) {
           console.error('Garmin strength sync failed (runs continue):', e);
         }
