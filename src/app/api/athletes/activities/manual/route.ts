@@ -112,8 +112,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (error || !inserted) {
+      console.error('[api/athletes/activities/manual]', error);
       return NextResponse.json(
-        { error: 'Failed to save activity', details: error?.message },
+        { error: 'Failed to save activity' },
         { status: 500 },
       );
     }

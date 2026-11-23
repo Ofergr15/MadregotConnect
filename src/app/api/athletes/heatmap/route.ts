@@ -48,6 +48,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ days });
   } catch (err: any) {
     console.error('Heatmap error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to compute heatmap' }, { status: 500 });
+    console.error('[api/athletes/heatmap]', err);
+    return NextResponse.json({ error: 'Failed to compute heatmap' }, { status: 500 });
   }
 }

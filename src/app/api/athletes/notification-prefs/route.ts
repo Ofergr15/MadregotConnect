@@ -50,13 +50,15 @@ export async function GET(request: Request) {
       .from('athletes').select('role, notification_prefs').eq('id', athleteId).maybeSingle();
     if (error) {
       if (isMigrationMissing(error)) return NextResponse.json({ prefs: defaultsFor(false), isStaff: false });
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('[api/athletes/notification-prefs]', error);
+      return NextResponse.json({ error: 'failed' }, { status: 500 });
     }
     const isStaff = isStaffRole(data?.role);
     const prefs = mergeWithDefaults(data?.notification_prefs as SavedPrefs | undefined, isStaff);
     return NextResponse.json({ prefs, isStaff, morningReminder: readReminderPref(data?.notification_prefs, TRAINEE_V2_FOR_ALL), quietHours: readQuietHours(data?.notification_prefs) });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/athletes/notification-prefs]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
 
@@ -109,7 +111,8 @@ export async function PUT(request: Request) {
     const isStaff = isStaffRole(cur.data?.role);
     return NextResponse.json({ prefs: mergeWithDefaults(next, isStaff), isStaff });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/athletes/notification-prefs]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
 
@@ -163,6 +166,7 @@ export async function PATCH(request: Request) {
     const isStaff = isStaffRole(cur.data?.role);
     return NextResponse.json({ prefs: mergeWithDefaults(next, isStaff), isStaff, morningReminder });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/athletes/notification-prefs]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }

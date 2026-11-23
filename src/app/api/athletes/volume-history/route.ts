@@ -123,6 +123,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ series, weeksReturned: series.length, peakKm, avgKm, granularity });
   } catch (err: any) {
     console.error('volume-history error:', err);
-    return NextResponse.json({ error: err.message || 'Failed' }, { status: 500 });
+    console.error('[api/athletes/volume-history]', err);
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

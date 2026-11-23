@@ -50,8 +50,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ likers });
   } catch (err: unknown) {
     console.error('Feed likes fetch error:', err);
+    console.error('[api/feed/likes]', err);
     return NextResponse.json(
-      { error: (err as Error).message || 'Failed to load likes' },
+      { error: 'Failed to load likes' },
       { status: 500 },
     );
   }

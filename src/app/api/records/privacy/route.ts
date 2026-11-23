@@ -23,11 +23,13 @@ export async function PATCH(request: Request) {
     const { error } = await createServerClient().from('athletes').update(patch).eq('id', caller.athleteId);
     if (error) {
       if (isMissingColumn(error)) return NextResponse.json({ error: 'migration 195 pending' }, { status: 409 });
-      return NextResponse.json({ error: 'update failed', details: error.message }, { status: 500 });
+      console.error('[api/records/privacy]', error);
+      return NextResponse.json({ error: 'update failed' }, { status: 500 });
     }
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error('records/privacy error:', err);
-    return NextResponse.json({ error: err.message || 'Failed' }, { status: 500 });
+    console.error('[api/records/privacy]', err);
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

@@ -239,8 +239,9 @@ export async function POST(req: NextRequest) {
     } catch {}
     return NextResponse.json({ success: true, athlete: created });
   } catch (error: any) {
+    console.error('[api/athletes/connect]', error);
     return NextResponse.json(
-      { error: error.message || 'Internal error' },
+      { error: 'Internal error' },
       { status: 500 }
     );
   }
