@@ -26,6 +26,20 @@ export async function enablementRows(feature: FeatureKey, db: Db = createServerC
   }
 }
 
+/** Every row for several features in ONE round trip. Same failure rules as enablementRows. */
+export async function enablementRowsFor(features: readonly FeatureKey[], db: Db = createServerClient()): Promise<EnablementRow[] | null> {
+  try {
+    const { data, error } = await db
+      .from(ENABLEMENTS_TABLE)
+      .select('feature, scope_type, scope_id, enabled, set_by, set_at')
+      .in('feature', features as FeatureKey[]);
+    if (error) return isMissingTable(error) ? null : [];
+    return (data || []) as EnablementRow[];
+  } catch {
+    return [];
+  }
+}
+
 export async function athleteFacts(athleteId: string, db: Db = createServerClient()): Promise<AthleteFacts | null> {
   const { data } = await db
     .from('athletes')
