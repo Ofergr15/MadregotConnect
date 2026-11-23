@@ -32,6 +32,8 @@ const MIGRATED_ROUTES = [
   'app/api/auth/me/route.ts',
   // 2026-11-21: was unauthenticated and returned a plan-accuracy % on a named person's run.
   'app/api/activities/[id]/plan-match/route.ts',
+  // 2026-11-23: a pace history on a named person — self-or-staff.
+  'app/api/activities/similar/route.ts',
 ];
 
 // Most of these files still discuss the old header in a comment explaining what
