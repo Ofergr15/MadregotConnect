@@ -229,10 +229,18 @@ export async function takeLock(db: Db, week: string, me: string, name: string | 
     release_requested_at: keepRequest ? row?.release_requested_at ?? null : null,
   };
   if (row) {
-    await scoped(who, (sc) => {
-      const q = db.from('plan_edit_locks').update(patch).eq('week_start', week);
-      return sc ? scopeTo(q as any, who) : q;
+    // Night queue #64: taking over a stale lock is conditional on the row still being the one we read
+    // (same editor, same heartbeat). Two coaches taking the same stale lock at once: one update matches,
+    // the other matches nothing and is answered as a held lock instead of both being told ok.
+    const taken = await scoped<Array<{ editor_id: string }> | null>(who, (sc) => {
+      const q: any = db.from('plan_edit_locks').update(patch).eq('week_start', week)
+        .eq('editor_id', row.editor_id).eq('heartbeat_at', row.heartbeat_at);
+      return (sc ? scopeTo(q, who) : q).select('editor_id');
     });
+    if (!taken || taken.length === 0) {
+      const now = await readLock(db, week, who);
+      return { ok: now?.editor_id === me, lock: lockView(now, me) };
+    }
   } else {
     try {
       await scoped(who, (sc) => db.from('plan_edit_locks').insert({ week_start: week, ...patch, ...(sc && who ? { athlete_id: who } : {}) }));
@@ -279,7 +287,13 @@ async function athletesForPush(db: Db, groups: GroupNo[] | null, who: Who = null
 
 /** The weekly_plans row a version publishes into: the group row, or the trainee's newest own row. */
 async function legacyRowOf(db: Db, week: string, who: Who): Promise<string | null> {
-  if (!who) return (check(await db.from('weekly_plans').select('id').eq('week_start_date', week).is('athlete_id', null).maybeSingle()) as any)?.id ?? null;
+  // Night queue #62: the group week used maybeSingle() with no coach filter, so a duplicate row (two coaches'
+  // weeks, or a race between two first publishes) answered PGRST116 → 500. Same shape as the trainee branch now:
+  // this coach's rows, newest first, one.
+  if (!who) {
+    const groups = check(await db.from('weekly_plans').select('id, created_at').eq('coach_id', COACH_ID).eq('week_start_date', week).is('athlete_id', null).order('created_at', { ascending: false }).limit(1)) as any[];
+    return groups?.[0]?.id ?? null;
+  }
   const rows = check(await db.from('weekly_plans').select('id, created_at').eq('coach_id', COACH_ID).eq('athlete_id', who).eq('week_start_date', week).order('created_at', { ascending: false })) as any[];
   return rows?.[0]?.id ?? null;
 }
