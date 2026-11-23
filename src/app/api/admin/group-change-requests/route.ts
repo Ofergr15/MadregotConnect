@@ -22,7 +22,8 @@ export async function GET(request: Request) {
     .order('created_at', { ascending: true });
   if (error) {
     if (error.code === '42P01' || error.code === 'PGRST205') return NextResponse.json({ requests: [], notReady: true });
-    return NextResponse.json({ error: 'failed', details: error.message }, { status: 500 });
+    console.error('[api/admin/group-change-requests]', error);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
   return NextResponse.json({
     requests: (data || []).map((r) => ({
@@ -45,11 +46,11 @@ export async function POST(request: Request) {
     .update({ status, decided_at: new Date().toISOString(), decided_by: gate.caller.athleteId })
     .eq('id', id).eq('status', 'pending')
     .select('athlete_id, to_group_id');
-  if (error) return NextResponse.json({ error: 'failed', details: error.message }, { status: 500 });
+  if (error) { console.error('[api/admin/group-change-requests]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   if (!claimed || claimed.length === 0) return NextResponse.json({ ok: true, alreadyHandled: true });
   if (status === 'approved') {
     const { error: moveError } = await supabase.from('athletes').update({ group_id: claimed[0].to_group_id }).eq('id', claimed[0].athlete_id);
-    if (moveError) return NextResponse.json({ error: 'failed', details: moveError.message }, { status: 500 });
+    if (moveError) { console.error('[api/admin/group-change-requests]', moveError); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   }
   return NextResponse.json({ ok: true, status });
 }

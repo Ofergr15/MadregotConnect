@@ -43,7 +43,8 @@ export async function PATCH(request: Request) {
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[api/admin/athlete-source]', error);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
 
@@ -87,6 +88,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ athletes });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[api/admin/athlete-source]', error);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }

@@ -51,7 +51,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ surveys: withCounts });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/admin/surveys]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
 
@@ -138,6 +139,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ survey, sent, feedItemId, reminders, joinedAt: joinAt });
   } catch (err: unknown) {
     console.error('Failed to create survey:', err);
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/admin/surveys]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
