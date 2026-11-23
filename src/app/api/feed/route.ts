@@ -8,6 +8,7 @@ import { clampFeedLimit, parseFeedCursor } from '@/lib/feed/pagination';
 import { pendingAthleteIds, withoutPendingAuthors } from '@/lib/auth/pending-athletes';
 import { testAccountIds, hiddenTestAccountsFor } from '@/lib/athletes/test-accounts';
 import { loadFeedContext } from '@/lib/feed/context';
+import { blockedAuthorIds } from '@/lib/moderation/blocks';
 import { parseSquadParam } from '@/lib/feed/squad-filter';
 
 export const dynamic = 'force-dynamic';
@@ -61,6 +62,7 @@ async function handleGET(request: Request) {
     // (a failed read is an empty set), so an early return below leaves nothing dangling.
     const pendingRead = pendingAthleteIds(supabase);
     const testRead = testAccountIds(supabase);
+    const blockedRead = blockedAuthorIds(supabase, auth.user.athleteId);
 
     // Squad narrowing (373ebe89). Server-side for the same reason `types` is: a
     // page of 20 that happens to be all Group A runs would come back empty after
@@ -151,6 +153,8 @@ async function handleGET(request: Request) {
     // Test accounts (migration 201): hidden from other members, visible to
     // themselves and staff — dropped through the same filter as pending authors.
     for (const id of hiddenTestAccountsFor(await testRead, auth.user)) pending.add(id);
+    // Members this viewer blocked (migration 203) — fails open to nobody.
+    for (const id of await blockedRead) pending.add(id);
     // A birthday set to "circle only" (story_instances.placement, 162) lives on the circles, not in the list.
     const page = (withoutPendingAuthors(raw as { author_athlete_id?: string | null }[], pending) as typeof raw)
       .filter((r) => !((r as { payload?: { circleOnly?: unknown } | null }).payload?.circleOnly));

@@ -165,6 +165,7 @@ export const KIND_CATEGORY: Record<string, Category> = {
   // athlete — so the toggle exists to let a coach turn them DOWN, not up.
   signup_request: 'management',
   account_delete_request: 'management',
+  content_report: 'management',
   group_change_request: 'management',
   academy_applicant: 'management',
   // A trainee signed in with neither a coach nor a band (loop-notify notifyTraineeJoined).
