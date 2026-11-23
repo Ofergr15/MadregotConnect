@@ -25,6 +25,7 @@
  */
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { viewerForPreview } from '@/lib/auth/member-preview';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
@@ -98,6 +99,11 @@ export async function GET(request: Request) {
     // staff-only, and naming an id requires being that athlete or staff.
     const { denied, caller } = await requireCallerForAthlete(request, athleteId);
     if (denied) return denied;
+    // `?as=member`: this list is self-or-staff, so a teammate gets the same 403 the
+    // gate above gives them — the preview says so rather than serving the owner's rows.
+    const preview = viewerForPreview(caller, athleteId, searchParams);
+    if (preview.error) return preview.error;
+    if (preview.viewer.preview) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     const isStaff = caller.isSuperUser || caller.isStaff;
 
     // Four columns, and every one of them is read: athlete_id to confirm the row

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { viewerForPreview } from '@/lib/auth/member-preview';
 import { hiddenFromCaller } from '@/lib/athletes/test-accounts';
 
 export const dynamic = 'force-dynamic';
@@ -48,7 +49,10 @@ export async function GET(request: Request) {
     // A runner the club hasn't approved yet stays theirs and staff's (#77).
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
-    if ((await hiddenFromCaller(createServerClient(), caller, athleteId))) {
+    // `?as=member`: decided for a plain teammate (lib/auth/member-preview.ts).
+    const preview = viewerForPreview(caller, athleteId, searchParams);
+    if (preview.error) return preview.error;
+    if ((await hiddenFromCaller(createServerClient(), preview.viewer, athleteId))) {
       return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
     }
 
