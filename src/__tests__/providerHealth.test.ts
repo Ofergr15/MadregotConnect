@@ -116,3 +116,13 @@ describe('the profile screen', () => {
     expect(page.match(/mutateMe\(\)/g)?.length).toBeGreaterThanOrEqual(3);
   });
 });
+
+describe('night queue #66: Garmin ClientAuthorization', () => {
+  it('reads as an auth failure (the athlete is told to reconnect), a Garmin blip still does not', async () => {
+    const { looksLikeAuthFailure } = await import('@/lib/providers/health');
+    expect(looksLikeAuthFailure(new Error('ClientAuthorizationError: 500'))).toBe(true);
+    expect(looksLikeAuthFailure(new Error('client authorization failed'))).toBe(true);
+    expect(looksLikeAuthFailure(new Error('Request failed with status code 502'))).toBe(false);
+    expect(looksLikeAuthFailure(new Error('Garmin activity list timed out'))).toBe(false);
+  });
+});
