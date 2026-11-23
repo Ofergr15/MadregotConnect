@@ -303,6 +303,18 @@ export class GarminClient {
     }
   }
 
+  /** Strength sets (lib/activities/strength.ts narrows them). Null on any error: the session is stored without sets. */
+  async getExerciseSets(activityId: number): Promise<unknown> {
+    await this.restoreSession();
+    try {
+      return await (this.gc as any).client.get(
+        `https://connectapi.garmin.com/activity-service/activity/${activityId}/exerciseSets`
+      );
+    } catch {
+      return null;
+    }
+  }
+
   async getActivitySplits(activityId: number): Promise<any[]> {
     await this.restoreSession();
     try {

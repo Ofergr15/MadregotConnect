@@ -32,6 +32,8 @@ export interface FeedAuthor {
 }
 
 export interface FeedActivity {
+  /** Strength sessions only (lib/activities/strength-feed.ts): counts, never weights. */
+  strength?: { exercises: number; sets: number } | null;
   id: string;
   athleteId: string;
   garminActivityId: number | null;
@@ -373,7 +375,9 @@ function projectActivity(row: RawActivityRow, planVerdict: FeedPlanVerdict | nul
  * sheet's story image, /api/feed/items/[id]), and a value that never leaves the
  * server can't be read out of the network response either.
  */
-const HIDDEN_FIELD_KEYS = ['calories', 'heart_rate', 'pace', 'power'] as const;
+// `weights` (strength, b22): the card never ships weights at all (lib/activities/strength-feed.ts),
+// so the key only travels for the share sheet's toggle and the detail route; hidden by default there.
+const HIDDEN_FIELD_KEYS = ['calories', 'heart_rate', 'pace', 'power', 'weights'] as const;
 export type HiddenFieldKey = (typeof HIDDEN_FIELD_KEYS)[number];
 
 export function readHiddenFields(payload: Record<string, unknown> | null): Set<HiddenFieldKey> {

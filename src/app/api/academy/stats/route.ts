@@ -5,6 +5,7 @@ import { getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
 import { requireStaffCaller } from '@/lib/auth/self-or-staff';
 import { visibleTraineeIds } from '@/lib/academy/pairing-server';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 export const dynamic = 'force-dynamic';
 
 interface AthleteStat {
@@ -60,7 +61,7 @@ export async function GET(request: Request) {
     for (let offset = 0; ; offset += 1000) {
       const { data: page } = await supabase
         .from('athlete_activities')
-        .select('athlete_id, distance, duration, start_time')
+        .select('athlete_id, distance, duration, start_time').or(RUNS_ONLY_OR)
         .in('athlete_id', athleteIds)
         .range(offset, offset + 999);
       if (!page || page.length === 0) break;

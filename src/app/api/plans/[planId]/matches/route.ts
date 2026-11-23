@@ -6,6 +6,7 @@ import { activityLocalDateStr } from '@/lib/utils';
 import { groupNumberForAthlete, isMissingMatchesTable } from '@/lib/plans/match-athlete-activities';
 import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 export const dynamic = 'force-dynamic';
 
 // Every write path that reaches activity_plan_matches needs this table. Until the
@@ -99,7 +100,7 @@ export async function GET(
       await Promise.all([
         supabase
           .from('athlete_activities')
-          .select('id, athlete_id, start_time, activity_name, distance, average_pace, average_hr')
+          .select('id, athlete_id, start_time, activity_name, distance, average_pace, average_hr').or(RUNS_ONLY_OR)
           .gte('start_time', `${plan.week_start_date}T00:00:00`)
           .lt('start_time', `${nextWeek.toISOString().slice(0, 10)}T00:00:00`)
           .order('start_time', { ascending: true }),

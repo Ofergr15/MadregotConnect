@@ -2,6 +2,7 @@ import type { createServerClient } from '@/lib/supabase/server';
 import { activityLocalDateStr } from '@/lib/utils';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
 export interface RaceMatchRow {
@@ -53,7 +54,7 @@ export async function recomputeRaceMatches(
     fetchAllRows<{ id: string; start_time: string }>((from, to) =>
       supabase
         .from('athlete_activities')
-        .select('id, start_time')
+        .select('id, start_time').or(RUNS_ONLY_OR)
         .eq('athlete_id', athleteId)
         .order('start_time', { ascending: true })
         .order('id')

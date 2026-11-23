@@ -17,6 +17,7 @@ import { isAcademyManager } from '@/lib/academy/pairing-server';
 import { academyCoachIds } from '@/lib/academy/coaches';
 import { coachIdsByTrainee, coachesOf, coachesTrainee, hasTraineeCoachesTable } from '@/lib/academy/trainee-coaches';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 export const dynamic = 'force-dynamic';
 
 /**
@@ -211,7 +212,7 @@ export async function GET(request: Request) {
     // no order, so a page boundary could repeat or skip a run, and went one page at a time.
     const acts = await fetchAllRows<any>((from, to) => supabase
       .from('athlete_activities')
-      .select('athlete_id, distance, duration, start_time')
+      .select('athlete_id, distance, duration, start_time').or(RUNS_ONLY_OR)
       .in('athlete_id', memberIds)
       .order('start_time')
       .order('id')

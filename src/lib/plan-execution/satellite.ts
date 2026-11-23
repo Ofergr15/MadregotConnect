@@ -1,5 +1,6 @@
 import type { createServerClient } from '@/lib/supabase/server';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 // "It's the cool-down — why did you grade it?" (Ofer 10-23: a 3 km run at 08:03, saved apart
 // from the 14 + 7 + 7 that ended 42 minutes before, scored 0%). A short run within 45 minutes
 // of a LONGER run the same day is that run's warm-up or cool-down saved on its own — the
@@ -34,7 +35,7 @@ export async function satelliteIds(db: Db, runs: RunRow[]): Promise<Set<string>>
   for (const r of short) { const k = `${r.athlete_id}|${String(r.start_time).slice(0, 10)}`; days.set(k, [...(days.get(k) || []), r]); }
   await Promise.all([...days].map(async ([k, rs]) => {
     const [athlete, day] = k.split('|');
-    const { data } = await db.from('athlete_activities').select('id, athlete_id, start_time, duration, distance')
+    const { data } = await db.from('athlete_activities').select('id, athlete_id, start_time, duration, distance').or(RUNS_ONLY_OR)
       .eq('athlete_id', athlete).gte('start_time', `${day}T00:00:00`).lte('start_time', `${day}T23:59:59`);
     const others = (data || []) as RunRow[];
     for (const r of rs) if (isSatellite(r, others)) out.add(r.id);

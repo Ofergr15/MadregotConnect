@@ -35,6 +35,7 @@ import { workoutPlanForGroup } from '@/lib/plans/match-athlete-activities';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import { bestEffort, heatCostSec, readWorkout, recoveries, technique, type Seg, type Workout, type WStep } from '@/lib/run-analysis/workout';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 export const dynamic = 'force-dynamic';
 
 const EFFORTS: Array<[string, number]> = [['400', 400], ['1k', 1000], ['mile', 1609], ['5k', 5000], ['10k', 10000]];
@@ -109,7 +110,7 @@ async function handleGET(request: Request) {
       // Migration 160; until it is applied the read fails and the card stays away.
       supabase.from('athlete_activities').select('training_effect').eq('id', row.id).maybeSingle(),
       // The cool-down (or warm-up) saved as a run of its own the same morning.
-      supabase.from('athlete_activities').select('id, start_time, distance, duration')
+      supabase.from('athlete_activities').select('id, start_time, distance, duration').or(RUNS_ONLY_OR)
         .eq('athlete_id', row.athlete_id).neq('id', row.id)
         .gte('start_time', `${day}T00:00:00`).lte('start_time', `${day}T23:59:59`),
     ]);

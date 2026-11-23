@@ -19,6 +19,7 @@ import {
   type AppleDeliveredWorkout,
 } from '@/lib/watch/plan-matches';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
 /**
@@ -83,7 +84,7 @@ async function loadActivities(
   const page = (cols: string) => (from: number, to: number) =>
     supabase
       .from('athlete_activities')
-      .select(cols)
+      .select(cols).or(RUNS_ONLY_OR)
       .eq('athlete_id', athleteId)
       .order('start_time', { ascending: true })
       .order('id')

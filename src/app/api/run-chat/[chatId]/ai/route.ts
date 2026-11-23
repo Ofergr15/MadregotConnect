@@ -40,6 +40,7 @@ import {
   type ToolTraceStep,
 } from '@/lib/run-chat/attachments';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
@@ -381,7 +382,7 @@ export async function POST(
         tracked('get_recent_runs', { count }, async () => {
           const { data: runs } = await supabase
             .from('athlete_activities')
-            .select(activityColumns)
+            .select(activityColumns).or(RUNS_ONLY_OR)
             .eq('athlete_id', chat.athlete_id)
             .order('start_time', { ascending: false })
             .limit(count || 5);
@@ -405,7 +406,7 @@ export async function POST(
         tracked('search_run_history', criteria, async () => {
           let query = supabase
             .from('athlete_activities')
-            .select(activityColumns)
+            .select(activityColumns).or(RUNS_ONLY_OR)
             .eq('athlete_id', chat.athlete_id)
             .neq('id', chat.activity_id)
             .order('start_time', { ascending: false });
@@ -444,7 +445,7 @@ export async function POST(
           if (!current) return 'Current activity not found.';
           let query = supabase
             .from('athlete_activities')
-            .select(activityColumns)
+            .select(activityColumns).or(RUNS_ONLY_OR)
             .eq('athlete_id', chat.athlete_id)
             .neq('id', chat.activity_id);
           if (comparison_strava_id != null) {
@@ -479,7 +480,7 @@ export async function POST(
           if (!current) return 'Current activity not found.';
           const { data, error } = await supabase
             .from('athlete_activities')
-            .select(activityColumns)
+            .select(activityColumns).or(RUNS_ONLY_OR)
             .eq('athlete_id', chat.athlete_id)
             .neq('id', chat.activity_id)
             .order('start_time', { ascending: false })

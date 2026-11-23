@@ -166,6 +166,8 @@ export function createMemoryDb(opts: MemoryDbOptions) {
         const [c, op, ...rest] = p.split('.');
         const v = rest.join('.');
         if (op === 'eq') return (r: Row) => String(r[c]) === v;
+        // SQL semantics: NULL <> 'x' is NULL (excluded) — callers pair it with `is.null` (lib/activities/kinds.ts RUNS_ONLY_OR).
+        if (op === 'neq') return (r: Row) => r[c] != null && String(r[c]) !== v;
         if (op === 'is' && v === 'null') return (r: Row) => r[c] == null;
         throw new Error(`memory-db: or ${p} unsupported`);
       });

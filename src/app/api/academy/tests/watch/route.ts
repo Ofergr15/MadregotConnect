@@ -7,6 +7,7 @@ import { shiftDate } from '@/lib/academy/load';
 import { readAll } from '@/lib/academy/load-server';
 import { WINDOW_DAYS, findTestRuns, type FinderActivity } from '@/lib/academy/test-finder';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 export const dynamic = 'force-dynamic';
 
 const COLUMNS = 'id, start_time, activity_name, activity_type, source, distance, duration, moving_duration, average_hr, laps';
@@ -35,7 +36,7 @@ export async function GET(request: Request) {
     const [acts, tests] = await Promise.all([
       readAll<FinderActivity>((from, to) => supabase
         .from('athlete_activities')
-        .select(COLUMNS)
+        .select(COLUMNS).or(RUNS_ONLY_OR)
         .eq('athlete_id', athleteId)
         .gte('start_time', `${since}T00:00:00Z`)
         .order('start_time', { ascending: false })

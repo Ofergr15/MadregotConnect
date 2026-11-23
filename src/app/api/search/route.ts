@@ -13,6 +13,7 @@ import { mirroredUrls } from '@/lib/photos/mirror';
 import { israelToday } from '@/lib/utils';
 import { EMPTY_RUNS, searchRuns } from '@/lib/search/runs';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 export const dynamic = 'force-dynamic';
 
 const MIN_QUERY_LENGTH = 2;
@@ -110,7 +111,7 @@ export async function GET(request: Request) {
     // What you can do with the person (mockup search-proposal, "אלון"): their pack and their
     // last run, for the top match's quick links.
     const [lastRuns, groupNames] = await Promise.all([
-      matched.length ? supabase.from('athlete_activities').select('id, athlete_id, start_time').in('athlete_id', matched.slice(0, 3).map((m) => m.id))
+      matched.length ? supabase.from('athlete_activities').select('id, athlete_id, start_time').or(RUNS_ONLY_OR).in('athlete_id', matched.slice(0, 3).map((m) => m.id))
         .order('start_time', { ascending: false }).limit(30) : Promise.resolve({ data: [] }),
       groupsP,
     ]);

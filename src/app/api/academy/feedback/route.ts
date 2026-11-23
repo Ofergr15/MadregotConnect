@@ -24,6 +24,7 @@ import { academyFeedbackCopy } from '@/lib/notifications/copy';
 import { mayCoach } from '@/lib/academy/pairing-server';
 import { academyThreadUrl } from '@/lib/academy/deep-links';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 export const dynamic = 'force-dynamic';
 
 /**
@@ -99,7 +100,7 @@ export async function GET(request: Request) {
     try {
       const { data: acts } = await supabase
         .from('athlete_activities')
-        .select('garmin_activity_id, start_time')
+        .select('garmin_activity_id, start_time').or(RUNS_ONLY_OR)
         .eq('athlete_id', athleteId)
         // A day wide on both sides, then the Israel calendar day decides: a fixed +02:00
         // was an hour off all summer (+03:00).

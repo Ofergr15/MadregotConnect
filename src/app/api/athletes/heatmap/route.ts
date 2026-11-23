@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 export const dynamic = 'force-dynamic';
 
 // GET /api/athletes/heatmap?athleteId=…
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
     since.setDate(since.getDate() - 371);
     const { data: acts, error } = await supabase
       .from('athlete_activities')
-      .select('start_time, distance')
+      .select('start_time, distance').or(RUNS_ONLY_OR)
       .eq('athlete_id', athleteId)
       .gte('start_time', since.toISOString())
       .order('start_time', { ascending: true });

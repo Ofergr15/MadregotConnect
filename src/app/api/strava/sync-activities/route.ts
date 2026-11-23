@@ -11,6 +11,8 @@
  * that athlete personally opens the app.
  */
 import { NextResponse } from 'next/server';
+import { isStravaStrength } from '@/lib/activities/kinds';
+import { syncStravaStrength } from '@/lib/activities/strength-sync';
 import { createServerClient } from '@/lib/supabase/server';
 import { decrypt } from '@/lib/encryption';
 import { COACH_ID } from '@/lib/constants';
@@ -112,6 +114,8 @@ export async function runStravaSyncRequest(request: Request) {
       synced: number;
       fetched?: number;
       runs?: number;
+      /** Strength sessions stored (flag strength_training). */
+      strength?: number;
       /** Routes recovered onto runs already stored without one. */
       routesAdded?: number;
       /**
@@ -209,6 +213,13 @@ export async function runStravaSyncRequest(request: Request) {
           () => stravaProfileFields(client),
         );
         const runActivities = activities.filter(isRun);
+        // Strength (flag strength_training, per athlete): duration + HR only; Garmin's copy wins.
+        let strengthInserted = 0;
+        try {
+          strengthInserted = await syncStravaStrength(supabase, athlete.id, activities.filter(isStravaStrength) as never);
+        } catch (e) {
+          console.error('Strava strength sync failed (runs continue):', e);
+        }
 
         type ExistingRow = { id: string; strava_activity_id: number | null; source: string | null; laps: unknown; strava_gpx_url?: string | null };
         let hasGpxColumn = true;
@@ -536,6 +547,7 @@ export async function runStravaSyncRequest(request: Request) {
           synced,
           fetched: activities.length,
           runs: runActivities.length,
+          ...(strengthInserted ? { strength: strengthInserted } : {}),
           routesAdded,
           planMatches,
           ...(skippedDistanceless ? { skippedDistanceless } : {}),
