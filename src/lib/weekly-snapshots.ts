@@ -1,4 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server';
+import { isRunActivityType } from '@/lib/prs/pr-buckets';
 import { COACH_ID } from '@/lib/constants';
 import { getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
 
@@ -62,7 +63,7 @@ export async function snapshotWeeklyKm(weeksBack = 1): Promise<{ weeks: string[]
 
     const { data: activities } = await supabase
       .from('athlete_activities')
-      .select('athlete_id, distance, duration, start_time').or(RUNS_ONLY_OR)
+      .select('athlete_id, distance, duration, start_time, activity_type').or(RUNS_ONLY_OR)
       .in('athlete_id', athleteIds)
       .gte('start_time', weekStart)
       .lt('start_time', weekEndStr);
@@ -70,6 +71,7 @@ export async function snapshotWeeklyKm(weeksBack = 1): Promise<{ weeks: string[]
     // Aggregate per athlete.
     const stats = new Map<string, { distance: number; runs: number; duration: number }>();
     for (const act of activities || []) {
+      if (!isRunActivityType((act as { activity_type?: string | null }).activity_type)) continue;   // runs only (#82)
       const e = stats.get(act.athlete_id) || { distance: 0, runs: 0, duration: 0 };
       e.distance += Number(act.distance) || 0;
       e.runs += 1;

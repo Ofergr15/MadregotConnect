@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isRunActivityType } from '@/lib/prs/pr-buckets';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
     since.setDate(since.getDate() - 371);
     const { data: acts, error } = await supabase
       .from('athlete_activities')
-      .select('start_time, distance').or(RUNS_ONLY_OR)
+      .select('start_time, distance, activity_type').or(RUNS_ONLY_OR)
       .eq('athlete_id', athleteId)
       .gte('start_time', since.toISOString())
       .order('start_time', { ascending: true });
@@ -38,6 +39,7 @@ export async function GET(request: Request) {
 
     const metersByDay = new Map<string, number>();
     for (const a of acts || []) {
+      if (!isRunActivityType((a as { activity_type?: string | null }).activity_type)) continue;   // runs only (#82)
       const day = String(a.start_time).slice(0, 10);
       metersByDay.set(day, (metersByDay.get(day) || 0) + (a.distance || 0));
     }

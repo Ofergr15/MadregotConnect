@@ -1,4 +1,5 @@
 import { mayCoach } from '@/lib/academy/pairing-server';
+import { isRunActivityType } from '@/lib/prs/pr-buckets';
 import { NextResponse } from 'next/server';
 import { pricingRows } from '@/lib/academy/coach-baseline';
 import { createServerClient } from '@/lib/supabase/server';
@@ -81,12 +82,13 @@ async function loadJourneyActivities(
   for (let offset = 0; ; offset += 1000) {
     let q = supabase
       .from('athlete_activities')
-      .select('distance').or(RUNS_ONLY_OR)
+      .select('distance, activity_type').or(RUNS_ONLY_OR)
       .eq('athlete_id', athleteId);
     if (since) q = q.gte('start_time', `${since}T00:00:00Z`);
     const { data: page, error } = await q.range(offset, offset + 999);
     if (error || !page || page.length === 0) break;
-    for (const r of page as Array<{ distance: unknown }>) {
+    for (const r of page as Array<{ distance: unknown; activity_type?: string | null }>) {
+      if (!isRunActivityType(r.activity_type)) continue;   // a ride is not km on the running board (#82)
       const d = Number(r.distance) || 0;
       acc.runs += 1;
       acc.meters += d;

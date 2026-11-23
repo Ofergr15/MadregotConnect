@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isRunActivityType } from '@/lib/prs/pr-buckets';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { activityWeekOfPlanWeek, activityWeekStart, planWeekStartOf } from '@/lib/utils';
@@ -48,11 +49,12 @@ export async function GET(request: Request) {
       for (let offset = 0; ; offset += 1000) {
         const { data } = await supabase
           .from('athlete_activities')
-          .select('distance, start_time')
+          .select('distance, start_time, activity_type')
           .in('athlete_id', ids)
           .gte('start_time', `${from}T00:00:00`)
           .range(offset, offset + 999);
-        for (const r of (data || []) as Array<{ distance: number | null; start_time: string | null }>) {
+        for (const r of (data || []) as Array<{ distance: number | null; start_time: string | null; activity_type?: string | null }>) {
+          if (!isRunActivityType(r.activity_type)) continue;   // runs only (#82)
           const plan = r.start_time ? planOfActivityWeek.get(activityWeekStart(r.start_time)) : undefined;
           if (plan) out.push({ weekStart: plan, meters: Number(r.distance) || 0 });
         }
