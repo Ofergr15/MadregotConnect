@@ -154,7 +154,10 @@ describe('fetchWeeklyVolume', () => {
     const { byAthlete } = await call(rows, {}, ranges);
 
     expect(byAthlete.get('a1')![3].runs).toBe(2350);
-    expect(ranges).toEqual([[0, 999], [1000, 1999], [2000, 2999]]);
+    // Page 0 alone, then — because it came back full — the rest in ONE parallel
+    // wave (fetchAllRows), not one serial trip per thousand rows.
+    expect(ranges[0]).toEqual([0, 999]);
+    expect(ranges.slice(1)).toEqual(Array.from({ length: 8 }, (_, i) => [1000 * (i + 1), 1000 * (i + 1) + 999]));
   });
 
   it('stops after one request when the first page is short', async () => {
