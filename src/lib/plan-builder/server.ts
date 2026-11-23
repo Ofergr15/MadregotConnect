@@ -462,6 +462,10 @@ export async function writeIndividualWeek(db: Db, w: IndividualWrite): Promise<{
     }).select('id').single();
   if (saved.error || !saved.data) return { planId: null, error: saved.error?.message ?? 'save failed' };
   const planId = String((saved.data as any).id);
+  // A re-price that kept the row's status (setStatusOnUpdate:false, nothing sent) is not a
+  // publish: recording one would supersede the live version and cancel a SCHEDULED trainee
+  // publish back to draft (QA 23.11 #5). The row is updated; the version stream is left alone.
+  if (existing && w.setStatusOnUpdate === false) return { planId, error: null };
   await recordIndividualVersion(db, w.athleteId, w.weekStart, w.parsed, planId, w.by ?? null);
   return { planId, error: null };
 }

@@ -307,6 +307,15 @@ describe('writeIndividualWeek (academy day-plan / copy-week)', () => {
     expect(tables.weekly_plan_versions).toEqual([]);
   });
 
+  it('a re-price that keeps the row status records no version and leaves a scheduled publish scheduled', async () => {
+    tables.weekly_plans.push({ id: 'p1', coach_id: (await import('@/lib/constants')).COACH_ID, athlete_id: MAYA, week_start_date: W, status: 'draft', parsed_workouts: body('old'), created_at: 'a' });
+    tables.weekly_plan_versions.push(ver({ id: 'm1', athlete_id: MAYA }), ver({ id: 'm2', athlete_id: MAYA, version: 2, state: 'scheduled', publish_at: '2026-11-21T10:00:00Z', body: body('next') }));
+    const r = await S.writeIndividualWeek(db, { athleteId: MAYA, weekStart: W, parsed: body('repriced'), status: 'published', setStatusOnUpdate: false });
+    expect(r).toEqual({ planId: 'p1', error: null });
+    expect(plans(MAYA)[0]).toMatchObject({ status: 'draft', parsed_workouts: body('repriced') });
+    expect(versions(MAYA).map((v) => [v.id, v.state])).toEqual([['m1', 'published'], ['m2', 'scheduled']]);
+  });
+
   it('refuses an empty athlete id rather than writing the group row', async () => {
     const r = await S.writeIndividualWeek(db, { athleteId: '', weekStart: W, parsed: body('day'), status: 'published' });
     expect(r.planId).toBeNull();

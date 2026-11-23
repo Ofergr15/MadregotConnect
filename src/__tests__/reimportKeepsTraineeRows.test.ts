@@ -18,7 +18,7 @@ const route = await import('@/app/api/plans/reimport/route');
 const W = '2026-06-28';
 beforeEach(() => {
   db = createMemoryDb({
-    schema: { weekly_plans: ['id', 'coach_id', 'athlete_id', 'week_start_date', 'original_input', 'parsed_workouts', 'status'] },
+    schema: { weekly_plans: ['id', 'coach_id', 'athlete_id', 'week_start_date', 'original_input', 'parsed_workouts', 'status', 'created_at'] },
     defaults: { weekly_plans: () => ({ id: uid(), athlete_id: null }) },
   });
   db.tables.weekly_plans.push(
@@ -33,7 +33,15 @@ describe('POST /api/plans/reimport', () => {
     expect((await r.json()).results[0].status).toBe('reimported');
     const rows = db.tables.weekly_plans as any[];
     expect(rows.find((x) => x.id === 'maya')).toMatchObject({ athlete_id: 'maya-id', parsed_workouts: { workouts: [{ name: 'maya' }] } });
-    expect(rows.find((x) => x.id === 'group')).toBeUndefined();
+    // Updated in place (QA 23.11 #1): the same id, so activity_plan_matches (ON DELETE CASCADE) survive.
     expect(rows.filter((x) => !x.athlete_id)).toHaveLength(1);
+    expect(rows.find((x) => x.id === 'group')).toMatchObject({ status: 'pushed', parsed_workouts: { workouts: [{ name: 'new' }] } });
+  });
+
+  it('inserts the group row when the week has none', async () => {
+    db.tables.weekly_plans.splice(0, 1);
+    const r = await route.POST(new Request('http://x', { method: 'POST', body: JSON.stringify({ weekStart: W }) }));
+    expect((await r.json()).results[0].status).toBe('reimported');
+    expect((db.tables.weekly_plans as any[]).filter((x) => !x.athlete_id)).toHaveLength(1);
   });
 });
