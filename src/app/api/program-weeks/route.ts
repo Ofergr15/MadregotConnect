@@ -12,7 +12,8 @@ export async function GET() {
     .order('week_start_date', { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[api/program-weeks]', error);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 
   // *_native_url: the same PDF via our own domain (/api/native/storage/...), so the
@@ -80,7 +81,8 @@ export async function POST(request: NextRequest) {
       .from('program-plans')
       .upload(path, buffer, { contentType: 'application/pdf', upsert: true });
     if (uploadError) {
-      return NextResponse.json({ error: `Training upload failed: ${uploadError.message}` }, { status: 500 });
+      console.error('[api/program-weeks]', uploadError);
+      return NextResponse.json({ error: 'Training upload failed' }, { status: 500 });
     }
     const { data: urlData } = supabase.storage.from('program-plans').getPublicUrl(path);
     trainingUrl = urlData.publicUrl;
@@ -93,7 +95,8 @@ export async function POST(request: NextRequest) {
       .from('program-plans')
       .upload(path, buffer, { contentType: 'application/pdf', upsert: true });
     if (uploadError) {
-      return NextResponse.json({ error: `Nutrition upload failed: ${uploadError.message}` }, { status: 500 });
+      console.error('[api/program-weeks]', uploadError);
+      return NextResponse.json({ error: 'Nutrition upload failed' }, { status: 500 });
     }
     const { data: urlData } = supabase.storage.from('program-plans').getPublicUrl(path);
     nutritionUrl = urlData.publicUrl;
@@ -127,7 +130,8 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[api/program-weeks]', error);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 
   // The nutrition PDF of the club's week, in the week's log (lib/week-setup, 10-24).

@@ -22,6 +22,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ plan
     .eq('plan_id', planId)
     .eq('status', 'success')
     .limit(2000);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error('[api/plans/[planId]/sent-days]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   return NextResponse.json({ days: sentDaysFrom(data || []) });
 }

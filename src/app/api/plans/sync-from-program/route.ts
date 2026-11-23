@@ -45,8 +45,9 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (lookupError) {
+      console.error('[api/plans/sync-from-program]', lookupError);
       return NextResponse.json(
-        { error: 'Could not look up the program for this week.', details: lookupError.message },
+        { error: 'Could not look up the program for this week.' },
         { status: 500 }
       );
     }
