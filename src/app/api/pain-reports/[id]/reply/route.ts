@@ -18,7 +18,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const sender = l.caller.athleteId ?? l.caller.email;
   const { data, error } = await l.db.from('pain_report_messages')
     .insert({ report_id: id, sender_id: sender, from_staff: true, body: text }).select('id, created_at').single();
-  if (error) return NextResponse.json({ error: 'Failed to save', details: error.message }, { status: 500 });
+  if (error) { console.error('[api/pain-reports/[id]/reply]', error); return NextResponse.json({ error: 'Failed to save' }, { status: 500 }); }
   const now = new Date().toISOString();
   if (!l.row.seen_at) await l.db.from('pain_reports').update({ seen_at: now, seen_by: sender }).eq('id', id);
   const { data: me } = l.caller.athleteId

@@ -51,7 +51,7 @@ async function run(request: Request) {
     .not('kind', 'in', `(${ACADEMY_REMINDER_KINDS.join(',')})`)
     .lte('next_run_at', nowIso);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error('[api/cron/notifications]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
 
   const results: Array<{ id: string; sent: number }> = [];
 

@@ -83,6 +83,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ weeks: weekAxis, athletes: out });
   } catch (err: any) {
     console.error('coach volume error:', err);
-    return NextResponse.json({ error: err.message || 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

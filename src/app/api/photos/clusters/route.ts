@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
         .update({ cluster_id: targetClusterId })
         .eq('cluster_id', sourceClusterId);
 
-      if (mergeErr) return NextResponse.json({ error: mergeErr.message }, { status: 500 });
+      if (mergeErr) { console.error('[api/photos/clusters]', mergeErr); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
       return NextResponse.json({ merged: true });
     }
 

@@ -250,6 +250,6 @@ export async function GET(request: Request) {
   } catch (error: any) {
     rethrowIfDynamicBailout(error);
     console.error('Leaderboard error:', error);
-    return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

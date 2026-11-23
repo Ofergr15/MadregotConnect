@@ -26,12 +26,12 @@ export async function POST(request: Request) {
     staffAthleteScope(supabase, caller),
     supabase.from('workout_feedback').select('id, athlete_id, coach_reply_at').in('id', ids),
   ]);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error('[api/workout-feedback/handled]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   const mine = inScope((data || []) as Array<{ id: string; athlete_id: string; coach_reply_at: string | null }>, scope, (r) => r.athlete_id);
   if (!mine.length) return NextResponse.json({ handled: 0 });
   const { error: upErr } = await supabase.from('workout_feedback')
     .update({ coach_reply_at: new Date().toISOString(), coach_reply_by: caller.email || null })
     .in('id', mine.map((r) => r.id));
-  if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+  if (upErr) { console.error('[api/workout-feedback/handled]', upErr); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   return NextResponse.json({ handled: mine.length });
 }

@@ -25,6 +25,6 @@ export async function POST(request: Request) {
     return NextResponse.json(out);
   } catch (err) {
     console.error('[session-photos/approve] failed:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

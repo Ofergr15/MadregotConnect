@@ -7,11 +7,13 @@ import { describe, expect, it } from 'vitest';
  * `details:` (PostgREST/Postgres text names tables and columns). Same rule as exposedRoutesNoRawErrors,
  * applied to whole folders, one batch at a time — add a folder here when its batch lands.
  */
-const SWEPT = ['admin', 'academy', 'plans', 'plan-builder', 'program-weeks', 'feed', 'records', 'athletes', 'garmin', 'strava'];
+/** Night queue #74 finished the sweep: every folder under app/api. */
+const SWEPT_ALL = true;
 /** Answers that relay a THIRD PARTY's reply to an admin on purpose (not database text). */
 const ALLOW = new Set(['admin/strava/webhook-subscribe']);
 
 const API = join(__dirname, '..', 'app', 'api');
+const SWEPT = SWEPT_ALL ? readdirSync(API).filter((f) => statSync(join(API, f)).isDirectory()) : [];
 function routes(dir: string): string[] {
   return readdirSync(dir).flatMap((f) => {
     const p = join(dir, f);
@@ -20,7 +22,7 @@ function routes(dir: string): string[] {
   });
 }
 
-describe('swept API folders return no raw error text', () => {
+describe('no API route returns raw error text in a 5xx', () => {
   for (const folder of SWEPT) {
     for (const file of routes(join(API, folder))) {
       const route = relative(API, file).replace(/\/route\.ts$/, '');

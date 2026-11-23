@@ -18,8 +18,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const now = new Date().toISOString();
   const { error } = await db.from('workout_feedback').update({ withdrawn_at: now }).eq('id', id);
   if (error) {
-    if ((error as { code?: string }).code === '42703') return NextResponse.json({ error: 'migration_pending', details: 'migration 191 not applied' }, { status: 503 });
-    return NextResponse.json({ error: 'Failed to withdraw', details: error.message }, { status: 500 });
+    if ((error as { code?: string }).code === '42703') return NextResponse.json({ error: 'migration_pending', migration: 191 }, { status: 503 });
+    console.error('[api/workout-feedback/[id]]', error);
+    return NextResponse.json({ error: 'Failed to withdraw' }, { status: 500 });
   }
   return NextResponse.json({ id, withdrawnAt: now });
 }

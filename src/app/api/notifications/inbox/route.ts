@@ -213,6 +213,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ items, unread: items.filter((i) => i.unread).length });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message, items: [], unread: 0 }, { status: 500 });
+    console.error('[api/notifications/inbox]', err);
+    return NextResponse.json({ error: 'failed', items: [], unread: 0 }, { status: 500 });
   }
 }

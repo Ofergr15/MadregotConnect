@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   if (!auth.ok) return authError(auth);
   const db = createServerClient();
   const { data, error } = await db.from('athletes').select('notification_prefs').eq('id', auth.user.athleteId).maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error('[api/tours]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   const enabled = await isCoachTourOn(db);
   return NextResponse.json({ ...readTourPrefs(data?.notification_prefs), enabled, isSuper: auth.user.isSuperUser === true });
 }
@@ -33,10 +33,10 @@ export async function POST(request: Request) {
   };
   const db = createServerClient();
   const { data, error } = await db.from('athletes').select('notification_prefs').eq('id', auth.user.athleteId).maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error('[api/tours]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   const next = applyTourChange(data?.notification_prefs, change);
   if (!next) return NextResponse.json({ error: 'bad change' }, { status: 400 });
   const { error: upErr } = await db.from('athletes').update({ notification_prefs: next }).eq('id', auth.user.athleteId);
-  if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+  if (upErr) { console.error('[api/tours]', upErr); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   return NextResponse.json(readTourPrefs(next));
 }

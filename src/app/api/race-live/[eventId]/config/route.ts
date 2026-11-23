@@ -28,7 +28,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   }
   const db = createServerClient();
   const { error } = await db.from('race_live_config').upsert(row, { onConflict: 'event_id' });
-  if (error) return NextResponse.json({ error: 'save failed', details: error.message }, { status: 500 });
+  if (error) { console.error('[api/race-live/[eventId]/config]', error); return NextResponse.json({ error: 'save failed' }, { status: 500 }); }
   // Restarting a replay clears its own rehearsal rows (never feed/manual ones).
   if (b.replay) {
     await db.from('race_splits').delete().eq('event_id', eventId).eq('source', 'replay');

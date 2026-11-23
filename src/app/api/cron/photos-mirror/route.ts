@@ -80,7 +80,7 @@ async function run(request: Request) {
     return NextResponse.json({ ...result, warmed, times, copies });
   } catch (error) {
     console.error('[cron/photos-mirror] failed', error);
-    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
 

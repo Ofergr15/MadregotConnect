@@ -93,7 +93,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/workout-feedback/reply]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
 
@@ -134,6 +135,7 @@ export async function PATCH(request: Request) {
     }
     return NextResponse.json({ ok: true, marked: (data || []).length });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/workout-feedback/reply]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }

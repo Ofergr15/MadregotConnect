@@ -63,7 +63,8 @@ export async function POST(req: NextRequest) {
       .upsert(rows, { onConflict: 'drive_file_id', ignoreDuplicates: false });
 
     if (error) {
-      return NextResponse.json({ error: 'DB upsert failed', details: error.message }, { status: 500 });
+      console.error('[api/photos/import]', error);
+      return NextResponse.json({ error: 'DB upsert failed' }, { status: 500 });
     }
 
     // Return IDs of photos that still need processing (no processed_at)

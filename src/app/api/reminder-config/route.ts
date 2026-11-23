@@ -56,6 +56,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ config });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/reminder-config]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }

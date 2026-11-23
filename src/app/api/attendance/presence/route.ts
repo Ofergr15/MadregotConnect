@@ -69,7 +69,8 @@ export async function PUT(request: Request) {
         .eq('week_start', weekStart).eq('day', day).in('athlete_id', unmark);
       if (error) {
         if (isMissingTable(error)) return missing();
-        return NextResponse.json({ error: 'Failed to clear presence', details: error.message }, { status: 500 });
+        console.error('[api/attendance/presence]', error);
+        return NextResponse.json({ error: 'Failed to clear presence' }, { status: 500 });
       }
     }
     const { error } = rows.length
@@ -77,11 +78,12 @@ export async function PUT(request: Request) {
       : { error: null };
     if (error) {
       if (isMissingTable(error)) return missing();
-      return NextResponse.json({ error: 'Failed to save presence', details: error.message }, { status: 500 });
+      console.error('[api/attendance/presence]', error);
+      return NextResponse.json({ error: 'Failed to save presence' }, { status: 500 });
     }
     return NextResponse.json({ ok: true, saved: rows.length, cleared: unmark.length });
   } catch (err: any) {
     console.error('attendance/presence failed:', err);
-    return NextResponse.json({ error: err?.message || 'Failed to save presence' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to save presence' }, { status: 500 });
   }
 }

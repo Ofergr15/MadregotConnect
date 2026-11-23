@@ -63,7 +63,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       givers: likers.map((liker) => ({ name: liker.name, avatarUrl: liker.avatarUrl })),
     });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message, ...EMPTY }, { status: 500 });
+    console.error('[api/activities/[id]/kudos]', err);
+    return NextResponse.json({ error: 'failed', ...EMPTY }, { status: 500 });
   }
 }
 
@@ -128,7 +129,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     return NextResponse.json({ given: true });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/activities/[id]/kudos]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
 
@@ -162,6 +164,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
     return NextResponse.json({ given: false });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/activities/[id]/kudos]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }

@@ -17,7 +17,7 @@ async function run(request: NextRequest) {
     return NextResponse.json(await raceLiveTick());
   } catch (error: any) {
     console.error('race-live tick failed', error);
-    return NextResponse.json({ error: error.message || 'tick failed' }, { status: 500 });
+    return NextResponse.json({ error: 'tick failed' }, { status: 500 });
   }
 }
 export const POST = run;

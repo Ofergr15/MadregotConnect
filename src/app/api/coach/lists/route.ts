@@ -40,6 +40,6 @@ export async function POST(request: Request) {
     .insert({ name, note, created_by: caller.athleteId })
     .select('id, name, note')
     .single();
-  if (error) return NextResponse.json({ error: 'migration_pending', details: error.message }, { status: 503 });
+  if (error) { console.error('[api/coach/lists]', error); return NextResponse.json({ error: 'migration_pending' }, { status: 503 }); }
   return NextResponse.json({ list: data });
 }

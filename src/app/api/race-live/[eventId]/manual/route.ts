@@ -28,6 +28,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (body.point === 'finish' && changed.length) await postFinisherCard(db, eventId, String(body.athleteId), splits);
     return NextResponse.json({ ok: true, pushed });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'save failed' }, { status: 500 });
+    console.error('[api/race-live/[eventId]/manual]', error);
+    return NextResponse.json({ error: 'save failed' }, { status: 500 });
   }
 }

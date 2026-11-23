@@ -76,6 +76,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ ...rest, buckets, tables, b2000, history, ageBands, filters: { sex, age, racesOnly }, recomputed });
   } catch (err: any) {
     console.error('Club records error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to compute club records' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to compute club records' }, { status: 500 });
   }
 }

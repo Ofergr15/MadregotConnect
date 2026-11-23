@@ -22,7 +22,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   const res = body.member
     ? await db.from('athlete_list_members').upsert({ list_id: id, athlete_id: athleteId }, { onConflict: 'list_id,athlete_id' })
     : await db.from('athlete_list_members').delete().eq('list_id', id).eq('athlete_id', athleteId);
-  if (res.error) return NextResponse.json({ error: 'Failed to update list', details: res.error.message }, { status: 500 });
+  if (res.error) { console.error('[api/coach/lists/[id]]', res.error); return NextResponse.json({ error: 'Failed to update list' }, { status: 500 }); }
   return NextResponse.json({ ok: true });
 }
 
@@ -33,6 +33,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const { id } = await params;
   const db = createServerClient();
   const { error } = await db.from('athlete_lists').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: 'Failed to delete list', details: error.message }, { status: 500 });
+  if (error) { console.error('[api/coach/lists/[id]]', error); return NextResponse.json({ error: 'Failed to delete list' }, { status: 500 }); }
   return NextResponse.json({ ok: true });
 }

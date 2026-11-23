@@ -139,6 +139,7 @@ export async function PUT(request: Request) {
     const { on: nowOn, allow } = await getSettings();
     return NextResponse.json({ maintenance: nowOn, allowlist: allow });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/maintenance]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }

@@ -23,6 +23,6 @@ export async function PUT(request: Request) {
   if (typeof body.on !== 'boolean') return NextResponse.json({ error: 'on must be a boolean' }, { status: 400 });
   const db = createServerClient();
   const { error } = await db.from('app_settings').upsert({ key: COACH_SPACE_KEY, value: body.on ? 'on' : 'off' }, { onConflict: 'key' });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error('[api/coach-space/switch]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   return NextResponse.json({ on: body.on, canToggle: true });
 }

@@ -82,11 +82,11 @@ export async function PATCH(request: Request) {
   if (!Object.keys(change).length) return NextResponse.json({ error: 'nothing to change' }, { status: 400 });
   const db = createServerClient();
   const { data, error } = await db.from('athletes').select('notification_prefs').eq('id', caller.athleteId).maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error('[api/week-story]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   const prefs = ((data?.notification_prefs as Record<string, unknown> | null) || {});
   const weekStory = withMemberChoice(prefs.weekStory, change);
   if (change.hidePack !== undefined) weekStory.hidePack = change.hidePack;
   const { error: upErr } = await db.from('athletes').update({ notification_prefs: { ...prefs, weekStory } }).eq('id', caller.athleteId);
-  if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+  if (upErr) { console.error('[api/week-story]', upErr); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   return NextResponse.json({ ok: true, ...change });
 }

@@ -30,7 +30,8 @@ export async function GET(request: Request) {
         .in('status', ['open', 'withdrawn']).order('created_at', { ascending: false }).limit(200);
       if (error) {
         if (isMissingTable(error)) return NextResponse.json({ items: [], migrationPending: true });
-        return NextResponse.json({ error: 'Failed to load', details: error.message }, { status: 500 });
+        console.error('[api/pain-reports]', error);
+        return NextResponse.json({ error: 'Failed to load' }, { status: 500 });
       }
       const items = [];
       for (const r of (data || []) as Array<PainRow & { athletes?: { name?: string; avatar_url?: string } | null }>) {
@@ -51,12 +52,13 @@ export async function GET(request: Request) {
       .order('created_at', { ascending: false }).limit(100);
     if (error) {
       if (isMissingTable(error)) return NextResponse.json({ enabled: true, items: [], migrationPending: true });
-      return NextResponse.json({ error: 'Failed to load', details: error.message }, { status: 500 });
+      console.error('[api/pain-reports]', error);
+      return NextResponse.json({ error: 'Failed to load' }, { status: 500 });
     }
     return NextResponse.json({ enabled: true, items: ((data || []) as PainRow[]).map(shapePain) });
   } catch (error: any) {
     console.error('[pain-reports] GET failed', error);
-    return NextResponse.json({ error: error?.message || 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
 
@@ -81,8 +83,9 @@ export async function POST(request: Request) {
       effect: v.effect, note: v.note, activity_id: v.activityId,
     }).select(PAIN_SELECT).single();
     if (error) {
-      if (isMissingTable(error)) return NextResponse.json({ error: 'migration_pending', details: 'migration 191 not applied' }, { status: 503 });
-      return NextResponse.json({ error: 'Failed to save', details: error.message }, { status: 500 });
+      if (isMissingTable(error)) return NextResponse.json({ error: 'migration_pending', migration: 191 }, { status: 503 });
+      console.error('[api/pain-reports]', error);
+      return NextResponse.json({ error: 'Failed to save' }, { status: 500 });
     }
     const row = data as PainRow;
     const recipients = await sendPainAlert(db, row);
@@ -104,6 +107,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ report: shapePain(row), recipients, availability });
   } catch (error: any) {
     console.error('[pain-reports] POST failed', error);
-    return NextResponse.json({ error: error?.message || 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

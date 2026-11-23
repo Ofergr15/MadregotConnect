@@ -75,6 +75,7 @@ export async function PUT(request: Request) {
     if (error) throw error;
     return NextResponse.json({ videos: clean });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/practice-videos]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }

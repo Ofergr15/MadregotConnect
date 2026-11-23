@@ -35,7 +35,8 @@ export async function GET() {
       .not('strava_auth', 'is', null)
       .limit(20);
     if (fallback.error) {
-      return NextResponse.json({ error: fallback.error.message }, { status: 500 });
+      console.error('[api/dev/strava-athletes]', fallback.error);
+      return NextResponse.json({ error: 'failed' }, { status: 500 });
     }
     return NextResponse.json({ athletes: fallback.data ?? [] });
   }

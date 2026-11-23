@@ -74,7 +74,7 @@ export async function POST(request: Request, { params }: Params) {
   if (!got || !got.visible) return NextResponse.json({ error: 'No such run' }, { status: 404 });
   if (!got.insider) return NextResponse.json({ error: 'Join the run to write' }, { status: 403 });
   const { error } = await got.db.from('run_meetup_messages').insert({ meetup_id: id, athlete_id: auth.user.athleteId, body: text });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error('[api/runs/meetups/[id]]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   if (got.m.host_athlete_id !== auth.user.athleteId) {
     const me = got.ros.people.get(auth.user.athleteId);
     await notifyAthlete({

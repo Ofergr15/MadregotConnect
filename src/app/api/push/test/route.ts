@@ -94,6 +94,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ sent, total: subs.length, confirmed });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    console.error('[api/push/test]', err);
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

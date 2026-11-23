@@ -196,7 +196,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ error: 'athleteId or roster required' }, { status: 400 });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/attendance]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
 
@@ -245,6 +246,7 @@ export async function POST(request: Request) {
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/attendance]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }

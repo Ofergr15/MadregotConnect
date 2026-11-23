@@ -21,6 +21,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ weather: await weatherAt(q.lat, q.lon, q.date, q.hour) });
   } catch (error: any) {
     console.error('weather/at error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to read weather' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to read weather' }, { status: 500 });
   }
 }

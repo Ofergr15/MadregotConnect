@@ -348,7 +348,8 @@ export async function GET(request: Request) {
       existing: existing || null,
     });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/workout-feedback]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
 
@@ -500,6 +501,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, ...(painTo ? { painTo, noCoach: painTo === 'managers' } : {}) });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/workout-feedback]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
