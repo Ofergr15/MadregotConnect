@@ -168,11 +168,25 @@ export function buildDataSourcesPayload(
   return {
     garmin,
     strava,
-    primary: row.garmin_auth ? 'garmin' : row.strava_auth ? 'strava' : null,
+    // The chosen main source wins while it is still connected; otherwise whichever is.
+    primary: row.data_source === 'strava' && row.strava_auth ? 'strava' : row.garmin_auth ? 'garmin' : row.strava_auth ? 'strava' : null,
     lastRunAt: runs[0]?.startTime ?? null,
     recentRuns: runs.slice(0, 3),
     history: row.garmin_auth ? history : { state: 'none', imported: 0, reachedMonth: null },
   };
+}
+
+/**
+ * The main-source switch (PUT /api/me/data-source): writes the same `data_source`
+ * column PATCH /api/admin/athlete-source writes, and only to a connected provider.
+ */
+export function mainSourcePatch(
+  row: Pick<AthleteSourceRow, 'garmin_auth' | 'strava_auth'>,
+  source: unknown,
+): { patch: { data_source: 'garmin' | 'strava' } } | { error: 'unknown' | 'not_connected' } {
+  if (source !== 'garmin' && source !== 'strava') return { error: 'unknown' };
+  const connected = source === 'garmin' ? !!row.garmin_auth : !!row.strava_auth;
+  return connected ? { patch: { data_source: source } } : { error: 'not_connected' };
 }
 
 // ── Sync now ─────────────────────────────────────────────────────────────────

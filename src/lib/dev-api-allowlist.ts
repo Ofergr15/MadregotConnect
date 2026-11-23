@@ -310,6 +310,7 @@ export const DEV_API_ALLOWLIST: ReadonlyArray<readonly [string, string]> = [
   ['PUT', '/api/athletes/prs'],
   ['PUT', '/api/events/*/answers'],
   ['PUT', '/api/events/*/pace-groups'],
+  ['PUT', '/api/me/data-source'],
   ['PUT', '/api/plan-builder/weeks/*'],
   ['PUT', '/api/reminder-config'],
 ];
