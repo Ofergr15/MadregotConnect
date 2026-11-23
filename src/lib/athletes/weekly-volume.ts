@@ -104,7 +104,7 @@ export async function fetchWeeklyVolume(
     bucket[i].climbM += climbM;
   };
 
-  // One round trip: the database does the bucketing (migration 204). Any error —
+  // One round trip: the database does the bucketing (migration 206). Any error —
   // most likely the function not pasted yet — falls through to the paged read,
   // which is the reference behaviour the RPC is pinned against.
   const grouped = await volumeBucketsRpc(supabase, opts.athleteIds, axis[0], startDay);
@@ -149,7 +149,7 @@ interface BucketRow {
 }
 
 /**
- * weekly_volume_buckets (migration 204), or null when it can't answer — missing
+ * weekly_volume_buckets (migration 206), or null when it can't answer — missing
  * function, error, or a throw — so the caller falls back to the paged read.
  * Its output is at most athletes × weeks rows — one trip for every caller but a
  * year-long roster, which takes two.

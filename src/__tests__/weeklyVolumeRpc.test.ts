@@ -3,7 +3,7 @@ import { fetchWeeklyVolume, resetVolumeRpcProbe } from '@/lib/athletes/weekly-vo
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 
 /**
- * S7: fetchWeeklyVolume asks the database to bucket (migration 204,
+ * S7: fetchWeeklyVolume asks the database to bucket (migration 206,
  * weekly_volume_buckets) and falls back to the paged read when it can't. The two
  * paths must produce the same series for the same rows — the fake RPC below is an
  * independent model of the SQL (UTC wall-clock date, DOW arithmetic, the same

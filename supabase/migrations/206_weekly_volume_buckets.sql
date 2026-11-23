@@ -1,4 +1,4 @@
--- 204: weekly_volume_buckets — fetchWeeklyVolume's bucketing done in the database.
+-- 206: weekly_volume_buckets — fetchWeeklyVolume's bucketing done in the database.
 --
 -- lib/athletes/weekly-volume.ts used to page every qualifying activity of a roster
 -- (2772 rows for 25 athletes over 26 weeks) through the function, 1000 rows a round

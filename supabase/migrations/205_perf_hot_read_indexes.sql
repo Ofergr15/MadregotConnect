@@ -1,4 +1,4 @@
--- 203: indexes for the hot per-member reads (perf S6, review-2026-11-20 track-a-perf-server-wins.md).
+-- 205: indexes for the hot per-member reads (perf S6, review-2026-11-20 track-a-perf-server-wins.md).
 --
 -- WRITE-ONLY in this PR: nothing here has been run on production. Before pasting, check each with
 -- EXPLAIN ANALYZE on the query named beside it; drop any the planner doesn't pick.
