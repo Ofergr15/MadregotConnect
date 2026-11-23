@@ -11,8 +11,9 @@ describe('native build 16 flag keys', () => {
       expect(FEATURES[k].defaultEnabled).toBe(false);
     }
   });
-  it('only academy_register and u21_entry are readable signed out', () => {
-    expect([...PUBLIC_FEATURE_KEYS]).toEqual(['academy_register', 'u21_entry']);
+  // native_onboarding_setup (b22): the signed-out gateway reports register_view only when this is on club-wide.
+  it('only academy_register, u21_entry and native_onboarding_setup are readable signed out', () => {
+    expect([...PUBLIC_FEATURE_KEYS]).toEqual(['academy_register', 'u21_entry', 'native_onboarding_setup']);
   });
 });
 

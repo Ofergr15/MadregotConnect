@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession } from '@/lib/auth-session';
 import { CLIENT_STEPS, deviceFromUa, recordOnbEvent, type OnbStep } from '@/lib/onboarding/events';
+import { eventChannel } from '@/lib/onboarding/channel';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +26,7 @@ function deviceFromPlatform(platform: string | undefined, ua: string | null): st
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => null)) as { step?: string; token?: string; platform?: string; standalone?: boolean; meta?: Record<string, unknown> } | null;
+  const body = (await request.json().catch(() => null)) as { step?: string; token?: string; platform?: string; standalone?: boolean; channel?: unknown; meta?: Record<string, unknown> } | null;
   const step = body?.step as OnbStep | undefined;
   if (!step || !CLIENT_STEPS.has(step)) return NextResponse.json({ error: 'bad-step' }, { status: 400 });
   const meta = body?.meta && JSON.stringify(body.meta).length <= 1000 ? body.meta : {};
@@ -49,6 +50,6 @@ export async function POST(request: Request) {
       .gte('created_at', new Date(Date.now() - DEDUPE_MS).toISOString());
     if (!error && (count ?? 0) > 0) return NextResponse.json({ ok: true, deduped: true });
   }
-  await recordOnbEvent({ step, athleteId, device, platform: body?.platform ?? null, standalone: body?.standalone ?? null, meta });
+  await recordOnbEvent({ step, athleteId, device, platform: body?.platform ?? null, standalone: body?.standalone ?? null, channel: eventChannel(body?.channel), meta });
   return NextResponse.json({ ok: true });
 }
