@@ -74,6 +74,8 @@ export const FEATURES = {
   birthday_year_card: { label: 'כרטיס שנה ביום הולדת (אפליקציה)', defaultEnabled: false },
   /** Native Apple Health data-source row. */
   apple_health: { label: 'Apple Health (אפליקציה)', defaultEnabled: false },
+  /** Native academy pack (trainee home, self-report, coach-thread send). */
+  academy_pack: { label: 'חבילת אקדמיה (אפליקציה)', defaultEnabled: false },
   /** Native academy coach–trainee chat SEND (POST /api/academy/threads/messages). */
   academy_chat_send: { label: 'שליחה בצ׳אט אקדמיה (אפליקציה)', defaultEnabled: false },
   /** Native notification preferences screen (own categories). */
