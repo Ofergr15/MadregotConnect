@@ -1,5 +1,6 @@
 import type { createServerClient } from '@/lib/supabase/server';
-import { filterQualifyingRuns, type RunActivityRow } from '@/lib/prs/pr-buckets';
+import { filterQualifyingRuns, PR_RUN_TYPES, type RunActivityRow } from '@/lib/prs/pr-buckets';
+import { fetchAllRows, PAGE_SIZE } from '@/lib/supabase/paginate';
 import { activityWeekStart, MONDAY_WEEK, toISODate, type WeekStartDay } from '@/lib/utils';
 
 /**
@@ -57,7 +58,7 @@ type VolumeRow = RunActivityRow & { athlete_id: string; elevation_gain?: number 
  * roster over 26 weeks is 2772 activities, and even the 8-week default is 900,
  * close enough that one new member would start eating weeks off the chart.
  */
-const PAGE = 1000;
+// Paging itself lives in fetchAllRows (lib/supabase/paginate.ts, PAGE_SIZE = 1000).
 
 /** The `weeks` week-starts ending with `currentWeekStart`, oldest first. */
 export function weekAxis(currentWeekStart: string, weeks: number): string[] {
@@ -92,41 +93,93 @@ export async function fetchWeeklyVolume(
   if (opts.athleteIds.length === 0 || axis.length === 0) return { weeks: axis, byAthlete };
 
   const index = new Map(axis.map((w, i) => [w, i]));
+  const add = (athleteId: string, weekKey: string, meters: number, runs: number, seconds: number, climbM: number) => {
+    const i = index.get(weekKey);
+    if (i == null) return; // a run in the current week but after the axis ends
+    const bucket = byAthlete.get(athleteId);
+    if (!bucket) return;
+    bucket[i].meters += meters;
+    bucket[i].runs += runs;
+    bucket[i].seconds += seconds;
+    bucket[i].climbM += climbM;
+  };
+
+  // One round trip: the database does the bucketing (migration 206). Any error —
+  // most likely the function not pasted yet — falls through to the paged read,
+  // which is the reference behaviour the RPC is pinned against.
+  const grouped = await volumeBucketsRpc(supabase, opts.athleteIds, axis[0], startDay);
+  if (grouped) {
+    for (const g of grouped) {
+      add(g.athlete_id, String(g.week_start).slice(0, 10), Number(g.meters) || 0, Number(g.runs) || 0,
+        Number(g.seconds) || 0, Number(g.climb_m) || 0);
+    }
+    return { weeks: axis, byAthlete };
+  }
 
   // `.order('id')` so the pages are a stable partition. Without a deterministic
   // sort, PostgREST is free to return rows in any order per request and a paged
   // walk can repeat one row and skip another — which here would show up as a
-  // wrong kilometre total, not an error.
-  let offset = 0;
-  for (;;) {
-    const { data, error } = await supabase
+  // wrong kilometre total, not an error. fetchAllRows reads page 0 alone and,
+  // only when it comes back full, the rest in parallel waves rather than one
+  // serial trip per thousand rows.
+  const rows = await fetchAllRows<VolumeRow>((from, to) =>
+    supabase
       .from('athlete_activities')
       .select('athlete_id, start_time, distance, duration, activity_type, elevation_gain')
       .in('athlete_id', opts.athleteIds)
       .gte('start_time', axis[0])
       .order('id')
-      .range(offset, offset + PAGE - 1)
-      .returns<VolumeRow[]>();
-    if (error) throw error;
-    const rows = data || [];
+      .range(from, to)
+      .returns<VolumeRow[]>());
 
-    for (const r of filterQualifyingRuns(rows)) {
-      // The week key comes from the date STRING, never from an instant:
-      // `start_time` is wall clock stored as UTC, so reading it as an instant
-      // pushes a 21:30 Saturday run into the next week.
-      const i = index.get(activityWeekStart(r.start_time, startDay));
-      if (i == null) continue; // a run in the current week but after the axis ends
-      const bucket = byAthlete.get(r.athlete_id);
-      if (!bucket) continue;
-      bucket[i].meters += r.distance;
-      bucket[i].runs += 1;
-      bucket[i].seconds += r.duration || 0;
-      bucket[i].climbM += Number((r as { elevation_gain?: number | null }).elevation_gain) || 0;
-    }
-
-    if (rows.length < PAGE) break;
-    offset += PAGE;
+  for (const r of filterQualifyingRuns(rows)) {
+    // The week key comes from the date STRING, never from an instant:
+    // `start_time` is wall clock stored as UTC, so reading it as an instant
+    // pushes a 21:30 Saturday run into the next week.
+    add(r.athlete_id, activityWeekStart(r.start_time, startDay), r.distance, 1, r.duration || 0,
+      Number((r as { elevation_gain?: number | null }).elevation_gain) || 0);
   }
 
   return { weeks: axis, byAthlete };
 }
+
+interface BucketRow {
+  athlete_id: string; week_start: string; meters: number | string; runs: number | string;
+  seconds: number | string; climb_m: number | string;
+}
+
+/**
+ * weekly_volume_buckets (migration 206), or null when it can't answer — missing
+ * function, error, or a throw — so the caller falls back to the paged read.
+ * Its output is at most athletes × weeks rows — one trip for every caller but a
+ * year-long roster, which takes two.
+ */
+async function volumeBucketsRpc(
+  supabase: ReturnType<typeof createServerClient>,
+  athleteIds: string[], since: string, startDay: WeekStartDay,
+): Promise<BucketRow[] | null> {
+  if (rpcMissing || typeof (supabase as { rpc?: unknown }).rpc !== 'function') return null;
+  try {
+    // Paged like any select: a year of a 25-athlete roster is 1300 buckets, over the
+    // cap. (athlete_id, week_start) is the GROUP BY key, so it is a total order.
+    const data = await fetchAllRows<BucketRow>((from, to) =>
+      supabase
+        .rpc('weekly_volume_buckets', {
+          p_athlete_ids: athleteIds, p_since: since, p_start_day: startDay, p_run_types: [...PR_RUN_TYPES],
+        })
+        .order('athlete_id')
+        .order('week_start')
+        .range(from, to) as unknown as PromiseLike<{ data: BucketRow[] | null; error: unknown }>);
+    return data;
+  } catch (err) {
+    // Not pasted yet: stop paying a wasted trip on every call for the life of this
+    // instance. A cold start (or a deploy) tries again.
+    const code = (err as { code?: string } | null)?.code;
+    if (code === 'PGRST202' || code === '42883') rpcMissing = true;
+    return null;
+  }
+}
+
+let rpcMissing = false;
+/** Tests only: forget a cached "function missing". */
+export function resetVolumeRpcProbe(): void { rpcMissing = false; }

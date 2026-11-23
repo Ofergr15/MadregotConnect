@@ -26,6 +26,20 @@ export async function enablementRows(feature: FeatureKey, db: Db = createServerC
   }
 }
 
+/** Every row for several features in ONE round trip. Same failure rules as enablementRows. */
+export async function enablementRowsFor(features: readonly FeatureKey[], db: Db = createServerClient()): Promise<EnablementRow[] | null> {
+  try {
+    const { data, error } = await db
+      .from(ENABLEMENTS_TABLE)
+      .select('feature, scope_type, scope_id, enabled, set_by, set_at')
+      .in('feature', features as FeatureKey[]);
+    if (error) return isMissingTable(error) ? null : [];
+    return (data || []) as EnablementRow[];
+  } catch {
+    return [];
+  }
+}
+
 export async function athleteFacts(athleteId: string, db: Db = createServerClient()): Promise<AthleteFacts | null> {
   const { data } = await db
     .from('athletes')
@@ -52,6 +66,19 @@ export async function featureResolution(feature: FeatureKey, athleteId: string, 
   const [rows, facts] = await Promise.all([enablementRows(feature, db), athleteFacts(athleteId, db)]);
   if (!rows || !facts) return { enabled: false, source: null };
   return resolveFeature(feature, rows, facts);
+}
+
+/**
+ * Many features for one athlete in TWO round trips (all enablement rows + the athlete), run together.
+ * Same answers as calling featureResolution per key — resolveFeature only reads its own feature's rows.
+ */
+export async function featureResolutions(
+  features: readonly FeatureKey[], athleteId: string, db: Db = createServerClient(),
+): Promise<Record<string, Resolution>> {
+  const [rows, facts] = await Promise.all([enablementRowsFor(features, db), athleteFacts(athleteId, db)]);
+  const out: Record<string, Resolution> = {};
+  for (const f of features) out[f] = rows && facts ? resolveFeature(f, rows, facts) : { enabled: false, source: null };
+  return out;
 }
 
 export async function isFeatureEnabled(feature: FeatureKey, athleteId: string | null | undefined, db?: Db): Promise<boolean> {
