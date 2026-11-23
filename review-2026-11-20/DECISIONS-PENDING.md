@@ -4,6 +4,10 @@
 
 When a runner hides pace (`feed_items.payload.hiddenFields` includes `'pace'`), the feed blanks `averagePace`, the per-km bands, lap/step bands and the plan badge — but it still ships `distance` plus `duration`/`movingDuration`, and pace is just one divided by the other, so anyone reading the card (or the JSON) can recover the average pace the runner asked to hide. Tonight's change only adds `paceHidden: true` on the projected feed item so clients know not to compute or display pace; time is NOT hidden, because hiding it also removes a stat runners like to show ("ran 1:32") and changes the card for every pace-hidden run. The choice for Ofer: (a) keep as is — `paceHidden` is a client courtesy, pace stays arithmetically recoverable; (b) also hide time when pace is hidden (closes the leak, distance alone remains); or (c) round time coarsely (e.g. to 5 minutes) when pace is hidden, which blurs pace to roughly ±15 s/km on a 10 K. Recommendation: (b), with the share sheet explaining that hiding pace hides time too.
 
+## RESOLVED (2026-11-23): hiding pace does NOT hide a run's total time
+
+Ofer: no (relayed via the kickoff session). Total time stays visible; only record times are masked (#86). Option (a) above stands for time.
+
 ## RESOLVED (2026-11-23): hiding pace also hides record times from teammates
 
 Ofer: yes. Implemented in PR #86 (stats prs/prHistory, records/run, activities/analysis). Still open above: whether hiding pace also hides a run's total time.
