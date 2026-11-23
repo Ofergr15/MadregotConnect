@@ -67,7 +67,6 @@ async function write(request: Request, remove: boolean) {
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     console.error('PR exclusion error:', error);
-    console.error('[api/athletes/prs/exclusions]', error);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

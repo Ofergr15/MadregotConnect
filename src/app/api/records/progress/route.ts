@@ -79,7 +79,6 @@ export async function GET(request: Request) {
     });
   } catch (err: any) {
     console.error('records/progress error:', err);
-    console.error('[api/records/progress]', err);
     return NextResponse.json({ error: 'Failed to build progress' }, { status: 500 });
   }
 }

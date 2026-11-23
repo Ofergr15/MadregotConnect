@@ -98,7 +98,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ item });
   } catch (err: unknown) {
     console.error('Feed post create error:', err);
-    console.error('[api/feed/posts]', err);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
@@ -151,7 +150,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
     console.error('Feed post delete error:', err);
-    console.error('[api/feed/posts]', err);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

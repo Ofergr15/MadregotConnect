@@ -41,13 +41,11 @@ export async function PUT(request: Request) {
 
     if (error) {
       console.error('Academy settings PUT error:', error);
-      console.error('[api/academy/settings]', error);
       return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 });
     }
     return NextResponse.json({ settings });
   } catch (error: any) {
     console.error('Academy settings PUT error:', error);
-    console.error('[api/academy/settings]', error);
     return NextResponse.json({ error: 'Failed to save settings', settings: DEFAULT_ACADEMY_SETTINGS }, { status: 500 });
   }
 }

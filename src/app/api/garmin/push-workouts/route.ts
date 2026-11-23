@@ -310,7 +310,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Push workouts error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to push workouts' },
+      { error: 'Failed to push workouts' },
       { status: 500 }
     );
   }

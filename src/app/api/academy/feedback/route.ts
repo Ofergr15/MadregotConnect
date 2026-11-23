@@ -125,7 +125,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ feedback: rows[0] ?? null, traineeReport });
   } catch (error: any) {
     console.error('Academy feedback GET error:', error);
-    console.error('[api/academy/feedback]', error);
     return NextResponse.json({ error: 'Failed to read feedback' }, { status: 500 });
   }
 }
@@ -311,7 +310,6 @@ export async function POST(request: Request) {
     });
   } catch (error: any) {
     console.error('Academy feedback POST error:', error);
-    console.error('[api/academy/feedback]', error);
     return NextResponse.json({ error: 'Failed to save feedback' }, { status: 500 });
   }
 }

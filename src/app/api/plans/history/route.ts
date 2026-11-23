@@ -227,7 +227,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ plans: plansWithStats });
   } catch (error: any) {
     console.error('History API error:', error);
-    console.error('[api/plans/history]', error);
     return NextResponse.json(
       { error: 'Failed to fetch history' },
       { status: 500 }

@@ -115,7 +115,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ athletes: result, team, weekStart });
   } catch (error: any) {
     console.error('Academy stats error:', error);
-    console.error('[api/academy/stats]', error);
     return NextResponse.json({ error: 'Failed to compute stats' }, { status: 500 });
   }
 }

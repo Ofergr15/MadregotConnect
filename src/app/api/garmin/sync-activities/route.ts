@@ -648,7 +648,7 @@ export async function runSyncRequest(request: Request) {
     return NextResponse.json({ synced: totalSynced, results, ...(skipped.length ? { skipped } : {}) });
   } catch (error: any) {
     console.error('Activity sync error:', error);
-    return NextResponse.json({ error: error.message || 'Sync failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Sync failed' }, { status: 500 });
   }
 }
 
@@ -910,7 +910,8 @@ export async function PATCH(request: Request) {
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[api/garmin/sync-activities]', error);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
 
@@ -956,7 +957,8 @@ export async function PUT(request: Request) {
     };
     return NextResponse.json({ keys, relevant, raw: sample });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[api/garmin/sync-activities]', error);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
 
@@ -1020,6 +1022,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ activities: enriched });
   } catch (error: any) {
     console.error('Fetch activities error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch' }, { status: 500 });
   }
 }

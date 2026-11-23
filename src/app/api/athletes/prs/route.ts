@@ -124,7 +124,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ distanceBests, longestRun, bestMonth, totalRuns: runs.length });
   } catch (err: any) {
     console.error('PRs error:', err);
-    console.error('[api/athletes/prs]', err);
     return NextResponse.json({ error: 'Failed to compute PRs' }, { status: 500 });
   }
 }
@@ -196,7 +195,6 @@ export async function PUT(request: Request) {
     return NextResponse.json({ success: true, bucketKey, seconds, hidden });
   } catch (err: any) {
     console.error('PR override save error:', err);
-    console.error('[api/athletes/prs]', err);
     return NextResponse.json({ error: 'Failed to save' }, { status: 500 });
   }
 }
@@ -226,7 +224,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('PR override delete error:', err);
-    console.error('[api/athletes/prs]', err);
     return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
   }
 }

@@ -29,7 +29,6 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error('records/privacy error:', err);
-    console.error('[api/records/privacy]', err);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
