@@ -62,6 +62,10 @@ export const FEATURES = {
   native_mgmt_data_check: { label: 'בדיקת נתונים (אפליקציה)', defaultEnabled: false },
   /** Staff numbers: מדרגות במספרים + נפח הצוות (club-numbers, coach/volume). */
   native_mgmt_numbers: { label: 'מדרגות במספרים (אפליקציה)', defaultEnabled: false },
+  /** Native coach insights screen (staff). */
+  native_mgmt_coach_insights: { label: 'תובנות מאמן (אפליקציה)', defaultEnabled: false },
+  /** Native plan history screen (staff). */
+  native_mgmt_plan_history: { label: 'היסטוריית תוכניות (אפליקציה)', defaultEnabled: false },
   /** Native academy coach–trainee chat SEND (POST /api/academy/threads/messages). */
   academy_chat_send: { label: 'שליחה בצ׳אט אקדמיה (אפליקציה)', defaultEnabled: false },
   /** Native notification preferences screen (own categories). */
