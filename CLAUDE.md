@@ -558,6 +558,22 @@ default off). Three new readers of member data:
   that athlete, or the academy manager seat; any other coach is refused. Only a coach or the
   manager writes a race plan.
 
+Recorded exposure change, **2026-11-23** (App Store guideline 1.2, migration 203):
+`POST /api/moderation/report` and `/api/moderation/block` (GET/POST/DELETE). Both take
+identity from the JWT only (`resolveVerifiedCaller`); a body can name a *target*, never a
+reporter or blocker. A report stores **who reported whom**, so `content_reports` is
+service-role only, its staff read (`GET`/`PATCH` on the same route) is
+`requireStaffCaller`, and the reported author is **never** notified or shown anything: the
+push goes to `recipientsForKind('content_report')` (admin + coach by default; `notifyStaff`
+falls back to the staff list) and its copy names neither party. A block list is private
+to its owner and the blocked member is never told. Blocks are enforced server-side in
+`GET /api/feed` and `GET /api/feed/comments` (`blockedAuthorIds`, fails open while 203 is
+unapplied); the comment previews inside feed cards and the Stream run chat are NOT
+filtered server-side yet (the native client hides those locally). Every moderation route
+answers **503** while 203 is unapplied, which the client reads as "fall back to
+/api/feedback". If you add a field to a report response, it must never reach a non-staff
+caller. Pinned by `src/__tests__/moderationRoutes.test.ts`.
+
 ## The AI parser — the accuracy-critical path
 
 `src/lib/ai/parser.ts` + `prompt.ts`. Two tiers:
