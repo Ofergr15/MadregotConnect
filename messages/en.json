@@ -2099,6 +2099,7 @@
     "agoYears": "{n, plural, =1 {a year ago} other {# years ago}}",
     "prEnteredByHand": "Entered by hand",
     "prNone": "Not yet",
+    "prPaceHidden": "Hidden · chose to hide pace",
     "prOutdoorOnly": "Outdoor runs only, as the watch measured them. Treadmill runs don't count for a record.",
     "recBack": "Records",
     "recYours": "Your record",
