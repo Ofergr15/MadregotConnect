@@ -217,7 +217,7 @@ describe('row actions', () => {
         row({ id: '1', url: '/feed?activity=act-1' }),
         row({ id: '2', kind: 'training_before', url: '/dashboard?rsvp=2026-01-04:2' }),
       ]);
-      expect(targets).toEqual({ activityIds: ['act-1'], weekStarts: ['2026-01-04'] });
+      expect(targets).toEqual({ activityIds: ['act-1'], weekStarts: ['2026-01-04'], promptActivityIds: [] });
     });
 
     it('dedupes — a burst about one activity or one week is still one lookup', () => {
@@ -236,7 +236,7 @@ describe('row actions', () => {
         row({ id: '1', kind: 'like', url: '/feed/1' }),
         row({ id: '2', kind: 'survey', url: '/dashboard/surveys' }),
       ]);
-      expect(targets).toEqual({ activityIds: [], weekStarts: [] });
+      expect(targets).toEqual({ activityIds: [], weekStarts: [], promptActivityIds: [] });
     });
 
     it('accepts the legacy ?kudos= spelling still sitting in old rows', () => {

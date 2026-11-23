@@ -14,6 +14,8 @@ export interface RawItem {
   /** Prefetched row state — see applyRowActions. `undefined` = not prefetched. */
   kudosGiven?: boolean;
   rsvpAttending?: boolean | null;
+  /** post_workout_prompt only: the caller already has a workout_feedback row for that run. */
+  answered?: boolean;
   /** Sent to the whole club (audience "all") — a broadcast belongs on the club tab. */
   toAll?: boolean;
 }
@@ -218,16 +220,30 @@ export function rsvpKey(weekStart: string, day: number): string {
  * fetching the whole week (at most 7 rows per week) and matching the day in JS
  * beats one query per row.
  */
-export function rowActionTargets(items: RawItem[]): { activityIds: string[]; weekStarts: string[] } {
+/**
+ * The Garmin activity id a `post_workout_prompt` row asks about. post-workout.ts
+ * writes `/dashboard/feedback?activity=<garmin_activity_id>`; workout_feedback keys
+ * on that same numeric id, so anything non-numeric is not a run we can look up.
+ */
+export function promptActivityId(it: Pick<RawItem, 'kind' | 'url'>): string | null {
+  if (it.kind !== 'post_workout_prompt') return null;
+  const m = it.url.match(/[?&]activity=(\d+)(?:&|$)/);
+  return m ? m[1] : null;
+}
+
+export function rowActionTargets(items: RawItem[]): { activityIds: string[]; weekStarts: string[]; promptActivityIds: string[] } {
   const activityIds = new Set<string>();
   const weekStarts = new Set<string>();
+  const promptActivityIds = new Set<string>();
   for (const it of items) {
+    const promptId = promptActivityId(it);
+    if (promptId) promptActivityIds.add(promptId);
     const activityId = kudosActivityId(it);
     if (activityId) activityIds.add(activityId);
     const rsvp = rsvpTarget(it);
     if (rsvp) weekStarts.add(rsvp.weekStart);
   }
-  return { activityIds: [...activityIds], weekStarts: [...weekStarts] };
+  return { activityIds: [...activityIds], weekStarts: [...weekStarts], promptActivityIds: [...promptActivityIds] };
 }
 
 /**
@@ -243,10 +259,19 @@ export function rowActionTargets(items: RawItem[]): { activityIds: string[]; wee
  */
 export function applyRowActions(
   items: RawItem[],
-  lookups: { kudosGiven?: Set<string> | null; rsvpByKey?: Map<string, boolean> | null },
+  lookups: {
+    kudosGiven?: Set<string> | null;
+    rsvpByKey?: Map<string, boolean> | null;
+    /** Garmin activity ids the caller has feedback for. */
+    answeredIds?: Set<string> | null;
+  },
 ): RawItem[] {
-  const { kudosGiven, rsvpByKey } = lookups;
+  const { kudosGiven, rsvpByKey, answeredIds } = lookups;
   return items.map((it) => {
+    if (answeredIds) {
+      const promptId = promptActivityId(it);
+      if (promptId) return { ...it, answered: answeredIds.has(promptId) };
+    }
     if (kudosGiven) {
       const activityId = kudosActivityId(it);
       if (activityId) return { ...it, kudosGiven: kudosGiven.has(activityId) };
