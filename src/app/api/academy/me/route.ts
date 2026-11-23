@@ -375,6 +375,7 @@ export async function GET(request: Request) {
     return NextResponse.json(body);
   } catch (error: any) {
     console.error('Academy me error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to load academy view' }, { status: 500 });
+    console.error('[api/academy/me]', error);
+    return NextResponse.json({ error: 'Failed to load academy view' }, { status: 500 });
   }
 }

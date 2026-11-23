@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       .select('id, academy_coach_id')
       .eq('id', athleteId)
       .maybeSingle();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500, headers: NO_STORE });
+    if (error) { console.error('[api/academy/threads/read]', error); return NextResponse.json({ error: 'failed' }, { status: 500, headers: NO_STORE }); }
     if (!trainee) return NextResponse.json({ error: 'not found' }, { status: 404, headers: NO_STORE });
 
     const isSelf = caller.athleteId === trainee.id;

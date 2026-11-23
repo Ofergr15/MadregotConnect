@@ -30,10 +30,12 @@ export async function POST(request: Request) {
       if (isMissingColumn(error) || /relation .* does not exist|academy_trainee_reports/.test(error.message || '')) {
         return NextResponse.json({ error: 'migration_pending' }, { status: 503 });
       }
-      return NextResponse.json({ error: 'save failed', details: error.message }, { status: 500 });
+      console.error('[api/academy/self-report]', error);
+      return NextResponse.json({ error: 'save failed' }, { status: 500 });
     }
     return NextResponse.json({ ok: true });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'self-report failed' }, { status: 500 });
+    console.error('[api/academy/self-report]', error);
+    return NextResponse.json({ error: 'self-report failed' }, { status: 500 });
   }
 }

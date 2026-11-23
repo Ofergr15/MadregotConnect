@@ -34,6 +34,7 @@ export async function GET(request: Request) {
     return NextResponse.json(visible ? { ...report, athletes: report.athletes.filter(a => visible.has(a.athleteId)) } : report);
   } catch (error: any) {
     console.error('Academy adherence error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to compute adherence' }, { status: 500 });
+    console.error('[api/academy/adherence]', error);
+    return NextResponse.json({ error: 'Failed to compute adherence' }, { status: 500 });
   }
 }
