@@ -13,7 +13,8 @@ export const dynamic = 'force-dynamic';
  * "deletion driven by a body field" CLAUDE.md forbids). Routed through
  * `recipientsForKind('account_delete_request')` (admin by default, migration 193;
  * notifyStaff falls back to the hardcoded staff list while 193 is unapplied).
- * The admin carries it out with `select anonymise_athlete('<id>')`: the person's
+ * An admin carries it out with POST /api/admin/account-deletion (anonymise_athlete,
+ * migration 204, plus storage, Stream chat and the auth login): the person's
  * identity goes, their rows in coach and club stats stay, anonymised.
  *
  * GET  → { request: { status, createdAt } | null, migrated }
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
     if (unmigrated(existing.error)) return NextResponse.json({ error: 'account_deletion_requests not migrated yet (193)' }, { status: 503 });
     if (existing.data) return NextResponse.json({ request: shape(existing.data) });
     const { data, error } = await db.from('account_deletion_requests')
-      .insert({ athlete_id: c.athleteId, reason }).select('status, created_at').single();
+      .insert({ athlete_id: c.athleteId, reason, status: 'pending' }).select('status, created_at').single();
     if (error) throw error;
     const { data: who } = await db.from('athletes').select('name').eq('id', c.athleteId).maybeSingle();
     const name = (who as { name?: string } | null)?.name || 'רץ/ה';
