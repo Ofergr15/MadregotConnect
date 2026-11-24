@@ -69,7 +69,8 @@ export async function GET(request: Request) {
       // should render the workout with an empty form rather than an error banner —
       // reviewing is still possible, saving is what isn't.
       if (isMissingFeedbackTable(error)) return NextResponse.json({ feedback: date ? null : [], unmigrated: true });
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('[api/academy/feedback]', error);
+      return NextResponse.json({ error: 'failed' }, { status: 500 });
     }
 
     // Who wrote it, by name. The trainee's card is addressed — "המשוב שלך מיוסי" —
@@ -124,7 +125,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ feedback: rows[0] ?? null, traineeReport });
   } catch (error: any) {
     console.error('Academy feedback GET error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to read feedback' }, { status: 500 });
+    console.error('[api/academy/feedback]', error);
+    return NextResponse.json({ error: 'Failed to read feedback' }, { status: 500 });
   }
 }
 
@@ -161,7 +163,9 @@ export async function POST(request: Request) {
 
     const problems = validateFeedback(feedback);
     if (problems.length) {
-      return NextResponse.json({ error: problems[0].message, problems }, { status: 422 });
+      // Our own validation text (not a database error): the first problem, for the form.
+      const firstProblem = problems[0].message;
+      return NextResponse.json({ error: firstProblem, problems }, { status: 422 });
     }
 
     // Rendered HERE, not on the client: the point of the uniform form is that one
@@ -216,7 +220,8 @@ export async function POST(request: Request) {
           { status: 503 }
         );
       }
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('[api/academy/feedback]', error);
+      return NextResponse.json({ error: 'failed' }, { status: 500 });
     }
 
     // ── Deliver it ────────────────────────────────────────────────────────────
@@ -306,7 +311,8 @@ export async function POST(request: Request) {
     });
   } catch (error: any) {
     console.error('Academy feedback POST error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to save feedback' }, { status: 500 });
+    console.error('[api/academy/feedback]', error);
+    return NextResponse.json({ error: 'Failed to save feedback' }, { status: 500 });
   }
 }
 

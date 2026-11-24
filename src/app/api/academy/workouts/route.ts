@@ -59,12 +59,14 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error('Academy workouts POST error:', error);
-      return NextResponse.json({ error: 'Failed to save workout', details: error.message }, { status: 500 });
+      console.error('[api/academy/workouts]', error);
+      return NextResponse.json({ error: 'Failed to save workout' }, { status: 500 });
     }
     return NextResponse.json({ workout: data }, { status: 201 });
   } catch (error: any) {
     console.error('Academy workouts POST error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to save workout' }, { status: 500 });
+    console.error('[api/academy/workouts]', error);
+    return NextResponse.json({ error: 'Failed to save workout' }, { status: 500 });
   }
 }
 
@@ -91,6 +93,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Academy workouts DELETE error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to delete workout' }, { status: 500 });
+    console.error('[api/academy/workouts]', error);
+    return NextResponse.json({ error: 'Failed to delete workout' }, { status: 500 });
   }
 }

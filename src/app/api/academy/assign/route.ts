@@ -38,6 +38,7 @@ export async function POST(request: Request) {
     if (!result.ok) return NextResponse.json({ error: 'assign failed' }, { status: 500 });
     return NextResponse.json({ ...check, ok: true });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'assign failed' }, { status: 500 });
+    console.error('[api/academy/assign]', error);
+    return NextResponse.json({ error: 'assign failed' }, { status: 500 });
   }
 }

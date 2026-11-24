@@ -37,6 +37,7 @@ export async function GET(request: Request) {
     return NextResponse.json(payload);
   } catch (error: any) {
     console.error('academy hub failed', error);
-    return NextResponse.json({ error: error.message || 'academy hub failed' }, { status: 500 });
+    console.error('[api/academy/hub]', error);
+    return NextResponse.json({ error: 'academy hub failed' }, { status: 500 });
   }
 }

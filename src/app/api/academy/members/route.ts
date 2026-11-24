@@ -352,6 +352,7 @@ export async function GET(request: Request) {
     });
   } catch (error: any) {
     console.error('Academy members error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to load members' }, { status: 500 });
+    console.error('[api/academy/members]', error);
+    return NextResponse.json({ error: 'Failed to load members' }, { status: 500 });
   }
 }

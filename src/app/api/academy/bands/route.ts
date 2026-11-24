@@ -152,7 +152,8 @@ export async function PUT(request: Request) {
     });
   } catch (error: any) {
     console.error('Academy band assign error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to save' }, { status: 500 });
+    console.error('[api/academy/bands]', error);
+    return NextResponse.json({ error: 'Failed to save' }, { status: 500 });
   }
 }
 
@@ -234,6 +235,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ bandId, name: band.name, offsetSeconds: (profile.offsetSeconds as number | undefined) ?? null, description: (profile.description as string | undefined) ?? null });
   } catch (error: any) {
     console.error('Academy band pace update error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to save' }, { status: 500 });
+    console.error('[api/academy/bands]', error);
+    return NextResponse.json({ error: 'Failed to save' }, { status: 500 });
   }
 }

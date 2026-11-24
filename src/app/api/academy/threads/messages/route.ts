@@ -50,7 +50,7 @@ export async function GET(request: Request) {
       .select('id, name, is_academy, academy_coach_id')
       .eq('id', athleteId)
       .maybeSingle();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) { console.error('[api/academy/threads/messages]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
     if (!trainee) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
     const isSelf = caller.athleteId === trainee.id;
@@ -130,7 +130,7 @@ export async function POST(request: Request) {
       .select('id, name, is_academy, academy_coach_id')
       .eq('id', athleteId)
       .maybeSingle();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) { console.error('[api/academy/threads/messages]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
     if (!trainee) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
     // The same three-way gate as POST /api/academy/threads, deliberately repeated

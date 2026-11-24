@@ -50,7 +50,8 @@ export async function GET(request: Request) {
     // error is a real failure and says so, because silently sorting a queue wrong is
     // worse than not showing it.
     if (error && !isMissingFeedbackTable(error)) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('[api/academy/queue]', error);
+      return NextResponse.json({ error: 'failed' }, { status: 500 });
     }
     const unmigrated = !!error;
     const reviewed = new Set(
@@ -62,7 +63,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ ...buildQueue(report, reviewed, { today: israelToday(), flagged }), unmigrated });
   } catch (error: any) {
     console.error('Academy queue error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to build the queue' }, { status: 500 });
+    console.error('[api/academy/queue]', error);
+    return NextResponse.json({ error: 'Failed to build the queue' }, { status: 500 });
   }
 }
 

@@ -190,7 +190,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ result: data, pending: status === 'pending' }, { status: 201 });
   } catch (error: any) {
     console.error('Benchmarks POST error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to save result' }, { status: 500 });
+    console.error('[api/academy/benchmarks]', error);
+    return NextResponse.json({ error: 'Failed to save result' }, { status: 500 });
   }
 }
 
@@ -222,7 +223,8 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ result: data });
   } catch (error: any) {
     console.error('Benchmarks PATCH error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update result' }, { status: 500 });
+    console.error('[api/academy/benchmarks]', error);
+    return NextResponse.json({ error: 'Failed to update result' }, { status: 500 });
   }
 }
 
@@ -247,7 +249,8 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Benchmarks DELETE error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to delete result' }, { status: 500 });
+    console.error('[api/academy/benchmarks]', error);
+    return NextResponse.json({ error: 'Failed to delete result' }, { status: 500 });
   }
 }
 
