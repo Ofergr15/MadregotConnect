@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { getClubRecords } from '@/lib/prs/club-records-store';
 import { israelToday } from '@/lib/utils';
-import { clubRecordHistory, filterRecordTable, isOnTimeTable, type SexFilter } from '@/lib/records/board';
+import { clubRecordHistory, filterRecordTable, isOnTimeTable, paceHiddenRows, type SexFilter } from '@/lib/records/board';
 import { readRoster, officialActivityIds, benchmarkBests } from '@/lib/records/server';
 
 export const dynamic = 'force-dynamic';
@@ -32,7 +32,9 @@ export const maxDuration = 60;
 // default_hidden_fields hold `pace` (a record is a time over a distance, i.e. a
 // pace). `?sex=m|f&age=35–44&races=1` filter `tables`; `history` is the club
 // record over time per bucket (strictly faster breaks across the club); `b2000`
-// is the 2000 m benchmark. The unfiltered per-athlete breaks in the snapshot are
+// is the 2000 m benchmark. b23: pace-hiders come back into `tables` as name-only
+// rows (`seconds: null`, `paceHidden: true`, no rank, after the ranked rows); ranks
+// count visible runners only. `buckets`, `history` and `b2000` still drop them. The unfiltered per-athlete breaks in the snapshot are
 // never sent.
 export async function GET(request: Request) {
   try {
@@ -60,9 +62,17 @@ export async function GET(request: Request) {
     const buckets = snapshot.buckets.map((b) => ({ ...b, entries: b.entries.filter((e) => visible(e.athleteId)) }));
     const tables = Object.fromEntries(snapshot.buckets.map((b) => [b.key,
       filterRecordTable(b.entries, facts, isOfficial, { sex, age, racesOnly }).map(({ entry, rank, official: o, ageBand }) => ({
-        rank, athleteId: entry.athleteId, name: entry.name, gender: entry.gender, groupId: entry.groupId,
+        rank, athleteId: entry.athleteId, name: entry.name, avatarUrl: facts.get(entry.athleteId)?.avatarUrl ?? null, gender: entry.gender, groupId: entry.groupId,
         seconds: entry.seconds, date: entry.date, activityId: entry.activityId, official: o, ageBand,
-      })),
+      }) as Record<string, unknown>).concat(
+        // b23: pace-hiders as name-only rows, after every ranked row — see paceHiddenRows.
+        // Built from the roster, never from the entry, so no time/date/run can ride along.
+        paceHiddenRows(b.entries, facts, { sex, age, racesOnly }).map((h) => ({
+          rank: null, athleteId: h.athleteId, name: names.get(h.athleteId) ?? '',
+          avatarUrl: facts.get(h.athleteId)?.avatarUrl ?? null, gender: facts.get(h.athleteId)?.gender ?? null,
+          groupId: facts.get(h.athleteId)?.groupId ?? null, seconds: null, paceHidden: true,
+        })),
+      ),
     ]));
     const b2000 = filterRecordTable(bench.map((x) => ({ ...x, activityId: null })), facts, () => true, { sex, age })
       .map(({ entry, rank, ageBand }) => ({ rank, athleteId: entry.athleteId, name: names.get(entry.athleteId) ?? '', gender: facts.get(entry.athleteId)?.gender ?? null, seconds: entry.seconds, date: entry.date, official: true, ageBand }));
