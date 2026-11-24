@@ -14,6 +14,7 @@ const h = vi.hoisted(() => ({
   feed: { data: [] as unknown[], error: null as unknown },
   runnerAllowsHr: true,
   pending: false,
+  athlete: { data: null as unknown, error: null as unknown },
 }));
 
 vi.mock('@/lib/auth/self-or-staff', async (orig) => ({
@@ -54,7 +55,7 @@ vi.mock('@/lib/supabase/server', () => ({
       const b: any = {
         select: () => b, eq: () => b, neq: () => b, not: () => b, or: () => b, gte: () => b, lte: () => b, lt: () => b,
         in: () => b, limit: () => b, order: () => b, range: () => b,
-        maybeSingle: async () => ({ data: table === 'athlete_activities' ? { ...ROW, training_effect: { aerobic: 3.1 } } : null, error: null }),
+        maybeSingle: async () => (table === 'athletes' ? h.athlete : { data: table === 'athlete_activities' ? { ...ROW, training_effect: { aerobic: 3.1 } } : null, error: null }),
         then: (ok: any, bad: any) => Promise.resolve(table === 'feed_items' ? h.feed : { data: [], error: null }).then(ok, bad),
       };
       return b;
@@ -74,7 +75,7 @@ async function analysis() {
 }
 
 beforeEach(() => {
-  h.feed = { data: [], error: null }; h.runnerAllowsHr = true; h.pending = false;
+  h.feed = { data: [], error: null }; h.runnerAllowsHr = true; h.pending = false; h.athlete = { data: { default_hidden_fields: [] }, error: null };
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ hourly: {
     time: ['2026-11-19T06:00'], temperature_2m: [22], relative_humidity_2m: [70], dew_point_2m: [16], apparent_temperature: [23] } }), { status: 200 })));
 });
@@ -126,5 +127,30 @@ describe('activities/analysis — hidden stats', () => {
   it('pending runner still reads as 404 to a teammate (unchanged)', async () => {
     asTeammate(); h.pending = true;
     expect((await analysis()).status).toBe(404);
+  });
+});
+
+// 2026-11-23: a runner who hides pace in their settings hides their record TIMES from
+// teammates even on a run whose own pace they left visible (lib/records/pace-privacy.ts).
+describe('activities/analysis — record times of a pace-hider', () => {
+  const setting = (f: string[]) => { h.athlete = { data: { default_hidden_fields: f }, error: null }; };
+  it('teammate: records withheld and flagged; the run\'s own pace blocks stay', async () => {
+    asTeammate(); setting(['pace']);
+    const { body } = await analysis();
+    expect(body.prs).toEqual({});
+    expect(body.prsPaceHidden).toBe(true);
+    expect(body.workout).not.toBeNull();
+  });
+  it.each([['owner', asOwner], ['staff', asStaff]])('%s sees the records', async (_n, as) => {
+    as(); setting(['pace']);
+    expect((await analysis()).body.prs['5k']).toMatchObject({ seconds: 1150 });
+  });
+  it('teammate of a runner who does not hide pace sees the records', async () => {
+    asTeammate(); setting(['calories']);
+    expect((await analysis()).body.prs['5k']).toMatchObject({ seconds: 1150 });
+  });
+  it('a failed read of the setting withholds them', async () => {
+    asTeammate(); h.athlete = { data: null, error: { code: 'XX000' } };
+    expect((await analysis()).body.prs).toEqual({});
   });
 });

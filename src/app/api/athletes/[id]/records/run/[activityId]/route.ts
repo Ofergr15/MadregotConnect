@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { hiddenFromCaller } from '@/lib/athletes/test-accounts';
 import {
   computeDistanceBests, filterQualifyingRuns, PR_BUCKETS, UNMEASURED_RUN_TYPES, type RunActivityRow,
@@ -9,6 +9,7 @@ import { attachLapsForPrs } from '@/lib/prs/attach-laps';
 import { realBreaks, recordBreaks } from '@/lib/prs/record-history';
 import { ALL_BUCKETS, readPrExclusions, type PrExclusions } from '@/lib/prs/exclusions-store';
 import { fetchAllRows } from '@/lib/supabase/paginate';
+import { athleteHidesPace } from '@/lib/records/pace-privacy';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,10 +27,12 @@ export const dynamic = 'force-dynamic';
  */
 export interface RunRecord {
   bucket: string;
-  seconds: number;
+  seconds: number | null;
   current: boolean;
   /** The record without this run; null when nothing else qualifies. */
   instead: { seconds: number; date: string; activityId: string | null } | null;
+  /** Set when the time is withheld because the runner hides pace. */
+  paceHidden?: true;
 }
 
 export async function GET(
@@ -79,6 +82,14 @@ export async function GET(
         seconds: mine.seconds,
         current: bests.find(x => x.key === b.key)?.activityId === activityId,
         instead: alt?.seconds != null && alt.date ? { seconds: alt.seconds, date: alt.date, activityId: alt.activityId } : null,
+      });
+    }
+    // A teammate of a runner who hides pace gets the distances, never the times
+    // (2026-11-23, lib/records/pace-privacy.ts). Fails closed.
+    if (records.length && !mayActFor(caller, id) && await athleteHidesPace(supabase, id)) {
+      return NextResponse.json({
+        unmeasured, excludedFrom, paceHidden: true,
+        records: records.map((r) => ({ bucket: r.bucket, seconds: null, current: r.current, instead: null, paceHidden: true })),
       });
     }
     return NextResponse.json({ unmeasured, records, excludedFrom });

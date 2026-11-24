@@ -24,6 +24,7 @@ import { mayViewHrTrace, readHrTracePublic } from '@/lib/athletes/hr-trace-priva
 import { COACH_ID } from '@/lib/constants';
 import { paceGroupKeyFor } from '@/lib/plans/pace-group';
 import { fetchAllRows } from '@/lib/supabase/paginate';
+import { athleteHidesPace } from '@/lib/records/pace-privacy';
 import { computeDistanceBests, filterQualifyingRuns, type RunActivityRow } from '@/lib/prs/pr-buckets';
 import { attachLapsForPrs } from '@/lib/prs/attach-laps';
 import { applyPrOverrides } from '@/lib/prs/overrides';
@@ -181,7 +182,10 @@ async function handleGET(request: Request) {
     })();
     // "How much faster in other conditions" is for the runs where the pace is the point — a
     // quality session or a long run (Ofer, 2026-10-21) — not every easy jog.
-    const [, , cond] = await Promise.all([prsWork, similarWork, condRead]);
+    // The records this run is held against are the runner's record TIMES: hidden from a
+    // teammate when the runner hides pace at all (2026-11-23, lib/records/pace-privacy.ts).
+    const [, , cond, recordsHidden] = await Promise.all([prsWork, similarWork, condRead,
+      !selfOrStaff && wanted.length ? athleteHidesPace(supabase, row.athlete_id) : Promise.resolve(false)]);
     const hard = !workout && total < LONG_RUN_M && cond ? await plannedHard(supabase, row.id) : false;
     const paceMatters = !!workout || total >= LONG_RUN_M || hard;
     const pace = row.average_pace || (total ? (row.duration || 0) / (total / 1000) : 0);
@@ -201,7 +205,8 @@ async function handleGET(request: Request) {
       workout: shownWorkout,
       linked: extra,
       similar: hidePace ? [] : similar,
-      efforts: hidePace ? [] : efforts, prs: hidePace ? {} : prs,
+      efforts: hidePace ? [] : efforts, prs: hidePace || recordsHidden ? {} : prs,
+      ...(recordsHidden && !hidePace ? { prsPaceHidden: true } : {}),
       recovery: tr && workout ? recoveries(tr, workout) : [],
       technique: tr && workout ? technique(tr, workout) : [],
       conditions: cond ? { ...cond, costSec: hidePace ? null : workout ? heatCostSec(cond.tempC, cond.dewC, workout.avgPace) : heatCostSec(cond.tempC, cond.dewC, pace), calc: hidePace ? false : paceMatters } : null,

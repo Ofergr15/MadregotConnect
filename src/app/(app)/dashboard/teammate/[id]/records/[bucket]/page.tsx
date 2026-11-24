@@ -109,6 +109,19 @@ export default function RecordPage() {
   const breaks = stats?.prHistory?.[bucket] ?? [];
   const model = recordScreenModel(record ?? { seconds: null, date: null }, breaks);
 
+  // Withheld, not missing: the runner hides pace. Distance in the header, no time.
+  if (record?.paceHidden) {
+    return (
+      <div className="mx-auto max-w-lg space-y-3 pb-8">
+        {header}
+        <section className="rounded-card bg-card px-4 py-6 text-center">
+          <p className="text-sm font-bold text-ink-400">{t('recTheirs')}</p>
+          <p className="mt-2 text-lg font-extrabold text-ink-700">{t('prPaceHidden')}</p>
+        </section>
+      </div>
+    );
+  }
+
   if (!record || model.empty) {
     return (
       <div className="mx-auto max-w-lg space-y-3 pb-8">

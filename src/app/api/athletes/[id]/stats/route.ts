@@ -9,6 +9,7 @@ import { applyPrOverrides } from '@/lib/prs/overrides';
 import { readPrOverrides } from '@/lib/prs/overrides-store';
 import { readPrExclusions, excludedRunsByBucket } from '@/lib/prs/exclusions-store';
 import { computeRecordHistory, yearBests } from '@/lib/prs/record-history';
+import { athleteHidesPace, maskRecordTime } from '@/lib/records/pace-privacy';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 import {
   buildAllTimeTotals,
@@ -235,6 +236,11 @@ export async function GET(
     const prHistory = Object.fromEntries(
       prs.map((p) => [p.key, p.seconds == null ? [] : history[p.key] || []]),
     );
+    // A runner who hides pace (default_hidden_fields ∋ 'pace') hides their record times
+    // from teammates and from their own `?as=member` preview: a record is pace at a
+    // coarser grain (2026-11-23). Fails closed — lib/records/pace-privacy.ts.
+    const recordsHidden = masked && await athleteHidesPace(supabase, id);
+    const prYearBests = yearBests(prRuns, prYear, prExclusions);
 
     return NextResponse.json({
       ...buildAllTimeTotals(acts),
@@ -276,13 +282,14 @@ export async function GET(
       recentRuns,
       // Same bucket math as /api/athletes/prs and the badge award engine, so a
       // PR shown here is the one a "first 10K" badge fired on.
-      prs,
-      prHistory,
+      prs: recordsHidden ? prs.map(maskRecordTime) : prs,
+      prHistory: recordsHidden ? Object.fromEntries(prs.map((p) => [p.key, []])) : prHistory,
+      ...(recordsHidden ? { prsPaceHidden: true } : {}),
       // "This year: 37:55" beside an older record, cut on Israel's calendar year.
       prYear,
-      prYearBests: yearBests(prRuns, prYear, prExclusions),
+      prYearBests: recordsHidden ? Object.fromEntries(Object.keys(prYearBests).map((k) => [k, null])) : prYearBests,
       // The runs taken out, per distance, so the record screen can put them back.
-      prExcluded: excludedRunsByBucket(acts, prExclusions),
+      prExcluded: recordsHidden ? {} : excludedRunsByBucket(acts, prExclusions),
     });
   } catch (error) {
     console.error('Failed to fetch athlete profile stats:', error);
