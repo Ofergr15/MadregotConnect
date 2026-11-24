@@ -46,7 +46,7 @@ describe('stats hidden pace / calories', () => {
 
   it('a teammate gets null pace and no calories for the hidden run, real pace for the visible one', async () => {
     const b = await call();
-    expect(run(b, 'hid')).toMatchObject({ paceSecPerKm: null, paceHidden: true, km: 10, durationSec: 3000 });
+    expect(run(b, 'hid')).toMatchObject({ paceSecPerKm: null, paceHidden: true, km: 10, durationSec: null });
     expect(run(b, 'vis').paceSecPerKm).toBe(300);
     expect(run(b, 'vis').paceHidden).toBeUndefined();
     expect(b.last7.calories).toBe(300);
@@ -75,5 +75,28 @@ describe('stats hidden pace / calories', () => {
     expect(run(b, 'hid').paceSecPerKm).toBeNull();
     expect(run(b, 'vis').paceSecPerKm).toBeNull();
     expect(b.last7.calories).toBe(0);
+  });
+
+  it('Q24-2: hidden pace is not derivable from weeks, last7 or planWeek; km totals stay', async () => {
+    const b = await call();
+    const cur = b.weeks[b.weeks.length - 1];
+    expect(cur.km).toBe(15);
+    expect(cur.paceSecPerKm).toBe(300); // visible run only; last7 time below proves the exclusion
+    expect(b.last7.km).toBe(15);
+    expect(b.last7.seconds).toBe(1500);
+    expect(b.last7.paceSeconds).toBe(300);
+    const day = b.last7.days.find((d: any) => d.date === today);
+    expect(day).toMatchObject({ km: 15, seconds: 1500, paceHidden: true });
+    const pw = [...b.planWeek.dayRuns, ...b.planWeek.lastDayRuns].flat();
+    for (const r of pw) if (r.id === 'hid') expect(r.seconds).toBeNull();
+    expect(JSON.stringify(b.last7)).not.toContain('3000');
+  });
+
+  it('Q24-2: the owner keeps the hidden run in every pace aggregate', async () => {
+    caller = { ...caller, athleteId: ME };
+    const b = await call();
+    expect(run(b, 'hid').durationSec).toBe(3000);
+    expect(b.last7.seconds).toBe(4500);
+    expect(b.last7.paceHidden).toBeUndefined();
   });
 });

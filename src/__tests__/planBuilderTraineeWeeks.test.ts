@@ -307,6 +307,15 @@ describe('writeIndividualWeek (academy day-plan / copy-week)', () => {
     expect(tables.weekly_plan_versions).toEqual([]);
   });
 
+  it('a re-price that keeps the row status records no version and leaves a scheduled publish scheduled', async () => {
+    tables.weekly_plans.push({ id: 'p1', coach_id: (await import('@/lib/constants')).COACH_ID, athlete_id: MAYA, week_start_date: W, status: 'draft', parsed_workouts: body('old'), created_at: 'a' });
+    tables.weekly_plan_versions.push(ver({ id: 'm1', athlete_id: MAYA }), ver({ id: 'm2', athlete_id: MAYA, version: 2, state: 'scheduled', publish_at: '2026-11-21T10:00:00Z', body: body('next') }));
+    const r = await S.writeIndividualWeek(db, { athleteId: MAYA, weekStart: W, parsed: body('repriced'), status: 'published', setStatusOnUpdate: false });
+    expect(r).toEqual({ planId: 'p1', error: null });
+    expect(plans(MAYA)[0]).toMatchObject({ status: 'draft', parsed_workouts: body('repriced') });
+    expect(versions(MAYA).map((v) => [v.id, v.state])).toEqual([['m1', 'published'], ['m2', 'scheduled']]);
+  });
+
   it('refuses an empty athlete id rather than writing the group row', async () => {
     const r = await S.writeIndividualWeek(db, { athleteId: '', weekStart: W, parsed: body('day'), status: 'published' });
     expect(r.planId).toBeNull();
@@ -475,5 +484,38 @@ describe('follow-up review fixes', () => {
       await S.writeIndividualWeek(db, { athleteId: MAYA, weekStart: W, parsed: body('day'), status: 'published' });
     } finally { db.from = realFrom; }
     expect(versions(MAYA).map((v) => [v.version, v.state]).sort()).toEqual([[1, 'draft'], [2, 'published']]);
+  });
+});
+
+// ── Night queue #62 / #64 ────────────────────────────────────────────────────
+describe('legacy group row + stale-lock takeover', () => {
+  it('#62: two group rows for one week (old race) no longer 500 — the newest of this coach is updated', async () => {
+    const { COACH_ID } = await import('@/lib/constants');
+    tables.weekly_plans.push(
+      { id: 'old', coach_id: COACH_ID, week_start_date: W, athlete_id: null, created_at: '2026-11-01T00:00:00Z', parsed_workouts: {} },
+      { id: 'new', coach_id: COACH_ID, week_start_date: W, athlete_id: null, created_at: '2026-11-02T00:00:00Z', parsed_workouts: {} },
+      { id: 'other-coach', coach_id: 'someone-else', week_start_date: W, athlete_id: null, created_at: '2026-11-03T00:00:00Z', parsed_workouts: {} },
+    );
+    const v = ver({ state: 'draft' });
+    tables.weekly_plan_versions.push(v);
+    await S.publishVersion(db, v as any, { notify: false } as any, 'c1');
+    expect(plans(null)).toHaveLength(3);                                   // nothing inserted
+    expect(tables.weekly_plans.find((p) => p.id === 'new')?.status).toBe('published');
+    expect(tables.weekly_plans.find((p) => p.id === 'other-coach')?.status).toBeUndefined();
+  });
+
+  it('#64: two coaches taking the same stale lock at once — exactly one is told ok', async () => {
+    tables.plan_edit_locks.push({ week_start: W, athlete_id: null, editor_id: 'gone', editor_name: 'Gone', heartbeat_at: '2026-01-01T00:00:00Z' });
+    const [a, b] = await Promise.all([S.takeLock(db, W, 'c1', 'Coach1'), S.takeLock(db, W, 'c2', 'Coach2')]);
+    expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1);
+    const winner = a.ok ? 'c1' : 'c2';
+    expect(tables.plan_edit_locks).toHaveLength(1);
+    expect(tables.plan_edit_locks[0].editor_id).toBe(winner);
+    expect((a.ok ? b : a).lock.state).toBe('other');
+  });
+
+  it('#64: refreshing my own live lock still works', async () => {
+    expect((await S.takeLock(db, W, 'c1', 'Coach1')).ok).toBe(true);
+    expect((await S.takeLock(db, W, 'c1', 'Coach1')).ok).toBe(true);
   });
 });

@@ -28,6 +28,8 @@ export interface RunAnalysisData {
   similar: Array<{ id: string; date: string; title: string; avgPace: number }>;
   efforts: Array<{ key: string; meters: number; seconds: number; start: number; rep: number | null }>;
   prs: Record<string, { seconds: number; date: string | null } | null>;
+  /** The runner hides pace from this viewer: `prs` is empty because withheld, not because there are none. */
+  prsPaceHidden?: boolean;
   recovery: Array<{ rep: number; from: number; to: number }>;
   /** `stride` may be null/absent (e.g. withheld because it would reveal hidden pace): the chart then shows cadence alone. */
   technique: Array<{ rep: number; cadence: number; stride?: number | null }>;
@@ -568,6 +570,7 @@ export function PaceHrScatter({ view, bands }: { view: StreamView; bands: Array<
 
 export function BestEfforts({ a }: { a: RunAnalysisData }) {
   const t = useTranslations('runAnalysis');
+  const tp = useTranslations('profile');
   if (!a.efforts.length) return null;
   return (
     <Card title={t('fastest')} sub={t('fastestSub')}>
@@ -582,6 +585,7 @@ export function BestEfforts({ a }: { a: RunAnalysisData }) {
             <span className="ms-auto text-[11.5px] font-bold">
               {isPr ? <span className="text-[#B45309]">🏆 {t('newPr')}</span>
                 : pr ? <span className="text-ink-400">{t('prIs', { time: clock(pr.seconds) })}</span>
+                  : a.prsPaceHidden ? <span className="text-ink-500" data-testid="pr-pace-hidden">{tp('prPaceHidden')}</span>
                   : e.rep ? <span className="text-brand-600">{t('inRep', { n: e.rep })}</span> : null}
             </span>
           </div>

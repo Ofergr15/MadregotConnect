@@ -76,6 +76,8 @@ interface RecentRun {
 
 export interface Pr {
   key: string;
+  /** Time withheld: the runner hides pace (lib/records/pace-privacy.ts). */
+  paceHidden?: boolean;
   label: string;
   meters?: number;
   seconds: number | null;
@@ -566,7 +568,7 @@ export function PrSection({ athleteId, prs, history, year, yearBests, ranks, onE
   const t = useTranslations('profile');
   const tc = useTranslations('common');
   const tRecords = useTranslations('records');
-  const achievedPrs = prs.filter((p) => p.seconds != null);
+  const achievedPrs = prs.filter((p) => p.seconds != null || p.paceHidden);
   return (
     <>
               {/* The owner sees this section even with nothing in it: the records are

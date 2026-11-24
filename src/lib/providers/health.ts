@@ -90,7 +90,9 @@ export function looksLikeAuthFailure(error: unknown): boolean {
   const status = (error as { status?: number; statusCode?: number } | null)?.status
     ?? (error as { statusCode?: number } | null)?.statusCode;
   if (status === 401 || status === 403) return true;
-  return /\b401\b|\b403\b|unauthor|forbidden|invalid[_ ]grant|invalid[_ ]token|token.*(expired|invalid)|expired.*token|re-?auth|login required/i
+  // `client[_ ]?authori[sz]ation`: Garmin's OAuth answer for a credential it no longer accepts
+  // ("ClientAuthorization…", night queue #66) — it read as a plain failure, so the athlete was never told.
+  return /\b401\b|\b403\b|unauthor|forbidden|invalid[_ ]grant|invalid[_ ]token|token.*(expired|invalid)|expired.*token|re-?auth|login required|client[_ ]?authori[sz]ation/i
     .test(message);
 }
 

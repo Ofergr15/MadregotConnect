@@ -36,10 +36,10 @@ async function withRowActions(
   athleteId: string,
   items: RawItem[],
 ): Promise<RawItem[]> {
-  const { activityIds, weekStarts } = rowActionTargets(items);
-  if (activityIds.length === 0 && weekStarts.length === 0) return items;
+  const { activityIds, weekStarts, promptActivityIds } = rowActionTargets(items);
+  if (activityIds.length === 0 && weekStarts.length === 0 && promptActivityIds.length === 0) return items;
 
-  const [kudosGiven, rsvps] = await Promise.all([
+  const [kudosGiven, rsvps, feedback] = await Promise.all([
     // Kudos live in `feed_likes`, keyed by feed item — this resolves them back
     // to the activity ids the inbox rows are keyed on.
     activityIds.length ? likedActivityIds(supabase, athleteId, activityIds) : null,
@@ -51,7 +51,25 @@ async function withRowActions(
           .in('week_start_date', weekStarts)
           .returns<{ week_start_date: string; day_of_week: number; attending: boolean }[]>()
       : null,
+    // "Answered" exactly as GET /api/workout-feedback decides it: this athlete has a
+    // workout_feedback row for that garmin_activity_id. Scoped to the inbox owner
+    // only, so nothing about anyone else's feedback enters the response.
+    promptActivityIds.length
+      ? Promise.resolve(
+          supabase
+            .from('workout_feedback')
+            .select('garmin_activity_id')
+            .eq('athlete_id', athleteId)
+            .in('garmin_activity_id', promptActivityIds.map(Number))
+            .returns<{ garmin_activity_id: number | string }[]>(),
+        ).catch(() => null)
+      : null,
   ]);
+
+  let answeredIds: Set<string> | null = null;
+  if (feedback && !feedback.error) {
+    answeredIds = new Set((feedback.data || []).map((r) => String(r.garmin_activity_id)));
+  }
 
   let rsvpByKey: Map<string, boolean> | null = null;
   if (rsvps && !rsvps.error) {
@@ -60,7 +78,7 @@ async function withRowActions(
     );
   }
 
-  return applyRowActions(items, { kudosGiven, rsvpByKey });
+  return applyRowActions(items, { kudosGiven, rsvpByKey, answeredIds });
 }
 
 type ClubPost = { id: string; body: string | null; occurred_at: string; group_id: string | null };

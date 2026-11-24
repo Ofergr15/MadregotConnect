@@ -4,9 +4,13 @@ import { COACH_ID } from '@/lib/constants';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 import { reconcileClubFollows } from '@/lib/follows/club-sync';
 import { cronPaused } from '@/lib/cron-pause';
+import { inBatches } from '@/lib/badges/batches';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 300;
+
+/** Night queue #60: athletes evaluated at once. The serial loop ran past 60 s on the full roster. */
+const SWEEP_CONCURRENCY = 6;
 
 // Daily badge sweep — the ONLY rule_type this cron evaluates is
 // attendance_perfect_month (059_badges.sql): unlike pr_bucket/
@@ -49,19 +53,19 @@ async function run(request: Request) {
 
   let checked = 0;
   const awarded: Array<{ athleteId: string; badges: string[] }> = [];
-  for (const athlete of athletes || []) {
+  await inBatches((athletes || []).map((a) => a.id as string), SWEEP_CONCURRENCY, async (athleteId) => {
     checked++;
     try {
-      const { awarded: newBadges } = await checkAndAwardBadges(athlete.id, {
+      const { awarded: newBadges } = await checkAndAwardBadges(athleteId, {
         ruleTypes: ['attendance_perfect_month'],
       });
       if (newBadges.length > 0) {
-        awarded.push({ athleteId: athlete.id, badges: newBadges.map((b) => b.code) });
+        awarded.push({ athleteId, badges: newBadges.map((b) => b.code) });
       }
     } catch {
       // One athlete's evaluation failing must not stop the sweep.
     }
-  }
+  });
 
   return NextResponse.json({ ok: true, checked, awarded, follows });
 }

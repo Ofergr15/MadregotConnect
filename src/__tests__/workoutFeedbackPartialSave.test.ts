@@ -70,3 +70,31 @@ describe('a one-field save', () => {
     expect(notifyStaff).not.toHaveBeenCalled();
   });
 });
+
+describe('night queue #63: the previous answer cannot be read', () => {
+  const failOnce = (code: string) => {
+    const real = db.client.from.bind(db.client);
+    let armed = true;
+    (db.client as any).from = (t: string) => {
+      if (t !== 'workout_feedback' || !armed) return real(t);
+      armed = false;
+      const q: any = { select: () => q, eq: () => q, maybeSingle: async () => ({ data: null, error: { code, message: 'boom' } }) };
+      return q;
+    };
+  };
+  it('answers 500 and writes nothing — no nulled fields, no second pain alert', async () => {
+    await post({ feel: 2, difficulty: 7, pain: true, comment: 'hard' });
+    notifyAthlete.mockClear(); notifyStaff.mockClear();
+    failOnce('XX000');
+    const res = await post({ feel: 4 });
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).not.toMatch(/boom/);              // a fixed message, not the DB text
+    expect(db.tables.workout_feedback[0]).toMatchObject({ feel: 2, difficulty: 7, pain: true, comment: 'hard' });
+    expect(notifyStaff).not.toHaveBeenCalled();
+    expect(notifyAthlete).not.toHaveBeenCalled();
+  });
+  it('a missing column (pre-migration DB) still saves, as before', async () => {
+    failOnce('42703');
+    expect((await post({ feel: 3 })).status).toBe(200);
+  });
+});

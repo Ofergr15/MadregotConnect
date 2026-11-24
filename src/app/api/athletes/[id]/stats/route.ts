@@ -9,6 +9,7 @@ import { applyPrOverrides } from '@/lib/prs/overrides';
 import { readPrOverrides } from '@/lib/prs/overrides-store';
 import { readPrExclusions, excludedRunsByBucket } from '@/lib/prs/exclusions-store';
 import { computeRecordHistory, yearBests } from '@/lib/prs/record-history';
+import { athleteHidesPace, maskRecordTime } from '@/lib/records/pace-privacy';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 import {
   buildAllTimeTotals,
@@ -127,6 +128,7 @@ export async function GET(
     const currentWeekStart = weekStartOn(anchor, startDay);
 
     const weekTable = buildKmTable(acts, { limit: weeks, currentWeekStart, startDay });
+    const planWeekRaw = buildPlanWeek(acts, israelWallNow());
 
     // Laps are pulled separately and only for the runs long enough to hold a PR
     // segment — see attach-laps.ts for why they don't ride along with the select
@@ -157,35 +159,88 @@ export async function GET(
     const last7Raw = buildLast7Report(acts, israelToday());
     const hiddenById = new Map<string, Set<MaskedStat>>();
     if (masked) {
+      // Every run whose time reaches this payload in any form: the recent list, the seven
+      // days, the weekly table's window (its pace column) and the plan week's day runs —
+      // a run hidden on one card must not have its pace derivable from another (Q24-2).
+      const tableFrom = weekTable[0]?.weekStart ?? '';
       const ids = [...new Set([
         ...recentRaw.map((r) => r.id),
         ...last7Raw.days.flatMap((d) => d.activities.map((a) => a.id)),
+        ...acts.filter((a) => a.start_time.slice(0, 10) >= tableFrom).map((a) => a.id),
+        ...[...planWeekRaw.dayRuns, ...planWeekRaw.lastDayRuns].flat().map((r) => r.id),
       ].filter((x): x is string => !!x))];
       if (ids.length) {
         const all = () => { for (const i of ids) hiddenById.set(i, new Set(MASKED_STATS)); };
         try {
-          const { data, error } = await supabase.from('feed_items').select('activity_id, payload').in('activity_id', ids);
-          if (error) all();
-          else for (const f of (data || []) as Array<{ activity_id: string; payload?: { hiddenFields?: unknown } | null }>) {
-            const h = parseHiddenStats(f.payload?.hiddenFields);
-            if (h.size) hiddenById.set(f.activity_id, h);
+          // Chunked: the window can hold a few hundred ids and `.in()` rides the URL.
+          for (let i = 0; i < ids.length; i += 150) {
+            const { data, error } = await supabase.from('feed_items').select('activity_id, payload').in('activity_id', ids.slice(i, i + 150));
+            if (error) { all(); break; }
+            for (const f of (data || []) as Array<{ activity_id: string; payload?: { hiddenFields?: unknown } | null }>) {
+              const h = parseHiddenStats(f.payload?.hiddenFields);
+              if (h.size) hiddenById.set(f.activity_id, h);
+            }
           }
         } catch { all(); }
       }
     }
     const isHidden = (rid: string | null | undefined, k: MaskedStat) => !!rid && !!hiddenById.get(rid)?.has(k);
+    // Hidden pace (#77 rule, Q24-2): the pace must not be derivable either, so the run's
+    // time goes too (km ÷ time IS the pace), and it drops out of every pace aggregate.
+    // Its km stays in every km total.
+    const paceHidden = (rid: string | null | undefined) => masked && isHidden(rid, 'pace');
+    const anyPaceHidden = masked && acts.some((a) => paceHidden(a.id));
     const recentRuns = recentRaw.map((r) =>
-      isHidden(r.id, 'pace') ? { ...r, paceSecPerKm: null, paceHidden: true } : r,
+      paceHidden(r.id) ? { ...r, paceSecPerKm: null, durationSec: null, paceHidden: true } : r,
     );
+    const paceActs = anyPaceHidden ? acts.filter((a) => !paceHidden(a.id)) : acts;
+    const weeksOut = anyPaceHidden
+      ? (() => {
+          const visible = buildKmTable(paceActs, { limit: weeks, currentWeekStart, startDay });
+          return weekTable.map((w, i) => ({ ...w, paceSecPerKm: visible[i]?.paceSecPerKm ?? null }));
+        })()
+      : weekTable;
+    const planWeekOut = anyPaceHidden
+      ? (() => {
+          const strip = (list: typeof planWeekRaw.dayRuns) =>
+            list.map((day) => day.map((r) => (paceHidden(r.id) ? { ...r, seconds: null, paceHidden: true } : r)));
+          const dayRuns = strip(planWeekRaw.dayRuns);
+          const seconds = dayRuns.flat().reduce((t, r) => t + (r.seconds ?? 0), 0);
+          return { ...planWeekRaw, dayRuns, lastDayRuns: strip(planWeekRaw.lastDayRuns), seconds };
+        })()
+      : planWeekRaw;
     const caloriesHidden = masked && acts.some((a) => isHidden(a.id, 'calories'));
-    const last7Base = caloriesHidden
-      ? buildLast7Report(acts.map((a) => (isHidden(a.id, 'calories') ? { ...a, calories: null } : a)), israelToday())
-      : last7Raw;
-    const last7Out = caloriesHidden ? { ...last7Base, caloriesHidden: true } : last7Base;
+    const reportActs = caloriesHidden
+      ? acts.map((a) => (isHidden(a.id, 'calories') ? { ...a, calories: null } : a))
+      : acts;
+    let last7Base = caloriesHidden || anyPaceHidden ? buildLast7Report(reportActs, israelToday()) : last7Raw;
+    if (anyPaceHidden) {
+      // Time and pace from the visible runs only; km, runs and the rest from all of them.
+      const visible = buildLast7Report(reportActs.filter((a) => !paceHidden(a.id)), israelToday());
+      last7Base = {
+        ...last7Base,
+        seconds: visible.seconds,
+        paceSeconds: visible.paceSeconds,
+        days: last7Base.days.map((d, i) => {
+          const hid = d.activities.some((a) => paceHidden(a.id));
+          return hid ? { ...d, seconds: visible.days[i].seconds, paceHidden: true } : d;
+        }),
+      };
+    }
+    const last7Out = {
+      ...last7Base,
+      ...(caloriesHidden ? { caloriesHidden: true } : {}),
+      ...(anyPaceHidden ? { paceHidden: true } : {}),
+    };
     const history = computeRecordHistory(prRuns, prExclusions);
     const prHistory = Object.fromEntries(
       prs.map((p) => [p.key, p.seconds == null ? [] : history[p.key] || []]),
     );
+    // A runner who hides pace (default_hidden_fields ∋ 'pace') hides their record times
+    // from teammates and from their own `?as=member` preview: a record is pace at a
+    // coarser grain (2026-11-23). Fails closed — lib/records/pace-privacy.ts.
+    const recordsHidden = masked && await athleteHidesPace(supabase, id);
+    const prYearBests = yearBests(prRuns, prYear, prExclusions);
 
     return NextResponse.json({
       ...buildAllTimeTotals(acts),
@@ -199,14 +254,14 @@ export async function GET(
       // reconcile is the original complaint; two legal windows with no label on
       // either would just move it.
       weekStartDay: startDay,
-      thisWeek: pickWeek(weekTable, currentWeekStart),
+      thisWeek: pickWeek(weeksOut, currentWeekStart),
       // This week so far against the same slice of last week — not against last
       // week's total, which reads as a collapse every Monday.
       weekTrendPct: computeLikeForLikeTrend(acts, anchor, startDay),
-      weeks: weekTable,
+      weeks: weeksOut,
       // "השבוע שלי": the plan week (Sunday) by day, last week to this same minute, and
       // ten such weeks — one window for the whole card (lib/athletes/plan-week.ts).
-      planWeek: buildPlanWeek(acts, israelWallNow()),
+      planWeek: planWeekOut,
       // Last night's sleep and resting HR, for the home's strip — the athlete's own only
       // (health data, #69), and only a night the watch actually reported (today's date).
       lastNight: (() => {
@@ -227,13 +282,14 @@ export async function GET(
       recentRuns,
       // Same bucket math as /api/athletes/prs and the badge award engine, so a
       // PR shown here is the one a "first 10K" badge fired on.
-      prs,
-      prHistory,
+      prs: recordsHidden ? prs.map(maskRecordTime) : prs,
+      prHistory: recordsHidden ? Object.fromEntries(prs.map((p) => [p.key, []])) : prHistory,
+      ...(recordsHidden ? { prsPaceHidden: true } : {}),
       // "This year: 37:55" beside an older record, cut on Israel's calendar year.
       prYear,
-      prYearBests: yearBests(prRuns, prYear, prExclusions),
+      prYearBests: recordsHidden ? Object.fromEntries(Object.keys(prYearBests).map((k) => [k, null])) : prYearBests,
       // The runs taken out, per distance, so the record screen can put them back.
-      prExcluded: excludedRunsByBucket(acts, prExclusions),
+      prExcluded: recordsHidden ? {} : excludedRunsByBucket(acts, prExclusions),
     });
   } catch (error) {
     console.error('Failed to fetch athlete profile stats:', error);

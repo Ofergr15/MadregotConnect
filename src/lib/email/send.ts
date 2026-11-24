@@ -144,6 +144,17 @@ async function writeLog(row: Record<string, unknown>): Promise<string | null> {
   }
 }
 
+/**
+ * What `email_log.subject` stores (night queue #68). The login mail's subject IS the code ("123456 הוא קוד
+ * הכניסה…"), and a live code in a staff-readable table is a sign-in for anyone who reads the row within its
+ * lifetime. The subject that is SENT is unchanged; only the log copy is masked. Every other template is
+ * logged as is — staff rely on the subject to recognise a mail.
+ */
+export function loggedSubject(template: string, subject: string): string {
+  if (template !== 'login_code') return subject;
+  return subject.replace(/\d{4,8}/g, '••••••');
+}
+
 export async function sendEmail(msg: OutboundEmail): Promise<SendResult> {
   const cfg = readEmailConfig();
   const from = senderWithName(cfg.from, msg.fromName);
@@ -154,7 +165,7 @@ export async function sendEmail(msg: OutboundEmail): Promise<SendResult> {
   const base = {
     template: msg.template,
     recipients: to,
-    subject: msg.subject,
+    subject: loggedSubject(msg.template, msg.subject),
     from_address: from,
     athlete_id: msg.athleteId ?? null,
     signup_request_id: msg.signupRequestId ?? null,

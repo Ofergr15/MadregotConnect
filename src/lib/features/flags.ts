@@ -62,6 +62,20 @@ export const FEATURES = {
   native_mgmt_data_check: { label: 'בדיקת נתונים (אפליקציה)', defaultEnabled: false },
   /** Staff numbers: מדרגות במספרים + נפח הצוות (club-numbers, coach/volume). */
   native_mgmt_numbers: { label: 'מדרגות במספרים (אפליקציה)', defaultEnabled: false },
+  /** Native coach insights screen (staff). */
+  native_mgmt_coach_insights: { label: 'תובנות מאמן (אפליקציה)', defaultEnabled: false },
+  /** Native plan history screen (staff). */
+  native_mgmt_plan_history: { label: 'היסטוריית תוכניות (אפליקציה)', defaultEnabled: false },
+  /** Native new-record celebration sheet. */
+  new_record_sheet: { label: 'מסך שיא חדש (אפליקציה)', defaultEnabled: false },
+  /** Native wellness strip on home. */
+  wellness_strip: { label: 'פס בריאות (אפליקציה)', defaultEnabled: false },
+  /** Native birthday year-in-review card. */
+  birthday_year_card: { label: 'כרטיס שנה ביום הולדת (אפליקציה)', defaultEnabled: false },
+  /** Native Apple Health data-source row. */
+  apple_health: { label: 'Apple Health (אפליקציה)', defaultEnabled: false },
+  /** Native academy pack (trainee home, self-report, coach-thread send). */
+  academy_pack: { label: 'חבילת אקדמיה (אפליקציה)', defaultEnabled: false },
   /** Native academy coach–trainee chat SEND (POST /api/academy/threads/messages). */
   academy_chat_send: { label: 'שליחה בצ׳אט אקדמיה (אפליקציה)', defaultEnabled: false },
   /** Native notification preferences screen (own categories). */
@@ -131,6 +145,10 @@ export const FEATURES = {
   native_review: { label: 'סקירה (אפליקציה, מתאמן)', defaultEnabled: false },
   /** "שלח שוב לשעון": a runner re-sends their own day's workout (POST /api/me/watch/resend). */
   native_resend_workout: { label: 'שליחה חוזרת לשעון (אפליקציה)', defaultEnabled: false },
+  /** b22 run detail v2: short overview + charts/laps/more tabs, full plan-vs-actual, similar-workouts comparison (ios Features/RunDetail/V2). */
+  run_detail_v2: { label: 'פרטי ריצה — עיצוב חדש (אפליקציה)', defaultEnabled: false },
+  /** b22 native onboarding after approval: welcome, setup checklist, resume card, paused / viewer gates (ios Onboarding). */
+  native_onboarding_setup: { label: 'הצטרפות — צ׳קליסט הגדרה (אפליקציה)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;

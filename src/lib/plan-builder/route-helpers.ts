@@ -6,7 +6,15 @@ import { MigrationPending } from './server';
 /** Every plan-builder route: JWT-verified staff caller (BUILD-BRIEF item 8). */
 export async function staff(req: Request) {
   const { denied, caller } = await requireStaffCaller(req);
-  return { denied, me: caller.athleteId || caller.email, caller };
+  if (denied) return { denied, me: '', caller };
+  // Night queue #65: `me` is written to UUID columns (plan_edit_locks.editor_id, published_by, created_by).
+  // A staff caller with no athletes row used to fall back to their email and fail there with a 500.
+  if (!caller?.athleteId) return { denied: noAthlete(), me: '', caller };
+  return { denied: null, me: caller.athleteId as string, caller };
+}
+
+function noAthlete() {
+  return NextResponse.json({ error: 'this account has no athlete row', code: 'no_athlete' }, { status: 403 });
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -33,7 +41,8 @@ export async function gate(req: Request): Promise<{ denied: Response | null; me:
   if (!pair?.isAcademy) {
     return { denied: NextResponse.json({ error: 'not an academy trainee', code: 'not_academy' }, { status: 403 }), me: '', caller, who };
   }
-  return { denied: null, me: caller?.athleteId || caller?.email, caller, who };
+  if (!caller?.athleteId) return { denied: noAthlete(), me: '', caller, who };
+  return { denied: null, me: caller.athleteId as string, caller, who };
 }
 
 export const WEEK_RE = /^\d{4}-\d{2}-\d{2}$/;

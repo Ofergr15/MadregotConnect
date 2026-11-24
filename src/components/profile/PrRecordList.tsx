@@ -41,6 +41,8 @@ export interface PrRow {
   sourceMeters?: number | null;
   source?: 'auto' | 'manual';
   note?: string | null;
+  /** The runner hides pace: the time is withheld from this viewer (lib/records/pace-privacy.ts). */
+  paceHidden?: boolean;
 }
 
 export interface PrBreak {
@@ -88,6 +90,20 @@ export function PrRecordList({
     <div className="mt-3 space-y-2">
       {prs.map((p) => {
         const label = t(PR_DIST_KEYS[p.key] ?? 'prDist_5k');
+        // Withheld, not missing: the runner chose to hide pace. Same row weight as a
+        // record (ink, not the grey "not yet"), distance kept, no time.
+        if (p.paceHidden) {
+          return (
+            <div
+              key={p.key}
+              data-testid="pr-pace-hidden"
+              className="flex min-h-[44px] items-center gap-3 rounded-[14px] bg-page/50 px-3.5"
+            >
+              <span className="text-[13px] font-extrabold tracking-[.2px] text-brand-600">{label}</span>
+              <span className="text-sm font-medium text-ink-700">{t('prPaceHidden')}</span>
+            </div>
+          );
+        }
         // No record at this distance: a grey row that says so and goes nowhere.
         if (p.seconds == null) {
           return (
