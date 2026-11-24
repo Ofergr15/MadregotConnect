@@ -542,6 +542,22 @@ and the "records before this run" in `GET /api/activities/analysis` (`prs: {}`,
 Pinned by `src/__tests__/recordsPaceHidden.test.ts` and `hiddenStatsAnalysis.test.ts`. A new
 surface that shows someone's record time needs the same check.
 
+Recorded exposure change, **2026-11-24** (b23 academy, migrations 215-218, all five flags
+default off). Three new readers of member data:
+- **Pack leaders** (`pack_leaders`) are runners who may read their own pack's roster, who
+  read the plan (inferred from `last_seen_at`), days since each member's last run, and the
+  attendance register — and mark it until 12:00 Israel the next day. Gated by
+  `requirePackLeader` (leader of THAT pack, or staff). A leader never receives a verdict,
+  heart rate or pain: every leader response passes `forLeader` (`lib/packs/leader-safe.ts`),
+  pinned by `packLeaderGate.test.ts`. Don't add a field to those loaders that the strip
+  would have to catch.
+- **Pack chat summaries** (`pack_week_summaries`, written Sunday 07:00 by `cron/tick`,
+  deterministic, no LLM) carry pain reports on named members, so
+  `GET /api/packs/:id/week-summary` is **staff-only** — leaders are refused.
+- **Own races** (`athlete_races`, `race_plans`) are `mayActFor` *narrowed*: self, a coach of
+  that athlete, or the academy manager seat; any other coach is refused. Only a coach or the
+  manager writes a race plan.
+
 ## The AI parser — the accuracy-critical path
 
 `src/lib/ai/parser.ts` + `prompt.ts`. Two tiers:

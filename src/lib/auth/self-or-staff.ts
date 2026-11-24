@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authError, requireSession } from '@/lib/auth-session';
 import { maintenanceBlocks, readMaintenance } from '@/lib/maintenance';
+import { createServerClient } from '@/lib/supabase/server';
 
 // Coach/admin-flavoured roles that may act on behalf of any athlete. Kept as
 // the single source of truth — several routes each hand-rolled their own
@@ -230,3 +231,34 @@ export async function requireCallerForAthlete(
 // address. It's gone because no route reads that header any more — every one of
 // them resolves identity through `resolveVerifiedCaller` above. Deleted rather
 // than left deprecated so it can't be reached for by the next route.
+
+/**
+ * Gate for a pack-leader route (b23, migration 215): passes for a leader of THAT pack
+ * (`pack_leaders`), or for staff / a super user. `asLeader` is true when the caller got in
+ * only as a leader — the route then runs its body through `forLeader` (lib/packs/leader-safe.ts):
+ * a leader is a runner, and must never receive a verdict, heart rate or pain on a teammate
+ * (CLAUDE.md, "Recorded exposure change, 2026-11-24").
+ *
+ * A missing table (213 not pasted yet) reads as "not a leader": staff still pass.
+ */
+export async function requirePackLeader(
+  request: Request,
+  packId: string,
+): Promise<{ denied: Response | null; caller: VerifiedCaller; asLeader: boolean }> {
+  const { denied, caller } = await resolveVerifiedCaller(request);
+  if (denied) return { denied, caller, asLeader: false };
+  if (caller.isSuperUser || caller.isStaff) return { denied: null, caller, asLeader: false };
+  if (!caller.athleteId || !packId) {
+    return { denied: NextResponse.json({ error: 'forbidden' }, { status: 403 }), caller, asLeader: false };
+  }
+  const { data, error } = await createServerClient()
+    .from('pack_leaders')
+    .select('pack_id')
+    .eq('pack_id', packId)
+    .eq('athlete_id', caller.athleteId)
+    .maybeSingle();
+  if (error || !data) {
+    return { denied: NextResponse.json({ error: 'forbidden' }, { status: 403 }), caller, asLeader: false };
+  }
+  return { denied: null, caller, asLeader: true };
+}

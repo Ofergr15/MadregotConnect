@@ -29,7 +29,7 @@ import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/noti
 import type { PushCopy } from '@/lib/notifications/copy';
 import { claimJoinedPolls } from '@/lib/surveys';
 import { runPainFollowups } from '@/lib/feedback/followups-server';
-import { israelNow, israelToday, getPlanWeekStart, addDaysToDateStr } from '@/lib/utils';
+import { israelNow, israelToday, getPlanWeekStart, addDaysToDateStr, shiftWeekStart } from '@/lib/utils';
 import { readStorySettings, storyGateMany } from '@/lib/stories/gate';
 import { effectiveFor, readInstances } from '@/lib/stories/instances';
 import {
@@ -59,6 +59,7 @@ import { loadApprovals, qualityOf } from '@/lib/notifications/approval-server';
 import { overrideFor, withOverrideCopy, type OverrideStore } from '@/lib/week-setup/model';
 import { loadOverrides } from '@/lib/week-setup/server';
 import { sendDuePolls } from '@/lib/week-setup/planned-polls-server';
+import { isSummaryTick, writePackWeekSummaries } from '@/lib/packs/week-summary-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -1029,6 +1030,14 @@ async function run(request: Request) {
   // on its own (academy doc p.1). Never throws (lib/academy/week-moments-server.ts).
   const weekMoments = await dispatchScheduledMoments(supabase, now.toISOString());
   if (weekMoments.sent) fired.push(`academyWeekMoments → ${weekMoments.sent}`);
+
+  // b23: Sunday 07:00 Israel — the digest of each pack's chat for the plan week that closed last
+  // night (Sunday-anchored: weekStart above is TODAY's Sunday, so the closed week is a week back).
+  // Deterministic, no model call; skips packs already written, so the hour's ticks write once.
+  if (isSummaryTick(weekday, hour)) {
+    const packSummaries = await writePackWeekSummaries(supabase, shiftWeekStart(weekStart, -1));
+    if (packSummaries.written) fired.push(`packWeekSummaries → ${packSummaries.written}`);
+  }
 
   // Admin scheduled/recurring notifications are NOT sent from here any more: their own
   // cron (/api/cron/notifications) runs every minute, and the two used to collide.

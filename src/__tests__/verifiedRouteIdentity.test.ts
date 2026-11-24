@@ -34,6 +34,15 @@ const MIGRATED_ROUTES = [
   'app/api/activities/[id]/plan-match/route.ts',
   // 2026-11-23: a pace history on a named person — self-or-staff.
   'app/api/activities/similar/route.ts',
+  // 2026-11-24 (b23): pack leaders, pack chat digest, own races + race plans.
+  'app/api/packs/mine/route.ts',
+  'app/api/packs/[id]/home/route.ts',
+  'app/api/packs/[id]/moments/[mid]/send/route.ts',
+  'app/api/packs/[id]/attendance/route.ts',
+  'app/api/packs/[id]/attendance/history/route.ts',
+  'app/api/packs/[id]/week-summary/route.ts',
+  'app/api/academy/my-races/route.ts',
+  'app/api/academy/race-plan/route.ts',
 ];
 
 // Most of these files still discuss the old header in a comment explaining what
@@ -74,7 +83,7 @@ describe('verified identity on every API route', () => {
   it.each(MIGRATED_ROUTES)('%s gates on a verified session', (route) => {
     const source = readFileSync(new URL(route, SRC), 'utf8');
     expect(source).toMatch(
-      /resolveVerifiedCaller|requireCallerForAthlete|requireSession|requireMember|requireStaff/,
+      /resolveVerifiedCaller|requireCallerForAthlete|requireSession|requireMember|requireStaff|requirePackLeader/,
     );
   });
 
