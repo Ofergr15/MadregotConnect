@@ -198,6 +198,8 @@ export async function notifyAdminNewSignupRequest(req: {
    */
   name?: string | null;
   groupName?: string | null;
+  /** The request this alert is about, so email_log ties it to the lead (not only by address). */
+  signupRequestId?: string | null;
 }): Promise<SendResult> {
   // The synthetic address must never stand in for the person, in either place it
   // used to: the subject line fell back to it, and the Email row printed it as if
@@ -207,6 +209,7 @@ export async function notifyAdminNewSignupRequest(req: {
   const who = (req.name || '').trim() || address || 'מישהו שנכנס עם Strava';
   return sendEmail({
     template: 'admin_new_signup_request',
+    signupRequestId: req.signupRequestId ?? null,
     // The approver list, not just ADMIN_EMAIL: whoever is nearest their phone should
     // be able to let a new runner in.
     to: APPROVER_EMAILS,
@@ -338,10 +341,11 @@ export async function notifyAccountClosed(user: { email: string; name?: string |
  * where they are in the journey, and that the next step is ours. No button: there
  * is nothing for them to do yet, and a button would invent something.
  */
-export async function notifyRegistrationReceived(user: { email: string; name?: string | null }): Promise<SendResult> {
+export async function notifyRegistrationReceived(user: { email: string; name?: string | null; signupRequestId?: string | null }): Promise<SendResult> {
   const first = firstName(user.name);
   return sendEmail({
     template: 'registration_received',
+    signupRequestId: user.signupRequestId ?? null,
     to: user.email,
     subject: `קיבלנו את הבקשה שלכם${first ? `, ${first}` : ''} 🏃`,
     replyTo: ADMIN_EMAIL,

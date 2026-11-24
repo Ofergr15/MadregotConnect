@@ -169,7 +169,7 @@ export function isFeatureKey(v: unknown): v is FeatureKey {
  * on the signed-out gateway, where there is no caller to resolve. Only a club-wide switch is ever
  * disclosed — never a per-athlete/squad/role row.
  */
-export const PUBLIC_FEATURE_KEYS: readonly FeatureKey[] = ['academy_register', 'u21_entry'];
+export const PUBLIC_FEATURE_KEYS: readonly FeatureKey[] = ['academy_register', 'u21_entry', 'native_onboarding_setup'];
 
 /** The club-wide answer alone: only a `club` row counts; no row = the default (off). */
 export function resolveClubScope(feature: FeatureKey, rows: EnablementRow[]): boolean {

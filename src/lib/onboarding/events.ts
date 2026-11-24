@@ -1,4 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server';
+import type { SignupChannel } from './channel';
 import { APP_VERSION } from '@/lib/version';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -43,8 +44,11 @@ export interface OnbEvent {
   device?: string | null;
   platform?: string | null;
   standalone?: boolean | null;
+  /** Which door (migration 207): see SIGNUP_CHANNELS. */
+  channel?: SignupChannel | null;
   meta?: Record<string, unknown>;
 }
+
 
 /** The device class from a User-Agent, for server-side events that have no client report. */
 export function deviceFromUa(ua: string | null | undefined): string | null {
@@ -57,7 +61,8 @@ export function deviceFromUa(ua: string | null | undefined): string | null {
 
 export async function recordOnbEvent(e: OnbEvent): Promise<void> {
   try {
-    await createServerClient().from('onboarding_events').insert({
+    const db = createServerClient();
+    const row = {
       step: e.step,
       athlete_id: e.athleteId ?? null,
       signup_request_id: e.signupRequestId ?? null,
@@ -66,7 +71,13 @@ export async function recordOnbEvent(e: OnbEvent): Promise<void> {
       standalone: e.standalone ?? null,
       app_version: APP_VERSION,
       meta: e.meta ?? {},
-    });
+    };
+    const withChannel: Record<string, unknown> = e.channel ? { ...row, channel: e.channel } : row;
+    const { error } = await db.from('onboarding_events').insert(withChannel);
+    // Migration 207 not pasted yet: keep the event, drop the channel.
+    if (error && e.channel && (error.code === 'PGRST204' || error.code === '42703')) {
+      await db.from('onboarding_events').insert(row);
+    }
   } catch {
     /* never fail the step being recorded */
   }

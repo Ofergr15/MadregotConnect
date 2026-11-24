@@ -9,6 +9,7 @@ import { signupRequestCopy } from '@/lib/notifications/copy';
 import { groupDisplayName } from '@/lib/utils';
 import { isLikelyEmail, normaliseEmail, signupAlertName } from '@/lib/signup';
 import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
+import { signupChannel } from '@/lib/onboarding/channel';
 import { clientIp, createRateLimiter } from '@/lib/academy/intake';
 
 // Every submission writes a row and fires the approver mail, a staff push and a mail to
@@ -89,7 +90,7 @@ async function recordMemberSubmission(
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json().catch(() => ({}))) as { email?: string; groupId?: string; fullName?: string; phone?: string; onb?: string; intake?: unknown };
+    const body = (await request.json().catch(() => ({}))) as { email?: string; groupId?: string; fullName?: string; phone?: string; onb?: string; intake?: unknown; channel?: unknown };
     const email = normaliseEmail(body.email || '');
     const ip = clientIp(request.headers);
     if (!allowFromIp(ip) || !allowSubmit(`${ip}|${email}`)) {
@@ -107,6 +108,8 @@ export async function POST(request: Request) {
     // The unified sign-up's answers (lib/join/intake.ts, migration 158) — best time,
     // how they came, academy interest. Stored apart so a missing column drops only them.
     const intake = cleanIntake(body.intake);
+    // Which door the request came through (migration 207): an allowlist, default 'web'.
+    const channel = signupChannel(body.channel);
 
     if (!isLikelyEmail(email)) {
       return NextResponse.json({ error: 'invalid-email' }, { status: 400 });
@@ -203,7 +206,11 @@ export async function POST(request: Request) {
 
     // 3. New request.
     const row = { email, group_id: resolvedGroupId, status: 'pending', source: 'public-form' };
-    let { error: insertError } = await supabase.from('signup_requests').insert({ ...row, ...contact, ...(intake ? { intake } : {}) });
+    let { error: insertError } = await supabase.from('signup_requests').insert({ ...row, ...contact, ...(intake ? { intake } : {}), channel });
+    // Migration 207 (channel) not pasted yet: the same insert without it, so the request is never lost to it.
+    if (insertError && (insertError.code === 'PGRST204' || insertError.code === '42703')) {
+      ({ error: insertError } = await supabase.from('signup_requests').insert({ ...row, ...contact, ...(intake ? { intake } : {}) }));
+    }
     // Migration 158 (intake) not pasted yet: keep the request and the contact, drop the answers.
     if (insertError && intake && (insertError.code === 'PGRST204' || insertError.code === '42703')) {
       ({ error: insertError } = await supabase.from('signup_requests').insert({ ...row, ...contact }));
@@ -221,7 +228,7 @@ export async function POST(request: Request) {
     let created: { id?: string; created_at?: string } | null = null;
     try {
       ({ data: created } = await supabase.from('signup_requests').select('id, created_at').eq('email', email).eq('status', 'pending').order('created_at', { ascending: false }).limit(1).maybeSingle());
-      await recordOnbEvent({ step: 'register_submitted', signupRequestId: created?.id ?? null, device: deviceFromUa(request.headers.get('user-agent')) });
+      await recordOnbEvent({ step: 'register_submitted', signupRequestId: created?.id ?? null, device: deviceFromUa(request.headers.get('user-agent')), channel });
     } catch { /* recording is best-effort */ }
 
     // Gap 2 (migration 189): the applicant's key to their OWN request's status, handed
@@ -253,7 +260,7 @@ export async function POST(request: Request) {
       // The approvers cannot act on what they do not know arrived. Isolated: a
       // Resend outage must not fail a registration that is already committed.
       try {
-        await notifyAdminNewSignupRequest({ email, name: who, groupName });
+        await notifyAdminNewSignupRequest({ email, name: who, groupName, signupRequestId: created?.id ?? null });
       } catch (mailErr) {
         console.error('Failed to notify approvers of a new signup request:', mailErr);
       }
@@ -281,7 +288,7 @@ export async function POST(request: Request) {
     // The applicant's own "we got it" mail, v2 only: the journey and what comes next.
     if (!insertError && v2) {
       try {
-        await notifyRegistrationReceived({ email, name: contact.full_name ?? null });
+        await notifyRegistrationReceived({ email, name: contact.full_name ?? null, signupRequestId: created?.id ?? null });
       } catch (mailErr) {
         console.error('Failed to send the registration-received mail:', mailErr);
       }
