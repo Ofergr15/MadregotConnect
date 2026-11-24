@@ -448,6 +448,12 @@ export type PhotosNotify = 'push' | 'inapp' | 'quiet';
  * The day's folder's photos, subfolders included, by Drive id (lib/photos/drive-browse).
  * Null when Drive is not configured or the folder is not one the club's Drive reads.
  */
+/** The staff pick, kept to files really in the folder, de-duplicated, in the order picked, capped. */
+export function selectFileIds(folderIds: string[], requested: string[], max: number): string[] {
+  const inFolder = new Set(folderIds);
+  return [...new Set(requested)].filter((id) => inFolder.has(id)).slice(0, max);
+}
+
 async function sessionPhotoIds(entry: FolderEntry): Promise<string[] | null> {
   const photos = await folderPhotosNow(entry.folderId).catch(() => null);
   return photos ? photos.map((p) => p.id) : null;
@@ -462,7 +468,10 @@ async function sessionPhotoIds(entry: FolderEntry): Promise<string[] | null> {
  */
 export async function approveSessionPhotos(
   supabase: Db,
-  p: { date: string; notify: PhotosNotify; audience: 'all' | 'attendees'; circle: boolean; byAthleteId: string | null; byEmail?: string | null },
+  p: { date: string; notify: PhotosNotify; audience: 'all' | 'attendees'; circle: boolean; byAthleteId: string | null; byEmail?: string | null;
+    /** Staff's pick (b23): exactly these Drive files of the day's folder, in this order — the card is REPLACED
+     *  with them rather than topped up. Absent = the old behaviour (everything, up to the cap). */
+    fileIds?: string[] },
 ): Promise<{ id: string; photos: number; told: number }> {
   const ledger = await readFolderLedger(supabase);
   const entry = ledger[p.date];
@@ -470,7 +479,16 @@ export async function approveSessionPhotos(
   const card = await cardFor(supabase, p.date);
   const have = card?.media?.length ?? 0;
   let media = card?.media ?? [];
-  if (have < MAX_SESSION_PHOTOS) {
+  if (p.fileIds) {
+    const ids = await sessionPhotoIds(entry);
+    if (!ids) throw new Error('selection needs a Drive folder');
+    const pick = selectFileIds(ids, p.fileIds, MAX_SESSION_PHOTOS);
+    if (!pick.length) throw new Error('no selected photos in folder');
+    // Stable keys: a photo picked again reuses its stored copy instead of uploading a second one.
+    const pulled = await pullDrivePhotos(supabase, pick, { prefix: `club/session-photos/${p.date}`, max: MAX_SESSION_PHOTOS, stableKeys: true });
+    if (!pulled.ok) throw new Error(pulled.error);
+    media = pulled.media;
+  } else if (have < MAX_SESSION_PHOTOS) {
     const ids = await sessionPhotoIds(entry);
     const pulled = ids
       ? await pullDrivePhotos(supabase, ids.slice(have), { prefix: `club/session-photos/${p.date}`, max: MAX_SESSION_PHOTOS - have })
