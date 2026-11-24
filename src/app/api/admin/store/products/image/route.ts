@@ -38,13 +38,15 @@ export async function POST(request: Request) {
       .from('store-products')
       .upload(path, buffer, { contentType: file.type, upsert: false });
     if (uploadError) {
-      return NextResponse.json({ error: `Upload failed: ${uploadError.message}` }, { status: 500 });
+      console.error('[api/admin/store/products/image]', uploadError);
+      return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
     }
 
     const { data: urlData } = supabase.storage.from('store-products').getPublicUrl(path);
     return NextResponse.json({ path, url: urlData.publicUrl });
   } catch (err: unknown) {
     console.error('Store product image upload error:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    console.error('[api/admin/store/products/image]', err);
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

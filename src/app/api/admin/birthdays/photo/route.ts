@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     const path = `birthday/${crypto.randomUUID()}.${ext}`;
     const { error } = await supabase.storage.from('feed-media')
       .upload(path, Buffer.from(await file.arrayBuffer()), { contentType: file.type, upsert: false });
-    if (error) return NextResponse.json({ error: `Upload failed: ${error.message}` }, { status: 500 });
+    if (error) { console.error('[api/admin/birthdays/photo]', error); return NextResponse.json({ error: 'Upload failed' }, { status: 500 }); }
     const { data } = supabase.storage.from('feed-media').getPublicUrl(path);
     return NextResponse.json({ url: data.publicUrl });
   } catch (err) {

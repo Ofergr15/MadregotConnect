@@ -73,6 +73,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
     }
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    console.error('[api/admin/move]', e);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
