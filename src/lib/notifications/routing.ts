@@ -100,6 +100,12 @@ export const ROUTED_KINDS: RoutedKind[] = [
     source: 'api/account/delete-request',
   },
   {
+    kind: 'content_report',
+    label: 'דיווח על תוכן',
+    hint: 'חבר/ה דיווח/ה על פוסט, תגובה, הודעה או תמונה — לטפל תוך 24 שעות (דרישת App Store)',
+    source: 'api/moderation/report',
+  },
+  {
     kind: 'signup_request',
     label: 'בקשת הרשמה',
     hint: 'נרשם חדש ממתין לאישור',

@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, requireAthlete, authError } from '@/lib/auth-session';
 import { notifyFeedInteraction, notifyMentions, loadFeedItemMeta } from '@/lib/feed/notify';
 import { COMMENT_SELECT, projectComment, validateCommentBody } from '@/lib/feed/comments';
+import { blockedAuthorIds } from '@/lib/moderation/blocks';
 import { hiddenInteractorsFor, visibleItemCount, withoutHiddenInteractors } from '@/lib/feed/test-account-filter';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +21,8 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
     // A test account's comment is hidden from other non-staff members (migration 201).
     const hiddenRead = hiddenInteractorsFor(supabase as never, auth.user);
+    // ...and so is a member this viewer blocked (migration 203, fails open).
+    const blockedRead = blockedAuthorIds(supabase, auth.user.athleteId);
     const { data, error } = await supabase
       .from('feed_comments')
       .select(COMMENT_SELECT)
@@ -29,7 +32,8 @@ export async function GET(request: Request) {
       .limit(200);
     if (error) throw error;
 
-    const comments = withoutHiddenInteractors(data || [], await hiddenRead).map((row) =>
+    const hidden = new Set([...(await hiddenRead), ...(await blockedRead)]);
+    const comments = withoutHiddenInteractors(data || [], hidden).map((row) =>
       projectComment(row, auth.user.athleteId, auth.user.isStaff),
     );
     return NextResponse.json({ comments });
