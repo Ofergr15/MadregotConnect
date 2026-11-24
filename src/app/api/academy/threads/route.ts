@@ -6,6 +6,10 @@ import { ensureAcademyThread } from '@/lib/academy/thread-server';
 import { seatFor } from '@/lib/academy/thread';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
 import { coachIdsOf } from '@/lib/academy/trainee-coaches';
+import { packThreadMembers } from '@/lib/packs/thread-server';
+import { packChannelId } from '@/lib/packs/server';
+import type { VerifiedCaller } from '@/lib/auth/self-or-staff';
+import { CHANNEL_TYPE, upsertStreamUsersFromAthletes } from '@/lib/stream/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +33,7 @@ export async function POST(request: Request) {
     if (denied) return denied;
 
     const body = await request.json().catch(() => ({}));
+    if (body?.kind === 'pack') return openPackThread(caller, String(body?.packId || '').trim());
     const athleteId = String(body?.athleteId || '').trim() || caller.athleteId;
     if (!athleteId) {
       return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
@@ -87,4 +92,36 @@ export async function POST(request: Request) {
     console.error('POST /api/academy/threads error:', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
+}
+
+/**
+ * `{ kind: 'pack', packId }` — the pack chat (b23, flag academy_pack_chat). Members: the pack's
+ * active athletes, its leaders (migration 215), the club coaches and the manager seat. Anyone
+ * else is refused. Find-or-create like the trainee thread, membership refreshed on every open.
+ */
+async function openPackThread(caller: VerifiedCaller, packId: string) {
+  if (!packId) return NextResponse.json({ error: 'packId required' }, { status: 400 });
+  const supabase = createServerClient();
+  const members = await packThreadMembers(supabase, packId);
+  if (!members) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  if (!caller.isSuperUser && !(caller.athleteId && members.includes(caller.athleteId))) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+  const stream = getStreamServerClient();
+  await upsertStreamUsersFromAthletes(stream, supabase, members);
+  const id = packChannelId(packId);
+  const channel = stream.channel(CHANNEL_TYPE, id, { members, created_by_id: caller.athleteId || members[0] } as Record<string, unknown>);
+  try {
+    await channel.create();
+  } catch {
+    // Exists already; membership below.
+  }
+  try {
+    await channel.addMembers(members);
+  } catch (err) {
+    console.warn('pack thread: addMembers failed', err);
+  }
+  return NextResponse.json({
+    kind: 'pack', packId, channelId: id, cid: `${CHANNEL_TYPE}:${id}`, members, viewerId: caller.athleteId ?? null,
+  });
 }

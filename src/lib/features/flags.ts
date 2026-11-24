@@ -170,6 +170,16 @@ export const FEATURES = {
   /** Manual photo tags ("התמונות שלי") and likes ("אהבתי"), migration 214. Members only; the tagged person approves or removes.
    *  No face recognition. Off → /api/photos/tags* and /api/photos/likes* answer 404. */
   photos_social: { label: 'תמונות: תיוג ידני (התמונות שלי) ולייקים (אהבתי)', defaultEnabled: false },
+  /** b23: pack attendance — watch auto-mark ±90 min + leader marks until 12:00 next day (migration 216). */
+  academy_pack_attendance: { label: 'נוכחות בדבוקה (אפליקציה)', defaultEnabled: false },
+  /** b23: pack leader home — who read the plan, moments to send (migration 215). Never verdict/HR/pain. */
+  academy_pack_leader: { label: 'מוביל/ת דבוקה (אפליקציה)', defaultEnabled: false },
+  /** b23: a coach's race plan for a trainee's own race (migration 217). */
+  academy_race_plan: { label: 'תוכנית מרוץ ממאמן (אפליקציה)', defaultEnabled: false },
+  /** b23: a runner's own races list (migration 217). */
+  athlete_races: { label: 'המרוצים שלי (אפליקציה)', defaultEnabled: false },
+  /** b23: pack chat + the staff-only weekly digest (migration 218). */
+  academy_pack_chat: { label: 'צ׳אט דבוקה + סיכום שבועי (אפליקציה)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
