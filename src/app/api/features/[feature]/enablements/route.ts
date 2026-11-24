@@ -69,7 +69,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ feat
     const db = createServerClient();
     const athlete = scopeType === 'athlete' ? await athleteToggleFacts(db, caller, scopeId) : null;
     if (scopeType === 'athlete' && !athlete) return NextResponse.json({ error: 'athlete not found' }, { status: 404 });
-    if (!mayToggle(toggleCaller(caller), { scopeType, scopeId, athlete })) {
+    if (!mayToggle(toggleCaller(caller), { scopeType, scopeId, athlete, feature })) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 

@@ -20,6 +20,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ feat
   const res = await featureResolution(feature, id, db);
   return NextResponse.json({
     ...res,
-    mayToggle: mayToggle(toggleCaller(caller), { scopeType: 'athlete', scopeId: id, athlete }),
+    mayToggle: mayToggle(toggleCaller(caller), { scopeType: 'athlete', scopeId: id, athlete, feature }),
   });
 }
