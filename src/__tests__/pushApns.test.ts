@@ -10,10 +10,8 @@ vi.mock('@/lib/apns', async (orig) => ({
 
 const sendNotification = vi.fn();
 vi.mock('web-push', () => ({
-  default: {
-    setVapidDetails: vi.fn(),
-    sendNotification: (...args: unknown[]) => sendNotification(...args),
-  },
+  setVapidDetails: vi.fn(),
+  sendNotification: (...args: unknown[]) => sendNotification(...args),
 }));
 
 // Rows each table hands back, and every write the code under test performs.
