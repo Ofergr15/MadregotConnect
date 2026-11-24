@@ -1,7 +1,7 @@
 /**
  * Strength on the feed — a post-pass over projected items, so FEED_SELECT never names
  * `exercise_sets`. That matters: an embedded select naming a column the database doesn't
- * have fails the WHOLE feed query, and migration 203 is pasted in by hand.
+ * have fails the WHOLE feed query, and migration 210 is pasted in by hand.
  *
  * Two rules:
  *  - A viewer without `strength_training` never sees a strength card (old clients would draw

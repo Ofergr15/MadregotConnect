@@ -44,7 +44,7 @@ function teOf(a: GarminStrengthActivity): StrengthRowInput['trainingEffect'] {
 
 export interface StrengthSyncResult { inserted: number; upgraded: number; setsFetched: number }
 
-/** Insert, or (Garmin over a Strava twin) upgrade in place. Retries without the optional columns before migration 203. */
+/** Insert, or (Garmin over a Strava twin) upgrade in place. Retries without the optional columns before migration 210. */
 async function writeRow(db: Db, row: Record<string, unknown>, twinId: string | null): Promise<'inserted' | 'upgraded' | 'failed'> {
   const run = async (r: Record<string, unknown>) => twinId
     ? db.from('athlete_activities').update(upgradePatch(r)).eq('id', twinId)

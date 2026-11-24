@@ -40,7 +40,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'not found' }, { status: 404 });
     }
 
-    // Sets after the gate, in their own read: before migration 203 the column is missing and the
+    // Sets after the gate, in their own read: before migration 210 the column is missing and the
     // session still answers, with `sets: null` ("no set detail") rather than a 500.
     let sets: StrengthSet[] | null = null;
     let hr: StrengthHr | null = null;
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
       hr = (s?.strength_hr as StrengthHr | null) ?? null;
       sufferScore = (s?.suffer_score as number | null) ?? null;
     } else if (!isMissingExerciseSetsColumn(sErr)) console.error('strength sets read failed', sErr.message);
-    // training_effect is migration 160 (applied) — read apart so a missing 203 doesn't take it down.
+    // training_effect is migration 160 (applied) — read apart so a missing 210 doesn't take it down.
     const { data: te } = await db.from('athlete_activities').select('training_effect').eq('id', id).maybeSingle();
     const trainingEffect = (te?.training_effect as { aerobic?: number | null; anaerobic?: number | null; label?: string | null; load?: number | null } | null) ?? null;
 

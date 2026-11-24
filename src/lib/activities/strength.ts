@@ -2,7 +2,7 @@
  * Strength training: the narrowed exercise-set shape we store, and the row both syncs write.
  * review-2026-11-20/strength/plan.md · flag `strength_training` (default off).
  *
- * Storage: `athlete_activities.exercise_sets` (jsonb, migration 203). Garmin only — Strava's
+ * Storage: `athlete_activities.exercise_sets` (jsonb, migration 210). Garmin only — Strava's
  * WeightTraining carries duration and HR, never sets.
  *
  * Garmin's `/activity-service/activity/{id}/exerciseSets` answers
@@ -172,10 +172,10 @@ export function strengthRow(i: StrengthRowInput): Record<string, unknown> {
   };
 }
 
-/** Columns a strength row may carry that a not-yet-migrated DB lacks (203: exercise_sets/strength_hr/suffer_score; 160: training_effect). */
+/** Columns a strength row may carry that a not-yet-migrated DB lacks (210: exercise_sets/strength_hr/suffer_score; 160: training_effect). */
 export const STRENGTH_OPTIONAL_COLUMNS = ['exercise_sets', 'strength_hr', 'suffer_score', 'training_effect'] as const;
 
-/** Postgres "column does not exist" — migration 203 not pasted yet: write the row without the sets. */
+/** Postgres "column does not exist" — migration 210 not pasted yet: write the row without the sets. */
 export function isMissingExerciseSetsColumn(error: { code?: string; message?: string } | null | undefined): boolean {
   return !!error && (error.code === '42703' || error.code === 'PGRST204' || /exercise_sets|strength_hr|suffer_score|training_effect/.test(error.message || ''));
 }

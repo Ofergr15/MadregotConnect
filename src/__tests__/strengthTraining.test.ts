@@ -104,7 +104,7 @@ describe('ingestion', () => {
     expect(hrFromDetails(null)).toBeNull();
   });
 
-  it('writes TE, Relative Effort and the HR trace; all droppable before migration 203', () => {
+  it('writes TE, Relative Effort and the HR trace; all droppable before migration 210', () => {
     const g = strengthRow({ athleteId: 'a', source: 'garmin', garminActivityId: 1, name: null, startTimeLocal: '2026-11-16T07:00:00', durationSec: 60, averageHr: null, maxHr: null, calories: null,
       trainingEffect: { aerobic: 2.1, anaerobic: 3.4, label: 'ANAEROBIC', load: 64 }, hr: { t: [0, 5], hr: [90, 95] } });
     expect(g.training_effect).toEqual({ aerobic: 2.1, anaerobic: 3.4, label: 'ANAEROBIC', load: 64 });
@@ -196,10 +196,10 @@ describe('adherence: planned day or the day after', () => {
   });
 });
 
-describe('migration 203', () => {
+describe('migration 210', () => {
   it('is idempotent', () => {
     const dir = join(process.cwd(), 'supabase/migrations');
-    const f = readdirSync(dir).find(n => n.startsWith('203_'))!;
+    const f = readdirSync(dir).find(n => n.startsWith('210_'))!;
     expect(statSync(join(dir, f)).isFile()).toBe(true);
     const sql = readFileSync(join(dir, f), 'utf8');
     expect(sql).toMatch(/ADD COLUMN IF NOT EXISTS exercise_sets jsonb/);

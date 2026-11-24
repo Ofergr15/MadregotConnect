@@ -1,4 +1,4 @@
--- 203: strength training (review-2026-11-20/strength/plan.md, flag strength_training).
+-- 210: strength training (review-2026-11-20/strength/plan.md, flag strength_training).
 -- Paste by hand in the Supabase SQL editor. Safe to re-run.
 --
 -- athlete_activities.exercise_sets: the narrowed Garmin set list of a strength session,
