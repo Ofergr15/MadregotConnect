@@ -22,12 +22,16 @@ export interface WellnessSweepSummary {
   firstFailures?: string[];
   /** Garmin answer shapes that carried no night (garmin/client.ts emptyWellnessShapes). */
   emptyShapes: string[];
+  /** The run stopped at its time budget; the next one resumes after the cursor (Q24-4). */
+  partial?: boolean;
+  /** The run threw; the counts are what it had when it did. */
+  error?: string;
 }
 
 type Db = { from: (table: string) => any };
 
 export function sweepSummary(
-  result: { athletes: number; fetched: number; stored: number; backfilled?: number; nightErrors: number; failed: string[] },
+  result: { athletes: number; fetched: number; stored: number; backfilled?: number; nightErrors: number; failed: string[]; partial?: boolean },
   emptyShapes: string[],
   at: Date = new Date(),
 ): WellnessSweepSummary {
@@ -41,6 +45,7 @@ export function sweepSummary(
     failed: result.failed.length,
     firstFailures: result.failed.slice(0, 3).map((f) => f.slice(0, 160)),
     emptyShapes: emptyShapes.slice(0, 20),
+    ...(result.partial ? { partial: true } : {}),
   };
 }
 

@@ -4,6 +4,10 @@ import { sweepWellness } from '@/lib/wellness/sweep';
 import { cronPaused } from '@/lib/cron-pause';
 import { emptyWellnessShapes } from '@/lib/garmin/client';
 import { saveLastSweep, sweepSummary } from '@/lib/wellness/last-sweep';
+import { deadlineFrom, readCursor, saveCursor } from '@/lib/cron/budget';
+import { israelToday } from '@/lib/utils';
+
+const WELLNESS_CURSOR_KEY = 'wellness_sweep_cursor';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -18,6 +22,7 @@ export const maxDuration = 300;
  */
 async function run(request: Request) {
   if (await cronPaused()) return NextResponse.json({ paused: true });
+  const outOfTime = deadlineFrom();
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const auth = request.headers.get('authorization');
@@ -26,9 +31,15 @@ async function run(request: Request) {
     }
   }
 
+  const supabase = createServerClient();
   try {
-    const supabase = createServerClient();
-    const result = await sweepWellness(supabase);
+    // Stops at ~270 s (lib/cron/budget.ts) instead of being killed at 300 with nothing
+    // written; the cursor makes tomorrow's run start with whoever today's never reached.
+    const result = await sweepWellness(supabase, israelToday(), {
+      outOfTime,
+      cursor: await readCursor(supabase, WELLNESS_CURSOR_KEY),
+    });
+    await saveCursor(supabase, WELLNESS_CURSOR_KEY, result.cursor);
     // One line per run, so "the cron says 200" can be told apart from "nights were
     // actually stored" in the request logs (2026-10-11: trainees showed 2 nights in 30).
     // The Vercel CLI shows only a request's first log line, so the same summary is also
@@ -39,10 +50,13 @@ async function run(request: Request) {
     return NextResponse.json({ ok: true, ...result, failed: result.failed.length });
   } catch (error) {
     console.error('Wellness sweep error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'wellness-failed' },
-      { status: 500 },
-    );
+    const message = error instanceof Error ? error.message : 'wellness-failed';
+    // A failed run still leaves its line on data-check, or the screen shows an old sweep.
+    await saveLastSweep(supabase, {
+      ...sweepSummary({ athletes: 0, fetched: 0, stored: 0, nightErrors: 0, failed: [] }, emptyWellnessShapes()),
+      error: message.slice(0, 200),
+    });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

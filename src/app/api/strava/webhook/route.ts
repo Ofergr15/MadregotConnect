@@ -3,7 +3,9 @@ import { createServerClient } from '@/lib/supabase/server';
 import { runStravaSyncRequest } from '../sync-activities/route';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+// The ack is instant; the after() sync behind it is a whole athlete's Strava sync and
+// was being cut off at 60 s (QA 24.11 Q24-4). Same ceiling as the sync route itself.
+export const maxDuration = 300;
 
 /**
  * GET /api/strava/webhook — Strava's one-time subscription verification
