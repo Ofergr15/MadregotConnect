@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { receiveView } from '@/lib/podium/receive-server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaffCaller } from '@/lib/auth/self-or-staff';
 import { AUDIENCES, DEFAULT_BUDGET, audienceAllows, roundState, type Audience } from '@/lib/podium/model';
@@ -21,12 +22,18 @@ export async function GET(request: Request) {
     const [rounds, products, all, grants] = await Promise.all([listRounds(db), loadProducts(db), members(db), readGrants(db).catch(() => ({}))]);
     const want = new URL(request.url).searchParams.get('round');
     const round = rounds.find((r) => r.id === want) ?? rounds.find((r) => !r.sentAt) ?? rounds[0] ?? null;
-    const orders = round ? await loadOrders(db, round.id) : [];
+    // The round's receiving view rides along (b24): the native admin screen read it as a second, serial request that
+    // needed this answer's round id first. Same staff gate; a failed read (migration 173 missing) is `null`, never a 503.
+    const [orders, receive] = await Promise.all([
+      round ? loadOrders(db, round.id) : Promise.resolve([]),
+      round ? receiveView(db, round).catch(() => null) : Promise.resolve(null),
+    ]);
     const audience = round ? all.filter((m) => audienceAllows(round, { athleteId: m.id, isCore: m.isCore, isStaff: m.isStaff })).map((m) => m.id) : [];
     return NextResponse.json({
       rounds: rounds.map((r) => ({ ...r, state: roundState(r) })),
       round: round && { ...round, state: roundState(round) },
       products, orders, core: audience,
+      receive,
       // Credit is the admin's alone (Ofer, 10-29).
       canCredit: caller.isSuperUser || caller.role === 'admin' || !!caller.roles?.includes('admin'),
       // Who may fill others' orders by grant (admins always may) — managed right here too (Ofer 10-29).
