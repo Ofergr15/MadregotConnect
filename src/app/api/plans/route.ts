@@ -95,8 +95,9 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       console.error('Error creating plan:', error);
+      console.error('[api/plans]', error);
       return NextResponse.json(
-        { error: 'Failed to create plan', details: error.message },
+        { error: 'Failed to create plan' },
         { status: 500 }
       );
     }
@@ -122,8 +123,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ plan: data }, { status: 201 });
   } catch (error: any) {
     console.error('Create plan error:', error);
+    console.error('[api/plans]', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to create plan' },
+      { error: 'Failed to create plan' },
       { status: 500 }
     );
   }
@@ -203,8 +205,9 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       console.error('Error fetching plans:', error);
+      console.error('[api/plans]', error);
       return NextResponse.json(
-        { error: 'Failed to fetch plans', details: error.message },
+        { error: 'Failed to fetch plans' },
         { status: 500 }
       );
     }
@@ -212,8 +215,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ plans: data });
   } catch (error: any) {
     console.error('Fetch plans error:', error);
+    console.error('[api/plans]', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch plans' },
+      { error: 'Failed to fetch plans' },
       { status: 500 }
     );
   }
@@ -250,8 +254,9 @@ export async function DELETE(req: NextRequest) {
 
     if (error) {
       console.error('Error deleting plan:', error);
+      console.error('[api/plans]', error);
       return NextResponse.json(
-        { error: 'Failed to delete plan', details: error.message },
+        { error: 'Failed to delete plan' },
         { status: 500 }
       );
     }
@@ -260,8 +265,9 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Delete plan error:', error);
+    console.error('[api/plans]', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to delete plan' },
+      { error: 'Failed to delete plan' },
       { status: 500 }
     );
   }
@@ -312,8 +318,9 @@ export async function PUT(req: NextRequest) {
 
     if (error) {
       console.error('Error updating plan:', error);
+      console.error('[api/plans]', error);
       return NextResponse.json(
-        { error: 'Failed to update plan', details: error.message },
+        { error: 'Failed to update plan' },
         { status: 500 }
       );
     }
@@ -325,8 +332,9 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ plan: data });
   } catch (error: any) {
     console.error('Update plan error:', error);
+    console.error('[api/plans]', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to update plan' },
+      { error: 'Failed to update plan' },
       { status: 500 }
     );
   }

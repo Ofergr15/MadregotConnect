@@ -212,8 +212,9 @@ export async function POST(
     return NextResponse.json({ plan: updated });
   } catch (error: unknown) {
     console.error('POST plan clipboards error:', error);
+    console.error('[api/plans/[planId]/clipboards]', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: error instanceof Error ? 'failed' : String(error) },
       { status: 500 },
     );
   }

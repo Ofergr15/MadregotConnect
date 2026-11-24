@@ -126,8 +126,9 @@ export async function GET(
       athletes,
     });
   } catch (error: unknown) {
+    console.error('[api/plans/[planId]/matches]', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: error instanceof Error ? 'failed' : String(error) },
       { status: 500 },
     );
   }
@@ -222,8 +223,9 @@ export async function PUT(
     }
     return NextResponse.json({ match });
   } catch (error: unknown) {
+    console.error('[api/plans/[planId]/matches]', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: error instanceof Error ? 'failed' : String(error) },
       { status: 500 },
     );
   }

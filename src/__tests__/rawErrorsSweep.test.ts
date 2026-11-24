@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
  * `details:` (PostgREST/Postgres text names tables and columns). Same rule as exposedRoutesNoRawErrors,
  * applied to whole folders, one batch at a time — add a folder here when its batch lands.
  */
-const SWEPT = ['admin', 'academy'];
+const SWEPT = ['admin', 'academy', 'plans', 'plan-builder', 'program-weeks'];
 /** Answers that relay a THIRD PARTY's reply to an admin on purpose (not database text). */
 const ALLOW = new Set(['admin/strava/webhook-subscribe']);
 
