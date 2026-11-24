@@ -886,3 +886,25 @@ describe('workRepsOf', () => {
     expect(workRepsOf(onlyEnds)).toEqual(onlyEnds);
   });
 });
+
+describe('verdict.parts (2026-11-23)', () => {
+  it('a graded verdict carries its ingredients; weights sum to 1 and rebuild the score', () => {
+    const verdict = verdictFor(250, run());
+    expect(verdict.status).toBe('graded');
+    const parts = verdict.parts!;
+    expect(parts.length).toBeGreaterThan(1);
+    expect(parts.reduce((s, p) => s + p.weight, 0)).toBeCloseTo(1, 9);
+    for (const p of parts) { expect(p.score).toBeGreaterThanOrEqual(0); expect(p.score).toBeLessThanOrEqual(100); }
+    expect(Math.abs(parts.reduce((s, p) => s + p.weight * p.score, 0) - (verdict.score as number))).toBeLessThanOrEqual(1);
+    expect(parts.find((p) => p.key === 'reps')!.weight).toBeCloseTo(0.7, 9);
+  });
+  it('an unplanned verdict has no parts', () => {
+    const verdict = buildVerdict({ activityId: 'a', athleteId: 'b', adherence: null, segments: null });
+    expect(verdict.parts).toBeUndefined();
+  });
+  it('the duration metric carries a planned {min,max} range', () => {
+    const duration = verdictFor(250, run()).metrics.find((m) => m.key === 'duration')!;
+    expect(duration.planned).toBeDefined();
+    expect(duration.planned!.min).toBeLessThanOrEqual(duration.planned!.max);
+  });
+});

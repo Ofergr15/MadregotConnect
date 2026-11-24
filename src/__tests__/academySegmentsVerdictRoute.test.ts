@@ -305,6 +305,16 @@ describe('GET /api/academy/segments?verdict=1', () => {
     });
   });
 
+  it('verdict.parts: weights sum to 1 on a graded verdict; a teammate gets no verdict at all', async () => {
+    const body = await (await call(`athleteId=${ATHLETE}&date=${DATE}&verdict=1&activityId=act-session`)).json();
+    expect(body.verdict.status).toBe('graded');
+    const sum = body.verdict.parts.reduce((s: number, p: { weight: number }) => s + p.weight, 0);
+    expect(sum).toBeCloseTo(1, 9);
+    mayActFor.mockReturnValue(false);
+    const denied = await (await call(`athleteId=${ATHLETE}&date=${DATE}&verdict=1&activityId=act-session`)).json();
+    expect(denied.verdict).toBeNull();
+  });
+
   it('requires a verified caller', async () => {
     resolveVerifiedCaller.mockResolvedValue({ denied: new Response('nope', { status: 401 }) });
     expect((await call(`athleteId=${ATHLETE}&date=${DATE}&verdict=1`)).status).toBe(401);

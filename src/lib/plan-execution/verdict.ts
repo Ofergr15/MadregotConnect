@@ -89,6 +89,21 @@ export interface ExecutionMetric {
   /** Signed distance outside the tolerated band, in the metric's own unit. */
   deviation: number | null;
   reason: ExecutionUnknownReason | null;
+  /**
+   * Duration only (2026-11-23, additive): the planned time as a RANGE in seconds, so
+   * an easy run asked for as a distance band at a pace band can show "1:33–1:39".
+   * plannedMin/plannedMax stay the single point the score is graded against. Derived
+   * as distance band × pace band when both were prescribed, else the point itself.
+   * Absent when the plan stated no time and none can be derived.
+   */
+  planned?: { min: number; max: number };
+}
+
+/** One ingredient of the score, with the weight it carried (weights sum to 1). */
+export interface ExecutionScorePart {
+  key: 'reps' | 'distance' | 'duration' | 'pace';
+  weight: number;
+  score: number;
 }
 
 /**
@@ -203,6 +218,11 @@ export interface ExecutionVerdict {
    * the direction value and the score are exactly what they were.
    */
   partsNotReps?: boolean;
+  /**
+   * The score's own arithmetic (2026-11-23, additive): each ingredient, its weight
+   * (summing to 1) and its 0..100 sub-score. Only on a graded verdict.
+   */
+  parts?: ExecutionScorePart[];
 }
 
 /**
@@ -370,6 +390,7 @@ function buildMetrics(
       reason: adherence.duration.status !== 'unknown'
         ? null
         : adherence.duration.estimated ? 'estimated_plan' : 'no_data',
+      ...plannedDurationRange(adherence),
     },
     {
       key: 'pace',
@@ -385,6 +406,17 @@ function buildMetrics(
       reason: adherence.pace.status === 'unknown' ? paceUnknownReason(adherence) : null,
     },
   ];
+}
+
+/** See `ExecutionMetric.planned`. */
+function plannedDurationRange(adherence: WorkoutAdherence): { planned?: { min: number; max: number } } {
+  const { plannedMin: dMin, plannedMax: dMax } = adherence.distance;
+  const { plannedMin: pMin, plannedMax: pMax } = adherence.pace;
+  if (dMin > 0 && dMax > 0 && pMin != null && pMax != null && pMin > 0 && pMax > 0) {
+    return { planned: { min: Math.round((dMin / 1000) * Math.min(pMin, pMax)), max: Math.round((dMax / 1000) * Math.max(pMin, pMax)) } };
+  }
+  const point = adherence.duration.planned;
+  return point > 0 ? { planned: { min: point, max: point } } : {};
 }
 
 function buildReps(report: SegmentReport | null, toleranceSec: number): ExecutionRep[] {
@@ -570,6 +602,18 @@ export function buildVerdict(input: VerdictInput): ExecutionVerdict {
       ? fromEfforts ? 'efforts_and_metrics' : 'reps_and_metrics'
       : repPart != null ? (fromEfforts ? 'efforts' : 'reps') : metricPart != null ? 'metrics' : null;
 
+  // The same weights `score01` used, spelled out per ingredient.
+  const gradedMetrics = metrics.filter((metric) => metric.closeness != null);
+  const metricShare = repPart != null ? 1 - REPS_WEIGHT : 1;
+  const parts: ExecutionScorePart[] | undefined = score01 == null
+    ? undefined
+    : [
+      ...(repPart != null ? [{ key: 'reps' as const, weight: metricPart != null ? REPS_WEIGHT : 1, score: Math.round(repPart * 100) }] : []),
+      ...(metricPart != null
+        ? gradedMetrics.map((metric) => ({ key: metric.key, weight: metricShare / gradedMetrics.length, score: Math.round((metric.closeness as number) * 100) }))
+        : []),
+    ];
+
   // Direction reads the reps when there are any — that IS the session. Only a
   // run with no per-rep verdicts falls back to its whole-run average pace, and
   // only a run with neither falls back to distance (ran long / ran short).
@@ -664,6 +708,7 @@ export function buildVerdict(input: VerdictInput): ExecutionVerdict {
       : null,
     basis,
     ...(direction === 'incomplete' && efforts?.repeatPlan === false ? { partsNotReps: true } : {}),
+    ...(parts ? { parts } : {}),
   };
 }
 

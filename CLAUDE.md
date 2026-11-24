@@ -512,6 +512,18 @@ errors are logged as name + HTTP status only — an axios error carries the pass
 or ticket in its request config. `garmin-callback` posts the ticket to its own origin
 instead of `'*'`. Pinned by `src/__tests__/garminCredentialServerSide.test.ts`.
 
+Recorded exposure change, **2026-11-23** (native run detail v2):
+`GET /api/activities/similar?id=…&scope=same|type|all` is a new read of a runner's **pace
+history** — up to 8 past sessions like this one (rep paces, average pace, HR, pace at
+HR 130–140, reps on target) plus the run itself. That is a comparable figure on a named
+person, the same class as the verdict, so it is **self-or-staff** (`mayActFor`) and a
+hard 403 otherwise — no member-visible version. Masked off the run's own feed item via
+`readHiddenStats` (fails closed): `pace` hidden → `{ sessions: [], masked: true }`;
+`heart_rate` hidden → every `avgHr` / `paceAtHr` null. Unlike the analysis route the mask
+applies to the runner and staff too, as the feed's does. Same date, the verdict gained
+`parts` (the score's ingredients and weights) and the duration metric `planned: {min,max}`
+— both inside the existing `emitVerdict` gate, nothing new leaves it.
+
 Recorded exposure change, **2026-11-23** (owner decision, Ofer): **record times follow
 hidden pace.** A record is a time over a fixed distance — pace at a coarser grain — so a
 runner whose `athletes.default_hidden_fields` holds `pace` has their record times withheld
