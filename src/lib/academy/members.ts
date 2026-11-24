@@ -1,3 +1,4 @@
+import { DEFAULT_PACK_CAPACITY } from './settings';
 // The academy centre's shared vocabulary and derivation rules.
 //
 // Deliberately free of any Supabase import so both the route that builds the
@@ -412,12 +413,15 @@ export function rollupCoaches(
  * picker. Unlike coaches there is no null bucket here — "no band" is an attention
  * reason on the trainee, not a band of its own.
  */
-export function rollupBands(members: AcademyMember[], bands: AcademyBand[]): AcademyBand[] {
+export function rollupBands(members: AcademyMember[], bands: AcademyBand[], packCapacity = DEFAULT_PACK_CAPACITY): AcademyBand[] {
   const counts = new Map<string, number>();
   for (const m of members) {
     if (m.band) counts.set(m.band.id, (counts.get(m.band.id) || 0) + 1);
   }
-  return sortBands(bands).map((b) => ({ ...b, trainees: counts.get(b.id) || 0 }));
+  return sortBands(bands).map((b) => {
+    const trainees = counts.get(b.id) || 0;
+    return { ...b, trainees, capacity: packCapacity, overCapacity: trainees > packCapacity };
+  });
 }
 
 export function rollupTeam(members: AcademyMember[]): AcademyTeamTotals {

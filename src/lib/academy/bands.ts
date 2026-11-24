@@ -68,6 +68,9 @@ export interface AcademyBand {
   paceProfile: BandPaceProfile;
   /** How many academy trainees are currently in this band. */
   trainees?: number;
+  /** The pack's soft cap (academy settings `packCapacity`, doc p.2: up to 20) and whether it is past it. */
+  capacity?: number;
+  overCapacity?: boolean;
 }
 
 /**

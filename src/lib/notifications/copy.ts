@@ -177,6 +177,7 @@ const EVENT_KIND_LABELS: Record<NotificationLocale, Record<string, string>> = {
     photo_shoot: '📸 צילומים',
     sponsor: '🤝 אירוע ספונסר',
     workout: '🏃 אימון מיוחד',
+    zoom: '💻 זום מקצועי',
   },
   en: {
     race: '🏆 Race',
@@ -186,6 +187,7 @@ const EVENT_KIND_LABELS: Record<NotificationLocale, Record<string, string>> = {
     photo_shoot: '📸 Photo shoot',
     sponsor: '🤝 Sponsor event',
     workout: '🏃 Special session',
+    zoom: '💻 Professional Zoom',
   },
 };
 

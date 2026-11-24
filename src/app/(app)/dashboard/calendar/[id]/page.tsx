@@ -96,6 +96,7 @@ const KIND_STYLES: Record<EventKind, { bg: string; text: string }> = {
   photo_shoot: { bg: 'bg-teal-500/15', text: 'text-teal-600' },
   sponsor: { bg: 'bg-indigo-500/15', text: 'text-indigo-600' },
   workout: { bg: 'bg-accent-600/15', text: 'text-accent-900' },
+  zoom: { bg: 'bg-ink-300/30', text: 'text-ink-900' },
 };
 
 /**

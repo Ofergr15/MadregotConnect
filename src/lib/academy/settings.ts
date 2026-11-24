@@ -18,9 +18,13 @@ export interface AcademySettings {
   // How many trainees one coach takes (1:1 training). Drives "N פנויים", the
   // recommended coach in every coach picker, and the home's smart suggestions.
   coachCapacity: number;
+  // How many trainees one pack (band) takes — academy doc p.2, Academy Teams: "עד 20 רצים בדבוקה".
+  // A soft cap: assigning past it is allowed, and the band rollup says the pack is over.
+  packCapacity: number;
 }
 
 export const DEFAULT_COACH_CAPACITY = 8;
+export const DEFAULT_PACK_CAPACITY = 20;
 export const MAX_COACH_CAPACITY = 50;
 
 export const DEFAULT_ACADEMY_SETTINGS: AcademySettings = {
@@ -29,6 +33,7 @@ export const DEFAULT_ACADEMY_SETTINGS: AcademySettings = {
   paceAlerts: true,
   report: { recipients: [], day: 1 },
   coachCapacity: DEFAULT_COACH_CAPACITY,
+  packCapacity: DEFAULT_PACK_CAPACITY,
 };
 
 // Merge a stored (possibly partial / legacy) blob onto the defaults.
@@ -55,6 +60,7 @@ export function normalizeSettings(raw: any): AcademySettings {
         : d.report.day,
     },
     coachCapacity: capacityOr(r.coachCapacity, d.coachCapacity),
+    packCapacity: capacityOr(r.packCapacity, d.packCapacity),
   };
 }
 

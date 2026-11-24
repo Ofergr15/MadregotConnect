@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Search as SearchIcon, Users, Trophy, Tent, BookOpen, PartyPopper, Camera, Gift, Dumbbell, Package, Medal, ClipboardList, CalendarDays, Images, X, ChevronLeft } from 'lucide-react';
+import { Search as SearchIcon, Users, Trophy, Tent, BookOpen, PartyPopper, Camera, Gift, Dumbbell, Package, Medal, ClipboardList, CalendarDays, Images, X, ChevronLeft, Video } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useApi } from '@/lib/api';
 import { EmptyState, Spinner } from '@/components/ui';
@@ -55,6 +55,7 @@ const KIND_ICON: Record<EventKind, React.ComponentType<{ className?: string }>> 
   photo_shoot: Camera,
   sponsor: Gift,
   workout: Dumbbell,
+  zoom: Video,
 };
 
 interface SearchMember {
