@@ -9,6 +9,8 @@ vi.mock('@/lib/club-updates/access', () => ({
 }));
 const after = vi.fn();
 vi.mock('next/server', async (orig) => ({ ...(await orig<typeof import('next/server')>()), after: (fn: () => void) => after(fn) }));
+const revalidateTag = vi.fn();
+vi.mock('next/cache', async (orig) => ({ ...(await orig<typeof import('next/cache')>()), revalidateTag: (...a: unknown[]) => revalidateTag(...a) }));
 const insert = vi.fn();
 const db = { from: () => ({ insert: (row: unknown) => { insert(row); return { select: () => ({ single: async () => ({ data: { id: 'u1', ...(row as object), created_at: 'now' }, error: null }) }) }; } }) };
 vi.mock('@/lib/club-updates/server', () => ({
@@ -24,7 +26,7 @@ const post = (b: unknown) => POST(new Request('http://x/api/club-updates', { met
 const as = (access: { admin: boolean; canWrite: boolean; canRead: boolean }, enabled = true) =>
   caller.mockResolvedValue({ denied: null, db, athleteId: 'me', access, cfg: { enabled, writerIds: [] } });
 
-beforeEach(() => { caller.mockReset(); insert.mockReset(); after.mockReset(); });
+beforeEach(() => { caller.mockReset(); insert.mockReset(); after.mockReset(); revalidateTag.mockReset(); });
 
 describe('club updates route', () => {
   it('refuses a member who is not a writer', async () => {
@@ -44,6 +46,16 @@ describe('club updates route', () => {
     await post({ body: 'שי סיים!', breaking: true });
     expect(insert).toHaveBeenCalledWith(expect.objectContaining({ breaking: true, notify_at: expect.any(String) }));
     expect(after).toHaveBeenCalledTimes(1);
+  });
+  it('a post drops the shared club-updates cache (writer → tag)', async () => {
+    as({ admin: false, canWrite: true, canRead: true });
+    await post({ body: 'נפגשים בשער 2' });
+    expect(revalidateTag).toHaveBeenCalledWith('club-updates', { expire: 0 });
+  });
+  it('a refused post invalidates nothing', async () => {
+    as({ admin: false, canWrite: false, canRead: true });
+    await post({ body: 'hi' });
+    expect(revalidateTag).not.toHaveBeenCalled();
   });
   it('rejects an update over 280 characters', async () => {
     as({ admin: true, canWrite: true, canRead: true });

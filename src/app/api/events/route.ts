@@ -1,3 +1,4 @@
+import { invalidateShared, sharedCache, SHARED_TAGS } from '@/lib/cache/shared';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
@@ -16,6 +17,20 @@ export const dynamic = 'force-dynamic';
 //   `from` overrides the default "upcoming only" lower bound (so past events
 //   can be browsed too, e.g. for a history view); `to` is an additional upper
 //   bound applied either way. Omit both for "everything from today on".
+// The calendar's raw rows — the same for every member (lib/cache/shared.ts). Drafts
+// and pending versions ARE in here; `projectEvents` below strips them per caller on
+// every request, exactly as before. No registrations/RSVPs: those live in their own
+// table and never enter this cache. Throws on error so an error is never cached.
+const readEventRows = sharedCache(async (kind: string | null, lower: string, to: string | null) => {
+  let query = createServerClient().from('events').select('*');
+  if (kind) query = query.eq('kind', kind);
+  query = query.or(`end_date.gte.${lower},and(end_date.is.null,date.gte.${lower})`);
+  if (to) query = query.lte('date', to);
+  const { data, error } = await query.order('date', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}, ['events:rows:v1'], { tag: SHARED_TAGS.events, revalidate: 120 });
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -23,10 +38,6 @@ export async function GET(request: Request) {
     const from = searchParams.get('from');
     const to = searchParams.get('to');
 
-    const supabase = createServerClient();
-    let query = supabase.from('events').select('*');
-
-    if (kind) query = query.eq('kind', kind);
     // "Upcoming from today" in Israel — a UTC date would still hide today's
     // event during the 00:00-03:00 window, or show yesterday's after 21:00.
     //
@@ -41,11 +52,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'from/to must be YYYY-MM-DD' }, { status: 400 });
     }
     const lower = from || israelToday();
-    query = query.or(`end_date.gte.${lower},and(end_date.is.null,date.gte.${lower})`);
-    if (to) query = query.lte('date', to);
-
-    const { data, error } = await query.order('date', { ascending: true });
-    if (error) throw error;
+    const data = await readEventRows(kind, lower, to);
 
     // Events v2: drafts and not-yet-live scheduled events only for verified staff;
     // `pending` never leaves for anyone else. Rows without `status` (pre-184) pass.
@@ -162,6 +169,7 @@ export async function POST(request: Request) {
       }
       ({ data, error } = await supabase.from('events').insert(base).select().single());
     }
+    invalidateShared(SHARED_TAGS.events);
     if (error) throw error;
     if (blocks && blocks.length > 0) {
       try { await replaceBlocks(supabase, data.id, blocks); } catch (e) { console.error('event blocks insert failed', e); }

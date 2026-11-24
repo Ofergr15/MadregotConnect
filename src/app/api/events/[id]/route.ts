@@ -1,3 +1,4 @@
+import { invalidateShared, SHARED_TAGS } from '@/lib/cache/shared';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
@@ -125,6 +126,7 @@ export async function PATCH(
         .eq('id', id)
         .select()
         .maybeSingle();
+      invalidateShared(SHARED_TAGS.events);
       if (error) throw error;
       return NextResponse.json({ event: data, pending: true });
     }
@@ -144,6 +146,7 @@ export async function PATCH(
       .eq('id', id)
       .select()
       .maybeSingle();
+    invalidateShared(SHARED_TAGS.events);
 
     if (error) {
       if (updates.course_gpx_url !== undefined && isMissingColumn(error)) {
@@ -181,6 +184,7 @@ export async function DELETE(
       .eq('id', id)
       .select('id')
       .maybeSingle();
+    invalidateShared(SHARED_TAGS.events);
 
     if (error) throw error;
     if (!data) return NextResponse.json({ error: 'Event not found' }, { status: 404 });

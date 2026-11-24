@@ -1,3 +1,4 @@
+import { invalidateShared, SHARED_TAGS } from '@/lib/cache/shared';
 import { NextResponse } from 'next/server';
 import { clubUpdatesCaller, forbidden } from '@/lib/club-updates/access';
 import { loadRow, project } from '@/lib/club-updates/server';
@@ -42,6 +43,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ update });
   }
   const { data, error } = await c.db.from('club_updates').update(patch).eq('id', id).select('*').single();
+  invalidateShared(SHARED_TAGS.clubUpdates);
   if (error) {
     console.error('[club-updates] update failed:', error);
     return NextResponse.json({ error: 'Failed to save' }, { status: 500 });
@@ -58,6 +60,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   if (!row || row.deleted_at) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!mayEdit(c.access, c.athleteId, row.author_athlete_id)) return forbidden();
   const { error } = await c.db.from('club_updates').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+  invalidateShared(SHARED_TAGS.clubUpdates);
   if (error) return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
   // Was its push still waiting? Then it never goes (sendUpdatePush skips deleted rows).
   return NextResponse.json({ ok: true, pushStopped: !!row.notify_at && !row.notified_at });

@@ -1,29 +1,36 @@
+import { invalidateShared, sharedCache, SHARED_TAGS } from '@/lib/cache/shared';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { logWeek } from '@/lib/week-setup/server';
 import { requireSession, authError } from '@/lib/auth-session';
 import { nativePdfUrl } from '@/lib/native/supabase-proxy';
 
-export async function GET() {
-  const supabase = createServerClient();
-  const { data, error } = await supabase
+// The club's season program — the same rows for everyone (lib/cache/shared.ts).
+// A failed read throws, so an error is never what gets cached.
+const readProgramWeeks = sharedCache(async () => {
+  const { data, error } = await createServerClient()
     .from('program_weeks')
     .select('*')
     .order('week_start_date', { ascending: false });
+  if (error) throw new Error(error.message);
+  return data;
+}, ['program-weeks:v1'], { tag: SHARED_TAGS.programWeeks, revalidate: 600 });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+export async function GET() {
+  try {
+    const rows = await readProgramWeeks();
+    // *_native_url: the same PDF via our own domain (/api/native/storage/...), so the
+    // native app never needs the Supabase host. Stored *_pdf_url values are unchanged.
+    return NextResponse.json(
+      (rows || []).map((row: any) => ({
+        ...row,
+        training_pdf_native_url: nativePdfUrl(row.training_pdf_url),
+        nutrition_pdf_native_url: nativePdfUrl(row.nutrition_pdf_url),
+      })),
+    );
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed' }, { status: 500 });
   }
-
-  // *_native_url: the same PDF via our own domain (/api/native/storage/...), so the
-  // native app never needs the Supabase host. Stored *_pdf_url values are unchanged.
-  return NextResponse.json(
-    (data || []).map((row: any) => ({
-      ...row,
-      training_pdf_native_url: nativePdfUrl(row.training_pdf_url),
-      nutrition_pdf_native_url: nativePdfUrl(row.nutrition_pdf_url),
-    })),
-  );
 }
 
 // Staff only. This writes the club's program: it upserts program_weeks on
@@ -129,6 +136,7 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+  invalidateShared(SHARED_TAGS.programWeeks);
 
   // The nutrition PDF of the club's week, in the week's log (lib/week-setup, 10-24).
   if (nutritionUrl) await logWeek(supabase, String(data?.week_start_date ?? rawStartDate).slice(0, 10), { athleteId: auth.user.athleteId, name: auth.user.name }, 'nutrition', 'nutrition_uploaded');
