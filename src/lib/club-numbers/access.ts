@@ -39,19 +39,21 @@ export async function mayViewNumbers(supabase: Db, c: { isSuperUser: boolean; ro
 // (and the cron tick keeps it warm). Each server instance also holds it in memory.
 export const SNAPSHOT_KEY = 'club_numbers_snapshot';
 export const FRESH_MS = 5 * 60_000;
-let mem: { at: number; body: unknown } | null = null;
+// `?window=` series are kept the same way, one snapshot per window (`…_snapshot:12m`).
+const mem = new Map<string, { at: number; body: unknown }>();
+export const snapshotKey = (window?: string | null) => (window ? `${SNAPSHOT_KEY}:${window}` : SNAPSHOT_KEY);
 
-export async function readSnapshot(supabase: Db): Promise<{ at: number; body: unknown } | null> {
-  if (mem) return mem;
-  const { data } = await supabase.from('app_settings').select('value').eq('key', SNAPSHOT_KEY).maybeSingle();
+export async function readSnapshot(supabase: Db, key = SNAPSHOT_KEY): Promise<{ at: number; body: unknown } | null> {
+  const hit = mem.get(key); if (hit) return hit;
+  const { data } = await supabase.from('app_settings').select('value').eq('key', key).maybeSingle();
   try {
     const v = JSON.parse((data as { value?: string } | null)?.value || 'null');
-    if (v && typeof v.at === 'number' && v.body) { mem = v; return v; }
+    if (v && typeof v.at === 'number' && v.body) { mem.set(key, v); return v; }
   } catch { /* none yet */ }
   return null;
 }
-export async function writeSnapshot(supabase: Db, body: unknown): Promise<void> {
-  mem = { at: Date.now(), body };
-  await supabase.from('app_settings').upsert({ key: SNAPSHOT_KEY, value: JSON.stringify(mem), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+export async function writeSnapshot(supabase: Db, body: unknown, key = SNAPSHOT_KEY): Promise<void> {
+  const v = { at: Date.now(), body }; mem.set(key, v);
+  await supabase.from('app_settings').upsert({ key, value: JSON.stringify(v), updated_at: new Date().toISOString() }, { onConflict: 'key' });
 }
-export const dropNumbers = () => { mem = null; };
+export const dropNumbers = () => { mem.clear(); };
