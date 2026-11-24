@@ -53,6 +53,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (body.note !== undefined) patch.note = typeof body.note === 'string' && body.note.trim() ? body.note.trim().slice(0, 1000) : null;
   }
   const { data, error } = await l.db.from('pain_reports').update(patch).eq('id', id).select(PAIN_SELECT).single();
-  if (error) return NextResponse.json({ error: 'Failed to update', details: error.message }, { status: 500 });
+  if (error) { console.error('[api/pain-reports/[id]]', error); return NextResponse.json({ error: 'Failed to update' }, { status: 500 }); }
   return NextResponse.json({ report: shapePain(data as PainRow) });
 }

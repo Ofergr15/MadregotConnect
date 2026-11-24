@@ -17,11 +17,11 @@ export async function POST(request: Request) {
   if (!meetupId) return NextResponse.json({ error: 'meetupId is required' }, { status: 400 });
   const db = createServerClient();
   const { data, error } = await db.from('athletes').select('notification_prefs').eq('id', auth.user.athleteId).maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error('[api/runs/meetups/hide]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   const prefs = ((data?.notification_prefs as Record<string, unknown> | null) || {});
   const ids = feedHiddenIds(prefs);
   if (!ids.includes(meetupId)) ids.push(meetupId);
   const { error: upErr } = await db.from('athletes').update({ notification_prefs: { ...prefs, feedHiddenMeetups: ids.slice(-200) } }).eq('id', auth.user.athleteId);
-  if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+  if (upErr) { console.error('[api/runs/meetups/hide]', upErr); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   return NextResponse.json({ ok: true });
 }

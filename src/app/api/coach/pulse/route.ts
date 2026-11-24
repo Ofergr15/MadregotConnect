@@ -169,6 +169,6 @@ export async function GET(request: Request) {
     return NextResponse.json(await cachedPulse(days));
   } catch (err: any) {
     console.error('pulse error:', err);
-    return NextResponse.json({ error: err.message || 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

@@ -42,6 +42,6 @@ export async function GET(request: Request) {
     return NextResponse.json(await roster(week));
   } catch (error: any) {
     console.error('[coach/roster] failed:', error);
-    return NextResponse.json({ error: error?.message || 'Failed to load roster' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load roster' }, { status: 500 });
   }
 }

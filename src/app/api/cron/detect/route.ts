@@ -51,8 +51,9 @@ async function run(request: Request) {
       storageMissing: result.storageMissing,
     });
   } catch (error) {
+    console.error('[api/cron/detect]', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'detect-failed' },
+      { error: error instanceof Error ? 'failed' : 'detect-failed' },
       { status: 500 },
     );
   }

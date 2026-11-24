@@ -73,13 +73,13 @@ export async function PATCH(request: Request) {
   if (typeof body.noWatch !== 'boolean' && !confirm && !browser) return NextResponse.json({ error: 'noWatch must be true or false' }, { status: 400 });
   const db = createServerClient();
   const { data, error } = await db.from('athletes').select('notification_prefs').eq('id', caller.athleteId).maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error('[api/setup]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   const prefs = ((data?.notification_prefs as Record<string, unknown> | null) || {});
   const setup: Record<string, unknown> = { ...((prefs.setup as Record<string, unknown>) || {}) };
   if (typeof body.noWatch === 'boolean') setup.noWatch = body.noWatch;
   if (confirm) setup.detailsConfirmedAt = new Date().toISOString();
   if (browser && !setup.browserAt) setup.browserAt = new Date().toISOString();
   const { error: upErr } = await db.from('athletes').update({ notification_prefs: { ...prefs, setup } }).eq('id', caller.athleteId);
-  if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+  if (upErr) { console.error('[api/setup]', upErr); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   return NextResponse.json({ ok: true, noWatch: setup.noWatch === true, detailsConfirmed: !!setup.detailsConfirmedAt, browserChosen: !!setup.browserAt });
 }

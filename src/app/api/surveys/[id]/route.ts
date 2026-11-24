@@ -81,6 +81,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json({ survey, myResponse, myResponses, results });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/surveys/[id]]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }

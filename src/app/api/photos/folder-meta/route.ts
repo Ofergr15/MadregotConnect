@@ -27,6 +27,6 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[photos/folder-meta] failed:', err);
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }

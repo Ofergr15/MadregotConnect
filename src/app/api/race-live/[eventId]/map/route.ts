@@ -15,6 +15,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const { error } = on
     ? await db.from('race_map_viewers').upsert({ event_id: eventId, athlete_id: caller.athleteId }, { onConflict: 'event_id,athlete_id' })
     : await db.from('race_map_viewers').delete().eq('event_id', eventId).eq('athlete_id', caller.athleteId);
-  if (error) return NextResponse.json({ error: 'save failed', details: error.message }, { status: 500 });
+  if (error) { console.error('[api/race-live/[eventId]/map]', error); return NextResponse.json({ error: 'save failed' }, { status: 500 }); }
   return NextResponse.json({ ok: true, on });
 }

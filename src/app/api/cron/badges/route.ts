@@ -35,7 +35,8 @@ async function run(request: Request) {
     .eq('coach_id', COACH_ID)
     .eq('status', 'active');
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[api/cron/badges]', error);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 
   // Piggybacks on this sweep because it needs the same thing the sweep does —

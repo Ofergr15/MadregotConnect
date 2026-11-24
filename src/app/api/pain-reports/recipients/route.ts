@@ -14,6 +14,7 @@ export async function GET(request: Request) {
   try {
     return NextResponse.json({ names: await painRecipientNames(createServerClient(), caller.athleteId) });
   } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'Failed' }, { status: 500 });
+    console.error('[api/pain-reports/recipients]', error);
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

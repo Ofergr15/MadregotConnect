@@ -18,7 +18,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const sev = body.severity == null ? null : Number(body.severity);
   if (sev != null && (!Number.isInteger(sev) || sev < 1 || sev > 10)) return NextResponse.json({ error: 'invalid severity' }, { status: 400 });
   const { error } = await l.db.from('pain_checkins').insert({ report_id: id, trend: body.trend, severity: sev });
-  if (error) return NextResponse.json({ error: 'Failed to save', details: error.message }, { status: 500 });
+  if (error) { console.error('[api/pain-reports/[id]/checkin]', error); return NextResponse.json({ error: 'Failed to save' }, { status: 500 }); }
   let row = l.row;
   const patch: Record<string, unknown> = {};
   if (sev != null) patch.severity = sev;

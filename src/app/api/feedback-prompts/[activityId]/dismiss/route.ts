@@ -15,6 +15,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
   if (caller.viewingAsBy) return NextResponse.json({ error: 'read-only while viewing as' }, { status: 403 });
   const { error } = await createServerClient().from('feedback_prompts').update({ dismissed_at: new Date().toISOString() })
     .eq('athlete_id', caller.athleteId).eq('activity_id', activityId).is('dismissed_at', null);
-  if (error) return NextResponse.json({ error: 'Failed', details: error.message }, { status: 500 });
+  if (error) { console.error('[api/feedback-prompts/[activityId]/dismiss]', error); return NextResponse.json({ error: 'Failed' }, { status: 500 }); }
   return NextResponse.json({ ok: true });
 }

@@ -61,7 +61,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ shoes: result });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/shoes]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
 
@@ -109,7 +110,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ shoe });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/shoes]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
 
@@ -204,7 +206,8 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/shoes]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
 
@@ -234,6 +237,7 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/shoes]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }

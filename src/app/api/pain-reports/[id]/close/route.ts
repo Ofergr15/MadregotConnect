@@ -15,6 +15,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { data, error } = await l.db.from('pain_reports')
     .update({ status: 'resolved', resolved_by: l.caller.athleteId ?? l.caller.email, resolved_at: now, seen_at: l.row.seen_at ?? now })
     .eq('id', id).select(PAIN_SELECT).single();
-  if (error) return NextResponse.json({ error: 'Failed to close', details: error.message }, { status: 500 });
+  if (error) { console.error('[api/pain-reports/[id]/close]', error); return NextResponse.json({ error: 'Failed to close' }, { status: 500 }); }
   return NextResponse.json({ report: shapePain(data as PainRow) });
 }

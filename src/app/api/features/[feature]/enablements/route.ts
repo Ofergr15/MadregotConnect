@@ -45,7 +45,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ feat
     });
   } catch (error: any) {
     console.error('[features] GET failed', error);
-    return NextResponse.json({ error: error?.message || 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
 
@@ -84,8 +84,9 @@ export async function PUT(request: Request, { params }: { params: Promise<{ feat
         { onConflict: 'feature,scope_type,scope_id' },
       );
     if (write.error) {
-      if (isMissingTable(write.error)) return NextResponse.json({ error: 'migration_pending', details: 'migration 191 not applied' }, { status: 503 });
-      return NextResponse.json({ error: 'Failed to save', details: write.error.message }, { status: 500 });
+      if (isMissingTable(write.error)) return NextResponse.json({ error: 'migration_pending', migration: 191 }, { status: 503 });
+      console.error('[api/features/[feature]/enablements]', write.error);
+      return NextResponse.json({ error: 'Failed to save' }, { status: 500 });
     }
     const { data: me } = caller.athleteId ? await db.from('athletes').select('name').eq('id', caller.athleteId).maybeSingle() : { data: null };
     await db.from(ENABLEMENT_AUDIT_TABLE).insert({
@@ -95,6 +96,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ feat
     return NextResponse.json({ ok: true, scopeType, scopeId, enabled, setBy, setAt: now });
   } catch (error: any) {
     console.error('[features] PUT failed', error);
-    return NextResponse.json({ error: error?.message || 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

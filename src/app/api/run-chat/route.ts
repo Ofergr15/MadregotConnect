@@ -82,7 +82,8 @@ export async function DELETE(request: Request) {
     .delete()
     .eq('activity_id', activityId);
   if (deleteError) {
-    return NextResponse.json({ error: deleteError.message }, { status: 500 });
+    console.error('[api/run-chat]', deleteError);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 
   const { data: artifacts } = await supabase.storage.from('run-chat').list(activityId);

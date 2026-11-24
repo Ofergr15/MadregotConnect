@@ -115,6 +115,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     });
   } catch (error: any) {
     console.error('[coach/athlete] failed:', error);
-    return NextResponse.json({ error: error?.message || 'Failed to load' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load' }, { status: 500 });
   }
 }

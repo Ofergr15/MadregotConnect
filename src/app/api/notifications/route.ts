@@ -34,7 +34,8 @@ export async function GET(request: Request) {
     if (error) throw error;
     return NextResponse.json({ notifications: data || [] });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/notifications]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
 
@@ -140,7 +141,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ notification: created });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/notifications]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
 
@@ -194,7 +196,8 @@ export async function PUT(request: Request) {
     if (error) throw error;
     return NextResponse.json({ notification: data });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/notifications]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }
 
@@ -212,6 +215,7 @@ export async function DELETE(request: Request) {
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/notifications]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }

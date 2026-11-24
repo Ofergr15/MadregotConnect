@@ -176,6 +176,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    console.error('[api/push/subscribe]', err);
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

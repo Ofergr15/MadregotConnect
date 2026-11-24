@@ -38,7 +38,7 @@ export async function GET(request: Request) {
   const { data, error } = await db.from('account_deletion_requests').select('status, created_at')
     .eq('athlete_id', c.athleteId).eq('status', 'pending').maybeSingle();
   if (unmigrated(error)) return NextResponse.json({ request: null, migrated: false });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error('[api/account/delete-request]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   return NextResponse.json({ request: shape(data), migrated: true });
 }
 
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ request: shape(data) });
   } catch (err: unknown) {
     console.error('[account/delete-request] failed:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
 
@@ -82,6 +82,6 @@ export async function DELETE(request: Request) {
   const { error } = await db.from('account_deletion_requests').update({ status: 'cancelled', handled_at: new Date().toISOString() })
     .eq('athlete_id', c.athleteId).eq('status', 'pending');
   if (unmigrated(error)) return NextResponse.json({ request: null, migrated: false });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error('[api/account/delete-request]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   return NextResponse.json({ request: null });
 }

@@ -58,6 +58,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     return NextResponse.json({ success: true, answers: next });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/surveys/[id]/respond]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }

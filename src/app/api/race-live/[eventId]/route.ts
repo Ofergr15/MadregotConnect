@@ -19,6 +19,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const board = await liveBoard(db, eventId, caller.athleteId);
     return NextResponse.json({ enabled: true, ...board });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'board failed' }, { status: 500 });
+    console.error('[api/race-live/[eventId]]', error);
+    return NextResponse.json({ error: 'board failed' }, { status: 500 });
   }
 }

@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     const supabase = createServerClient();
     const path = `${slot}/${crypto.randomUUID()}.webp`;
     const { error } = await supabase.storage.from('event-images').upload(path, out, { contentType: 'image/webp', upsert: false });
-    if (error) return NextResponse.json({ error: `Upload failed: ${error.message}` }, { status: 500 });
+    if (error) { console.error('[api/events/images]', error); return NextResponse.json({ error: 'Upload failed' }, { status: 500 }); }
     const { data } = supabase.storage.from('event-images').getPublicUrl(path);
     return NextResponse.json({ url: data.publicUrl, path, bytes: out.length });
   } catch (err) {

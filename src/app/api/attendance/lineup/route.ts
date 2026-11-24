@@ -54,6 +54,7 @@ export async function GET(request: Request) {
     }
     return NextResponse.json({ ...buildLineup(rows, me), homeIndex });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[api/attendance/lineup]', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }

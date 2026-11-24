@@ -40,7 +40,7 @@ async function run(request: Request) {
   } catch (error) {
     console.error('Wellness sweep error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'wellness-failed' },
+      { error: error instanceof Error ? 'failed' : 'wellness-failed' },
       { status: 500 },
     );
   }

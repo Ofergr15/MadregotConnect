@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
         .from('run_photos')
         .select('run_date')
         .order('run_date', { ascending: false });
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) { console.error('[api/photos]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
       const dates = [...new Set((data ?? []).map(r => r.run_date))];
       return NextResponse.json({ dates });
     }
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
         .select('id, thumbnail_url, drive_url, filename, processed_at, faces_detected')
         .eq('drive_folder_id', folderId)
         .order('taken_at', { ascending: true });
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) { console.error('[api/photos]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
       return NextResponse.json({ photos: data });
     }
 
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
         .eq('run_date', date)
         .order('taken_at', { ascending: true });
 
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) { console.error('[api/photos]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
       return NextResponse.json({ photos: data });
     }
 
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
         .eq('athlete_id', resolvedId)
         .order('created_at', { ascending: false });
 
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) { console.error('[api/photos]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
       return NextResponse.json({ faces: data });
     }
 
@@ -104,7 +104,7 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(500);
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) { console.error('[api/photos]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
 
     // Group into clusters (null cluster_id = one card per face)
     const clusterMap = new Map<string, {

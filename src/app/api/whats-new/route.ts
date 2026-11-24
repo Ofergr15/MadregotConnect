@@ -60,7 +60,8 @@ export async function GET(request: Request) {
   ]);
   if (rel.error) {
     if (rel.error.code === MISSING) return NextResponse.json({ releases: [], pending: [], appVersion: APP_VERSION, staff });
-    return NextResponse.json({ error: rel.error.message }, { status: 500 });
+    console.error('[api/whats-new]', rel.error);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
   let releases = (rel.data ?? []) as ReleaseRow[];
   // Deploy bookkeeping, not the viewer's — but an admin viewing the app as
@@ -123,7 +124,7 @@ export async function PATCH(request: Request) {
   const { data: existing } = await supabase.from('release_note_picks').select('note_id').eq('note_id', b.note_id).maybeSingle();
   if (!existing && row.featured === undefined) row.featured = false;
   const { error } = await supabase.from('release_note_picks').upsert(row, { onConflict: 'note_id' });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error('[api/whats-new]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   return NextResponse.json({ success: true });
 }
 
@@ -140,7 +141,7 @@ export async function POST(request: Request) {
   const ids = unreleased(notes, (rel.data ?? []) as Pick<ReleaseRow, 'note_ids'>[]).map(n => n.id);
   const { error } = await supabase.from('release_approvals')
     .insert({ sha: b.sha, note_ids: ids, approved_by: caller.athleteId });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error('[api/whats-new]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   return NextResponse.json({ success: true });
 }
 
@@ -149,6 +150,6 @@ export async function DELETE(request: Request) {
   if (denied) return denied;
   const supabase = createServerClient();
   const { error } = await supabase.from('release_approvals').delete().is('shipped_at', null);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) { console.error('[api/whats-new]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   return NextResponse.json({ success: true });
 }

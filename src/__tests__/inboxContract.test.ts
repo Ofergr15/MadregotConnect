@@ -140,7 +140,7 @@ describe('GET /api/notifications/inbox', () => {
     answer = (q) => (q.table === 'athletes' ? { data: null, error: { message: 'boom' } } : { data: [], error: null });
     const res = await inbox.GET(req(`/api/notifications/inbox?athleteId=${ME}`));
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'boom', items: [], unread: 0 });
+    expect(await res.json()).toEqual({ error: 'failed', items: [], unread: 0 });   // fixed text, never the DB's (night queue #74)
   });
   it('is read-only: opening the inbox does not mark anything read (no update issued)', async () => {
     caller = { athleteId: ME, isStaff: false, isSuperUser: false };

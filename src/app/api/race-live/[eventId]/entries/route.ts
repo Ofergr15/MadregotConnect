@@ -32,7 +32,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
   }
   const { error } = await createServerClient().from('race_entries').upsert(patch, { onConflict: 'event_id,athlete_id' });
-  if (error) return NextResponse.json({ error: 'save failed', details: error.message }, { status: error.code === '23505' ? 409 : 500 });
+  if (error) { console.error('[api/race-live/[eventId]/entries]', error); return NextResponse.json({ error: 'save failed' }, { status: error.code === '23505' ? 409 : 500 }); }
   // Opting out deletes the link and the last position at once — nothing to keep for a hidden runner.
   if (body.liveOptOut === true) await purgeLiveTrack(createServerClient(), eventId, athleteId);
   return NextResponse.json({ ok: true });
