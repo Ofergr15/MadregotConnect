@@ -51,25 +51,31 @@ export async function POST(request: Request) {
         imageMediaType: 'application/pdf',
       });
 
-      // Delete the existing GROUP plan for this week only. Academy trainees' own rows
-      // (athlete_id set) are their personal weeks, not this program's — leave them.
-      await supabase
+      // Update the GROUP row for this week in place (as writeLegacyPlan does). Never
+      // delete-and-reinsert: activity_plan_matches references weekly_plans ON DELETE CASCADE
+      // (migration 054), so a delete wiped the week's matches, and a failed insert left no
+      // plan at all. Academy trainees' own rows (athlete_id set) are not this program's.
+      const { data: existing, error: readErr } = await supabase
         .from('weekly_plans')
-        .delete()
+        .select('id')
         .eq('coach_id', COACH_ID)
         .eq('week_start_date', week.weekStart)
-        .is('athlete_id', null);
+        .is('athlete_id', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (readErr) throw readErr;
 
-      // Insert fresh
-      const { data: inserted, error } = await supabase
-        .from('weekly_plans')
-        .insert({
-          coach_id: COACH_ID,
-          week_start_date: week.weekStart,
-          original_input: `Re-imported from: ${week.file}`,
-          parsed_workouts: normalizeParsedWorkouts(parsed) as any,
-          status: 'pushed',
-        }).select('id, parsed_workouts').single();
+      const row = {
+        coach_id: COACH_ID,
+        week_start_date: week.weekStart,
+        original_input: `Re-imported from: ${week.file}`,
+        parsed_workouts: normalizeParsedWorkouts(parsed) as any,
+        status: 'pushed',
+      };
+      const { data: inserted, error } = existing
+        ? await supabase.from('weekly_plans').update(row).eq('id', (existing as any).id).is('athlete_id', null).select('id, parsed_workouts').single()
+        : await supabase.from('weekly_plans').insert(row).select('id, parsed_workouts').single();
 
       if (error) throw error;
       // Option C (2026-11-22): recorded as the group week's plan-builder version too.

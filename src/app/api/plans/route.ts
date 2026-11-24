@@ -243,6 +243,19 @@ export async function DELETE(req: NextRequest) {
 
     const supabase = createServerClient();
 
+    // A trainee's personal row is their coaches' and the manager's, exactly as POST gates
+    // it (QA 23.11 #2): load the row's owner before any write.
+    const { data: target, error: targetErr } = await supabase
+      .from('weekly_plans').select('athlete_id').eq('id', plan_id).maybeSingle();
+    if (targetErr) {
+      return NextResponse.json({ error: 'Failed to load plan', details: targetErr.message }, { status: 500 });
+    }
+    if (!target) return NextResponse.json({ error: 'Plan not found' }, { status: 404 });
+    const owner = (target as any).athlete_id as string | null;
+    if (owner && (await academyTraineesNotYours(auth.user, [String(owner)])).length) {
+      return NextResponse.json({ error: 'Not your trainee' }, { status: 403 });
+    }
+
     const { error } = await supabase
       .from('weekly_plans')
       .delete()
@@ -297,6 +310,19 @@ export async function PUT(req: NextRequest) {
     }
 
     const supabase = createServerClient();
+
+    // A trainee's personal row is their coaches' and the manager's, exactly as POST gates
+    // it (QA 23.11 #2): load the row's owner before any write.
+    const { data: target, error: targetErr } = await supabase
+      .from('weekly_plans').select('athlete_id').eq('id', plan_id).maybeSingle();
+    if (targetErr) {
+      return NextResponse.json({ error: 'Failed to load plan', details: targetErr.message }, { status: 500 });
+    }
+    if (!target) return NextResponse.json({ error: 'Plan not found' }, { status: 404 });
+    const owner = (target as any).athlete_id as string | null;
+    if (owner && (await academyTraineesNotYours(auth.user, [String(owner)])).length) {
+      return NextResponse.json({ error: 'Not your trainee' }, { status: 403 });
+    }
 
     const updates: Record<string, unknown> = {};
     if (status) updates.status = status;
