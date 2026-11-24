@@ -15,6 +15,7 @@ import { isAcademyManager } from '@/lib/academy/pairing-server';
 import { countPlanWorkouts, type DispatchRosterEntry } from '@/lib/academy/week-status';
 import { coachIdsByTrainee, coachesTrainee } from '@/lib/academy/trainee-coaches';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 export const dynamic = 'force-dynamic';
 
 /**
@@ -162,7 +163,7 @@ export async function GET(request: Request) {
     // characters, exactly as `garmin/workout-id-backfill.ts` reads it.
     const { data: activityRows, error: activityError } = await supabase
       .from('athlete_activities')
-      .select('athlete_id, start_time')
+      .select('athlete_id, start_time').or(RUNS_ONLY_OR)
       .in('athlete_id', ids)
       .gte('start_time', `${weekStart}T00:00:00`)
       .lt('start_time', `${addDays(end, 1)}T00:00:00`);

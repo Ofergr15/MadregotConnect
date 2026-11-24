@@ -153,6 +153,8 @@ export const FEATURES = {
   run_detail_v2: { label: 'פרטי ריצה — עיצוב חדש (אפליקציה)', defaultEnabled: false },
   /** b22 native onboarding after approval: welcome, setup checklist, resume card, paused / viewer gates (ios Onboarding). */
   native_onboarding_setup: { label: 'הצטרפות — צ׳קליסט הגדרה (אפליקציה)', defaultEnabled: false },
+  /** אימוני כוח: קליטה מ-Garmin/Strava, כרטיס פיד, פירוט סטים, "בוצע" (review-2026-11-20/strength/plan.md). */
+  strength_training: { label: 'אימוני כוח', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;

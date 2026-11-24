@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
 import { buildSession, type ActivityRow, type AthleteRow, type AttendanceRow, type GroupRow } from '@/lib/pack-stories/build';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 export const dynamic = 'force-dynamic';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -35,7 +36,7 @@ export async function GET(request: Request) {
     // start_time is local wall-clock time stored as +00:00, so a naive day range is the local day.
     const [acts, att, aths, grps] = await Promise.all([
       supabase.from('athlete_activities')
-        .select('id, athlete_id, start_time, distance, duration, average_pace, average_hr, laps, gps_points')
+        .select('id, athlete_id, start_time, distance, duration, average_pace, average_hr, laps, gps_points').or(RUNS_ONLY_OR)
         .gte('start_time', `${date}T00:00:00`)
         .lt('start_time', `${addDays(date, 1)}T00:00:00`),
       supabase.from('workout_attendance')

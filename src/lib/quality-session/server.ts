@@ -17,6 +17,7 @@ import type { PlanRep, PlanTargets } from './parts';
 import { PLAN_DAYS_KEY, parsePlanDays, type PlanDays } from './plan-days';
 import { QUALITY_TYPES, SHARE_TYPES, pushReady, detectReps, fromMinutes, repPace, toMinutes, type QsSession, type QualityWorkout } from './model';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 type Db = ReturnType<typeof createServerClient>;
 
 /**
@@ -224,7 +225,7 @@ export async function loadQualitySession(supabase: Db, date: string): Promise<Qs
   // start_time is local wall-clock time stored as +00:00, so a naive day range is the local day.
   const [acts, att, aths, grps, stored, special, planDays] = await Promise.all([
     supabase.from('athlete_activities')
-      .select('id, athlete_id, start_time, distance, duration, average_pace, average_hr, laps')
+      .select('id, athlete_id, start_time, distance, duration, average_pace, average_hr, laps').or(RUNS_ONLY_OR)
       .gte('start_time', `${date}T00:00:00`)
       .lt('start_time', `${addDays(date, 1)}T00:00:00`),
     supabase.from('workout_attendance')

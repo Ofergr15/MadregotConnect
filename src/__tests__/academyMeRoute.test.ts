@@ -41,6 +41,7 @@ vi.mock('@/lib/supabase/server', () => ({
       const result = () => ({ data: (tables[table] || []).filter((r) => filters.every((f) => f(r))), error: null });
       const q: any = {
         select: () => q,
+        or: () => q,   // runs-only filter: every fixture row is a run
         eq: (c: string, v: unknown) => { filters.push((r) => r[c] === undefined || r[c] === v); return q; },
         in: (c: string, v: unknown[]) => { filters.push((r) => v.includes(r[c])); return q; },
         gte: () => q, lte: () => q, order: () => q, limit: () => q, range: () => q,

@@ -3,6 +3,7 @@ import { withServerTiming } from '@/lib/perf/server-timing';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
 import { FEED_SELECT, projectFeedItem, type FeedItem } from '@/lib/feed/project';
+import { strengthForFeed } from '@/lib/activities/strength-feed';
 import { clampFeedLimit, parseFeedCursor } from '@/lib/feed/pagination';
 import { pendingAthleteIds, withoutPendingAuthors } from '@/lib/auth/pending-athletes';
 import { testAccountIds, hiddenTestAccountsFor } from '@/lib/athletes/test-accounts';
@@ -162,7 +163,8 @@ async function handleGET(request: Request) {
       isStaff: auth.user.isStaff,
     });
 
-    const items: FeedItem[] = page.map((row) => projectFeedItem(row, ctx));
+    // Strength cards (flag strength_training): dropped for a viewer without it, counts only for one with it.
+    const items: FeedItem[] = await strengthForFeed(supabase, page.map((row) => projectFeedItem(row, ctx)), auth.user.athleteId ?? null);
 
     const last = raw[raw.length - 1] as { occurred_at: string; id: string } | undefined;
     const nextCursor = hasMore && last ? `${last.occurred_at},${last.id}` : null;

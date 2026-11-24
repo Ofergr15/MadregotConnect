@@ -1,4 +1,6 @@
 import { workoutTitleOf } from '@/lib/run-analysis/workout';
+import { isGarminStrength } from '@/lib/activities/kinds';
+import { syncGarminStrength } from '@/lib/activities/strength-sync';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { GarminClient } from '@/lib/garmin/client';
@@ -164,7 +166,7 @@ export async function runSyncRequest(request: Request) {
     }
 
     let totalSynced = 0;
-    const results: Array<{ athleteId: string; name: string; synced: number; upgradedFromStrava?: number; sameDeviceDupes?: number; profileFilled?: string[]; error?: string }> = [];
+    const results: Array<{ athleteId: string; name: string; synced: number; strength?: { inserted: number; upgraded: number; setsFetched: number }; upgradedFromStrava?: number; sameDeviceDupes?: number; profileFilled?: string[]; error?: string }> = [];
     const skipped: string[] = [];
     const startedAt = Date.now();
 
@@ -219,8 +221,19 @@ export async function runSyncRequest(request: Request) {
           runTypes.includes(a.activityType) || a.activityType.includes('running')
         );
 
+        // Strength (flag strength_training, per athlete; default off = no rows). Its own small path —
+        // never the run pipeline below, which pushes, matches plans and fetches traces.
+        let strength: Awaited<ReturnType<typeof syncGarminStrength>> | null = null;
+        try {
+          strength = await syncGarminStrength(supabase, athlete.id, activities.filter(a => isGarminStrength(a.activityType)),
+            (id) => withTimeout(client.getExerciseSets(id), GARMIN_CALL_TIMEOUT_MS, 'Garmin exercise sets'),
+            (id) => withTimeout(client.getActivityDetails(id, 1000), GARMIN_CALL_TIMEOUT_MS, 'Garmin strength HR'));
+        } catch (e) {
+          console.error('Garmin strength sync failed (runs continue):', e);
+        }
+
         if (runActivities.length === 0) {
-          results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: `No runs. Types found: ${activities.slice(0, 5).map(a => a.activityType).join(', ')}` });
+          results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, ...(strength?.inserted || strength?.upgraded ? { strength } : {}), error: `No runs. Types found: ${activities.slice(0, 5).map(a => a.activityType).join(', ')}` });
           continue;
         }
 
@@ -629,6 +642,7 @@ export async function runSyncRequest(request: Request) {
           name: athlete.name,
           synced: newActivities.length,
           ...(upgradedFromStrava ? { upgradedFromStrava } : {}),
+          ...(strength?.inserted || strength?.upgraded ? { strength } : {}),
           // Reported, not silent: a run dropped here is a row the athlete would
           // otherwise have seen, and "which of my devices won" is the first
           // question anybody asks about it.

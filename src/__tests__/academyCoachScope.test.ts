@@ -15,6 +15,7 @@ class Query {
     this.rows = table === 'athletes' ? athletes.map(a => ({ ...a })) : [];
   }
   select() { return this; }
+  or() { return this; }   // runs-only filter (lib/activities/kinds.ts): every fixture row is a run
   eq(col: string, v: unknown) { this.rows = this.rows.filter(r => col === 'coach_id' || r[col] === v); return this; }
   in() { return this; }
   range() { return this; }

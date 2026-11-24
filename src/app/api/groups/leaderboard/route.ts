@@ -8,6 +8,7 @@ import { rethrowIfDynamicBailout } from '@/lib/dynamic-bailout';
 import { getActivityWeekStart, activityWeekStart, computeWeekStreak, israelDateAnchor } from '@/lib/utils';
 import { fetchAllRowsParallel } from '@/lib/supabase/paginate';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 /** The columns the streak and monthly boards derive from. */
 interface HistoryRow {
   athlete_id: string;
@@ -97,7 +98,7 @@ async function computeLeaderboard() {
   const [weeklyRes, history, eventRegRes] = await Promise.all([
     supabase
       .from('athlete_activities')
-      .select('athlete_id, distance, duration, start_time')
+      .select('athlete_id, distance, duration, start_time').or(RUNS_ONLY_OR)
       .in('athlete_id', athleteIds)
       .gte('start_time', weekStart),
     // Paged, and this one was doing real damage unpaged. PostgREST caps a

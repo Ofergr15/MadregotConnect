@@ -49,6 +49,7 @@ import { segmentsFromSteps, withTargets, type PlanSegment } from '@/lib/share/pl
 import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
 import type { Lane } from '@/lib/academy/group-lane';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 export const dynamic = 'force-dynamic';
 
 /** Everything the detail UI shows above the charts. */
@@ -222,7 +223,7 @@ async function handleGET(request: Request) {
     // rule as the feed card (lib/activities/quality-name.ts). Never fails the page.
     let qualityName: string | null = null;
     try {
-      const { data: sameDay } = await supabase.from('athlete_activities').select('id, athlete_id, start_time, distance')
+      const { data: sameDay } = await supabase.from('athlete_activities').select('id, athlete_id, start_time, distance').or(RUNS_ONLY_OR)
         .eq('athlete_id', r.athlete_id).gte('start_time', `${String(r.start_time).slice(0, 10)}T00:00:00`).lte('start_time', `${String(r.start_time).slice(0, 10)}T23:59:59.999`);
       qualityName = (await qualityNames(supabase, (sameDay || []) as never)).get(r.id) ?? null;
     } catch { /* the watch's name, then */ }

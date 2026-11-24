@@ -28,6 +28,7 @@ import { attachLapsForPrs } from '@/lib/prs/attach-laps';
 import { readPrExclusions, type PrExclusions } from '@/lib/prs/exclusions-store';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 // Keep in sync with the CHECK constraint in 059_badges.sql. Only the types
 // this engine knows how to evaluate are listed here — a genuinely new
 // rule_type needs a code change (by design, per that migration's comment),
@@ -368,7 +369,7 @@ export async function checkAndAwardBadges(
   const getTotalDurationSeconds = async (): Promise<number> => {
     if (totalDurationSecCache != null) return totalDurationSecCache;
     const rows = await fetchAllRows<{ duration: number | null }>((from, to) =>
-      supabase.from('athlete_activities').select('duration').eq('athlete_id', athleteId).order('id').range(from, to),
+      supabase.from('athlete_activities').select('duration').or(RUNS_ONLY_OR).eq('athlete_id', athleteId).order('id').range(from, to),
     );
     totalDurationSecCache = rows.reduce((sum: number, r) => sum + (r.duration || 0), 0);
     return totalDurationSecCache;

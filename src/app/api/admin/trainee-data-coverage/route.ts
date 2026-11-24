@@ -25,6 +25,7 @@ import {
 } from '@/lib/academy/data-coverage';
 import type { TraineeToday } from '@/lib/academy/trainee-today';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const maxDuration = 60;
@@ -115,11 +116,11 @@ export async function GET(request: Request) {
         .eq('coach_id', COACH_ID).eq('week_start_date', weekStart).order('created_at', { ascending: true }),
       // Only the second lap/split (two or more = laps, lapsWhy's rule), never the arrays.
       readAll<any>((from, to) => supabase.from('athlete_activities')
-        .select('id, athlete_id, start_time, activity_type, average_hr, source, lap2:laps->1, split2:splits->1')
+        .select('id, athlete_id, start_time, activity_type, average_hr, source, lap2:laps->1, split2:splits->1').or(RUNS_ONLY_OR)
         .in('athlete_id', ids).gte('start_time', `${since42}T00:00:00Z`)
         .order('start_time', { ascending: true }).order('id', { ascending: true }).range(from, to)),
       readAll<any>((from, to) => supabase.from('athlete_activities')
-        .select('id, athlete_id, start_time, activity_type, max_hr')
+        .select('id, athlete_id, start_time, activity_type, max_hr').or(RUNS_ONLY_OR)
         .in('athlete_id', ids).gte('start_time', `${since180}T00:00:00Z`)
         .order('start_time', { ascending: true }).order('id', { ascending: true }).range(from, to)),
       readAll<any>((from, to) => supabase.from('athlete_wellness')

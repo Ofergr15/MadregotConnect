@@ -1,4 +1,5 @@
 import { routeForViewer } from '@/lib/privacy/route-trim';
+import { strengthForFeed } from '@/lib/activities/strength-feed';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, requireSession, authError } from '@/lib/auth-session';
@@ -16,7 +17,7 @@ const MAX_IMAGES = 4;
 // as payload.hiddenFields and enforced in lib/feed/project.ts's maskHiddenStats,
 // which blanks the matching FeedActivity fields so a hidden stat never leaves the
 // server. Keep this list and that one identical.
-const HIDDEN_FIELDS = ['calories', 'heart_rate', 'pace', 'power'] as const;
+const HIDDEN_FIELDS = ['calories', 'heart_rate', 'pace', 'power', 'weights'] as const;
 type HiddenField = (typeof HIDDEN_FIELDS)[number];
 function isHiddenField(v: unknown): v is HiddenField {
   return typeof v === 'string' && (HIDDEN_FIELDS as readonly string[]).includes(v);
@@ -64,13 +65,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // `likedItemIds: new Set()` here is what report 65b76956 was: a hollow heart on
     // a run the viewer had already liked, and a naked like COUNT where the feed
     // shows faces and names. See lib/feed/context.ts.
-    const item = projectFeedItem(
+    const projected = projectFeedItem(
       data,
       await loadFeedContext(supabase, [data], {
         athleteId: auth.user.athleteId,
         isStaff: auth.user.isStaff,
       }),
     );
+    // Strength (flag strength_training): the same rule as the list — not there for a viewer without it.
+    const [item] = await strengthForFeed(supabase, [projected], auth.user.athleteId ?? null);
+    if (!item) return NextResponse.json({ error: 'Feed item not found' }, { status: 404 });
 
     // The share card's track (see FeedActivity.routeFull). Only when the route
     // survived the item's own masking: a hidden map stays hidden here too.

@@ -32,6 +32,7 @@ import {
   type HomeRaceResult,
 } from '@/lib/academy/trainee-home';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 export const dynamic = 'force-dynamic';
 
 /**
@@ -80,7 +81,7 @@ async function loadJourneyActivities(
   for (let offset = 0; ; offset += 1000) {
     let q = supabase
       .from('athlete_activities')
-      .select('distance')
+      .select('distance').or(RUNS_ONLY_OR)
       .eq('athlete_id', athleteId);
     if (since) q = q.gte('start_time', `${since}T00:00:00Z`);
     const { data: page, error } = await q.range(offset, offset + 999);

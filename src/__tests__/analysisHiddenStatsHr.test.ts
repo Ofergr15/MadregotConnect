@@ -63,7 +63,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createServerClient: () => ({
     from: (table: string) => {
       const b: any = {
-        select: () => b, eq: () => b, neq: () => b, not: () => b, gte: () => b, lte: () => b, lt: () => b, in: () => b,
+        select: () => b, or: () => b, eq: () => b, neq: () => b, not: () => b, gte: () => b, lte: () => b, lt: () => b, in: () => b,
         limit: () => b, order: () => b, range: () => b,
         maybeSingle: async () => ({ data: table === 'athlete_activities' ? ROW : null, error: null }),
         then: (ok: any, bad: any) => Promise.resolve(table === 'feed_items' ? h.feed : { data: [], error: null }).then(ok, bad),

@@ -15,6 +15,7 @@ import {
   type RecentRun,
 } from './native';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 type Db = SupabaseClient<any, any, any>;
 
 /** Missing column (unapplied migration): Postgres 42703 / PostgREST PGRST204. */
@@ -43,7 +44,7 @@ export async function loadDataSourcesStatus(db: Db, athleteId: string): Promise<
 
   const { data: runRows } = await db
     .from('athlete_activities')
-    .select('id, activity_name, start_time, distance, duration, source')
+    .select('id, activity_name, start_time, distance, duration, source').or(RUNS_ONLY_OR)
     .eq('athlete_id', athleteId)
     .order('start_time', { ascending: false })
     .limit(3);
@@ -95,7 +96,7 @@ export async function storeGarminTokens(
 /** Runs kept + workouts still on the watch — the numbers the disconnect sheet shows. */
 export async function disconnectCounts(db: Db, athleteId: string, today: string): Promise<{ runsKept: number; workoutsOnWatch: number }> {
   const [runs, wk] = await Promise.all([
-    db.from('athlete_activities').select('id', { count: 'exact', head: true }).eq('athlete_id', athleteId),
+    db.from('athlete_activities').select('id', { count: 'exact', head: true }).or(RUNS_ONLY_OR).eq('athlete_id', athleteId),
     db.from('workout_deliveries').select('id', { count: 'exact', head: true })
       .eq('athlete_id', athleteId).eq('status', 'success').gte('workout_date', today),
   ]);

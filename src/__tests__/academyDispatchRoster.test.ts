@@ -16,6 +16,7 @@ class Query implements PromiseLike<{ data: unknown; error: unknown }> {
   private desc: string | null = null;
   constructor(private table: string) {}
   select() { return this; }
+  or() { return this; }   // runs-only filter (lib/activities/kinds.ts): every fixture row is a run
   eq(c: string, v: unknown) { this.filters.push(r => r[c] === v); return this; }
   in(c: string, v: unknown[]) { this.filters.push(r => v.includes(r[c])); return this; }
   gte(c: string, v: string) { this.filters.push(r => String(r[c]) >= v); return this; }

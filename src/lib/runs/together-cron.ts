@@ -2,6 +2,7 @@ import { addDaysIso } from './meetups';
 import type { Db, MeetupRow } from './meetups-server';
 import { chatExpired, inSoonWindow, matchGroupActivities } from './together';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 /**
  * The three Run-together jobs on cron/tick (every 5 min). Each is idempotent:
  *  - T−60 push (stamped soon_notified_at, so a re-run tick doesn't double-send)
@@ -49,7 +50,7 @@ export async function linkGroupRuns(db: Db, today: string): Promise<number> {
     const { data: reqs } = await db.from('run_meetup_requests').select('athlete_id').eq('meetup_id', m.id).eq('status', 'accepted');
     const goingIds = [...new Set([m.host_athlete_id, ...((reqs || []) as Array<{ athlete_id: string }>).map((r) => r.athlete_id)])];
     if (goingIds.length < 2) continue;
-    const { data: acts } = await db.from('athlete_activities').select('id, athlete_id, start_time, start_lat, start_lng')
+    const { data: acts } = await db.from('athlete_activities').select('id, athlete_id, start_time, start_lat, start_lng').or(RUNS_ONLY_OR)
       .in('athlete_id', goingIds).gte('start_time', `${m.date}T00:00:00`).lte('start_time', `${m.date}T23:59:59`);
     const rows = matchGroupActivities(
       { date: m.date, startTime: m.start_time, lat: m.lat ?? null, lng: m.lng ?? null, goingIds },

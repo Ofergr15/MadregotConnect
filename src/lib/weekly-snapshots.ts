@@ -2,6 +2,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
 
+import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 /**
  * Recompute and persist weekly km per athlete (and, by group_id, per group)
  * into weekly_km_snapshots. Called after each sync so we keep a durable
@@ -61,7 +62,7 @@ export async function snapshotWeeklyKm(weeksBack = 1): Promise<{ weeks: string[]
 
     const { data: activities } = await supabase
       .from('athlete_activities')
-      .select('athlete_id, distance, duration, start_time')
+      .select('athlete_id, distance, duration, start_time').or(RUNS_ONLY_OR)
       .in('athlete_id', athleteIds)
       .gte('start_time', weekStart)
       .lt('start_time', weekEndStr);
