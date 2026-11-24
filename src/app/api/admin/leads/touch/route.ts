@@ -33,7 +33,10 @@ export async function POST(request: Request) {
       .insert({ lead_ref: leadRef, kind, note, at, by_id: caller.athleteId })
       .select('id, lead_ref, kind, by_id, at, note')
       .single();
-    if (error) return NextResponse.json({ error: 'Failed to record the touch', details: error.message }, { status: 500 });
+    if (error) {
+      console.error('leads touch insert failed', error);
+      return NextResponse.json({ error: 'Failed to record the touch' }, { status: 500 });
+    }
     return NextResponse.json({ touch: data });
   } catch (err) {
     console.error('Failed to record a lead touch:', err);
