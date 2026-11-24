@@ -73,9 +73,12 @@ export function RouteMinimap({
           observer.disconnect();
         }
       },
-      // Start fetching just before the card scrolls in, so the map is already
-      // there by the time it's on screen.
-      { rootMargin: '250px' },
+      // Start fetching well before the card scrolls in, so the map is already
+      // there by the time it's on screen. b23: ~five feed cards ahead (a card is
+      // ~380 px), up from 250 px — at 250 px a normal flick outran the tiles and
+      // the map visibly landed after the card. The route line itself is drawn
+      // from the payload on the first frame either way; only the tiles wait.
+      { rootMargin: '2000px 0px' },
     );
     observer.observe(host);
     return () => observer.disconnect();
