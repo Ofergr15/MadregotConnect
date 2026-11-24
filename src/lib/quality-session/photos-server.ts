@@ -563,7 +563,7 @@ export async function sessionPhotosStatus(supabase: Db, now = new Date()) {
   const workout = (await loadQualityWorkout(supabase, date).catch(() => null))?.name || null;
   const checkedAt = e.checkedAt ?? null;
   return {
-    date, name: e.name ?? folderName(date), workout, link: e.link, auto: !!e.autoPublish,
+    date, name: e.name ?? folderName(date), workout, link: e.link, folderId: e.folderId ?? null, auto: !!e.autoPublish,
     checkedAt, nextAt: checkedAt ? new Date(Date.parse(checkedAt) + 15 * 60_000).toISOString() : null,
     found: e.found ?? 0, previews: e.previews ?? [], published: card?.media?.length ?? 0, publishedId: card?.id ?? null,
   };
