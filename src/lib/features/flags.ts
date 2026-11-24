@@ -78,6 +78,8 @@ export const FEATURES = {
   academy_pack: { label: 'חבילת אקדמיה (אפליקציה)', defaultEnabled: false },
   /** Native academy coach–trainee chat SEND (POST /api/academy/threads/messages). */
   academy_chat_send: { label: 'שליחה בצ׳אט אקדמיה (אפליקציה)', defaultEnabled: false },
+  /** Native weekly moments: trainee week card + coach queue/compose/receipts + manager on-time board (academy doc p.2–3). */
+  academy_week_moments: { label: 'רגעי השבוע באקדמיה (אפליקציה)', defaultEnabled: false },
   /** Native notification preferences screen (own categories). */
   notif_prefs: { label: 'העדפות התראות (אפליקציה)', defaultEnabled: false },
   /** Native packs management (staff): group edit + move runners, PUT /api/athletes, /api/groups. */

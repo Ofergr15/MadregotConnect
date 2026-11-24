@@ -41,6 +41,7 @@ import { runAcademyOnboardingReminders } from '@/lib/academy/onboarding-reminder
 import { runPendingReminders } from '@/lib/onboarding/pending-reminder';
 import { dispatchDueTestReminders } from '@/lib/academy/testReminders-server';
 import { dispatchMorningReminders } from '@/lib/academy/morning-reminder-server';
+import { dispatchScheduledMoments } from '@/lib/academy/week-moments-server';
 import { afterPackMove } from '@/lib/groups/pack-move';
 import { syncClubFollows } from '@/lib/follows/club-sync';
 import { qualityPush, qualityPushReady } from '@/lib/quality-session/server';
@@ -1021,6 +1022,11 @@ async function run(request: Request) {
   // sends it once. Never throws (lib/academy/morning-reminder-server.ts).
   const morningReminders = await dispatchMorningReminders(supabase, now.toISOString());
   if (morningReminders.sent) fired.push(`academyMorningReminders → ${morningReminders.sent}`);
+
+  // Weekly moments a coach SCHEDULED ("send at") whose time has come. Only scheduled ones: nothing is sent
+  // on its own (academy doc p.1). Never throws (lib/academy/week-moments-server.ts).
+  const weekMoments = await dispatchScheduledMoments(supabase, now.toISOString());
+  if (weekMoments.sent) fired.push(`academyWeekMoments → ${weekMoments.sent}`);
 
   // Admin scheduled/recurring notifications are NOT sent from here any more: their own
   // cron (/api/cron/notifications) runs every minute, and the two used to collide.
