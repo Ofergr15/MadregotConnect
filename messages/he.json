@@ -151,7 +151,8 @@
     "viewAll": "צפייה בהכל",
     "notifications": "התראות",
     "selectGroup": "בחר קבוצה",
-    "groupSaveFailed": "לא הצלחנו להחליף קבוצה. בדוק את החיבור ונסה שוב."
+    "groupSaveFailed": "לא הצלחנו להחליף קבוצה. בדוק את החיבור ונסה שוב.",
+    "newBadge": "חדש"
   },
   "adminLogin": {
     "footnote": "זו התחברות מנהל נפרדת. חשבון ה-Google הרגיל שלך לא מושפע.",
@@ -2560,7 +2561,9 @@
     "reportsFolded": "{n} דיווחים שלך טופלו ✅",
     "surveysClosed": "{n, plural, one {סקר קודם אחד} other {# סקרים קודמים}}",
     "surveysClosedSub": "נסגרו · מ-{date}",
-    "closedTag": "נסגר"
+    "closedTag": "נסגר",
+    "newSection": "חדש",
+    "newSectionHint": "מה שהגיע מאז שהסתכלת לאחרונה"
   },
   "notificationPrefs": {
     "pushHeader": "פוש",

@@ -151,7 +151,8 @@
     "viewAll": "View all",
     "notifications": "Notifications",
     "selectGroup": "Select Group",
-    "groupSaveFailed": "Couldn't change your group. Check your connection and try again."
+    "groupSaveFailed": "Couldn't change your group. Check your connection and try again.",
+    "newBadge": "New"
   },
   "adminLogin": {
     "footnote": "This is a separate admin session. Your regular Google account is unaffected.",
@@ -2560,7 +2561,9 @@
     "reportsFolded": "{n} of your reports were handled ✅",
     "surveysClosed": "{n, plural, one {one earlier poll} other {# earlier polls}}",
     "surveysClosedSub": "closed · since {date}",
-    "closedTag": "closed"
+    "closedTag": "closed",
+    "newSection": "New",
+    "newSectionHint": "Since you last looked"
   },
   "notificationPrefs": {
     "pushHeader": "Push",

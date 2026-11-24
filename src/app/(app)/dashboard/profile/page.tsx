@@ -164,9 +164,13 @@ function ProfileContent() {
   const [activeTab, setActiveTabState] = useState<ProfileTab | null>(() =>
     tabFromParam(searchParams.get('tab')),
   );
-  const setActiveTab = useCallback((tab: ProfileTab | null) => {
+  // ?focus=<field>: which field the detail screen opens on (the setup checklist's first missing one).
+  const [focusField, setFocusField] = useState<string | null>(() => searchParams.get('focus'));
+  const setActiveTab = useCallback((tab: ProfileTab | null, focus?: string | null) => {
     setActiveTabState(tab);
-    router.replace(tab ? `/dashboard/profile?tab=${tab}` : '/dashboard/profile');
+    setFocusField(focus ?? null);
+    const q = tab ? `?tab=${tab}${focus ? `&focus=${encodeURIComponent(focus)}` : ''}` : '';
+    router.replace(`/dashboard/profile${q}`);
   }, [router]);
   const [athleteId, setAthleteId] = useState('');
   const [athleteName, setAthleteName] = useState('');
@@ -275,6 +279,7 @@ function ProfileContent() {
   useEffect(() => {
     const next = tabFromParam(searchParams.get('tab'));
     setActiveTabState((current) => (current === next ? current : next));
+    setFocusField(searchParams.get('focus'));
   }, [searchParams]);
 
   // Back from Strava after linking from here (/api/strava/callback, link mode):
@@ -952,7 +957,7 @@ function ProfileContent() {
       {activeTab === 'setup' && (
         <SetupChecklist
           onBack={() => setActiveTab(null)}
-          onNavigate={(tab) => setActiveTab(tab)}
+          onNavigate={(tab, focus) => setActiveTab(tab, focus)}
           onPickPhoto={() => photoInputRef.current?.click()}
         />
       )}
@@ -1554,7 +1559,7 @@ function ProfileContent() {
           athlete had no way to reach it at all. Profile is always one of the
           4 primary tabs, so this is the actual reachable home for it. ═══ */}
       {activeTab === 'personalInfo' && (
-        <PersonalInfo athleteId={athleteId} />
+        <PersonalInfo athleteId={athleteId} focusField={focusField} />
       )}
         </div>
       )}

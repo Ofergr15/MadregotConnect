@@ -45,7 +45,10 @@ type EditField =
 // Saves via PUT /api/athletes/me, which gates the `id` it is given on
 // requireCallerForAthlete (self-or-staff, resolved from the verified session)
 // — so staff can edit a member here too, not just the athlete themself.
-export function PersonalInfo({ athleteId }: { athleteId: string }) {
+/** Fields a deep link (`?focus=`) may open straight away — the setup checklist's missing ones. */
+export const PERSONAL_FOCUS_FIELDS = ['name', 'birthDate', 'gender', 'shoeSize', 'shirtSize', 'pantsSize', 'tightsSize', 'socksSize', 'phone', 'height', 'weight'] as const;
+
+export function PersonalInfo({ athleteId, focusField }: { athleteId: string; focusField?: string | null }) {
   const t = useTranslations('settings');
   const [initial, setInitial] = useState<PersonalInfoData | null>(null);
   const [name, setName] = useState('');
@@ -112,6 +115,18 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [athleteId]);
+
+  // Deep link from the setup checklist (`?focus=<field>`): once the values are in, bring the
+  // missing field's row into view and open its editor — the member lands ON the step, not on
+  // a list they have to scan for the empty one. Once per mount, so closing the editor sticks.
+  const [focusDone, setFocusDone] = useState(false);
+  useEffect(() => {
+    if (focusDone || !initial || !focusField) return;
+    if (!(PERSONAL_FOCUS_FIELDS as readonly string[]).includes(focusField)) return;
+    setFocusDone(true);
+    document.getElementById(`pi-${focusField}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setEditField(focusField as EditField);
+  }, [initial, focusField, focusDone]);
 
   // Persists a full snapshot (all fields travel together in one PUT) — called
   // from each field's own edit sheet once the user commits that field's
@@ -228,6 +243,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           value={name || undefined}
           valueSuccess={!!name}
           onClick={() => setEditField('name')}
+          id="pi-name"
         />
         <InsetRow
           label={t('birthDate')}
@@ -235,6 +251,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           valueMuted={!birthDate}
           valueSuccess={!!birthDate}
           onClick={() => setEditField('birthDate')}
+          id="pi-birthDate"
         />
         <InsetRow
           label={t('gender')}
@@ -242,6 +259,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           valueMuted={!genderLabel}
           valueSuccess={!!genderLabel}
           onClick={() => setEditField('gender')}
+          id="pi-gender"
         />
         <InsetRow
           label={t('height')}
@@ -249,6 +267,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           valueMuted={!height}
           valueSuccess={!!height}
           onClick={() => setEditField('height')}
+          id="pi-height"
         />
         <InsetRow
           label={t('weight')}
@@ -256,6 +275,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           valueMuted={!weight}
           valueSuccess={!!weight}
           onClick={() => setEditField('weight')}
+          id="pi-weight"
         />
         <InsetRow
           label={t('shoeSize')}
@@ -263,6 +283,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           valueMuted={!shoeSize}
           valueSuccess={!!shoeSize}
           onClick={() => setEditField('shoeSize')}
+          id="pi-shoeSize"
         />
         {/* The four kit sizes, one row each. Rendered from KIT_ROWS rather than
             written out four times: they are the same row with a different list, and
@@ -275,6 +296,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
             valueMuted={!value}
             valueSuccess={!!value}
             onClick={() => setEditField(field)}
+            id={`pi-${field}`}
           />
         ))}
         <InsetRow
@@ -283,6 +305,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           valueSuccess={!!phone}
           valueMuted={!phone}
           onClick={() => setEditField('phone')}
+          id="pi-phone"
         />
       </InsetSection>
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
+import { isMissingColumn } from '@/lib/notifications/seen';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,8 +26,18 @@ export async function POST(request: Request) {
 
     const seenAt = new Date().toISOString();
     // Monotonic: only ever moves forward, so a delayed request can't resurrect older unread.
-    const { error } = await createServerClient().from('athletes').update({ last_seen_at: seenAt })
-      .eq('id', athleteId).or(`last_seen_at.is.null,last_seen_at.lt.${seenAt}`);
+    // Migration 213: notifications_seen_at is the read cutoff (last_seen_at is "last active" and
+    // moves on every page load). Monotonic on both; pre-213 the column is missing → old shape.
+    const supabase = createServerClient();
+    let { error } = await supabase.from('athletes').update({ notifications_seen_at: seenAt })
+      .eq('id', athleteId).or(`notifications_seen_at.is.null,notifications_seen_at.lt.${seenAt}`);
+    if (!error) {
+      ({ error } = await supabase.from('athletes').update({ last_seen_at: seenAt })
+        .eq('id', athleteId).or(`last_seen_at.is.null,last_seen_at.lt.${seenAt}`));
+    } else if (isMissingColumn(error)) {
+      ({ error } = await supabase.from('athletes').update({ last_seen_at: seenAt })
+        .eq('id', athleteId).or(`last_seen_at.is.null,last_seen_at.lt.${seenAt}`));
+    }
     if (error) {
       console.error('notifications/seen update failed:', error);
       return NextResponse.json({ error: 'Failed to mark seen' }, { status: 500 });

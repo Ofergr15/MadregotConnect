@@ -57,7 +57,8 @@ export interface SetupTask {
   key: SetupTaskKey;
   done: boolean;
   /** Optional render hints for the row's sublabel. */
-  meta?: { source?: string; filled?: number; total?: number };
+  /** `missing`: the empty fields, in the order the form shows them — the row deep-links to the first. */
+  meta?: { source?: string; filled?: number; total?: number; missing?: string[] };
 }
 
 export interface SetupInfoItem {
@@ -95,6 +96,10 @@ export function hasWorkingSource(input: Pick<SetupInput, 'hasGarminAuth' | 'hasS
 
 function filled(...values: Array<string | null | undefined>): number {
   return values.filter((v) => !!v && String(v).trim() !== '').length;
+}
+
+function missing(fields: Array<[string, string | null | undefined]>): string[] {
+  return fields.filter(([, v]) => !v || String(v).trim() === '').map(([k]) => k);
 }
 
 export interface SetupOptions {
@@ -137,8 +142,11 @@ export function computeSetupState(input: SetupInput, options: SetupOptions = {})
       meta: input.dataSource ? { source: input.dataSource } : undefined,
     },
     { key: 'photo', done: !!input.avatarUrl },
-    { key: 'personalInfo', done: personalFilled === 3, meta: { filled: personalFilled, total: 3 } },
-    { key: 'sizes', done: sizesFilled === 5, meta: { filled: sizesFilled, total: 5 } },
+    { key: 'personalInfo', done: personalFilled === 3, meta: { filled: personalFilled, total: 3,
+      missing: missing([['birthDate', input.birthDate], ['gender', input.gender], ['phone', input.phone]]) } },
+    { key: 'sizes', done: sizesFilled === 5, meta: { filled: sizesFilled, total: 5,
+      missing: missing([['shoeSize', input.shoeSize], ['shirtSize', input.shirtSize], ['pantsSize', input.pantsSize],
+        ['tightsSize', input.tightsSize], ['socksSize', input.socksSize]]) } },
     // A live subscription row, not the notification_prefs toggles: prefs default
     // to on for everyone, so they say nothing about whether the browser ever
     // granted permission. Worth knowing that a row still isn't proof of

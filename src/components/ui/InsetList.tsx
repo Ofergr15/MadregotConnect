@@ -67,11 +67,13 @@ interface RowProps {
   onClick?: () => void; // renders as a button with a chevron
   trailing?: React.ReactNode; // custom trailing (e.g. a toggle) — suppresses chevron
   danger?: boolean;
+  /** DOM id on the row — a deep link (`?focus=`) scrolls to it. */
+  id?: string;
 }
 
 // One row. If href/onClick given → navigable (chevron). If `trailing` given
 // (e.g. a toggle) → no chevron. Otherwise a static info row.
-export function InsetRow({ icon: Icon, iconBg = 'bg-brand-600', avatarUrl, label, sublabel, sublabelClamp, labelClamp, meta, value, valueMuted, valueSuccess, href, onClick, trailing, danger }: RowProps) {
+export function InsetRow({ id, icon: Icon, iconBg = 'bg-brand-600', avatarUrl, label, sublabel, sublabelClamp, labelClamp, meta, value, valueMuted, valueSuccess, href, onClick, trailing, danger }: RowProps) {
   const press = 'active:bg-page/60';
   const interactive = !!href || !!onClick;
   const inner = (
@@ -131,7 +133,7 @@ export function InsetRow({ icon: Icon, iconBg = 'bg-brand-600', avatarUrl, label
     </div>
   );
 
-  if (href) return <Link href={href} onClick={onClick} className={cn('block transition-colors', press)}>{inner}</Link>;
+  if (href) return <Link id={id} href={href} onClick={onClick} className={cn('block transition-colors', press)}>{inner}</Link>;
   if (onClick) {
     // A real <button> here is invalid HTML whenever `trailing` also contains
     // its own interactive control (e.g. a KudosButton/RSVP toggle) — buttons
@@ -141,6 +143,7 @@ export function InsetRow({ icon: Icon, iconBg = 'bg-brand-600', avatarUrl, label
     // every trailing action) keeps its own click from re-triggering this one.
     return (
       <div
+        id={id}
         role="button"
         tabIndex={0}
         onClick={onClick}
@@ -151,5 +154,5 @@ export function InsetRow({ icon: Icon, iconBg = 'bg-brand-600', avatarUrl, label
       </div>
     );
   }
-  return inner;
+  return id ? <div id={id}>{inner}</div> : inner;
 }

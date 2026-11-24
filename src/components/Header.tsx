@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { FeedScopeButton } from '@/components/feed/FeedScopeButton';
 import { usePathname, useRouter } from 'next/navigation';
@@ -8,6 +8,7 @@ import { useTranslations } from 'next-intl';
 import { User, LogOut, X, Bug, Bell, Eye, Search as SearchIcon } from 'lucide-react';
 import { cn, memberPackName, resolveGroup } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
+import { visibleUnread, readCleared, type HistoryItem } from '@/lib/notifications/history';
 import { getSupabase } from '@/lib/supabase/client';
 import { signOutEverywhere } from '@/lib/auth/sign-out';
 import { resolveNavItems, type TabPermission } from '@/lib/nav-items';
@@ -98,15 +99,24 @@ export function Header() {
   // on every page view, to derive one number and then show at most 6 rows behind
   // a tap. The number now comes from the endpoint that only counts, and the rows
   // load when the sheet actually opens.
-  const { data: unreadData } = useApi<{ count?: number }>(
-    athleteId ? `/api/notifications/unread?athleteId=${encodeURIComponent(athleteId)}` : null,
-  );
-  const unreadInbox = unreadData?.count || 0;
-
-  const { data: inboxData, isLoading: inboxLoading } = useApi<{ items?: Array<{ id: string; title: string; body: string; url: string; sentAt: string; unread: boolean; actorAvatarUrl?: string | null }> }>(
-    athleteId && showNotifications ? `/api/notifications/inbox?athleteId=${encodeURIComponent(athleteId)}` : null,
-  );
-  const inbox = inboxData?.items || [];
+  // The bell's number and the inbox's highlighted rows are ONE list (PWA F1, 2026-11-24): the
+  // count used to come from /api/notifications/unread (raw rows + chat, bursts counted per row)
+  // while the inbox highlighted aggregated rows, so "2" on the bell matched nothing you could
+  // point at. Both now read the inbox and count `visibleUnread` — the same key the inbox page
+  // uses, so opening it paints from this fetch. (The app-icon badge set by push still counts
+  // notifications; it is the OS's number, not this one.)
+  const inboxKey = athleteId ? `/api/notifications/inbox?athleteId=${encodeURIComponent(athleteId)}` : null;
+  const { data: inboxData, isLoading: inboxLoading } = useApi<{ items?: HistoryItem[] }>(inboxKey);
+  const rawInbox = inboxData?.items;
+  const unreadRows = useMemo(() => (rawInbox ? visibleUnread(rawInbox, readCleared(athleteId || '')) : []), [rawInbox, athleteId]);
+  const unreadInbox = unreadRows.length;
+  // Unread first, then the rest newest-first — the sheet shows WHICH ones are new on top.
+  const inbox = useMemo(() => {
+    const ids = new Set(unreadRows.map((r) => r.id));
+    const all = rawInbox || [];
+    return [...all.filter((r) => ids.has(r.id)), ...all.filter((r) => !ids.has(r.id))];
+  }, [rawInbox, unreadRows]);
+  const isNew = (id: string) => unreadRows.some((r) => r.id === id);
 
   // Staff (admin/coach/academy_coach) get the pending benchmark-approval queue
   // surfaced in the header bell.
@@ -515,9 +525,12 @@ export function Header() {
                               {n.actorAvatarUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={n.actorAvatarUrl} alt="" className="mt-0.5 w-6 h-6 rounded-full object-cover shrink-0" />
-                              ) : n.unread && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-brand-600 shrink-0" />}
-                              <span className={`flex-1 min-w-0 ${n.unread || n.actorAvatarUrl ? '' : 'ps-3.5'}`}>
-                                <span className={`block text-xs truncate ${n.unread ? 'font-bold text-ink-700' : 'font-semibold text-ink-700'}`} dir="auto">{n.title}</span>
+                              ) : isNew(n.id) && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-brand-600 shrink-0" />}
+                              <span className={`flex-1 min-w-0 ${isNew(n.id) || n.actorAvatarUrl ? '' : 'ps-3.5'}`}>
+                                <span className={`block text-xs truncate ${isNew(n.id) ? 'font-bold text-ink-700' : 'font-semibold text-ink-700'}`} dir="auto">
+                                  {isNew(n.id) && <span className="me-1 rounded bg-brand-600 px-1 text-[10px] font-bold text-white">{th('newBadge')}</span>}
+                                  {n.title}
+                                </span>
                                 <span className="block text-[11px] text-ink-400 truncate" dir="auto">{n.body}</span>
                               </span>
                             </Link>

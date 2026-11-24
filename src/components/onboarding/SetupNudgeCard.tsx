@@ -136,7 +136,7 @@ export function SetupNudgeCard() {
     return (
       <Link
         key={task.key}
-        href={taskHref(task.key)}
+        href={taskHref(task.key, task.done ? undefined : task.meta?.missing?.[0])}
         className={`flex items-center gap-3 py-2.5 active:opacity-60 ${last ? '' : 'border-b border-page'}`}
       >
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white">
