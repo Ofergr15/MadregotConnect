@@ -109,6 +109,8 @@ export const FEATURES = {
   native_core_perks: { label: 'הטבות ליבה (אפליקציה)', defaultEnabled: false },
   native_mgmt_access: { label: 'ניהול גישה (אפליקציה)', defaultEnabled: false },
   native_mgmt_birthdays: { label: 'ימי הולדת (אפליקציה)', defaultEnabled: false },
+  // כספים (b22, native Features/Finance): manager-only finance screen — GET /api/admin/finance, POST /api/admin/finance/remind.
+  native_mgmt_finance: { label: 'כספים (אפליקציה)', defaultEnabled: false },
   native_mgmt_content: { label: 'ניהול תוכן (אפליקציה)', defaultEnabled: false },
   native_mgmt_pack_moves: { label: 'העברות בין דבוקות (אפליקציה)', defaultEnabled: false },
   native_mgmt_pain: { label: 'דיווחי כאב (אפליקציה)', defaultEnabled: false },
