@@ -50,7 +50,10 @@ export interface PurgeReport { removed: Record<string, number>; failed: string[]
 
 /** Soft: out of the club and no more data pulled. Returns what it changed. */
 export async function softRemove(db: SupabaseClient, athleteId: string): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await db.from('athletes').update({ status: 'removed', garmin_auth: null, strava_auth: null }).eq('id', athleteId);
+  const patch = { status: 'removed', garmin_auth: null, strava_auth: null };
+  // removed_at (migration 209) dates the leave for the club's numbers; before it is pasted, without it.
+  let { error } = await db.from('athletes').update({ ...patch, removed_at: new Date().toISOString() }).eq('id', athleteId);
+  if (missing(error)) ({ error } = await db.from('athletes').update(patch).eq('id', athleteId));
   if (error) return { ok: false, error: error.message };
   await db.from('push_subscriptions').delete().eq('athlete_id', athleteId);
   return { ok: true };

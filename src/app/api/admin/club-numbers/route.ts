@@ -1,8 +1,9 @@
 import { after, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { loadClubNumbers } from '@/lib/club-numbers/server';
-import { FRESH_MS, clubManagers, isClubAdmin, mayViewNumbers, readSnapshot, writeSnapshot } from '@/lib/club-numbers/access';
+import { loadClubMonthly, loadClubNumbers } from '@/lib/club-numbers/server';
+import { parseWindow } from '@/lib/club-numbers/monthly';
+import { FRESH_MS, clubManagers, isClubAdmin, mayViewNumbers, readSnapshot, snapshotKey, writeSnapshot } from '@/lib/club-numbers/access';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -10,22 +11,30 @@ export const maxDuration = 60;
 // GET /api/admin/club-numbers — "מדרגות במספרים" (lib/club-numbers), for the admin and the
 // "מנהלי מדרגות". Answers from the kept snapshot at once; a stale one is refreshed after the
 // reply (lib/club-numbers/access). `?fresh=1` recomputes before answering.
+// `?window=3m|12m|ytd|all` answers the monthly series instead (lib/club-numbers/monthly), same
+// gate, its own snapshot per window.
 export async function GET(request: Request) {
   const { denied, caller } = await resolveVerifiedCaller(request);
   if (denied) return denied;
+  const params = new URL(request.url).searchParams;
+  const rawWindow = params.get('window');
+  const window = parseWindow(rawWindow);
+  if (rawWindow != null && !window) return NextResponse.json({ error: 'window must be one of 3m, 12m, ytd, all' }, { status: 400 });
+  const key = snapshotKey(window);
+  const load = (s: ReturnType<typeof createServerClient>) => (window ? loadClubMonthly(s, window) : loadClubNumbers(s));
   const supabase = createServerClient();
-  const [allowed, snap] = await Promise.all([mayViewNumbers(supabase, caller), readSnapshot(supabase)]);
+  const [allowed, snap] = await Promise.all([mayViewNumbers(supabase, caller), readSnapshot(supabase, key)]);
   if (!allowed) return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
   const admin = isClubAdmin(caller);
   const access = { admin, managers: admin ? await clubManagers(supabase) : [] };
-  const fresh = new URL(request.url).searchParams.get('fresh') === '1';
+  const fresh = params.get('fresh') === '1';
   try {
     if (snap && !fresh) {
-      if (Date.now() - snap.at > FRESH_MS) after(async () => { try { await writeSnapshot(supabase, await loadClubNumbers(supabase)); } catch (e) { console.error('[club-numbers] refresh failed:', e); } });
+      if (Date.now() - snap.at > FRESH_MS) after(async () => { try { await writeSnapshot(supabase, await load(supabase), key); } catch (e) { console.error('[club-numbers] refresh failed:', e); } });
       return NextResponse.json({ ...(snap.body as object), access, asOf: new Date(snap.at).toISOString() });
     }
-    const body = await loadClubNumbers(supabase);
-    await writeSnapshot(supabase, body);
+    const body = await load(supabase);
+    await writeSnapshot(supabase, body, key);
     return NextResponse.json({ ...body, access, asOf: new Date().toISOString() });
   } catch (error) {
     console.error('[club-numbers] load failed:', error);

@@ -2,7 +2,8 @@ import type { createServerClient } from '@/lib/supabase/server';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 import { israelToday } from '@/lib/utils';
 import { isCoreRunner } from '@/lib/core-runner';
-import { addDays, computeClubNumbers, type NAthlete, type NCandidate, type NRun } from './compute';
+import { addMonths, computeMonthlySeries, monthsOf, type MAthlete, type NumbersWindow } from './monthly';
+import { addDays, RUN_TYPES, computeClubNumbers, type NAthlete, type NCandidate, type NRun } from './compute';
 
 type Db = ReturnType<typeof createServerClient>;
 
@@ -60,5 +61,50 @@ export async function loadClubNumbers(supabase: Db, today = israelToday()) {
     tested: new Set((tests as Array<{ athlete_id: string; status: string }>).filter((t) => ['approved', 'ok', 'done', 'analysed', 'analyzed'].includes(t.status)).map((t) => t.athlete_id)),
     formed, planned: new Set((plans as Array<{ athlete_id: string }>).map((p) => p.athlete_id)),
     teamDays,
+  });
+}
+
+// ── monthly series (?window=) ───────────────────────────────────────────────────────
+
+/** Every row the monthly series reads, paged past PostgREST's 1000-row cap. */
+export async function loadClubMonthly(supabase: Db, window: NumbersWindow, today = israelToday()) {
+  // removed_at is migration 209, pasted by hand: until it is there, read without it.
+  const base = 'id, name, role, status, created_at';
+  type ARow = { id: string; name: string | null; role: string | null; status: string | null; created_at: string; removed_at?: string | null };
+  const page = (cols: string) => fetchAllRows<ARow>((a, b) => supabase.from('athletes').select(cols).order('id').range(a, b) as unknown as PromiseLike<{ data: ARow[] | null; error: unknown }>);
+  let ath: ARow[];
+  try { ath = await page(`${base}, removed_at`); } catch { ath = await page(base); }
+  const athletes: MAthlete[] = ath.map((a) => ({ id: a.id, name: a.name || '—', role: a.role, status: a.status, createdAt: a.created_at, ...('removed_at' in a ? { removedAt: a.removed_at ?? null } : {}) }));
+  const earliest = athletes.reduce<string | undefined>((m, a) => (!m || a.createdAt < m ? a.createdAt.slice(0, 10) : m), undefined);
+  const months = monthsOf(window, today, earliest);
+  const from = `${months[0]}-01`;
+  const end = `${addMonths(months.at(-1)!, 1)}-01`;
+
+  type RunRow = { athlete_id: string; start_time: string; distance: number | null; duration: number | null; moving_duration: number | null; activity_type: string };
+  const types = [...RUN_TYPES];
+  const runs = (await Promise.all(months.map((m) => fetchAllRows<RunRow>((a, b) =>
+    supabase.from('athlete_activities').select('id, athlete_id, start_time, distance, duration, moving_duration, activity_type')
+      .in('activity_type', types).gte('start_time', `${m}-01T00:00:00`).lt('start_time', `${addMonths(m, 1)}-01T00:00:00`).order('id').range(a, b))))).flat();
+
+  type Ev = { athlete_id: string; created_at: string };
+  const events = async (table: string, extra?: (q: any) => any): Promise<Ev[]> => {
+    try {
+      return await fetchAllRows<Ev>((a, b) => {
+        let q: any = supabase.from(table).select('id, athlete_id, created_at').gte('created_at', from).lt('created_at', end);
+        if (extra) q = extra(q);
+        return q.order('id').range(a, b);
+      });
+    } catch { return []; } // a table that is not there yet reads as empty
+  };
+  const [kudos, comments, pain] = await Promise.all([
+    events('activity_kudos'),
+    events('feed_comments', (q) => q.is('deleted_at', null)),
+    events('pain_reports'),
+  ]);
+  const ev = (rows: Ev[]) => rows.map((r) => ({ athleteId: r.athlete_id, createdAt: r.created_at }));
+  return computeMonthlySeries({
+    today, window, athletes,
+    runs: runs.map((r) => ({ athleteId: r.athlete_id, start: r.start_time, meters: r.distance ?? 0, seconds: r.moving_duration || r.duration || 0, type: r.activity_type })),
+    kudos: ev(kudos), comments: ev(comments), pain: ev(pain),
   });
 }
