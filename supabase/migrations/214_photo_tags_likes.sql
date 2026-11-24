@@ -1,4 +1,4 @@
--- 214: manual photo tags on Drive v2 photos ("התמונות שלי"). No face recognition: a person is tagged
+-- 214: manual photo tags and likes on Drive v2 photos and videos ("התמונות שלי"). No face recognition: a person is tagged
 -- by hand, by a club member or by themselves. A tag of someone else stays 'pending' until the tagged
 -- person approves it; the tagged person can remove any tag of them at any time.
 --
@@ -27,3 +27,19 @@ CREATE INDEX IF NOT EXISTS idx_photo_tags_athlete ON photo_tags (athlete_id, sta
 CREATE INDEX IF NOT EXISTS idx_photo_tags_folder ON photo_tags (folder_id);
 
 ALTER TABLE photo_tags ENABLE ROW LEVEL SECURITY;
+
+-- Likes ("אהבתי"): a heart on a photo or a video of the library. The count is club-visible; the list of
+-- what I liked is mine. media_id is the Drive file id (photo or video), folder_id its album.
+CREATE TABLE IF NOT EXISTS photo_likes (
+  media_id    TEXT NOT NULL,
+  folder_id   TEXT NOT NULL,
+  kind        TEXT NOT NULL DEFAULT 'photo' CHECK (kind IN ('photo', 'video')),
+  athlete_id  UUID NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (media_id, athlete_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_photo_likes_athlete ON photo_likes (athlete_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_photo_likes_folder ON photo_likes (folder_id);
+
+ALTER TABLE photo_likes ENABLE ROW LEVEL SECURITY;

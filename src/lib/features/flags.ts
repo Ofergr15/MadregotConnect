@@ -167,9 +167,9 @@ export const FEATURES = {
   native_mgmt_leads: { label: 'לידים (אפליקציה)', defaultEnabled: false },
   /** The redesigned manager home in the native coach shell. */
   native_mgmt_manager_home_v2: { label: 'בית מנהל חדש (אפליקציה)', defaultEnabled: false },
-  /** Manual photo tags ("התמונות שלי", migration 214). Members only; the tagged person approves or removes.
-   *  No face recognition. Off → every /api/photos/tags* route answers 404. */
-  photo_tags: { label: 'תיוג ידני בתמונות (התמונות שלי)', defaultEnabled: false },
+  /** Manual photo tags ("התמונות שלי") and likes ("אהבתי"), migration 214. Members only; the tagged person approves or removes.
+   *  No face recognition. Off → /api/photos/tags* and /api/photos/likes* answer 404. */
+  photos_social: { label: 'תמונות: תיוג ידני (התמונות שלי) ולייקים (אהבתי)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;

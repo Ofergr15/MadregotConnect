@@ -66,3 +66,13 @@ export async function namesFor(db: Db, ids: string[]): Promise<Map<string, strin
   const { data } = await db.from('athletes').select('id, name').in('id', uniq);
   return new Map(((data || []) as Array<{ id: string; name: string | null }>).map((a) => [a.id, a.name ?? '']));
 }
+
+/** media → { count, mine }; the athlete ids never leave this function. */
+export function likeCounts(rows: Array<{ media_id: string; athlete_id: string }>, me: string) {
+  const out: Record<string, { count: number; mine: boolean }> = {};
+  for (const r of rows) {
+    const e = (out[r.media_id] ||= { count: 0, mine: false });
+    e.count++; if (r.athlete_id === me) e.mine = true;
+  }
+  return out;
+}

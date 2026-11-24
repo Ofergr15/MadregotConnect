@@ -1,4 +1,4 @@
-// b23 — manual photo tags (migration 214, flag photo_tags). No face recognition.
+// b23 — manual photo tags (migration 214, flag photos_social). No face recognition.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { initialStatus, mayApprove, mayRemove, project, visibleTo, type PhotoTagRow } from '@/lib/photos/tags';
@@ -49,7 +49,7 @@ describe('approve fileIds selection', () => {
 });
 
 describe('migration 214', () => {
-  const sql = readFileSync(new URL('../../supabase/migrations/214_photo_tags.sql', import.meta.url), 'utf8');
+  const sql = readFileSync(new URL('../../supabase/migrations/214_photo_tags_likes.sql', import.meta.url), 'utf8');
   it('is idempotent, RLS on, status constrained, one tag per person per photo', () => {
     expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS photo_tags/);
     expect(sql).toMatch(/ENABLE ROW LEVEL SECURITY/);
@@ -63,7 +63,7 @@ describe('migration 214', () => {
 let flagOn = true;
 let caller: any = { athleteId: 'me', isStaff: false, isSuperUser: false };
 let rows: PhotoTagRow[] = [];
-vi.mock('@/lib/features/server', () => ({ isFeatureEnabled: async (k: string) => k === 'photo_tags' && flagOn }));
+vi.mock('@/lib/features/server', () => ({ isFeatureEnabled: async (k: string) => k === 'photos_social' && flagOn }));
 vi.mock('@/lib/auth/self-or-staff', () => ({ resolveVerifiedCaller: async () => ({ denied: null, caller }) }));
 vi.mock('@/lib/photos/drive-browse', () => ({
   listFolderPhotos: async (id: string) => id === 'FOLDER_00001'
@@ -121,5 +121,20 @@ describe('/api/photos/tags', () => {
     const { DELETE } = await import('@/app/api/photos/tags/route');
     expect((await DELETE(req('DELETE', { photoId: 'PHOTO_000001', athleteId: 'me' }))).status).toBe(200);
     expect(rows).toHaveLength(0);
+  });
+});
+
+describe('likes', () => {
+  it('counts per media and marks mine, without returning who', async () => {
+    const { likeCounts } = await import('@/lib/photos/tags');
+    const out = likeCounts([{ media_id: 'A', athlete_id: 'me' }, { media_id: 'A', athlete_id: 'dana' }, { media_id: 'B', athlete_id: 'dana' }], 'me');
+    expect(out).toEqual({ A: { count: 2, mine: true }, B: { count: 1, mine: false } });
+    expect(JSON.stringify(out)).not.toContain('dana');
+  });
+  it('migration adds photo_likes with RLS and one like per person', () => {
+    const sql = readFileSync(new URL('../../supabase/migrations/214_photo_tags_likes.sql', import.meta.url), 'utf8');
+    expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS photo_likes/);
+    expect(sql).toMatch(/PRIMARY KEY \(media_id, athlete_id\)/);
+    expect(sql.match(/ENABLE ROW LEVEL SECURITY/g)).toHaveLength(2);
   });
 });

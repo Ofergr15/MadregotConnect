@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   if (g.denied) return g.denied;
   try {
     const db = createServerClient();
-    const { data, error } = await db.from('photo_tags').select('*').eq('athlete_id', g.actor.athleteId)
+    const { data, error } = await db.from('photos_social').select('*').eq('athlete_id', g.actor.athleteId)
       .order('created_at', { ascending: false }).limit(1000);
     if (missingTable(error)) return NextResponse.json({ error: 'not ready' }, { status: 503 });
     if (error) return NextResponse.json({ error: 'failed', details: error.message }, { status: 500 });
