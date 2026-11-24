@@ -158,6 +158,15 @@ export const FEATURES = {
   /** Drive photos v2 (night queue #101): mirror status for staff, each folder tied to its day's session,
    *  album imports deduped. Source = the session-photos folder only. Face tagging stays off regardless. */
   photos_drive_v2: { label: 'תמונות מ-Drive v2: סטטוס, קישור לאימון, בלי כפילויות', defaultEnabled: false },
+  // ── Native build 22: surfaces the app reads that had no key here, so no admin could turn them on.
+  /** A runner moves themselves to another pack from the app (onboarding/group-change). */
+  native_self_group_change: { label: 'שינוי דבוקה עצמי (אפליקציה)', defaultEnabled: false },
+  /** Club numbers month vs month (native club tab). */
+  club_stats_monthly: { label: 'המועדון חודש מול חודש (אפליקציה)', defaultEnabled: false },
+  /** Leads list in the native management menu. */
+  native_mgmt_leads: { label: 'לידים (אפליקציה)', defaultEnabled: false },
+  /** The redesigned manager home in the native coach shell. */
+  native_mgmt_manager_home_v2: { label: 'בית מנהל חדש (אפליקציה)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
