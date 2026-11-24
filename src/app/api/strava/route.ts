@@ -4,9 +4,11 @@ import { loginState, joinState } from '@/lib/auth/login-handoff';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { reserveLinkState, signLinkState } from '@/lib/strava/link-state';
 import { createServerClient } from '@/lib/supabase/server';
+import { signNativeLoginState } from '@/lib/auth/native-login-state';
 
 /**
  * GET /api/strava?mode=login[&challenge=<base64url sha256>]
+ * GET /api/strava?mode=login&native=1&challenge=<base64url sha256>   (native app sign-in)
  * GET /api/strava?athleteId=<uuid>       (link Strava onto an existing athlete)
  * GET /api/strava?inviteToken=<32 hex>   (the Strava step of /join/{token})
  *
@@ -71,7 +73,18 @@ export async function GET(request: Request) {
   } else if (inviteToken) {
     state = joinState(inviteToken);
   } else if (mode === 'login' || (!athleteId && mode !== 'link')) {
-    state = loginState(challenge);
+    // `native=1`: started by the iOS app's ASWebAuthenticationSession. The marker is
+    // put INSIDE a state this server signs (lib/auth/native-login-state.ts), and it
+    // requires a challenge, so the callback can end on madregot:// without ever
+    // putting a session token in that URL — the app claims it with its verifier.
+    if (searchParams.get('native') === '1') {
+      if (!challenge) return NextResponse.json({ error: 'challenge required for native login' }, { status: 400 });
+      const signed = signNativeLoginState(challenge);
+      if (!signed) return NextResponse.json({ error: 'Strava not configured' }, { status: 500 });
+      state = signed;
+    } else {
+      state = loginState(challenge);
+    }
     isLoginMode = true;
   } else if (athleteId) {
     // Self-or-staff: a runner may connect their own Strava (profile page), a

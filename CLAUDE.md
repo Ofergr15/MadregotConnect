@@ -512,6 +512,21 @@ errors are logged as name + HTTP status only — an axios error carries the pass
 or ticket in its request config. `garmin-callback` posts the ticket to its own origin
 instead of `'*'`. Pinned by `src/__tests__/garminCredentialServerSide.test.ts`.
 
+Recorded exposure change, **2026-11-23** (native Strava sign-in, flag
+`native_strava_signin`, default off): the Strava login callback can now end on the
+app's custom scheme, `madregot://auth/strava?result=ok|denied|error&debug=<id>`, so the
+iOS `ASWebAuthenticationSession` sheet closes. Any app can register `madregot://`, so
+that URL carries **no session, refresh token or code** — only a status word. The native
+marker is never a query param on the callback: `GET /api/strava?mode=login&native=1&
+challenge=<base64url sha256(verifier)>` mints a state **signed by this server**
+(`nlogin.<challenge>.<ts>.<hmac>`, ENCRYPTION_KEY under its own label, 10 minutes,
+`src/lib/auth/native-login-state.ts`), and a forged/expired one is handled as an ordinary
+web state. The native state requires the challenge: the callback parks the login in
+`login_handoffs` exactly as the PWA handoff does, and the app exchanges its verifier at
+`POST /api/auth/claim-login` (single use). If parking fails it returns `result=error`
+rather than falling through to the session-in-fragment path. Web login is unchanged.
+Pinned by `src/__tests__/stravaNativeLogin.test.ts`.
+
 ## The AI parser — the accuracy-critical path
 
 `src/lib/ai/parser.ts` + `prompt.ts`. Two tiers:
