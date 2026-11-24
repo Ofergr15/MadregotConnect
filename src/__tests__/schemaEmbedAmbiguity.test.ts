@@ -170,6 +170,9 @@ const KNOWN_AMBIGUOUS: Record<string, string[]> = {
   // 197: the athlete and the coach who marked them. Nothing embeds across it.
   'practice_presence->athletes': ['athlete_id', 'marked_by'],
   'run_chats->athletes': ['athlete_id', 'coach_id'],
+  // 208: the applicant's row and the staff member who decided. Nothing embeds across it;
+  // a future embed must say `athletes!athlete_id(…)` / `athletes!decided_by_id(…)`.
+  'signup_requests->athletes': ['athlete_id', 'decided_by_id'],
 };
 
 /**
