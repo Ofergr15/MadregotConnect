@@ -44,7 +44,8 @@ export async function POST(request: Request) {
       .from('feed-media')
       .upload(path, buffer, { contentType: file.type, upsert: false });
     if (uploadError) {
-      return NextResponse.json({ error: `Upload failed: ${uploadError.message}` }, { status: 500 });
+      console.error('[api/feed/media]', uploadError);
+      return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
     }
 
     const { data: urlData } = supabase.storage.from('feed-media').getPublicUrl(path);
@@ -61,6 +62,7 @@ export async function POST(request: Request) {
     });
   } catch (err: unknown) {
     console.error('Feed media upload error:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    console.error('[api/feed/media]', err);
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

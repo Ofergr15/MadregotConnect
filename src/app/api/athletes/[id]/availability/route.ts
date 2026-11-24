@@ -43,9 +43,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       .maybeSingle();
     if (error) {
       if (/availability/.test(error.message || '')) {
-        return NextResponse.json({ error: 'migration_pending', details: 'migration 186 not applied' }, { status: 503 });
+        return NextResponse.json({ error: 'migration_pending', migration: 186 }, { status: 503 });
       }
-      return NextResponse.json({ error: 'Failed to update', details: error.message }, { status: 500 });
+      console.error('[api/athletes/[id]/availability]', error);
+      return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
     }
     if (!data) return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
 
@@ -63,6 +64,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ availability: data.availability, setBy: data.availability_set_by ?? null });
   } catch (error: any) {
     console.error('[availability] failed:', error);
-    return NextResponse.json({ error: error?.message || 'Failed to update' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
   }
 }

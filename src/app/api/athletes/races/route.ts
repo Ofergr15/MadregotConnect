@@ -87,7 +87,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ races, totalRaces: races.length });
   } catch (err: any) {
     console.error('Races error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to compute races' }, { status: 500 });
+    console.error('[api/athletes/races]', err);
+    return NextResponse.json({ error: 'Failed to compute races' }, { status: 500 });
   }
 }
 
@@ -152,6 +153,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ match });
   } catch (err: any) {
     console.error('Race match update error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to update race match' }, { status: 500 });
+    console.error('[api/athletes/races]', err);
+    return NextResponse.json({ error: 'Failed to update race match' }, { status: 500 });
   }
 }

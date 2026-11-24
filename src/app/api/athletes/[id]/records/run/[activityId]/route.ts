@@ -84,6 +84,7 @@ export async function GET(
     return NextResponse.json({ unmeasured, records, excludedFrom });
   } catch (error: any) {
     console.error('Run records error:', error);
-    return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 });
+    console.error('[api/athletes/[id]/records/run/[activityId]]', error);
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

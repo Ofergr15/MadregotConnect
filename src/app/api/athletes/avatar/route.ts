@@ -37,7 +37,8 @@ export async function POST(request: Request) {
       .from('avatars')
       .upload(path, buffer, { contentType: file.type, upsert: true });
     if (uploadError) {
-      return NextResponse.json({ error: `Upload failed: ${uploadError.message}` }, { status: 500 });
+      console.error('[api/athletes/avatar]', uploadError);
+      return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
     }
 
     const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ avatarUrl });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    console.error('[api/athletes/avatar]', err);
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

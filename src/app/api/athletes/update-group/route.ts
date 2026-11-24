@@ -108,6 +108,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, athlete: updated });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Internal error' }, { status: 500 });
+    console.error('[api/athletes/update-group]', error);
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
