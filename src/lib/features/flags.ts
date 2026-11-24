@@ -146,6 +146,10 @@ export const FEATURES = {
   search: { label: 'חיפוש (אפליקציה)', defaultEnabled: false },
   teammate_full: { label: 'פרופיל חבר מלא (אפליקציה)', defaultEnabled: false },
   native_mgmt_pack_stories: { label: 'סטוריז דבוקה (אפליקציה)', defaultEnabled: false },
+  /** b24 U21A: native הרשמות U21 (read-only GET /api/u21/registrations, super user or admin). Held: off until enabled. */
+  native_mgmt_u21_admin: { label: 'הרשמות U21 (אפליקציה)', defaultEnabled: false },
+  /** b24 REH: native חזרה לפני שחרור (super user only; reads GET /api/whats-new, writes nothing). */
+  native_mgmt_release_rehearsal: { label: 'חזרה לפני שחרור (אפליקציה)', defaultEnabled: false },
   native_review: { label: 'סקירה (אפליקציה, מתאמן)', defaultEnabled: false },
   /** "שלח שוב לשעון": a runner re-sends their own day's workout (POST /api/me/watch/resend). */
   native_resend_workout: { label: 'שליחה חוזרת לשעון (אפליקציה)', defaultEnabled: false },
