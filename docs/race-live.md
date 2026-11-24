@@ -133,3 +133,30 @@ Rehearse this exact flow on the rehearsal day with `source: "manual"` and pushes
 - Pushes reach the PWA web-push subscriptions via the existing send path; native APNs only if
   that path already covers it.
 - The native HTTP calls are untested against a live server (same as the rest of the Valencia tab).
+
+## Phone location (b24, flag `race_live_phone`, default off)
+
+Research: review-2026-11-20/valencia-live-research.md — the organizer publishes no feed and LiveTrack is
+share-link only, so **the runner's own phone is the only legal source at 1–2 minute freshness.**
+
+- **Write:** `POST /api/race-live/{eventId}/position { lat, lon, distanceM, elapsedSec, at }` — the CALLER's
+  own row only. Identity is the JWT (`resolveVerifiedCaller`); there is no athlete id in the body, and staff
+  cannot write for anyone. Refused unless: `race_live_phone` on for the caller, the race window is open
+  (`race_live_config.active` and `poll_from ≤ now ≤ poll_to`), the caller has a `race_entries` row that is not
+  `live_opt_out`. Rate: one write per 20 s; distance may not drop more than 200 m (a new session).
+  `DELETE` = stop sharing, the row goes at once. Pure rules + tests: `lib/race-live/phone.ts`,
+  `raceLivePhone.test.ts`.
+- **What is stored:** exactly what LiveTrack stores — ONE row in `race_positions` (latest point; no trail,
+  no history). No migration.
+- **Who sees it:** the existing board rules, unchanged — any verified member with `race_live` on, positions
+  only for members who opted in to the map (`race_map_viewers`), never for an opted-out runner. The board
+  now also returns the position's `elapsedSec` and an `etaSec` (elapsed × 42.195 / covered).
+- **Retention:** the existing purge deletes every position 24 h after `poll_to` (`PURGE_AFTER_MS`);
+  stopping, opting out or the client's 7 h cap ends it sooner.
+- **Exposure change (recorded 2026-11-25):** precise live location of a named member, readable by every
+  member who opts in to the map, during the race window. Same class LiveTrack positions already had; the
+  new part is the source (the phone, so anyone with the app can share, not only Garmin users). It must never
+  become public, never get a trail, and never outlive the purge. Splits are NOT derived from the phone (that
+  would need a 'phone' split source — migration 220, not proposed here).
+- **Client:** opt-in sheet with explicit consent copy; background location only while sharing, only in the
+  race window; stops at the finish line distance, after 7 h, or by the runner; 120 s posts in Low Power Mode.
