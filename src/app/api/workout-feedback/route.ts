@@ -394,12 +394,19 @@ export async function POST(request: Request) {
     type Before = { pain?: boolean | null; difficulty?: number | null; wants_feedback?: boolean | null; feel?: number | null; pain_detail?: string | null; comment?: string | null };
     let before: Before | null = null;
     if (garminActivityId != null) {
-      const { data: prev } = await supabase
+      const { data: prev, error: prevErr } = await supabase
         .from('workout_feedback')
         .select('pain, difficulty, wants_feedback, feel, pain_detail, comment')
         .eq('athlete_id', athleteId)
         .eq('garmin_activity_id', garminActivityId)
         .maybeSingle();
+      // Night queue #63: a failed read used to read as "nothing saved before", so the upsert below
+      // nulled every field this request did not carry and re-fired the pain alert. Refuse instead —
+      // the client keeps its answer and retries. (A missing column is the pre-migration DB: as before.)
+      if (prevErr && !['42703', 'PGRST204'].includes((prevErr as { code?: string }).code ?? '')) {
+        console.error('workout-feedback: reading the previous answer failed', prevErr);
+        return NextResponse.json({ error: 'could not read the saved answer, try again' }, { status: 500 });
+      }
       before = (prev as Before | null) ?? null;
     }
 
