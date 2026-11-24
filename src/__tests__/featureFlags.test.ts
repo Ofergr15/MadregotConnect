@@ -85,9 +85,9 @@ describe('mayToggle — who may toggle what', () => {
     expect(isAdminOnlyFeature('feedback_pain')).toBe(false);
     expect(isAdminOnlyFeature(undefined)).toBe(false);
   });
-  it('native_mgmt_users exists and stays on by default (the app already showed it to staff)', () => {
+  it('native_mgmt_users exists and is off by default (product decision pending)', () => {
     expect(isFeatureKey('native_mgmt_users')).toBe(true);
-    expect(FEATURES.native_mgmt_users.defaultEnabled).toBe(true);
+    expect(FEATURES.native_mgmt_users.defaultEnabled).toBe(false);
   });
   it('the academy scope id is fixed', () => {
     expect(mayToggle(manager, { scopeType: 'academy', scopeId: 'other' })).toBe(false);

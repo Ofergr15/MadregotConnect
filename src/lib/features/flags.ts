@@ -194,9 +194,9 @@ export const FEATURES = {
   native_mgmt_podium_admin: { label: 'ניהול פודיום (אפליקציה)', defaultEnabled: false },
   /** Native b23: חנות והטבות — the store, perks, badges and challenges row in ניהול. */
   native_mgmt_rewards: { label: 'חנות והטבות (אפליקציה)', defaultEnabled: false },
-  /** Native משתמשים (role picker, GET/PUT/DELETE /api/admin/users). The app has shown it to staff since build 21 because
-   *  no key existed (an unnamed family is default-on there), so this keeps it on and only makes it switchable. */
-  native_mgmt_users: { label: 'משתמשים (אפליקציה)', defaultEnabled: true },
+  /** Native משתמשים (role picker, GET/PUT/DELETE /api/admin/users). Off by default: the users manager is a pending
+   *  product decision, so it ships only when an admin turns it on. */
+  native_mgmt_users: { label: 'משתמשים (אפליקציה)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
