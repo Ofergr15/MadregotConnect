@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FEATURE_KEYS, allowedScopeTypes, coachesAthlete, mayToggle, resolveFeature, visibleToManager, type EnablementRow } from '@/lib/features/flags';
+import { FEATURES, FEATURE_KEYS, allowedScopeTypes, coachesAthlete, isAdminOnlyFeature, isFeatureKey, mayToggle, resolveFeature, visibleToManager, type EnablementRow } from '@/lib/features/flags';
 
 const row = (scope_type: EnablementRow['scope_type'], scope_id: string, enabled: boolean): EnablementRow =>
   ({ feature: 'feedback_pain', scope_type, scope_id, enabled, set_by: 'x', set_at: '2026-11-21T10:00:00Z' });
@@ -70,6 +70,24 @@ describe('mayToggle — who may toggle what', () => {
     expect(mayToggle(runner, ath(false, true))).toBe(false);
     expect(mayToggle(runner, { scopeType: 'athlete', scopeId: 'r9', athlete: { isAcademy: false, coachedByCaller: false } })).toBe(false);
     expect(allowedScopeTypes(runner)).toEqual([]);
+  });
+  it('management-screen keys (native_mgmt_*) are admin-only, whatever the scope', () => {
+    const mgmt = (t: ReturnType<typeof ath>) => ({ ...t, feature: 'native_mgmt_access' });
+    expect(mayToggle(clubCoach, mgmt(ath(false, true)))).toBe(false);
+    expect(mayToggle(acCoach, mgmt(ath(true, true)))).toBe(false);
+    expect(mayToggle(manager, mgmt(ath(true, false)))).toBe(false);
+    expect(mayToggle(manager, { scopeType: 'academy', scopeId: 'academy', feature: 'native_mgmt_people' })).toBe(false);
+    expect(mayToggle(admin, mgmt(ath(false, false)))).toBe(true);
+    expect(mayToggle(sup, { scopeType: 'club', scopeId: '*', feature: 'native_mgmt_users' })).toBe(true);
+    // a runner feature keeps the coach's per-runner reach
+    expect(mayToggle(clubCoach, { ...ath(false, true), feature: 'history' })).toBe(true);
+    expect(isAdminOnlyFeature('native_mgmt_users')).toBe(true);
+    expect(isAdminOnlyFeature('feedback_pain')).toBe(false);
+    expect(isAdminOnlyFeature(undefined)).toBe(false);
+  });
+  it('native_mgmt_users exists and stays on by default (the app already showed it to staff)', () => {
+    expect(isFeatureKey('native_mgmt_users')).toBe(true);
+    expect(FEATURES.native_mgmt_users.defaultEnabled).toBe(true);
   });
   it('the academy scope id is fixed', () => {
     expect(mayToggle(manager, { scopeType: 'academy', scopeId: 'other' })).toBe(false);

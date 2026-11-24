@@ -194,6 +194,9 @@ export const FEATURES = {
   native_mgmt_podium_admin: { label: 'ניהול פודיום (אפליקציה)', defaultEnabled: false },
   /** Native b23: חנות והטבות — the store, perks, badges and challenges row in ניהול. */
   native_mgmt_rewards: { label: 'חנות והטבות (אפליקציה)', defaultEnabled: false },
+  /** Native משתמשים (role picker, GET/PUT/DELETE /api/admin/users). The app has shown it to staff since build 21 because
+   *  no key existed (an unnamed family is default-on there), so this keeps it on and only makes it switchable. */
+  native_mgmt_users: { label: 'משתמשים (אפליקציה)', defaultEnabled: true },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
@@ -300,6 +303,17 @@ export interface ToggleTarget {
   scopeId: string;
   /** For an athlete scope: the target's facts plus whether the caller coaches them. */
   athlete?: { isAcademy: boolean; coachedByCaller: boolean } | null;
+  /** The feature being written. Management-screen keys (`native_mgmt_*`) are admin-only — see isAdminOnlyFeature. */
+  feature?: string;
+}
+
+/**
+ * The ניהול screens' visibility keys. Turning one on never grants the power behind it (every route still checks
+ * the caller's role), but it decides who sees management surfaces, so only an admin may write it: a coach must not
+ * be able to switch a management screen on for a runner, or for another coach, from the graded-rollout editor.
+ */
+export function isAdminOnlyFeature(feature: string | undefined): boolean {
+  return typeof feature === 'string' && feature.startsWith('native_mgmt_');
 }
 
 const has = (c: ToggleCaller, role: string) => c.role === role || !!c.roles?.includes(role);
@@ -327,6 +341,7 @@ export function allowedScopeTypes(c: ToggleCaller): ScopeType[] {
  */
 export function mayToggle(c: ToggleCaller, t: ToggleTarget): boolean {
   if (isAdminCaller(c)) return true;
+  if (isAdminOnlyFeature(t.feature)) return false;
   if (t.scopeType === 'academy') return isAcademyManagerCaller(c) && t.scopeId === ACADEMY_SCOPE_ID;
   if (t.scopeType !== 'athlete' || !t.athlete) return false;
   if (c.athleteId && t.scopeId === c.athleteId) return false; // nobody gates themselves in
