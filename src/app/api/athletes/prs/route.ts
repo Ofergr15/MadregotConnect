@@ -7,7 +7,11 @@ import { applyPrOverrides, parsePrSeconds, prBucket, prSecondsProblem } from '@/
 import { readPrOverrides, UNDEFINED_TABLE } from '@/lib/prs/overrides-store';
 import { readPrExclusions } from '@/lib/prs/exclusions-store';
 import { fetchAllRows } from '@/lib/supabase/paginate';
-import { activityLocalDateStr } from '@/lib/utils';
+import { activityLocalDateStr, israelToday } from '@/lib/utils';
+import { computeRecordHistory } from '@/lib/prs/record-history';
+import { readClubRecords } from '@/lib/prs/club-records-store';
+import { readRoster } from '@/lib/records/server';
+import { clubRankFor, improvedBySec } from '@/lib/records/board';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,10 +81,35 @@ export async function GET(request: Request) {
     // Layered with anything the athlete has stated by hand — see overrides.ts for
     // why a stated time replaces rather than competes with the derived one, and why
     // the badge engine deliberately never sees this.
-    const distanceBests = applyPrOverrides(
-      computeDistanceBests(runs, { excluded: await readPrExclusions(supabase, athleteId) }),
+    const excluded = await readPrExclusions(supabase, athleteId);
+    const bests = applyPrOverrides(
+      computeDistanceBests(runs, { excluded }),
       await readPrOverrides(supabase, athleteId),
     );
+
+    // b23: `improvedBySec` — what this best took off the previous record at the
+    // distance (record-history's breaks, the same list as the stats route's
+    // prHistory); `clubRank` — its place on the club table, counting only runners
+    // that table shows (opt-out / hidden pace excluded). A runner who hides pace
+    // gets no rank at all. The stored snapshot is read, never recomputed here, and
+    // a missing snapshot or roster read leaves the rank null rather than failing.
+    const history = computeRecordHistory(runs, excluded);
+    let rankOf: (key: string, seconds: number | null) => number | null = () => null;
+    try {
+      const [snapshot, roster] = await Promise.all([readClubRecords(supabase), readRoster(supabase, israelToday())]);
+      if (snapshot) {
+        const facts = new Map(roster.map((p) => [p.id, p]));
+        const byKey = new Map(snapshot.buckets.map((b) => [b.key, b.entries]));
+        rankOf = (key, seconds) => clubRankFor(byKey.get(key) ?? [], facts, athleteId, seconds);
+      }
+    } catch (e) {
+      console.warn('PRs: club rank unavailable', e);
+    }
+    const distanceBests = bests.map((b) => ({
+      ...b,
+      improvedBySec: improvedBySec(history[b.key] ?? [], b.seconds),
+      clubRank: rankOf(b.key, b.seconds),
+    }));
 
     // Longest run — max single-activity distance (a milestone, not a time bucket).
     let longest: any = null;

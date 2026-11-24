@@ -232,6 +232,69 @@ export function filterRecordTable<E extends RecordEntryLike>(
   return out;
 }
 
+/** A pace-hiding runner's place-holder row: who, never how fast. */
+export interface PaceHiddenRow {
+  athleteId: string;
+  paceHidden: true;
+  seconds: null;
+  rank: null;
+}
+
+/**
+ * b23: pace-hiders stay on the table as rows with no time, no date, no run and no
+ * rank. Ranks come from filterRecordTable (visible runners only), and the hidden
+ * rows go AFTER every ranked row, ordered by athlete id — never by time, or their
+ * position would hand back the time they hid. Opt-out still removes a runner
+ * outright. Sex / age filters apply (both facts are already shown on the row);
+ * races-only drops them, since "has an official time here" is about the run.
+ */
+export function paceHiddenRows<E extends RecordEntryLike>(
+  entries: E[],
+  facts: Map<string, RecordFacts>,
+  opts: { sex?: SexFilter; age?: string | 'all'; racesOnly?: boolean },
+): PaceHiddenRow[] {
+  if (opts.racesOnly) return [];
+  const sex = opts.sex ?? 'all';
+  const age = opts.age ?? 'all';
+  const ids = new Set<string>();
+  for (const e of entries) {
+    const f = facts.get(e.athleteId) ?? {};
+    if (f.optOut || !f.hidesPace) continue;
+    if (sex === 'm' && f.gender !== 'male') continue;
+    if (sex === 'f' && f.gender !== 'female') continue;
+    if (age !== 'all' && (f.ageBand ?? null) !== age) continue;
+    ids.add(e.athleteId);
+  }
+  return [...ids].sort().map((athleteId) => ({ athleteId, paceHidden: true as const, seconds: null, rank: null }));
+}
+
+/** Seconds the current best took off the one before it (the last slower break); null when there is none. */
+export function improvedBySec(breaks: Array<{ date: string; seconds: number }>, best: number | null): number | null {
+  if (best == null) return null;
+  const prior = [...breaks].sort((a, b) => a.date.localeCompare(b.date)).filter((b) => b.seconds > best);
+  return prior.length ? prior[prior.length - 1].seconds - best : null;
+}
+
+/**
+ * Where `seconds` would sit on the club's visible table: 1 + visible OTHER runners
+ * strictly faster. Null when the runner is off the table (opt-out, hidden pace) or
+ * has no time — a hidden runner gets no rank anywhere, including on their own card.
+ */
+export function clubRankFor(
+  entries: RecordEntryLike[],
+  facts: Map<string, RecordFacts>,
+  athleteId: string,
+  seconds: number | null,
+): number | null {
+  if (seconds == null || !isOnTimeTable(facts.get(athleteId) ?? {})) return null;
+  let faster = 0;
+  for (const e of entries) {
+    if (e.athleteId === athleteId || !isOnTimeTable(facts.get(e.athleteId) ?? {})) continue;
+    if (e.seconds < seconds) faster++;
+  }
+  return faster + 1;
+}
+
 // ── club record history ─────────────────────────────────────────────────────
 
 export interface ClubBreak {
