@@ -512,6 +512,19 @@ errors are logged as name + HTTP status only — an axios error carries the pass
 or ticket in its request config. `garmin-callback` posts the ticket to its own origin
 instead of `'*'`. Pinned by `src/__tests__/garminCredentialServerSide.test.ts`.
 
+Recorded exposure change, **2026-11-23** (App Store account deletion, migration 204):
+`POST /api/admin/account-deletion { athleteId }` is the first route that **destroys a
+member's data**. It is **admin-only** (`isSuperUser || hasRole('admin')`, same bar as
+`/api/admin/notifications`) and refuses (409) any member without a *pending*
+`account_deletion_requests` row they filed themselves through the JWT-scoped
+`/api/account/delete-request` — so no body field can delete someone who never asked,
+and nothing runs automatically. It calls `anonymise_athlete` (204 replaces 193's
+version; paste 204 after 193) and then removes what Postgres can't reach: avatar /
+feed-media / face-crop storage objects, the Stream user + messages (hard delete), and the
+Supabase auth login matched by the athlete's email. Each outside step is best-effort and
+reported in `steps`. The activity rows and their numeric totals stay, under
+"חבר/ה לשעבר". Pinned by `src/__tests__/accountDeletion.test.ts`.
+
 ## The AI parser — the accuracy-critical path
 
 `src/lib/ai/parser.ts` + `prompt.ts`. Two tiers:
