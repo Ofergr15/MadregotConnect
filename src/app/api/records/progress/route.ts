@@ -6,6 +6,7 @@ import { israelToday } from '@/lib/utils';
 import { bestByMonth, fasterThan, monthAxis, squadMedianSeries, isOnBoard } from '@/lib/records/board';
 import { readRoster, myPrivacy, benchmarkBests } from '@/lib/records/server';
 import { recordsGate } from '@/lib/records/gate';
+import { bestOf, withOverride, type OwnOverride } from '@/lib/records/mine-overrides';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,14 +35,21 @@ export async function GET(request: Request) {
 
     const db = createServerClient();
     const today = israelToday();
-    const [{ snapshot }, roster, bench] = await Promise.all([getClubRecords(db), readRoster(db, today), benchmarkBests(db)]);
+    const [{ snapshot }, roster, bench, own] = await Promise.all([
+      getClubRecords(db), readRoster(db, today), benchmarkBests(db),
+      // The caller's stated times — the PR table applies them, so the curve must too (lib/records/mine-overrides).
+      db.from('athlete_pr_overrides').select('bucket_key, seconds, achieved_on, hidden').eq('athlete_id', caller.athleteId)
+        .then(({ data }) => new Map(((data || []) as Array<{ bucket_key: string; seconds: number | null; achieved_on: string | null; hidden: boolean | null }>)
+          .map((r) => [r.bucket_key, { bucketKey: r.bucket_key, seconds: r.seconds, achievedOn: r.achieved_on, hidden: !!r.hidden } as OwnOverride])),
+        () => new Map<string, OwnOverride>()),
+    ]);
     const me = roster.find((p) => p.id === caller.athleteId);
     const privacy = myPrivacy(me);
     const breaks = snapshot.breaks ?? {};
     const months = monthAxis(today, MONTHS);
     const daysAgo = (d: string) => Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${d.slice(0, 10)}T12:00:00Z`)) / 86400000);
 
-    const mineBreaks = breaks[distance]?.[caller.athleteId] ?? [];
+    const mineBreaks = withOverride(breaks[distance]?.[caller.athleteId] ?? [], own.get(distance), today);
     const series = bestByMonth(mineBreaks, months);
 
     let squad: { median: Array<number | null>; runners: number; fasterThan: { n: number; of: number } | null } | null = null;
@@ -60,8 +68,8 @@ export async function GET(request: Request) {
     }
 
     const mine = PR_BUCKETS.map((b) => {
-      const list = breaks[b.key]?.[caller.athleteId!] ?? [];
-      const best = list[list.length - 1];
+      const list = withOverride(breaks[b.key]?.[caller.athleteId!] ?? [], own.get(b.key), today);
+      const best = bestOf(list);
       return best ? { key: b.key, seconds: best.seconds, date: best.date.slice(0, 10), isNew: daysAgo(best.date) <= NEW_DAYS } : null;
     }).filter(Boolean);
     const b = bench.find((x) => x.athleteId === caller.athleteId);
