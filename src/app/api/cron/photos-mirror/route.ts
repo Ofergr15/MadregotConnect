@@ -9,6 +9,7 @@ import { sendConfirmedAlert, verifyPendingAlerts } from '@/lib/notifications/con
 import { videoBudgetCopy } from '@/lib/notifications/copy';
 import { revalidateTag } from 'next/cache';
 import { listFolderPhotos, listPhotoFolders } from '@/lib/photos/drive-browse';
+import { recordMirrorRun } from '@/lib/photos/status';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -77,9 +78,12 @@ async function run(request: Request) {
       warmed = await warmMirrorCache([folders.flatMap((f) => f.covers), ...ids.filter((x) => x.length)], Date.now() + 60_000);
     } catch (err) { console.warn('[cron/photos-mirror] warm failed', err); }
     console.log('[cron/photos-mirror]', { ...result, warmed, times, copies, listing });
+    // What the staff status shows (lib/photos/status, #101): when it last ran and what it did.
+    await recordMirrorRun(createServerClient(), { at: new Date().toISOString(), ok: true, ...result, warmed });
     return NextResponse.json({ ...result, warmed, times, copies });
   } catch (error) {
     console.error('[cron/photos-mirror] failed', error);
+    await recordMirrorRun(createServerClient(), { at: new Date().toISOString(), ok: false, error: 'run failed' });
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }
