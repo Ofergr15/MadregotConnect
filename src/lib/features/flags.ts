@@ -180,6 +180,9 @@ export const FEATURES = {
   athlete_races: { label: 'המרוצים שלי (אפליקציה)', defaultEnabled: false },
   /** b23: pack chat + the staff-only weekly digest (migration 218). */
   academy_pack_chat: { label: 'צ׳אט דבוקה + סיכום שבועי (אפליקציה)', defaultEnabled: false },
+  /** b24 UNR: "hasn't read" nudge — the moment's coach / the pack's leader pushes a reminder to who hasn't
+   *  read, one per person per Israel day (migration 219). Off → POST /api/academy/read-nudge answers 404. */
+  academy_read_nudge: { label: 'תזכורת למי שלא קרא (אפליקציה)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
