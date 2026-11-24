@@ -19,6 +19,48 @@ export const NUTRITION_WHENS: NutritionWhen[] = ['before', 'during', 'after'];
 
 export interface NutritionLine { when: NutritionWhen; text: string }
 
+export interface LateNotice { minutes: number; note: string | null; at: string }
+
+export const LATE_MIN = 5;
+export const LATE_MAX = 30;
+export const LATE_NOTE_MAX = 200;
+
+/** The late notice off a row, or null when there is none (or migration 213 is not pasted). */
+export function lateOfRow(r: Record<string, unknown>): LateNotice | null {
+  const minutes = Number(r.late_minutes);
+  if (r.late_minutes == null || !Number.isFinite(minutes) || minutes <= 0) return null;
+  return {
+    minutes,
+    note: typeof r.late_note === 'string' && r.late_note.trim() ? r.late_note : null,
+    at: typeof r.late_at === 'string' ? r.late_at : '',
+  };
+}
+
+/** POST /api/day-session/late's body → the notice to store, or the 400 message. */
+export function readLateInput(body: unknown): { date: string; minutes: number; note: string | null } | string {
+  if (!body || typeof body !== 'object') return 'body required';
+  const b = body as Record<string, unknown>;
+  const date = typeof b.date === 'string' ? b.date : '';
+  if (!DATE.test(date)) return 'date must be YYYY-MM-DD';
+  const minutes = b.minutes;
+  if (typeof minutes !== 'number' || !Number.isInteger(minutes) || minutes < LATE_MIN || minutes > LATE_MAX) {
+    return `minutes must be a whole number ${LATE_MIN}-${LATE_MAX}`;
+  }
+  if (b.note != null && typeof b.note !== 'string') return 'note must be text';
+  const note = typeof b.note === 'string' ? b.note.trim().slice(0, LATE_NOTE_MAX) : '';
+  return { date, minutes, note: note || null };
+}
+
+/** The late push's words. */
+export function latePushCopy(n: Pick<LateNotice, 'minutes' | 'note'>, s: { startTime: string | null }, lang: 'he' | 'en'): { title: string; body: string } {
+  if (lang === 'en') {
+    const at = s.startTime ? ` (start ${s.startTime})` : '';
+    return { title: `Coach is running ${n.minutes} min late`, body: n.note || `Today's session starts ${n.minutes} minutes later${at}.` };
+  }
+  const at = s.startTime ? ` (במקום ${s.startTime})` : '';
+  return { title: `המאמן מאחר ב־${n.minutes} דק׳`, body: n.note || `האימון היום מתחיל ${n.minutes} דקות מאוחר יותר${at}.` };
+}
+
 export interface DaySession {
   id: string;
   date: string;
@@ -47,6 +89,11 @@ export interface DaySession {
   notify: boolean;
   notifiedAt: string | null;
   updatedAt: string | null;
+  /**
+   * b23 "coach is late" (migration 213): minutes 5–30, an optional line, when it was
+   * posted. Null = no notice (or 213 not pasted). A second notice replaces the first.
+   */
+  late: LateNotice | null;
   /** The coach's name, for the nutrition sheet's "מ־… · עודכן …". */
   byName?: string | null;
 }
@@ -322,6 +369,7 @@ export function fromRow(r: Record<string, unknown>): DaySession {
     notify: r.notify !== false,
     notifiedAt: (r.notified_at as string) || null,
     updatedAt: (r.updated_at as string) || null,
+    late: lateOfRow(r),
   };
 }
 

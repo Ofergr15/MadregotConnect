@@ -20,7 +20,9 @@ import {
   computeLikeForLikeTrend,
   pickWeek,
 } from '@/lib/athletes/profile-stats';
-import { israelDateAnchor, israelToday, weekStartOn } from '@/lib/utils';
+import { activityWeekOfPlanWeek, israelDateAnchor, israelToday, planWeekStartOf, weekStartOn } from '@/lib/utils';
+import { planBreakdownFor } from '@/lib/week-story/server';
+import { weekTargetRange } from '@/lib/plans/week-target';
 import { readWeekStartDay } from '@/lib/athletes/week-pref';
 import { buildLast7Report, withWellness } from '@/lib/reports/last-7-days';
 import { buildPlanWeek, israelWallNow } from '@/lib/athletes/plan-week';
@@ -126,6 +128,14 @@ export async function GET(
     // weekly on the payload is cut with it so the chart, the "this week" tile and
     // the trend badge on one profile can't be measuring three different windows.
     const currentWeekStart = weekStartOn(anchor, startDay);
+
+    // b23 profile "plan line": what the plan asks of THIS clock week. The plan week is
+    // Sunday-anchored (planWeekStartOf), the km beside it is the Monday activity week
+    // inside it (activityWeekOfPlanWeek) — CLAUDE.md "two anchors". Prescribed sessions,
+    // short end (weekTargetRange.min); null with no plan, never 0.
+    const planWeekStart = planWeekStartOf();
+    const planBreakdown = await planBreakdownFor(supabase as never, id, planWeekStart).catch(() => null);
+    const planTarget = planBreakdown ? weekTargetRange({ ...planBreakdown, hasPlan: true }) : null;
 
     const weekTable = buildKmTable(acts, { limit: weeks, currentWeekStart, startDay });
     const planWeekRaw = buildPlanWeek(acts, israelWallNow());
@@ -262,6 +272,9 @@ export async function GET(
       // "השבוע שלי": the plan week (Sunday) by day, last week to this same minute, and
       // ten such weeks — one window for the whole card (lib/athletes/plan-week.ts).
       planWeek: planWeekOut,
+      planKm: planTarget ? planTarget.min : null,
+      planKmMax: planTarget ? planTarget.max : null,
+      planKmWeek: { planWeekStart, activityWeekStart: activityWeekOfPlanWeek(planWeekStart) },
       // Last night's sleep and resting HR, for the home's strip — the athlete's own only
       // (health data, #69), and only a night the watch actually reported (today's date).
       lastNight: (() => {
