@@ -267,7 +267,17 @@ export async function GET(request: Request) {
     // basis, the trainee's own threshold), so "השבוע 18.3 מתוך 65.8" here is the board's
     // "מתוך 66" — and an optional session or a day before joining is not planned km.
     const sizeT = testThreshold ? Math.round(testThreshold) : null;
-    const basis = rows.length ? await loadPlanBasis(supabase, athleteId, weekStart, sizeT).catch(() => null) : null;
+    // The three reads left after the batch above don't depend on each other, so they
+    // overlap too: the plan basis (needs the test), the coach's phone (a coach only), and
+    // the race-result prompt (needs the characterization). Each was its own round trip.
+    const [basis, phone, raceResult] = await Promise.all([
+      rows.length ? loadPlanBasis(supabase, athleteId, weekStart, sizeT).catch(() => null) : Promise.resolve(null),
+      viewerIsOther
+        ? supabase.from('athletes').select('phone').eq('id', athleteId).maybeSingle<{ phone: string | null }>()
+          .then((res) => res.data?.phone ?? null)
+        : Promise.resolve(undefined),
+      raceResultPrompt(supabase, athleteId, characterization, today),
+    ]);
     const referenceSec = basis?.referenceSec ?? sizeT ?? DISPLAY_REFERENCE;
     const sized = rows.map(w => boardRow(w, today, sessionSize(w.detail?.workout.steps, referenceSec, basis?.drawAtSec ?? referenceSec), {
       optional: !!w.detail?.workout.optional, joinedOn,
@@ -329,10 +339,6 @@ export async function GET(request: Request) {
     const journeyWeeks = history.filter((h) => h.weekStart >= journeyFrom);
     const { planPct, streakWeeks } = journeyPlanStats(journeyWeeks, currentWeek);
 
-    const phone = viewerIsOther
-      ? ((await supabase.from('athletes').select('phone').eq('id', athleteId).maybeSingle<{ phone: string | null }>()).data?.phone ?? null)
-      : undefined;
-
     const hasWatch = !!(watch.data as { garmin_auth?: unknown } | null)?.garmin_auth
       || !!(watch.data as { strava_auth?: unknown } | null)?.strava_auth;
 
@@ -351,7 +357,7 @@ export async function GET(request: Request) {
       coaches: coachRows.map((c) => ({ id: c.id, name: c.name, avatarUrl: c.avatar_url || null })),
       unread,
       goal: goalCard(characterization, band, today),
-      raceResult: await raceResultPrompt(supabase, athleteId, characterization, today),
+      raceResult,
       paces: withPaceUpdate(resolveTraineePaces({
         band,
         athleteOffsetSec: typeof me.academy_pace_offset_sec === 'number' ? me.academy_pace_offset_sec : null,
