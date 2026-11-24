@@ -449,7 +449,6 @@ async function handleGET(request: Request) {
     return NextResponse.json({ ...report, activityId: activity.id, efforts, blocks });
   } catch (error: any) {
     console.error('Academy segments error:', error);
-    console.error('[api/academy/segments]', error);
     return NextResponse.json({ error: 'Failed to compute segments' }, { status: 500 });
   }
 }

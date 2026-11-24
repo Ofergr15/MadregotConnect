@@ -48,7 +48,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ path, url: urlData.publicUrl });
   } catch (err: unknown) {
     console.error('Notification image upload error:', err);
-    console.error('[api/admin/notifications/image]', err);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

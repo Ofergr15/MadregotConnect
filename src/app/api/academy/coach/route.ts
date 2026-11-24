@@ -129,7 +129,6 @@ export async function PUT(request: Request) {
     });
   } catch (error: any) {
     console.error('Academy coach assign error:', error);
-    console.error('[api/academy/coach]', error);
     return NextResponse.json({ error: 'Failed to assign the coach' }, { status: 500 });
   }
 }

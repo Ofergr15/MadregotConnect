@@ -63,7 +63,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ ...buildQueue(report, reviewed, { today: israelToday(), flagged }), unmigrated });
   } catch (error: any) {
     console.error('Academy queue error:', error);
-    console.error('[api/academy/queue]', error);
     return NextResponse.json({ error: 'Failed to build the queue' }, { status: 500 });
   }
 }

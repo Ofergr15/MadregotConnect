@@ -88,7 +88,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ item });
   } catch (err: unknown) {
     console.error('Feed item fetch error:', err);
-    console.error('[api/feed/items/[id]]', err);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
@@ -246,7 +245,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ item });
   } catch (err: unknown) {
     console.error('Feed item update error:', err);
-    console.error('[api/feed/items/[id]]', err);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

@@ -139,7 +139,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ survey, sent, feedItemId, reminders, joinedAt: joinAt });
   } catch (err: unknown) {
     console.error('Failed to create survey:', err);
-    console.error('[api/admin/surveys]', err);
     return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }

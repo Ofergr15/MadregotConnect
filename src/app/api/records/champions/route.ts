@@ -71,7 +71,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ enabled: true, month, ...champions });
   } catch (err: any) {
     console.error('records/champions error:', err);
-    console.error('[api/records/champions]', err);
     return NextResponse.json({ error: 'Failed to compute champions' }, { status: 500 });
   }
 }

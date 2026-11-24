@@ -77,7 +77,6 @@ export async function GET(request: Request) {
     });
   } catch (err: any) {
     console.error('records/weekly error:', err);
-    console.error('[api/records/weekly]', err);
     return NextResponse.json({ error: 'Failed to build the weekly board' }, { status: 500 });
   }
 }

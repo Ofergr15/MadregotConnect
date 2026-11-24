@@ -62,7 +62,6 @@ export async function POST(request: Request) {
     });
   } catch (err: unknown) {
     console.error('Feed media upload error:', err);
-    console.error('[api/feed/media]', err);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

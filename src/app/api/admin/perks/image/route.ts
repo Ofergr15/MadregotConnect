@@ -46,7 +46,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ path, url: urlData.publicUrl });
   } catch (err: unknown) {
     console.error('Perk image upload error:', err);
-    console.error('[api/admin/perks/image]', err);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
