@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { rotateAfter } from '@/lib/cron/budget';
 import { GarminClient } from '@/lib/garmin/client';
 import { israelToday } from '@/lib/utils';
 import { isPartialNight } from '@/lib/academy/normal-range';
@@ -113,7 +114,12 @@ export function deepPassPicks(candidates: Array<{ id: string; lastDeepPass: stri
   return new Set(order.slice(0, slots).map(c => c.id));
 }
 
-export async function sweepWellness(supabase: SupabaseClient, today = israelToday()) {
+export async function sweepWellness(
+  supabase: SupabaseClient,
+  today = israelToday(),
+  opts: { outOfTime?: () => boolean; cursor?: string | null } = {},
+) {
+  const outOfTime = opts.outOfTime ?? (() => false);
   let { data: athletes, error }: { data: Array<{ id: string; garmin_auth: unknown; is_academy?: boolean | null }> | null; error: any } = await supabase
     .from('athletes')
     .select('id, garmin_auth, is_academy')
@@ -140,10 +146,15 @@ export async function sweepWellness(supabase: SupabaseClient, today = israelToda
   const failed: string[] = [];
 
   // ── What each athlete has, and who gets tonight's deep passes ──
-  const list = (athletes || []) as Array<{ id: string; garmin_auth: unknown; is_academy?: boolean | null }>;
+  // Rotated past the last run's cursor, so athletes a cut-short run never reached go first.
+  const list = rotateAfter((athletes || []) as Array<{ id: string; garmin_auth: unknown; is_academy?: boolean | null }>, opts.cursor);
+  let partial = false;
+  /** Last athlete whose nights were fully handled — the next run starts after it. */
+  let cursor: string | null = null;
   const haves = new Map<string, StoredNight[]>();
   const candidates: Array<{ id: string; lastDeepPass: string | null }> = [];
   for (const athlete of list) {
+    if (outOfTime()) { partial = true; break; }
     try {
       const { data: have } = await supabase
         .from('athlete_wellness')
@@ -163,8 +174,10 @@ export async function sweepWellness(supabase: SupabaseClient, today = israelToda
   const deep = deepPassPicks(candidates);
 
   for (const athlete of list) {
+    if (outOfTime()) { partial = true; break; }
     const have = haves.get(athlete.id);
-    if (!have) continue;
+    if (!have) { if (!partial) cursor = athlete.id; continue; }
+    cursor = athlete.id;
     try {
       const lookback = deep.has(athlete.id) ? BACKFILL_LOOKBACK_DAYS : LOOKBACK_DAYS;
       const nights = missingNights(today, have, lookback);
@@ -209,7 +222,7 @@ export async function sweepWellness(supabase: SupabaseClient, today = israelToda
       failed.push(`${athlete.id}: ${(e as Error).message}`);
     }
   }
-  return { athletes: list.length, fetched, stored, backfilled, nightErrors, failed };
+  return { athletes: list.length, fetched, stored, backfilled, nightErrors, failed, partial, cursor: partial ? cursor : null };
 }
 
 /**
