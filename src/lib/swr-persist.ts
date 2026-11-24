@@ -57,7 +57,11 @@ const FLUSH_DEBOUNCE_MS = 1500;
  * route whose response should never touch disk, it needs an explicit skip"). Pain
  * reports are named health data with a body location, and the club shares phones.
  */
-const NEVER_PERSIST = [/\/api\/pain-reports/, /\/api\/workout-feedback/, /\/api\/feedback-prompts/];
+const NEVER_PERSIST = [
+  // The leads screen: applicants' names, contact details and staff notes, read on a
+  // shared iPad. Staff-only on the server; must never rest on the device.
+  /\/api\/admin\/leads/,
+  /\/api\/pain-reports/, /\/api\/workout-feedback/, /\/api\/feedback-prompts/];
 
 export function neverPersisted(key: string): boolean {
   return NEVER_PERSIST.some((re) => re.test(key));
