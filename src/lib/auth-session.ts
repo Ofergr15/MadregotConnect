@@ -295,8 +295,11 @@ function athleteSessionUser(athlete: AthleteRow, email: string, approvalKnown: b
     // Either source is enough. The row flag exists for accounts whose email
     // can never match a literal (Strava signups); the literal stays so this
     // is purely additive and nobody loses access if a flag is unset.
-    isSuperUser: athlete.is_super_user === true || isSuperUser(email),
-    canApprove: athlete.is_approver === true || canApprove(email),
+    // The row's own address counts too: a native Strava/Apple sign-in carries a
+    // synthetic session email, so the owner lost every management screen in the
+    // app (2026-11-24) while the same row worked on the web.
+    isSuperUser: athlete.is_super_user === true || isSuperUser(email) || isSuperUser(athlete.email),
+    canApprove: athlete.is_approver === true || canApprove(email) || canApprove(athlete.email),
     // Reads the legacy role too, so this is right before 091 is applied.
     isCoreRunner: isCoreRunner(athlete),
   };
