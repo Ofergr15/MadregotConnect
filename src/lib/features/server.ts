@@ -28,15 +28,27 @@ export async function enablementRows(feature: FeatureKey, db: Db = createServerC
 
 /** Every row for several features in ONE round trip. Same failure rules as enablementRows. */
 export async function enablementRowsFor(features: readonly FeatureKey[], db: Db = createServerClient()): Promise<EnablementRow[] | null> {
+  return (await readEnablementRows(features, db)).rows;
+}
+
+/**
+ * Same read, but says whether it FAILED (any error other than "table missing", or a throw).
+ * The rows are the same fail-closed answer; `failed` lets a cached caller refuse to let a
+ * CDN keep that fallback (features/public, QA 24.11 Q24-5).
+ */
+export async function readEnablementRows(
+  features: readonly FeatureKey[],
+  db: Db = createServerClient(),
+): Promise<{ rows: EnablementRow[] | null; failed: boolean }> {
   try {
     const { data, error } = await db
       .from(ENABLEMENTS_TABLE)
       .select('feature, scope_type, scope_id, enabled, set_by, set_at')
       .in('feature', features as FeatureKey[]);
-    if (error) return isMissingTable(error) ? null : [];
-    return (data || []) as EnablementRow[];
+    if (error) return isMissingTable(error) ? { rows: null, failed: false } : { rows: [], failed: true };
+    return { rows: (data || []) as EnablementRow[], failed: false };
   } catch {
-    return [];
+    return { rows: [], failed: true };
   }
 }
 

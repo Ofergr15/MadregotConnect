@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 // staff screen's entry point). Fails closed: no row / no table = off.
 export async function GET(request: Request) {
   const { denied, caller } = await resolveVerifiedCaller(request);
-  if (denied) return denied;
+  if (denied) { denied.headers.set('Cache-Control', 'private, no-store'); return denied; }
   const db = createServerClient();
   const t0 = performance.now();
   // One read of the enablement table and one of the athlete — was two per key, in series.
@@ -23,8 +23,9 @@ export async function GET(request: Request) {
   const manage = caller.isStaff || caller.isSuperUser
     ? allowedScopeTypes({ athleteId: caller.athleteId, role: caller.role, roles: caller.roles, isSuperUser: caller.isSuperUser })
     : [];
-  // private: per caller, never on the CDN. max-age=30 lets one launch's 2–3 reads (S4) share one answer.
+  // Per caller with no Vary: any max-age lets iOS URLCache / a browser hand the previous
+  // user's flags to the next one on a shared iPad (QA 24.11 Q24-1). Same as me/capabilities.
   return NextResponse.json({ features, manage }, {
-    headers: { 'Cache-Control': 'private, max-age=30', 'Server-Timing': `db;dur=${dbMs.toFixed(1)}` },
+    headers: { 'Cache-Control': 'private, no-store', 'Server-Timing': `db;dur=${dbMs.toFixed(1)}` },
   });
 }

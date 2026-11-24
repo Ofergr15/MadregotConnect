@@ -63,4 +63,10 @@ describe('GET /api/features/public', () => {
     const b = await (await GET()).json();
     for (const body of [a, b]) for (const k of PUBLIC_FEATURE_KEYS) expect(body.features[k]).toBe(false);
   });
+
+  it('Q24-5: the fail-closed answer is never cacheable by the CDN', async () => {
+    fail = { message: 'boom' };
+    const r = await GET();
+    expect(r.headers.get('cache-control')).toBe('no-store');
+  });
 });
