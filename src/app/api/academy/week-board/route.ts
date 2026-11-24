@@ -8,7 +8,8 @@ import { extractWorkouts } from '@/lib/academy/report';
 import { laneForBand } from '@/lib/academy/group-lane';
 import { computeAcademyWeekAdherence } from '@/lib/academy/report';
 import { weekTotals } from '@/lib/academy/compliance';
-import { absoluteToLibrary, fromLibrarySteps, sessionSize, structureName } from '@/lib/academy/book-steps';
+import { absoluteToLibrary, fromLibrarySteps, guessKind, sessionSize, structureName } from '@/lib/academy/book-steps';
+import { plannedRpeFor } from '@/lib/academy/planned-effort';
 import type { WeekBoard, WeekBoardWorkout } from '@/lib/academy/week-board';
 import { boardRow, offLineOf, restDaysOf } from '@/lib/academy/board';
 import { loadBoardMarks, rowMarks } from '@/lib/academy/board-server';
@@ -229,6 +230,8 @@ export async function GET(request: Request) {
         marks: marks ? rowMarks(marks, row.date, row.completed ? activityId : null) : {},
         offLine: offLineOf(graded),
         comment: (row.completed && activityId ? marks?.byActivity.get(activityId)?.comment : null) ?? null,
+        // The effort the session asks for (RPE band from the book's kind) — doc p.3 "RPE בפועל מול המיועד".
+        plannedRpe: model ? plannedRpeFor(guessKind(model, row.name)) : null,
         ...(optional ? { optional: true } : {}),
         ...(graded.excuse ? { excuse: graded.excuse } : {}),
       };

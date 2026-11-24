@@ -3,8 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import {
-  BookOpen, Camera, Check, Dumbbell, Gift, PartyPopper, Tent, Trophy,
-} from 'lucide-react';
+  BookOpen, Camera, Check, Dumbbell, Gift, PartyPopper, Tent, Trophy, Video } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 import { EVENT_KINDS, type EventKind } from '@/lib/events';
@@ -41,6 +40,7 @@ export const KIND_COLOR: Record<EventKind, string> = {
   photo_shoot: 'bg-band-2',
   sponsor: 'bg-band-3',
   workout: 'bg-ink-300',
+  zoom: 'bg-ink-900',
 };
 
 export const KIND_ICON: Record<EventKind, React.ComponentType<{ className?: string }>> = {
@@ -51,6 +51,7 @@ export const KIND_ICON: Record<EventKind, React.ComponentType<{ className?: stri
   photo_shoot: Camera,
   sponsor: Gift,
   workout: Dumbbell,
+  zoom: Video,
 };
 
 /** The subset of an event row this form edits. */

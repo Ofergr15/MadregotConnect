@@ -42,7 +42,27 @@ export interface HubPayload {
   coaches?: HubCoach[];
   pipeline?: PipelineCounts;
   roundBuckets?: Array<{ fromSec: number; count: number }>;
+  /** Manager only (doc p.3–4 "שייכות ושימור"): counts, never names or amounts. */
+  retention?: RetentionCounts;
   me?: TraineeSelf;
+}
+
+export interface RetentionCounts {
+  /** Active (not paused) trainees this month. */
+  active: number;
+  /** Of them, a payment is recorded for this month (academy_payments.period). */
+  paidThisMonth: number;
+  /** Of them, registered to a club event dated this month (Zoom, community event, race). */
+  attendedEventThisMonth: number;
+}
+
+/** Pure: the three counts from the active ids and two id sets. */
+export function retentionCounts(activeIds: string[], paid: Set<string>, attended: Set<string>): RetentionCounts {
+  return {
+    active: activeIds.length,
+    paidThisMonth: activeIds.filter((id) => paid.has(id)).length,
+    attendedEventThisMonth: activeIds.filter((id) => attended.has(id)).length,
+  };
 }
 
 export interface TraineeSelf {
@@ -125,6 +145,19 @@ export async function readHub(opts: {
     payload.pipeline = pipeline(trainees.map((t) => ({ coachIds: t.coachIds, paused: t.paused, hasAnyPlan: by(plans, t.athleteId).length > 0 })), registered.length);
     const tests = await safe<any[]>(supabase.from('benchmark_results').select('athlete_id, time_seconds, test_name').in('athlete_id', ids), []);
     payload.roundBuckets = roundBuckets(tests.filter((t) => /2000/.test(String(t.test_name || ''))).map((t) => Number(t.time_seconds)));
+    // Retention (doc p.3 "שייכות ושימור"): payment recorded this month + an event this month. Both reads
+    // degrade to empty (tables hand-migrated); the counts then read 0, never an error.
+    const activeIds = trainees.filter((t) => !t.paused).map((t) => t.athleteId);
+    const month = weekStart.slice(0, 7);
+    const [y, m] = month.split('-').map(Number);
+    const nextMonth = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-01`;   // a real date, not "-31"
+    const paidRows = activeIds.length ? await safe<any[]>(supabase.from('academy_payments').select('athlete_id').eq('period', month).in('athlete_id', activeIds), []) : [];
+    const monthEvents = await safe<any[]>(supabase.from('events').select('id').gte('date', `${month}-01`).lt('date', nextMonth), []);
+    const regRows = activeIds.length && monthEvents.length
+      ? await safe<any[]>(supabase.from('event_registrations').select('athlete_id').eq('status', 'registered')
+        .in('event_id', monthEvents.map((e) => e.id)).in('athlete_id', activeIds), [])
+      : [];
+    payload.retention = retentionCounts(activeIds, new Set(paidRows.map((r) => String(r.athlete_id))), new Set(regRows.map((r) => String(r.athlete_id))));
   }
 
   if (opts.view === 'trainee' && opts.callerId) payload.me = await readSelf(supabase, opts.callerId, inView[0], trainees[0], reports, coachFb, plans, now, weekStart);

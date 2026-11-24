@@ -37,6 +37,8 @@ export interface WeekBoardWorkout {
   offLine?: OffLine | null;
   /** The trainee's own note on the run (the questionnaire's free text). */
   comment?: string | null;
+  /** The effort this session asks for, RPE 1–10 as a band (lib/academy/planned-effort.ts). Optional: older payloads. */
+  plannedRpe?: { min: number; max: number } | null;
   /** An optional session ("ערב - אופציה"): not counted in the week's planned load. */
   optional?: boolean;
   /** Why a session not run is not "לא בוצע" (board.ts `RowExcuse`). */

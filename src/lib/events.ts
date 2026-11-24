@@ -14,6 +14,8 @@ export const EVENT_KINDS = [
   'photo_shoot',
   'sponsor',
   'workout',
+  // Academy doc p.2–3: the monthly professional Zoom (migration 211 widens the CHECK).
+  'zoom',
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];
@@ -44,4 +46,5 @@ export const EVENT_KIND_LABELS: Record<EventKind, string> = {
   photo_shoot: '📸 צילומים',
   sponsor: '🤝 אירוע ספונסר',
   workout: '🏃 אימון מיוחד',
+  zoom: '💻 זום מקצועי',
 };

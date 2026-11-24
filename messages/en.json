@@ -2327,7 +2327,8 @@
       "social": "Social Event",
       "photo_shoot": "Photo Shoot",
       "sponsor": "Sponsor Event",
-      "workout": "Special Workout"
+      "workout": "Special Workout",
+      "zoom": "Professional Zoom"
     },
     "addEvent": {
       "title": "New Event",
@@ -2376,7 +2377,8 @@
       "social": "Social Event",
       "photo_shoot": "Photo Shoot",
       "sponsor": "Sponsor Event",
-      "workout": "Special Workout"
+      "workout": "Special Workout",
+      "zoom": "Professional Zoom"
     },
     "notFound": "Event not found",
     "notFoundHint": "The event you're looking for doesn't exist or was removed",

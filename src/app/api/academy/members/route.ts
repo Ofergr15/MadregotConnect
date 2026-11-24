@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
@@ -341,7 +342,8 @@ export async function GET(request: Request) {
       members: result.sort((x, y) => y.weekKm - x.weekKm || x.name.localeCompare(y.name)),
       groups: rollupGroups(result),
       coaches: rollupCoaches(result, coachRoster) as AcademyCoachSummary[],
-      bands: rollupBands(result, allBands),
+      // Doc p.2: a pack takes up to 20 (settings packCapacity) — the rollup says which is over.
+      bands: rollupBands(result, allBands, (await loadAcademySettings()).packCapacity),
       team: rollupTeam(result),
       pending: {
         registrations: result.filter((m) => !m.approved).length,
