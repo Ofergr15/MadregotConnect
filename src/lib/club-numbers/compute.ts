@@ -1,3 +1,4 @@
+import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 /**
  * "מדרגות במספרים" — the club's numbers in one place (mockup
  * ~/.cache/madregot/club-numbers-v3.html, Ofer 2026-10-20). Everything here is arithmetic on
@@ -12,7 +13,7 @@
  *    trainees are members too, counted apart.
  */
 
-export const RUN_TYPES = new Set(['running', 'trail_running', 'treadmill_running', 'track_running', 'virtual_run', 'indoor_running']);
+export const RUN_TYPES = new Set(PR_RUN_TYPES);   // one run rule with the PR list (#104)
 const TEAM_DAYS_DEFAULT = [2, 5];
 /** The steps a trainee takes into the app, in order (the standing order is not one of them). */
 export const ENTRY_STEPS = ['inApp', 'watch', 'test', 'form', 'plan'] as const;

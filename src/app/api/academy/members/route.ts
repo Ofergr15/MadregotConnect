@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
+import { isRunActivityType } from '@/lib/prs/pr-buckets';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
@@ -212,11 +213,12 @@ export async function GET(request: Request) {
     // no order, so a page boundary could repeat or skip a run, and went one page at a time.
     const acts = await fetchAllRows<any>((from, to) => supabase
       .from('athlete_activities')
-      .select('athlete_id, distance, duration, start_time').or(RUNS_ONLY_OR)
+      .select('athlete_id, distance, duration, start_time, activity_type').or(RUNS_ONLY_OR)
       .in('athlete_id', memberIds)
       .order('start_time')
       .order('id')
-      .range(from, to)).catch(() => [] as any[]);
+      .range(from, to)).then((rows) => rows.filter((r: { activity_type?: string | null }) => isRunActivityType(r.activity_type)))   // runs only (#82)
+      .catch(() => [] as any[]);
 
     type Acc = { km: number; runs: number; dur: number };
     const zero = (): Acc => ({ km: 0, runs: 0, dur: 0 });

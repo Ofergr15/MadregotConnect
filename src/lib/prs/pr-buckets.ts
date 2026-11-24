@@ -91,6 +91,15 @@ export interface RunActivityRow {
 }
 
 /** Runs that count toward a PR bucket: real distance/duration, run-type only. */
+/**
+ * A run for every km total, board, streak and recap (night queue #82): the PR list's run types, and a row
+ * with no type at all (older Strava rows) — the same rule filterQualifyingRuns applies. Kept in JS rather
+ * than as `.in('activity_type', …)` because that would drop the untyped rows.
+ */
+export function isRunActivityType(type: string | null | undefined): boolean {
+  return !type || PR_RUN_TYPES.includes(type);
+}
+
 export function filterQualifyingRuns<T extends RunActivityRow>(acts: T[]): T[] {
   return acts.filter(
     (a) => a.distance > 0 && a.duration > 0 && (!a.activity_type || PR_RUN_TYPES.includes(a.activity_type)),

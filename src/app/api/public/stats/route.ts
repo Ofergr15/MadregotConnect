@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isRunActivityType } from '@/lib/prs/pr-buckets';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 
@@ -83,12 +84,12 @@ export async function GET() {
         for (let offset = 0; ; offset += 1000) {
           const { data: page } = await supabase
             .from('athlete_activities')
-            .select('distance, duration, athlete_id')
+            .select('distance, duration, athlete_id, activity_type')
             .in('athlete_id', ids)
             .gte('start_time', `${SINCE}T00:00:00Z`)
             .range(offset, offset + 999);
           if (!page || page.length === 0) break;
-          rows.push(...page);
+          rows.push(...page.filter((r: { activity_type?: string | null }) => isRunActivityType(r.activity_type)));   // runs only (#82)
           if (page.length < 1000) break;
         }
         return rows;

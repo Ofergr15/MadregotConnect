@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isRunActivityType } from '@/lib/prs/pr-buckets';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
@@ -61,11 +62,11 @@ export async function GET(request: Request) {
     for (let offset = 0; ; offset += 1000) {
       const { data: page } = await supabase
         .from('athlete_activities')
-        .select('athlete_id, distance, duration, start_time').or(RUNS_ONLY_OR)
+        .select('athlete_id, distance, duration, start_time, activity_type').or(RUNS_ONLY_OR)
         .in('athlete_id', athleteIds)
         .range(offset, offset + 999);
       if (!page || page.length === 0) break;
-      acts.push(...page);
+      acts.push(...page.filter((r: { activity_type?: string | null }) => isRunActivityType(r.activity_type)));   // runs only (#82)
       if (page.length < 1000) break;
     }
 
