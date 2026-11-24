@@ -6,6 +6,7 @@ import { FEED_SELECT, projectFeedItem, type FeedItem } from '@/lib/feed/project'
 import { clampFeedLimit, parseFeedCursor } from '@/lib/feed/pagination';
 import { pendingAthleteIds, withoutPendingAuthors } from '@/lib/auth/pending-athletes';
 import { testAccountIds, hiddenTestAccountsFor } from '@/lib/athletes/test-accounts';
+import { viewerForPreview } from '@/lib/auth/member-preview';
 import { loadFeedContext } from '@/lib/feed/context';
 import { parseSquadParam } from '@/lib/feed/squad-filter';
 
@@ -81,6 +82,12 @@ async function handleGET(request: Request) {
     if (athleteParam && !UUID_RE.test(athleteParam)) {
       return NextResponse.json({ error: 'Invalid athlete' }, { status: 400 });
     }
+    // `?as=member` ("how teammates see me"), with `athlete`: the same items projected
+    // for a plain teammate — no plan verdicts, trimmed routes, no own pending items,
+    // no likedByMe/canDelete (lib/auth/member-preview.ts). Needs `athlete` as target.
+    const preview = viewerForPreview(auth.user, athleteParam, searchParams);
+    if (preview.error) return preview.error;
+    const viewer = preview.viewer;
     let squadAuthorIds: string[] | null = athleteParam ? [athleteParam] : null;
     if (athleteParam) {
       // handled above
@@ -146,10 +153,10 @@ async function handleGET(request: Request) {
     // their own (#77). Filtered after the slice so the cursor still walks the
     // raw order — a page may come back short, never skipped.
     const pending = await pendingRead;
-    if (auth.user.athleteId) pending.delete(auth.user.athleteId);
+    if (viewer.athleteId) pending.delete(viewer.athleteId);
     // Test accounts (migration 201): hidden from other members, visible to
     // themselves and staff — dropped through the same filter as pending authors.
-    for (const id of hiddenTestAccountsFor(await testRead, auth.user)) pending.add(id);
+    for (const id of hiddenTestAccountsFor(await testRead, viewer)) pending.add(id);
     // A birthday set to "circle only" (story_instances.placement, 162) lives on the circles, not in the list.
     const page = (withoutPendingAuthors(raw as { author_athlete_id?: string | null }[], pending) as typeof raw)
       .filter((r) => !((r as { payload?: { circleOnly?: unknown } | null }).payload?.circleOnly));
@@ -158,8 +165,8 @@ async function handleGET(request: Request) {
     // lib/feed/context.ts, which the single-item route uses too so a card opened
     // from a notification carries the same state as the same card in the feed.
     const ctx = await loadFeedContext(supabase, page, {
-      athleteId: auth.user.athleteId,
-      isStaff: auth.user.isStaff,
+      athleteId: viewer.athleteId,
+      isStaff: viewer.isStaff,
     });
 
     const items: FeedItem[] = page.map((row) => projectFeedItem(row, ctx));

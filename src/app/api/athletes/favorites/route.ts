@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { viewerForPreview } from '@/lib/auth/member-preview';
 import { requireAthlete, authError } from '@/lib/auth-session';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,12 @@ const MAX_FAVORITES = 30;
 export async function GET(request: Request) {
   const auth = await requireAthlete(request);
   if (!auth.ok) return authError(auth);
+
+  // `?as=member`: a favourites list has no read path for anybody but its owner, so
+  // what a teammate gets of yours is nothing. Answered before the read.
+  const preview = viewerForPreview(auth.user, auth.user.athleteId, new URL(request.url).searchParams);
+  if (preview.error) return preview.error;
+  if (preview.viewer.preview) return NextResponse.json({ athleteIds: [] });
 
   try {
     const supabase = createServerClient();

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { viewerForPreview } from '@/lib/auth/member-preview';
 import { seesPending } from '@/lib/auth/pending-athletes';
 import { testAccountIds, hiddenTestAccountsFor } from '@/lib/athletes/test-accounts';
 import { buildConnectionsResult, type FollowAthleteRow } from '@/lib/follows/shape';
@@ -28,7 +29,12 @@ export async function GET(
     const { id } = await params;
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
-    const viewerId = caller.athleteId;
+    // `?as=member` ("how teammates see me"): the same lists, decided for a plain
+    // teammate — no follow state, no pending or test accounts (lib/auth/member-preview.ts).
+    const preview = viewerForPreview(caller, id, new URL(request.url).searchParams);
+    if (preview.error) return preview.error;
+    const viewer = preview.viewer;
+    const viewerId = viewer.athleteId;
 
     const supabase = createServerClient();
 
@@ -39,8 +45,8 @@ export async function GET(
       supabase.from('athlete_follows').select('follower_id').eq('followee_id', id),
       supabase.from('athlete_follows').select('followee_id').eq('follower_id', id),
     ]);
-    const hiddenTest = hiddenTestAccountsFor(await testAccountIds(supabase), caller);
-    if (hiddenTest.has(id) || ((target as { approved?: boolean | null } | null)?.approved === false && !seesPending(caller, id))) {
+    const hiddenTest = hiddenTestAccountsFor(await testAccountIds(supabase), viewer);
+    if (hiddenTest.has(id) || ((target as { approved?: boolean | null } | null)?.approved === false && !seesPending(viewer, id))) {
       return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
     }
 
@@ -59,7 +65,7 @@ export async function GET(
         .in('id', allIds);
       if (error) throw error;
       athleteRows = ((data || []) as Array<FollowAthleteRow & { approved?: boolean | null }>)
-        .filter(row => !hiddenTest.has(row.id) && (row.approved !== false || seesPending(caller, row.id)))
+        .filter(row => !hiddenTest.has(row.id) && (row.approved !== false || seesPending(viewer, row.id)))
         .map(({ approved: _approved, ...row }) => row);
     }
 

@@ -78,7 +78,7 @@ describe('feed filtering', () => {
   });
   it('the feed route applies it through the pending-author filter', () => {
     const src = readFileSync('src/app/api/feed/route.ts', 'utf8');
-    expect(src).toMatch(/hiddenTestAccountsFor\(await testRead, auth\.user\)\) pending\.add/);
+    expect(src).toMatch(/hiddenTestAccountsFor\(await testRead, viewer\)\) pending\.add/);
   });
 });
 
