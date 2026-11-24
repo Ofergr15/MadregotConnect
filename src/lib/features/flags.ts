@@ -183,6 +183,9 @@ export const FEATURES = {
   /** b24 UNR: "hasn't read" nudge — the moment's coach / the pack's leader pushes a reminder to who hasn't
    *  read, one per person per Israel day (migration 219). Off → POST /api/academy/read-nudge answers 404. */
   academy_read_nudge: { label: 'תזכורת למי שלא קרא (אפליקציה)', defaultEnabled: false },
+  /** Native: staff edit a group chat's name / description / image (PATCH /api/chat/group). */
+  native_chat_group_edit: { label: 'עריכת קבוצת צ׳אט (אפליקציה)', defaultEnabled: false },
+  native_mgmt_podium_admin: { label: 'ניהול פודיום (אפליקציה)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
