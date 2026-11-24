@@ -186,6 +186,8 @@ export const FEATURES = {
   /** Native: staff edit a group chat's name / description / image (PATCH /api/chat/group). */
   native_chat_group_edit: { label: 'עריכת קבוצת צ׳אט (אפליקציה)', defaultEnabled: false },
   native_mgmt_podium_admin: { label: 'ניהול פודיום (אפליקציה)', defaultEnabled: false },
+  /** Native b23: חנות והטבות — the store, perks, badges and challenges row in ניהול. */
+  native_mgmt_rewards: { label: 'חנות והטבות (אפליקציה)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
