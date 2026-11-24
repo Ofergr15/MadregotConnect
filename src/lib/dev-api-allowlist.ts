@@ -140,6 +140,7 @@ export const DEV_API_ALLOWLIST: ReadonlyArray<readonly [string, string]> = [
   ['GET', '/api/club/records'],
   ['GET', '/api/coach/athlete/*'],
   ['GET', '/api/coach/roster'],
+  ['GET', '/api/config'],
   ['GET', '/api/dashboard/weekly'],
   ['GET', '/api/events'],
   ['GET', '/api/events/*'],
