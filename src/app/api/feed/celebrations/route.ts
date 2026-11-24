@@ -9,7 +9,7 @@ import { israelDateOf } from '@/lib/reports/last-7-days';
 import { readConfig as readBirthdayConfig } from '@/lib/birthday-year/server';
 
 import { birthdayBodyAsOf } from '@/lib/feed/birthday';
-import { CLUB_STORIES_KEY, PHOTOS_STORY_LABEL, PHOTOS_STORY_PREFIX, activeClubStories, photosFolderHref, readClubStories, type ClubStory } from '@/lib/feed/club-stories';
+import { CLUB_STORIES_KEY, PHOTOS_STORY_LABEL, PHOTOS_STORY_PREFIX, activeClubStories, photosFolderHref, readClubStories, storyAuthors, type ClubStory } from '@/lib/feed/club-stories';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +19,7 @@ export interface CelebrationEntry {
   honorees: Array<{ id: string; name: string; avatarUrl: string | null }>;
 }
 
-// GET /api/feed/celebrations -> { today, entries: CelebrationEntry[], club: { id, title, text }[] }
+// GET /api/feed/celebrations -> { today, entries: CelebrationEntry[], club: { id, title, text, href, label, createdAt, author }[] }
 //   The row of circles at the top of the feed (Ofer, 2026-10-18: "always at the top,
 //   valid for that day, or longer when we say so"). Every celebration active today,
 //   newest first, each with the same likes/comments context the feed builds and the
@@ -48,8 +48,14 @@ export async function GET(request: Request) {
       return isCelebrationActive(row.payload, today, israelDateOf(row.occurred_at));
     });
     // The Madregot circle (lib/feed/club-stories.ts): read alongside, first on the row.
-    const club = await withPhotoLinks(supabase, activeClubStories(readClubStories((storiesRow as { value?: string } | null)?.value), today))
-      .then((list) => list.map(({ id, title, text, href, label }) => ({ id, title, text, href: href ?? null, label: label ?? null })));
+    const active = await withPhotoLinks(supabase, activeClubStories(readClubStories((storiesRow as { value?: string } | null)?.value), today));
+    // "Who · when" for the native circle (night queue #81): a visible member's name + avatar, never the email.
+    const authors = await storyAuthors(supabase, active.map((s) => s.createdBy));
+    const club = active.map(({ id, title, text, href, label, createdAt, createdBy }) => ({
+      id, title, text, href: href ?? null, label: label ?? null,
+      createdAt: createdAt ?? null,
+      author: (createdBy && authors.get(createdBy.trim().toLowerCase())) || null,
+    }));
     if (rows.length === 0) return NextResponse.json({ today, entries: [], club });
 
     const payloads = rows.map((r) => ((r as { payload: Record<string, unknown> | null }).payload || {}) as Record<string, unknown>);

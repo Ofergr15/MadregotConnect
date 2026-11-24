@@ -26,6 +26,8 @@ export type BoardMetric = 'km' | 'time';
 export interface BoardPerson {
   id: string;
   name: string;
+  /** athletes.avatar_url — the same picture the feed already shows members (night queue #79). */
+  avatarUrl?: string | null;
   groupId: string | null;
   /** 1 | 2 | 3 from resolveGroup, null when unknown. */
   groupIndex: number | null;
@@ -36,6 +38,7 @@ export interface BoardPerson {
 export interface BoardRow {
   athleteId: string;
   name: string;
+  avatarUrl: string | null;
   groupIndex: number | null;
   /** null for the bottom three when the caller sits outside the top 5. */
   rank: number | null;
@@ -99,6 +102,7 @@ export function weeklyBoard(
   const toRow = (i: number, rank: number | null): BoardRow => ({
     athleteId: ranked[i].p.id,
     name: ranked[i].p.name,
+    avatarUrl: ranked[i].p.avatarUrl ?? null,
     groupIndex: ranked[i].p.groupIndex,
     rank,
     meters: Math.round(ranked[i].t.meters),
@@ -283,9 +287,9 @@ export interface ChampionInput {
 }
 
 export interface Champions {
-  mostImproved: { athleteId: string; name: string; pct: number } | null;
-  streak: { athleteId: string; name: string; weeks: number } | null;
-  newRecord: { athleteId: string; name: string; bucketKey: string; seconds: number } | null;
+  mostImproved: { athleteId: string; name: string; avatarUrl: string | null; groupIndex: number | null; pct: number } | null;
+  streak: { athleteId: string; name: string; avatarUrl: string | null; groupIndex: number | null; weeks: number } | null;
+  newRecord: { athleteId: string; name: string; avatarUrl: string | null; groupIndex: number | null; bucketKey: string; seconds: number } | null;
 }
 
 /** Trailing run of `true` at the end of the list. */
@@ -299,6 +303,8 @@ export function trailingStreak(weeks: boolean[]): number {
  * Three awards, no "most km" (the weekly board already covers volume). Opt-out
  * removes a runner from all three; hidden pace removes them from the record award only.
  */
+const who = (p: BoardPerson) => ({ athleteId: p.id, name: p.name, avatarUrl: p.avatarUrl ?? null, groupIndex: p.groupIndex });
+
 export function monthlyChampions(input: ChampionInput): Champions {
   const visible = input.people.filter(isOnBoard).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -308,14 +314,14 @@ export function monthlyChampions(input: ChampionInput): Champions {
     const cur = input.monthKm.get(p.id) ?? 0;
     if (prev < IMPROVED_MIN_BASE_KM || cur <= prev) continue;
     const pct = Math.round(((cur - prev) / prev) * 100);
-    if (!mostImproved || pct > mostImproved.pct) mostImproved = { athleteId: p.id, name: p.name, pct };
+    if (!mostImproved || pct > mostImproved.pct) mostImproved = { ...who(p), pct };
   }
 
   let streak: Champions['streak'] = null;
   for (const p of visible) {
     const weeks = trailingStreak(input.weeksHit.get(p.id) ?? []);
     if (weeks < STREAK_MIN_WEEKS) continue;
-    if (!streak || weeks > streak.weeks) streak = { athleteId: p.id, name: p.name, weeks };
+    if (!streak || weeks > streak.weeks) streak = { ...who(p), weeks };
   }
 
   let newRecord: Champions['newRecord'] = null;
@@ -328,7 +334,7 @@ export function monthlyChampions(input: ChampionInput): Champions {
   for (const b of breaks) {
     const p = byId.get(b.athleteId);
     if (!p || p.hidesPace) continue;
-    newRecord = { athleteId: p.id, name: p.name, bucketKey: b.bucketKey, seconds: b.seconds };
+    newRecord = { ...who(p), bucketKey: b.bucketKey, seconds: b.seconds };
     break;
   }
 
