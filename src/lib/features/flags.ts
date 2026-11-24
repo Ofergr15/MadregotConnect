@@ -131,6 +131,10 @@ export const FEATURES = {
   native_review: { label: 'סקירה (אפליקציה, מתאמן)', defaultEnabled: false },
   /** "שלח שוב לשעון": a runner re-sends their own day's workout (POST /api/me/watch/resend). */
   native_resend_workout: { label: 'שליחה חוזרת לשעון (אפליקציה)', defaultEnabled: false },
+  /** b22 run detail v2: short overview + charts/laps/more tabs, full plan-vs-actual, similar-workouts comparison (ios Features/RunDetail/V2). */
+  run_detail_v2: { label: 'פרטי ריצה — עיצוב חדש (אפליקציה)', defaultEnabled: false },
+  /** b22 native onboarding after approval: welcome, setup checklist, resume card, paused / viewer gates (ios Onboarding). */
+  native_onboarding_setup: { label: 'הצטרפות — צ׳קליסט הגדרה (אפליקציה)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
