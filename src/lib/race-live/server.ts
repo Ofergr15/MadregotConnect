@@ -13,6 +13,7 @@ import { replayFeedAt, replayRaceSec } from './replay';
 import {
   LIVETRACK_POLL_SEC, LiveTrackError, parseLiveTrackUrl, progressToSplits, readLiveTrack, sessionLooksEnded, trackProgress,
 } from './livetrack';
+import { phoneEtaSec } from './phone';
 
 export type SplitSource = 'manual' | 'feed' | 'livetrack' | 'replay';
 /** Who wins the same point: staff's official chip time, then the organizer's feed, then the watch. */
@@ -324,7 +325,7 @@ export interface BoardRunner {
   /** Which source the latest split came from — 'livetrack' reads as "by the watch". */
   lastSource: SplitSource | null;
   /** Only for a viewer who opted in to the map, and never for an opted-out runner. */
-  position: { lat: number; lon: number; distanceM: number; at: string } | null;
+  position: { lat: number; lon: number; distanceM: number; elapsedSec?: number | null; etaSec?: number | null; at: string } | null;
   /** Only on the viewer's own row: is their LiveTrack link set and readable. Never the URL. */
   liveTrack: { set: boolean; state: string | null } | null;
 }
@@ -346,7 +347,7 @@ export async function liveBoard(db: Db, eventId: string, viewerId: string | null
   const { data: goals } = await db.from('race_entries').select('athlete_id, goal_sec, livetrack_url, livetrack_state').eq('event_id', eventId);
   const { data: srcRows } = await db.from('race_splits').select('athlete_id, point, source').eq('event_id', eventId);
   const mapOn = viewerId ? !!((await db.from('race_map_viewers').select('athlete_id').eq('event_id', eventId).eq('athlete_id', viewerId)).data || []).length : false;
-  const { data: posRows } = mapOn ? await db.from('race_positions').select('athlete_id, lat, lon, distance_m, at').eq('event_id', eventId) : { data: [] as any[] };
+  const { data: posRows } = mapOn ? await db.from('race_positions').select('athlete_id, lat, lon, distance_m, elapsed_sec, at').eq('event_id', eventId) : { data: [] as any[] };
   const ltOf = new Map((goals || []).map((g: any) => [String(g.athlete_id), g]));
   const groupOf = new Map((groups || []).map((g: any) => [String(g.athlete_id), g.event_pace_groups?.label ?? null]));
   const goalOf = new Map((goals || []).map((g: any) => [String(g.athlete_id), g.goal_sec ?? null]));
@@ -371,7 +372,8 @@ export async function liveBoard(db: Db, eventId: string, viewerId: string | null
       position: (() => {
         if (e.optOut) return null;
         const pr = (posRows || []).find((r: any) => String(r.athlete_id) === e.athleteId);
-        return pr ? { lat: pr.lat, lon: pr.lon, distanceM: pr.distance_m, at: pr.at } : null;
+        // b24: elapsed + a finish estimate from the device's own pace (phone or watch) for the fans' map.
+        return pr ? { lat: pr.lat, lon: pr.lon, distanceM: pr.distance_m, elapsedSec: pr.elapsed_sec ?? null, etaSec: phoneEtaSec(pr.distance_m, pr.elapsed_sec ?? 0), at: pr.at } : null;
       })(),
       liveTrack: e.athleteId === viewerId ? { set: !!ltOf.get(e.athleteId)?.livetrack_url, state: ltOf.get(e.athleteId)?.livetrack_state ?? null } : null,
     } as BoardRunner;
