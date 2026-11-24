@@ -57,9 +57,9 @@ describe('pack capacity (doc p.2: up to 20 runners per pack)', () => {
 });
 
 describe('zoom event kind (doc p.2–3: monthly professional Zoom)', () => {
-  it('is a valid kind, and migration 207 puts it in the CHECK', () => {
+  it('is a valid kind, and migration 211 puts it in the CHECK', () => {
     expect(isEventKind('zoom')).toBe(true);
-    const sql = readFileSync(join(process.cwd(), 'supabase/migrations/207_events_kind_zoom.sql'), 'utf8');
+    const sql = readFileSync(join(process.cwd(), 'supabase/migrations/211_events_kind_zoom.sql'), 'utf8');
     for (const k of EVENT_KINDS) expect(sql).toContain(`'${k}'`);
   });
 });

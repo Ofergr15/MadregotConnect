@@ -14,7 +14,7 @@ export const EVENT_KINDS = [
   'photo_shoot',
   'sponsor',
   'workout',
-  // Academy doc p.2–3: the monthly professional Zoom (migration 207 widens the CHECK).
+  // Academy doc p.2–3: the monthly professional Zoom (migration 211 widens the CHECK).
   'zoom',
 ] as const;
 

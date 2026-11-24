@@ -1,4 +1,4 @@
--- 207: events.kind gains 'zoom' — the academy's monthly professional Zoom (academy doc p.2–3).
+-- 211: events.kind gains 'zoom' — the academy's monthly professional Zoom (academy doc p.2–3).
 -- Paste in the Supabase SQL editor. Idempotent: drops the kind CHECK by whatever name it has and
 -- re-adds it with the full list (src/lib/events.ts EVENT_KINDS). Nothing reads 'zoom' until this runs;
 -- before it, creating a zoom event fails the CHECK (a 500 the route reports), nothing else changes.
