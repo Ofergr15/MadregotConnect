@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { isTestAccount } from '@/lib/athletes/test-accounts';
-import webpush from 'web-push';
+import * as webpush from 'web-push';   // 4.x is ESM with named exports only (no default)
 import { msUntilQuietEnds, quietDecision, readQuietHours, QUIET_DEFERRED_KIND } from '@/lib/notifications/quiet-hours';
 import { DEFERRED_SOURCE_PREFIX } from '@/lib/notifications/quiet-deferred';
 export { QUIET_DEFERRED_KIND };
