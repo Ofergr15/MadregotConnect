@@ -93,10 +93,11 @@ describe('computeSetupState', () => {
     const personal = partial.tasks.find((t) => t.key === 'personalInfo')!;
     const sizes = partial.tasks.find((t) => t.key === 'sizes')!;
     expect(personal.done).toBe(false);
-    expect(personal.meta).toEqual({ filled: 1, total: 3 });
+    // `missing` (PWA F2): the empty fields in form order — the row opens on the first.
+    expect(personal.meta).toEqual({ filled: 1, total: 3, missing: ['birthDate', 'gender'] });
     expect(sizes.done).toBe(false);
     // Five since 100: shirt, pants, tights, socks and the shoe.
-    expect(sizes.meta).toEqual({ filled: 1, total: 5 });
+    expect(sizes.meta).toEqual({ filled: 1, total: 5, missing: ['shoeSize', 'pantsSize', 'tightsSize', 'socksSize'] });
     expect(partial.pct).toBe(0);
   });
 

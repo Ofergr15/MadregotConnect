@@ -38,7 +38,7 @@ export function SetupChecklist({
   onPickPhoto,
 }: {
   onBack: () => void;
-  onNavigate: (tab: 'datasource' | 'personalInfo' | 'notifications' | 'group') => void;
+  onNavigate: (tab: 'datasource' | 'personalInfo' | 'notifications' | 'group', focus?: string) => void;
   onPickPhoto: () => void;
 }) {
   const t = useTranslations('setup');
@@ -60,8 +60,9 @@ export function SetupChecklist({
   // different hook count on the render the data arrives, and React throws on it.
   const computer = useIsComputer();
 
-  const handler = (dest: SetupDestination): (() => void) | undefined => {
-    if (dest.kind === 'tab') return () => onNavigate(dest.tab);
+  // `focus`: the first field the task is still missing — the screen opens on that field's editor.
+  const handler = (dest: SetupDestination, focus?: string): (() => void) | undefined => {
+    if (dest.kind === 'tab') return () => onNavigate(dest.tab, focus);
     if (dest.kind === 'photo') return onPickPhoto;
     return undefined;
   };
@@ -117,7 +118,7 @@ export function SetupChecklist({
         sublabel={sublabel}
         value={task.done ? t(TASK_DONE_KEY[task.key]) : phoneOnly ? undefined : t(TASK_CTA_KEY[task.key])}
         valueSuccess={task.done}
-        onClick={phoneOnly ? undefined : handler(TASK_DESTINATION[task.key])}
+        onClick={phoneOnly ? undefined : handler(TASK_DESTINATION[task.key], task.done ? undefined : task.meta?.missing?.[0])}
       />
     );
   };

@@ -14,6 +14,7 @@ import {
 } from '@/lib/notifications/inbox';
 import { likedActivityIds } from '@/lib/feed/likes';
 import { localeFromPrefs } from '@/lib/notifications/locale';
+import { readCutoff, isMissingColumn } from '@/lib/notifications/seen';
 import { isStaffRole, mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
@@ -146,12 +147,20 @@ export async function GET(request: Request) {
     // Started now, awaited below: independent of the two reads in between.
     const clubPostsRead = fetchClubPosts(supabase);
 
-    const { data: a, error: athleteError } = await supabase
+    // `role` for the mute rule below — see countsTowardBadge in push.ts. notifications_seen_at
+    // is migration 213; before it is pasted, the select without it (old cutoff).
+    let { data: a, error: athleteError } = await supabase
       .from('athletes')
-      // `role` for the mute rule below — see countsTowardBadge in push.ts.
-      .select('group_id, role, is_academy, last_seen_at, notification_prefs')
+      .select('group_id, role, is_academy, last_seen_at, notifications_seen_at, notification_prefs')
       .eq('id', athleteId)
-      .maybeSingle();
+      .maybeSingle<Record<string, any>>();
+    if (isMissingColumn(athleteError)) {
+      ({ data: a, error: athleteError } = await supabase
+        .from('athletes')
+        .select('group_id, role, is_academy, last_seen_at, notification_prefs')
+        .eq('id', athleteId)
+        .maybeSingle<Record<string, any>>());
+    }
     if (athleteError) throw athleteError;
     if (!a) return NextResponse.json({ items: [], unread: 0 });
 
@@ -193,7 +202,7 @@ export async function GET(request: Request) {
     }
     if (error) throw error;
 
-    const since = a.last_seen_at || '1970-01-01';
+    const since = readCutoff(a);
     const rawItems = clearMutedUnread(
       (data || [])
         // Drop internal idempotency-ledger rows (not real member messages).

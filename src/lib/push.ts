@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { readCutoff, isMissingColumn } from '@/lib/notifications/seen';
 import { isTestAccount } from '@/lib/athletes/test-accounts';
 import webpush from 'web-push';
 import { msUntilQuietEnds, quietDecision, readQuietHours, QUIET_DEFERRED_KIND } from '@/lib/notifications/quiet-hours';
@@ -400,21 +401,28 @@ export async function computeUnreadCounts(athleteIds: string[]): Promise<Record<
   if (athleteIds.length === 0) return counts;
   const supabase = createServerClient();
 
-  const { data: athletesData } = await supabase
+  // `role` for the mute rule — see countsTowardBadge. notifications_seen_at: migration 213 (read cutoff).
+  let { data: athletesData, error: athletesError } = await supabase
     .from('athletes')
-    // `role` for the mute rule — see countsTowardBadge.
-    .select('id, group_id, role, is_academy, last_seen_at')
+    .select('id, group_id, role, is_academy, last_seen_at, notifications_seen_at')
     .in('id', athleteIds);
-  const athleteById = new Map((athletesData || []).map((a: { id: string; group_id: string | null; role: string | null; is_academy: boolean | null; last_seen_at: string | null }) => [a.id, a]));
+  if (isMissingColumn(athletesError)) {
+    ({ data: athletesData } = await supabase
+      .from('athletes')
+      .select('id, group_id, role, is_academy, last_seen_at')
+      .in('id', athleteIds) as { data: any[] | null; error: any });
+  }
+  type BadgeAthlete = { id: string; group_id: string | null; role: string | null; is_academy: boolean | null; last_seen_at: string | null; notifications_seen_at?: string | null };
+  const athleteById = new Map(((athletesData || []) as BadgeAthlete[]).map((a) => [a.id, a]));
   const prefsById = await prefsByAthlete(athleteIds);
   // Chat unread, in one batched call. The badge is one number to the person looking
   // at their home screen, so it has to include the thread — otherwise a trainee with
   // an unanswered question sees a clean icon.
   const streamById = await streamUnreadForAthletes(athleteIds);
 
-  const earliestSince = (athletesData || []).reduce(
-    (min: string, a: { last_seen_at: string | null }) => {
-      const since = a.last_seen_at || '1970-01-01';
+  const earliestSince = ((athletesData || []) as BadgeAthlete[]).reduce(
+    (min: string, a: BadgeAthlete) => {
+      const since = readCutoff(a);
       return since < min ? since : min;
     },
     '9999-12-31',
@@ -428,7 +436,7 @@ export async function computeUnreadCounts(athleteIds: string[]): Promise<Record<
   for (const id of athleteIds) {
     const a = athleteById.get(id);
     if (!a) { counts[id] = 1; continue; }
-    const since = a.last_seen_at || '1970-01-01';
+    const since = readCutoff(a);
     const prefs = prefsById.get(id);
     let count = 0;
     for (const n of (recentNotifs || []) as Array<{ kind: string; url: string | null; audience_type: string; audience_id: string | null; last_sent_at: string }>) {
@@ -451,18 +459,22 @@ export async function unreadCountForAthlete(athleteId: string): Promise<number> 
   const supabase = createServerClient();
   // The row, the prefs and the chat count do not depend on each other: one wave, then
   // the notifications read that needs the row (this runs on every screen's header).
+  type SeenAthlete = { group_id: string | null; role: string | null; is_academy: boolean | null; last_seen_at: string | null; notifications_seen_at?: string | null };
+  const readRow = async () => {
+    // `role` for the mute rule — see countsTowardBadge. notifications_seen_at: migration 213.
+    const r = await supabase.from('athletes').select('group_id, role, is_academy, last_seen_at, notifications_seen_at')
+      .eq('id', athleteId).maybeSingle<SeenAthlete>();
+    if (!isMissingColumn(r.error)) return r;
+    return supabase.from('athletes').select('group_id, role, is_academy, last_seen_at')
+      .eq('id', athleteId).maybeSingle<SeenAthlete>();
+  };
   const [{ data: a }, prefsMap, chat] = await Promise.all([
-    supabase
-      .from('athletes')
-      // `role` for the mute rule — see countsTowardBadge.
-      .select('group_id, role, is_academy, last_seen_at')
-      .eq('id', athleteId)
-      .maybeSingle(),
+    readRow(),
     prefsByAthlete([athleteId]),
     streamUnreadForAthlete(athleteId).catch(() => 0),
   ]);
   if (!a) return 0;
-  const since = a.last_seen_at || '1970-01-01';
+  const since = readCutoff(a);
   const orClause = [
     'audience_type.eq.all',
     a.group_id ? `and(audience_type.eq.group,audience_id.eq.${a.group_id})` : null,

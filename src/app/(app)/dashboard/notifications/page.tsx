@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
@@ -8,6 +8,7 @@ import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, CheckCheck, Thu
 import { cn } from '@/lib/utils';
 import { rsvpOpen, sessionDate } from '@/lib/attendance/rsvp-open';
 import { useApi, apiHeaders } from '@/lib/api';
+import { useSWRConfig } from 'swr';
 import { useAthleteId } from '@/lib/use-athlete-id';
 import { SkeletonList, EmptyState, InsetSection, InsetRow } from '@/components/ui';
 import {
@@ -25,6 +26,7 @@ import {
   waitingFor,
   closedSurveyIds,
   broadcastCopyIds,
+  visibleUnread,
 } from '@/lib/notifications/history';
 import { TomorrowSession } from '@/components/home/TomorrowCard';
 
@@ -275,7 +277,51 @@ export default function NotificationsInboxPage() {
     }
   });
 
-  const isUnread = useCallback((it: Item) => it.unread && !clearedIds.has(it.id), [clearedIds]);
+  // PWA F1 (2026-11-24): what is NEW is fixed for this visit — the rows the bell counted when
+  // the page opened (visibleUnread, the bell's own rule). They stay on top and highlighted while
+  // the member is here, even after the server has been told they were seen; reading them is the
+  // point of the visit, and un-highlighting them mid-read is what made "which 2?" unanswerable.
+  const [newIds, setNewIds] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    if (newIds || !data) return;
+    setNewIds(new Set(visibleUnread(allItems, clearedIds).map((it) => it.id)));
+  }, [data, allItems, clearedIds, newIds]);
+
+  // Marked read only once actually SEEN: after 3 s with the page visible, or when the member
+  // leaves (unmount / tab hidden) — never on open. One POST per visit; the bell's SWR key is
+  // revalidated on the way out so its number drops to what is left.
+  const { mutate } = useSWRConfig();
+  const seenSent = useRef(false);
+  const markSeen = useCallback(() => {
+    if (seenSent.current || !newIds || newIds.size === 0) return;
+    seenSent.current = true;
+    apiHeaders(true).then((headers) => fetch('/api/notifications/seen', { method: 'POST', headers, keepalive: true }))
+      .catch(() => { seenSent.current = false; });
+  }, [newIds]);
+  useEffect(() => {
+    if (!newIds || newIds.size === 0) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const arm = () => {
+      if (timer || document.visibilityState !== 'visible') return;
+      timer = setTimeout(markSeen, 3000);
+    };
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') { if (timer) { clearTimeout(timer); timer = null; } markSeen(); } else arm();
+    };
+    arm();
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      if (timer) clearTimeout(timer);
+      markSeen();
+      if (athleteId) {
+        mutate(`/api/notifications/inbox?athleteId=${encodeURIComponent(athleteId)}`);
+        mutate(`/api/notifications/unread?athleteId=${encodeURIComponent(athleteId)}`);
+      }
+    };
+  }, [newIds, markSeen, mutate, athleteId]);
+
+  const isUnread = useCallback((it: Item) => (newIds ? newIds.has(it.id) : it.unread) && !clearedIds.has(it.id), [clearedIds, newIds]);
   const totalUnread = useMemo(() => items.filter(isUnread).length, [items, isUnread]);
   const unreadOf = (club: boolean) => allItems.filter((it) => isClubItem(it) === club && isUnread(it)).length;
 
@@ -284,6 +330,7 @@ export default function NotificationsInboxPage() {
   const sections: Section[] = useMemo(() => {
     const byBucket = new Map<DateBucket, Item[]>();
     for (const it of items) {
+      if (isUnread(it)) continue;   // shown in the "חדש" section on top
       const b = dateBucketFor(it.sentAt);
       if (!byBucket.has(b)) byBucket.set(b, []);
       byBucket.get(b)!.push(it);
@@ -291,7 +338,8 @@ export default function NotificationsInboxPage() {
     return DATE_BUCKETS
       .filter(b => byBucket.has(b))
       .map(bucket => ({ bucket, items: byBucket.get(bucket)! }));
-  }, [items]);
+  }, [items, isUnread]);
+  const newItems = useMemo(() => items.filter(isUnread), [items, isUnread]);
 
   // Single "mark all read" action, replacing the old per-category button —
   // clears every currently-unread item at once. Doesn't touch the server
@@ -300,6 +348,7 @@ export default function NotificationsInboxPage() {
   const markAllRead = () => {
     const ids = items.filter(isUnread).map(i => i.id);
     if (ids.length === 0) return;
+    markSeen();   // the server's cutoff too, so the bell on other screens agrees
     setClearedIds(prev => {
       const next = new Set(prev);
       ids.forEach(id => next.add(id));
@@ -450,6 +499,14 @@ export default function NotificationsInboxPage() {
                 </div>
               )}
             </section>
+          )}
+          {newItems.length > 0 && (
+            <div data-testid="inbox-new-section">
+              <InsetSection header={`${tn('newSection')} · ${newItems.length}`}>
+                {newItems.map((it) => renderRow(it))}
+              </InsetSection>
+              <p className="-mt-3 px-4 text-2xs text-ink-400">{tn('newSectionHint')}</p>
+            </div>
           )}
           {sections.map(({ bucket, items: sectionItems }) => (
             <InsetSection key={bucket} header={tn(`dateSections.${bucket}`)}>

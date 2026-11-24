@@ -88,9 +88,9 @@ export const TASK_DESTINATION: Record<SetupTaskKey, SetupDestination> = {
  */
 export const SETUP_CHECKLIST_HREF = '/dashboard/profile?tab=setup';
 
-export function taskHref(key: SetupTaskKey): string {
+export function taskHref(key: SetupTaskKey, focus?: string): string {
   const dest = TASK_DESTINATION[key];
-  if (dest.kind === 'tab') return `/dashboard/profile?tab=${dest.tab}`;
+  if (dest.kind === 'tab') return `/dashboard/profile?tab=${dest.tab}${focus ? `&focus=${encodeURIComponent(focus)}` : ''}`;
   // The photo picker is a hidden file input on the profile LANDING, and a file
   // dialog cannot be opened programmatically after a navigation — browsers only
   // allow it from a user gesture. So the photo row lands on the landing screen,

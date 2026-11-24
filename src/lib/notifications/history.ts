@@ -269,3 +269,27 @@ export function foldInbox(items: HistoryItem[]): InboxEntry[] {
   return out.map((e) => (e.type === 'repeat' && e.count === 1 ? { type: 'item', item: e.item } : e));
 }
 
+
+/**
+ * The rows the bell counts and the inbox highlights — ONE rule for both (PWA F1, 2026-11-24:
+ * "the bell says 2 and I can't tell which"). Unread, not cleared on this device, and actually
+ * shown on the page: an RSVP/prompt folded into the "waiting" card, a closed survey and a
+ * broadcast copy are not rows, so they can't be counted as unread ones.
+ */
+export function visibleUnread(items: HistoryItem[], cleared: Set<string> = new Set(), now: number = Date.now()): HistoryItem[] {
+  const hidden = waitingFor(items, now).hidden;
+  const closed = closedSurveyIds(items, now);
+  const copies = broadcastCopyIds(items);
+  return items.filter((it) => it.unread && !cleared.has(it.id) && !hidden.has(it.id) && !closed.has(it.id) && !copies.has(it.id));
+}
+
+/** This device's locally cleared ids (the inbox's "mark all read"), as the inbox stores them. */
+export function readCleared(athleteId: string): Set<string> {
+  if (!athleteId || typeof localStorage === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem(readStoreKey(athleteId));
+    return raw ? new Set<string>(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
