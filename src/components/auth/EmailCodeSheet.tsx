@@ -95,6 +95,19 @@ export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenCh
             <button type="submit" disabled={busy || !email.trim()} className="min-h-[52px] rounded-pill bg-brand-600 text-base font-black text-white disabled:opacity-50">
               {busy ? 'שולח…' : 'שליחת קוד'}
             </button>
+            {/* 12 of 62 members joined through Strava and have no real email on file (25.11), so
+                Strava sign-in stays available here as the fallback for them. */}
+            <button type="button" disabled={busy} onClick={async () => {
+              setBusy(true);
+              try {
+                const r = await fetch('/api/strava?mode=login');
+                const d = await r.json();
+                if (d.authUrl) { window.location.href = d.authUrl; return; }
+                throw new Error();
+              } catch { setError('לא הצלחנו לפתוח את Strava, נסו שוב'); setBusy(false); }
+            }} className="min-h-[48px] rounded-pill border border-page text-sm font-bold text-ink-700">
+              נרשמתם דרך Strava ולא זוכרים מייל? כניסה עם Strava
+            </button>
           </form>
         ) : (
           <form onSubmit={verify} className="flex flex-col gap-3">
