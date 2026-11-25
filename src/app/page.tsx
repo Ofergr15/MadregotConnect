@@ -49,68 +49,6 @@ function fmtNum(n: number, locale: string): string {
   return n.toLocaleString(locale);
 }
 
-function useStravaLogin() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const signIn = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Drop Test Runner / stale JWT so /auth/resolve adopts the Strava user.
-      const { clearLocalIdentity } = await import('@/lib/auth/clear-local-identity');
-      await clearLocalIdentity();
-
-      // Ask for the session to be handed back rather than established wherever
-      // this navigation ends up. On a standalone PWA it does not end up here: iOS
-      // refuses to let the app leave its origin and opens an in-app browser sheet
-      // with its own storage partition, so a session created there is invisible
-      // to the app and the member stays logged out no matter how often they log
-      // in. The verifier below stays in THIS partition and is what proves, on the
-      // way back, that this app is the one that started the login.
-      //
-      // Stored after clearLocalIdentity, not before — that call clears keys.
-      const { newVerifier, challengeFor, storePendingVerifier } = await import(
-        '@/lib/auth/login-handoff'
-      );
-      const verifier = newVerifier();
-      const challenge = await challengeFor(verifier);
-      storePendingVerifier(verifier);
-
-      const res = await fetch(`/api/strava?mode=login&challenge=${encodeURIComponent(challenge)}`);
-      const data = await res.json();
-      if (!res.ok || !data.authUrl) throw new Error(data.message || data.error || 'Strava login unavailable');
-      window.location.href = data.authUrl;
-    } catch (err) {
-      console.error(err);
-      // Previously silent — the spinner just stopped with zero explanation.
-      setError('ההתחברות דרך Strava נכשלה. נסו שוב.');
-      setLoading(false);
-    }
-  };
-
-  return { signIn, loading, error };
-}
-
-// ⚠️ Every "התחברות עם Strava" button below is `text-ink-900` on Strava's orange,
-// not white. White on #FC4C02 measures 3.40:1 — under AA at the 14px and 16px bold
-// these buttons use, on the one screen a stranger judges the club by, outdoors. The
-// alternative was darkening the orange, but white needs it down around #C43C00,
-// which stops reading as Strava far more than the label colour does. `text-ink-900`
-// on the true brand orange is 4.87:1, and the mark inherits it via currentColor.
-function StravaMark({ className = 'h-5 w-5' }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      className={className}
-      fill="currentColor"
-    >
-      <path d="m15.387 17.944-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066M10.463 8.392l2.835 5.436h4.173L10.463 0l-7 13.828h4.169" />
-    </svg>
-  );
-}
-
 // /register reads `?onb=v2` (lib/install/v2) — the new joining journey.
 const JOIN_HREF = '/register?onb=v2';
 
@@ -121,19 +59,16 @@ export default function HomePage() {
   const th = useTranslations('header');
   const locale = useLocale();
   const [checking, setChecking] = useState(true);
-  const { signIn, loading: signingIn, error: stravaError } = useStravaLogin();
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   // "No Strava? A code by email" (lib/auth/email-code): the way in for a member without Strava.
   const [showEmailCode, setShowEmailCode] = useState(false);
-  // "כבר חברים? כניסה": the landing's main action is joining (Ofer, 2026-10-10 —
-  // a stranger used to find only sign-in buttons). Members sign in from this
-  // sheet, which holds both ways in: Strava and the code by email.
-  const [showSignIn, setShowSignIn] = useState(false);
+  // Sign-in is email + code only (2026-11-25): every "כניסה" opens EmailCodeSheet.
+  // Strava/Google are no longer sign-in buttons; their routes still serve deep links.
   // /login forwards here with ?signin=1 (lib/auth/login-link) so direct sign-in links open the sheet.
   useEffect(() => {
     const { open, rest } = consumeSigninFlag(window.location.search);
     if (!open) return;
-    setShowSignIn(true);
+    setShowEmailCode(true);
     window.history.replaceState({}, '', rest);
   }, []);
   const v2 = usePreviewOnboardingV2();
@@ -161,7 +96,7 @@ export default function HomePage() {
     setResolveError(loginErrorText(params.get('reason'), params.get('debug')));
     window.history.replaceState({}, '', '/');
   }, []);
-  const displayError = resolveError?.text || stravaError;
+  const displayError = resolveError?.text;
   const displayDebug = resolveError ? resolveError.debug : null;
 
   // A member who is already in the app must never be shown the login screen.
@@ -333,7 +268,7 @@ export default function HomePage() {
   // newcomer arrives to register, and holding a full-screen install guide in front
   // of someone who hasn't joined yet blocks the "מצטרפים למועדון" button
   // (integration of the 2026-10-10 journey pass).
-  if (!checking && installFirst && showSignIn && !browserEscape) {
+  if (!checking && installFirst && showEmailCode && !browserEscape) {
     return <InstallGuide canPrompt={false} onLater={() => {}} blocking onEscape={() => setBrowserEscape(true)} />;
   }
 
@@ -378,7 +313,7 @@ export default function HomePage() {
               <LocaleSwitcher />
               <button
                 type="button"
-                onClick={() => setShowSignIn(true)}
+                onClick={() => setShowEmailCode(true)}
                 className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-full border border-black/10 bg-white px-4 text-sm font-bold text-ink-900 transition active:scale-[0.98] sm:px-5"
               >
                 {t('signIn')}
@@ -403,32 +338,6 @@ export default function HomePage() {
 
         {/* Admin Login Sheet (triggered from footer) */}
         <EmailCodeSheet open={showEmailCode} onOpenChange={setShowEmailCode} />
-        <Sheet open={showSignIn} onOpenChange={setShowSignIn} title={t('signInTitle')}>
-          <div className="flex flex-col gap-3 pb-2">
-            <button
-              type="button"
-              onClick={signIn}
-              disabled={signingIn}
-              className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-full bg-[#FC4C02] px-6 text-base font-bold text-ink-900 shadow-xl shadow-band-3/20 transition hover:bg-[#e34402] active:scale-[0.99] disabled:opacity-50"
-            >
-              {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : (
-                <>
-                  <StravaMark className="h-5 w-5" />
-                  {t('signInWithStrava')}
-                </>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => { setShowSignIn(false); setShowEmailCode(true); }}
-              className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full border-2 border-brand-600/25 bg-white px-6 text-[15px] font-bold text-brand-600 active:scale-[0.99]"
-            >
-              אין לי Strava · כניסה עם קוד במייל
-            </button>
-            {/* The page's error banner sits behind this sheet, so a failed Strava start is said here too. */}
-            {stravaError && <p role="alert" className="text-center text-sm font-semibold text-accent-red">{stravaError}</p>}
-          </div>
-        </Sheet>
         <Sheet open={showAdminLogin} onOpenChange={setShowAdminLogin} title={th('adminLogin')}>
           <form onSubmit={handleAdminLogin} className="space-y-3 pb-2">
             <input
@@ -490,7 +399,7 @@ export default function HomePage() {
               {/* Joining is the main action; sign-in is the quiet second line. */}
               <div className="flex flex-col gap-1 mt-6 sm:mt-10 sm:max-w-sm">
                 <PrimaryButton href={JOIN_HREF}>{t('joinClub')}</PrimaryButton>
-                <SecondaryButton onClick={() => setShowSignIn(true)}>{t('alreadyMember')}</SecondaryButton>
+                <SecondaryButton onClick={() => setShowEmailCode(true)}>{t('alreadyMember')}</SecondaryButton>
               </div>
             </div>
 
@@ -783,7 +692,7 @@ export default function HomePage() {
             </p>
             <div className="mx-auto mt-7 flex w-full max-w-sm flex-col gap-1 sm:mt-9">
               <PrimaryButton href={JOIN_HREF}>{t('joinClub')}</PrimaryButton>
-              <SecondaryButton onClick={() => setShowSignIn(true)}>{t('alreadyMember')}</SecondaryButton>
+              <SecondaryButton onClick={() => setShowEmailCode(true)}>{t('alreadyMember')}</SecondaryButton>
             </div>
           </div>
         </div>

@@ -73,7 +73,7 @@ export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenCh
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="כניסה עם קוד במייל">
+    <Sheet open={open} onOpenChange={onOpenChange} title="כניסה עם המייל">
       <div dir="rtl" className="px-1 pb-4">
         {step === 'email' ? (
           <form onSubmit={send} className="flex flex-col gap-3">
@@ -96,7 +96,7 @@ export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenCh
             {/* Nothing comes for an address the club doesn't have — say what to do then,
                 rather than leave them waiting (Chen Becher, 2026-10-20). */}
             <p className="text-[13px] leading-relaxed text-ink-500">
-              לא מגיע תוך דקה? אולי נרשמתם עם כתובת אחרת — אפשר לנסות אותה, או להיכנס עם Strava.
+              לא מגיע תוך דקה? אולי נרשמתם עם כתובת אחרת — אפשר לנסות אותה.
               {help && <> <a href={help} target="_blank" rel="noopener noreferrer" className="font-bold text-brand-600 underline">כתבו לנו בווטסאפ</a></>}
             </p>
             <input

@@ -54,7 +54,7 @@ describe('on an iPhone browser the landing page is the install guide', () => {
     const page = read('app/page.tsx');
     expect(page).toMatch(/setInstallFirst\(v2 && \(p === 'ios-safari' \|\| p === 'ios-safari-26' \|\| p === 'ios-safari-compact' \|\| p === 'ios-inapp'\)\)/);
     // Held only once they ask to sign in: a newcomer on the landing must reach "מצטרפים למועדון".
-    expect(page).toMatch(/if \(!checking && installFirst && showSignIn && !browserEscape\) \{\s+return <InstallGuide canPrompt=\{false\} onLater=\{\(\) => \{\}\} blocking onEscape=\{\(\) => setBrowserEscape\(true\)\} \/>;/);
+    expect(page).toMatch(/if \(!checking && installFirst && showEmailCode && !browserEscape\) \{\s+return <InstallGuide canPrompt=\{false\} onLater=\{\(\) => \{\}\} blocking onEscape=\{\(\) => setBrowserEscape\(true\)\} \/>;/);
     const g = read('components/install/InstallGuide.tsx');
     expect(g).toMatch(/\{!blocking && <button type="button" onClick=\{onLater\}/);
     expect(g).toMatch(/לא מצליחים להתקין\? כניסה בדפדפן/);
