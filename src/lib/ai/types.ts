@@ -83,6 +83,8 @@ export interface DaySessionMark {
   hasNutrition: boolean;
   /** "הערות לאימון" — shown in the session sheet, never as its title. */
   notes: string | null;
+  /** b23 "coach is late" (migration 213); absent/null = none. */
+  late?: { minutes: number; note: string | null; at: string } | null;
 }
 
 /** A repair the import made to a step, and what the step said before it. */

@@ -139,6 +139,8 @@ export const KIND_CATEGORY: Record<string, Category> = {
   plan_ready: 'plan_ready',
   // "אימון ליום אחד" published (lib/day-session): a session the coach wrote without a week.
   day_session: 'program',
+  // b23 "coach is late": to the RSVPs of that day only — about the athlete's own session today.
+  day_session_late: 'workouts',
   feedback_reply: 'coach',
   // "לבקש מכולם" (academy/test-request.ts): the coach asking for the trainee's last test.
   academy_test_request: 'coach',

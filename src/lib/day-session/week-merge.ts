@@ -23,7 +23,7 @@ export async function daySessionWorkouts(weekStart: string): Promise<ParsedWorko
     name: s.title,
     workoutKey: `day:${s.date}`,
     steps: s.steps,
-    daySession: { date: s.date, quality: s.quality, startTime: s.startTime, place: s.place, hasNutrition: s.nutrition.length > 0, notes: s.description },
+    daySession: { date: s.date, quality: s.quality, startTime: s.startTime, place: s.place, hasNutrition: s.nutrition.length > 0, notes: s.description, late: s.late },
   }));
 }
 

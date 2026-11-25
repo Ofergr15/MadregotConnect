@@ -4,9 +4,9 @@ import { COACH_ID } from '@/lib/constants';
 import { CLUB_ACCOUNT_ROLE } from '@/lib/notifications/prefs';
 import { localesForAthletes, persistNotifications, sendPushLocalized, subscriptionsForAthletes } from '@/lib/push';
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
-import { addDaysToDateStr, israelToday } from '@/lib/utils';
+import { addDaysToDateStr, israelToday, planWeekStartOf } from '@/lib/utils';
 import { DAY_SESSION_FOR_ALL } from './flag';
-import { defaultPushCopy, fromRow, type DaySession } from './model';
+import { defaultPushCopy, fromRow, latePushCopy, type DaySession, type LateNotice } from './model';
 
 // The day session's reads and writes (migration 150). Every function answers
 // `{ setup: false }` rather than throwing while the table has not been pasted, so the form
@@ -17,7 +17,8 @@ const COLS = 'id, session_date, start_time, place, title, quick_text, steps, pac
 // Columns added after migration 150: "הערות לאימון" (151) and "אימון איכות" (153). Until
 // one is pasted every read and write retries without it, so the form and the feed work and
 // that field is simply not kept.
-const OPTIONAL = ['description', 'quality'] as const;
+// b23's late notice (213) rides the same way.
+const OPTIONAL = ['description', 'quality', 'late_minutes', 'late_note', 'late_at'] as const;
 const colsWithout = (skip: ReadonlySet<string>) => [COLS, ...OPTIONAL.filter((c) => !skip.has(c))].join(', ');
 const missingOf = (error: unknown) => OPTIONAL.find((c) => isMissingColumn(error, c)) ?? null;
 
@@ -181,6 +182,70 @@ export async function sendDaySessionPush(s: DaySession, recipients: string[], no
       ...daySessionCopy(locales.get(athleteId) ?? DEFAULT_NOTIFICATION_LOCALE, s, today, own),
       url,
     })),
+    byAthlete,
+  );
+  return sent;
+}
+
+// ── b23 "coach is late" ────────────────────────────────────────────────────────────────
+
+/**
+ * Write (or clear, with null) the date's late notice. `'not_set_up'` = migration 213 (or
+ * 150) is not pasted; `null` = no session on that date.
+ */
+export async function setLate(date: string, late: LateNotice | null): Promise<DaySession | null | 'not_set_up'> {
+  const db = createServerClient();
+  const { data, error } = await db.from('day_sessions')
+    .update({
+      late_minutes: late?.minutes ?? null,
+      late_note: late?.note ?? null,
+      late_at: late?.at ?? null,
+    })
+    .eq('session_date', date)
+    .select('*');
+  if (error) {
+    if (isMissingTable(error) || isMissingColumn(error)) return 'not_set_up';
+    throw error;
+  }
+  const row = (data || [])[0] as Record<string, unknown> | undefined;
+  return row ? fromRow(row) : null;
+}
+
+/**
+ * Who hears about the late notice: the RSVPs ONLY — athletes who said "coming"
+ * (workout_attendance.attending = true) to that date. Keyed the way attendance is: the
+ * Sunday plan week + day of week (migration 029), never the Monday activity week.
+ */
+export async function lateRecipients(date: string): Promise<string[]> {
+  const db = createServerClient();
+  const weekStart = planWeekStartOf(date);
+  const dow = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const { data, error } = await db.from('workout_attendance')
+    .select('athlete_id')
+    .eq('week_start_date', weekStart)
+    .eq('day_of_week', dow)
+    .eq('attending', true);
+  if (error) throw error;
+  return [...new Set(((data || []) as Array<{ athlete_id: string }>).map((r) => r.athlete_id))];
+}
+
+/** Push + inbox row, kind `day_session_late`. Returns devices reached. */
+export async function sendLatePush(s: DaySession, late: LateNotice, recipients: string[]): Promise<number> {
+  if (!recipients.length) return 0;
+  const url = '/feed';
+  const copy = (locale: NotificationLocale) => latePushCopy(late, s, locale === 'en' ? 'en' : 'he');
+  const subs = await subscriptionsForAthletes(recipients);
+  let sent = 0;
+  let byAthlete: Record<string, number> = {};
+  if (subs.length) {
+    // One tag per date: a replacing notice replaces the banner too.
+    const r = await sendPushLocalized(subs, (locale) => ({ ...copy(locale), url, tag: `day-session-late:${s.date}`, category: 'workouts' }));
+    sent = r.sent;
+    byAthlete = r.byAthlete;
+  }
+  const locales = await localesForAthletes(recipients);
+  await persistNotifications(
+    recipients.map((athleteId) => ({ athleteId, kind: 'day_session_late', ...copy(locales.get(athleteId) ?? DEFAULT_NOTIFICATION_LOCALE), url })),
     byAthlete,
   );
   return sent;
