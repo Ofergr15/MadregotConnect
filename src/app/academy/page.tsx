@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { GraduationCap } from 'lucide-react';
 import { academyShareMetadata } from '@/lib/academy/share-metadata';
 import { createServerClient } from '@/lib/supabase/server';
-import { isRegistrationOpen } from '@/lib/academy/registration';
+import { isPublicDoorOpen } from '@/lib/academy/registration';
 
 // Read per request: the manager's open/closed switch must show the moment it flips.
 export const dynamic = 'force-dynamic';
@@ -34,7 +34,7 @@ export default async function AcademyLandingPage({
 }) {
   const { src } = await searchParams;
   const href = `/academy-register?src=${encodeURIComponent(src === 'form' ? 'form' : 'ig')}`;
-  const open = await isRegistrationOpen(createServerClient());
+  const open = await isPublicDoorOpen(createServerClient());
   return (
     <div className="min-h-screen bg-page px-5 py-10" dir="rtl">
       <div className="mx-auto max-w-md">

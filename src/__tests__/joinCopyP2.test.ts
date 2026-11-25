@@ -23,7 +23,7 @@ describe('landing stats band', () => {
     };
     expect(find(he)).toBe('נמדד באפליקציה מאז <d>{date}</d>');
     expect(find(en)).toBe('Tracked in the app since <d>{date}</d>');
-    expect(page).toContain("t.rich('trackedInAppSince'");
-    expect(page).toContain('<bdi>{c}</bdi>');
+    // The stats band left the landing page with the email-only sign-in (2026-11-25); the keys stay for reuse.
+    expect(page).not.toContain('trackedInAppSince');
   });
 });

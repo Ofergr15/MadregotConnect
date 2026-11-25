@@ -3,6 +3,9 @@
 // answers ok and sends nothing. FIXTURE only; mail and push are stubbed.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// signups_open defaults off (lib/signups/open); these tests exercise the route with the door open.
+vi.mock('@/lib/signups/open', () => ({ signupsOpen: async () => true, SIGNUPS_CLOSED_BODY: { error: 'signups-closed' } }));
+
 let insertError: { code: string } | null = null;
 function builder(table: string) {
   let op = 'select';

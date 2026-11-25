@@ -1,140 +1,35 @@
 'use client';
-import { PasswordInput } from '@/components/ui/PasswordInput';
-import { postLoginPath } from '@/lib/auth/landing';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Trophy, Users, Zap, Heart, Camera, Loader2, Shield, Route, Activity, Clock } from 'lucide-react';
-import { useTranslations, useLocale } from 'next-intl';
 import { getSupabase } from '@/lib/supabase/client';
 import { loginErrorText, type LoginErrorText } from '@/lib/auth/login-error';
-import { LocaleSwitcher } from '@/components/LocaleSwitcher';
-import { Figure } from '@/components/Figure';
-import { Sheet, Button, LoadingBlock, BigStat } from '@/components/ui';
-import { EmailCodeSheet } from '@/components/auth/EmailCodeSheet';
+import { LoadingBlock } from '@/components/ui';
+import { EmailCodeLogin } from '@/components/auth/EmailCodeLogin';
 import { consumeSigninFlag } from '@/lib/auth/login-link';
 import { InstallGuide } from '@/components/install/InstallGuide';
 import { usePreviewOnboardingV2 } from '@/lib/install/v2';
 import { detectInstallPlatform } from '@/lib/install/platform';
-import { PrimaryButton, SecondaryButton } from '@/components/onboarding/journey-ui';
-
-interface PublicStats {
-  since?: string;
-  athletes: number;
-  totalKm: number;
-  workouts: number;
-  totalHours: number;
-  topResults: { name: string; timeSeconds: number; test: string }[];
-  testDate?: string | null;
-}
-
-function fmtMonthYear(dateStr: string | undefined, locale: string): string {
-  if (!dateStr) return '';
-  return new Date(`${dateStr}T12:00:00Z`).toLocaleDateString(locale, { month: 'short', year: 'numeric', timeZone: 'UTC' });
-}
-function fmtDate(dateStr: string | null | undefined, locale: string): string {
-  if (!dateStr) return '';
-  return new Date(`${dateStr}T12:00:00Z`).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-}
-
-function fmtTime(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  const whole = Math.floor(s);
-  const frac = s - whole;
-  const fracStr = frac > 0 ? frac.toFixed(2).slice(1).replace(/0+$/, '').replace(/\.$/, '') : '';
-  return `${m}:${whole.toString().padStart(2, '0')}${fracStr}`;
-}
-function fmtNum(n: number, locale: string): string {
-  return n.toLocaleString(locale);
-}
-
-function useStravaLogin() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const signIn = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Drop Test Runner / stale JWT so /auth/resolve adopts the Strava user.
-      const { clearLocalIdentity } = await import('@/lib/auth/clear-local-identity');
-      await clearLocalIdentity();
-
-      // Ask for the session to be handed back rather than established wherever
-      // this navigation ends up. On a standalone PWA it does not end up here: iOS
-      // refuses to let the app leave its origin and opens an in-app browser sheet
-      // with its own storage partition, so a session created there is invisible
-      // to the app and the member stays logged out no matter how often they log
-      // in. The verifier below stays in THIS partition and is what proves, on the
-      // way back, that this app is the one that started the login.
-      //
-      // Stored after clearLocalIdentity, not before — that call clears keys.
-      const { newVerifier, challengeFor, storePendingVerifier } = await import(
-        '@/lib/auth/login-handoff'
-      );
-      const verifier = newVerifier();
-      const challenge = await challengeFor(verifier);
-      storePendingVerifier(verifier);
-
-      const res = await fetch(`/api/strava?mode=login&challenge=${encodeURIComponent(challenge)}`);
-      const data = await res.json();
-      if (!res.ok || !data.authUrl) throw new Error(data.message || data.error || 'Strava login unavailable');
-      window.location.href = data.authUrl;
-    } catch (err) {
-      console.error(err);
-      // Previously silent — the spinner just stopped with zero explanation.
-      setError('ההתחברות דרך Strava נכשלה. נסו שוב.');
-      setLoading(false);
-    }
-  };
-
-  return { signIn, loading, error };
-}
-
-// ⚠️ Every "התחברות עם Strava" button below is `text-ink-900` on Strava's orange,
-// not white. White on #FC4C02 measures 3.40:1 — under AA at the 14px and 16px bold
-// these buttons use, on the one screen a stranger judges the club by, outdoors. The
-// alternative was darkening the orange, but white needs it down around #C43C00,
-// which stops reading as Strava far more than the label colour does. `text-ink-900`
-// on the true brand orange is 4.87:1, and the mark inherits it via currentColor.
-function StravaMark({ className = 'h-5 w-5' }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      className={className}
-      fill="currentColor"
-    >
-      <path d="m15.387 17.944-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066M10.463 8.392l2.835 5.436h4.173L10.463 0l-7 13.828h4.169" />
-    </svg>
-  );
-}
 
 // /register reads `?onb=v2` (lib/install/v2) — the new joining journey.
 const JOIN_HREF = '/register?onb=v2';
 
+/**
+ * The PWA's landing page IS the sign-in: email, then a 6-digit code (2026-11-25,
+ * before the Frankfurt move signs everyone out once). One path, Hebrew, big.
+ * Strava/Google/password are not offered here; their routes still serve deep links
+ * (/admin/login, /api/strava, …). The "join" link shows only while the club-wide
+ * `signups_open` switch is on (GET /api/features/public; default off).
+ */
 export default function HomePage() {
   const router = useRouter();
-  const t = useTranslations('home');
-  const tc = useTranslations('common');
-  const th = useTranslations('header');
-  const locale = useLocale();
   const [checking, setChecking] = useState(true);
-  const { signIn, loading: signingIn, error: stravaError } = useStravaLogin();
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
-  // "No Strava? A code by email" (lib/auth/email-code): the way in for a member without Strava.
-  const [showEmailCode, setShowEmailCode] = useState(false);
-  // "כבר חברים? כניסה": the landing's main action is joining (Ofer, 2026-10-10 —
-  // a stranger used to find only sign-in buttons). Members sign in from this
-  // sheet, which holds both ways in: Strava and the code by email.
-  const [showSignIn, setShowSignIn] = useState(false);
-  // /login forwards here with ?signin=1 (lib/auth/login-link) so direct sign-in links open the sheet.
+  const [signupsOpen, setSignupsOpen] = useState(false);
+  // /login forwards here with ?signin=1 (lib/auth/login-link). The form is always
+  // shown now, so the flag only needs stripping from the URL.
   useEffect(() => {
     const { open, rest } = consumeSigninFlag(window.location.search);
-    if (!open) return;
-    setShowSignIn(true);
-    window.history.replaceState({}, '', rest);
+    if (open) window.history.replaceState({}, '', rest);
   }, []);
   const v2 = usePreviewOnboardingV2();
   const [installFirst, setInstallFirst] = useState(false);
@@ -143,17 +38,9 @@ export default function HomePage() {
     const p = detectInstallPlatform();
     setInstallFirst(v2 && (p === 'ios-safari' || p === 'ios-safari-26' || p === 'ios-safari-compact' || p === 'ios-inapp'));
   }, [v2]);
-  const [adminEmail, setAdminEmail] = useState('');
-  const [adminPassword, setAdminPassword] = useState('');
-  const [adminLoading, setAdminLoading] = useState(false);
-  const [adminError, setAdminError] = useState('');
-  const [stats, setStats] = useState<PublicStats | null>(null);
 
-  // /auth/resolve and the Strava callback both bounce failures back here as
-  // ?strava=error&reason=... — previously never read at all, so a failed
-  // login just silently dropped the user back on the landing page with the
-  // spinner gone and zero explanation of what happened or what to do next.
-  // Each reason has its own words since #83; see lib/auth/login-error.
+  // /auth/resolve and the Strava callback bounce failures back here as
+  // ?strava=error&reason=... (lib/auth/login-error).
   const [resolveError, setResolveError] = useState<LoginErrorText | null>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -161,8 +48,13 @@ export default function HomePage() {
     setResolveError(loginErrorText(params.get('reason'), params.get('debug')));
     window.history.replaceState({}, '', '/');
   }, []);
-  const displayError = resolveError?.text || stravaError;
-  const displayDebug = resolveError ? resolveError.debug : null;
+
+  useEffect(() => {
+    fetch('/api/features/public')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setSignupsOpen(d?.features?.signups_open === true))
+      .catch(() => {});
+  }, []);
 
   // A member who is already in the app must never be shown the login screen.
   // Supabase sessions expire routinely — and iOS evicts them from a standalone
@@ -274,545 +166,44 @@ export default function HomePage() {
     };
   }, [router]);
 
-  useEffect(() => {
-    fetch('/api/public/stats')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setStats(d); })
-      .catch(() => {});
-  }, []);
-
-  const handleAdminLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAdminLoading(true);
-    setAdminError('');
-    try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: adminEmail, password: adminPassword }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || data.error || 'Login failed');
-      // Adopt the real Supabase session the route just minted, so bearer-gated
-      // routes work from the password login too (see /api/admin/login).
-      if (data.session?.access_token && data.session?.refresh_token) {
-        await getSupabase().auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        });
-      }
-      localStorage.setItem('coach_email', data.email);
-      localStorage.setItem('admin_session', 'true');
-      if (data.athleteId) {
-        localStorage.setItem('athlete_id', data.athleteId);
-        localStorage.setItem('athlete_name', data.name || '');
-        localStorage.setItem('athlete_email', data.email);
-        if (data.groupId) localStorage.setItem('athlete_group_id', data.groupId);
-        else localStorage.removeItem('athlete_group_id');
-      } else {
-        localStorage.removeItem('athlete_id');
-        localStorage.removeItem('athlete_name');
-        localStorage.removeItem('athlete_email');
-        localStorage.removeItem('athlete_group_id');
-      }
-      router.push(postLoginPath({ role: data.role, groupId: data.groupId }));
-    } catch (err: any) {
-      setAdminError(err.message);
-    } finally {
-      setAdminLoading(false);
-    }
-  };
-
-  // Onboarding v2, install first: on an iPhone browser this page IS the install
-  // guide — the login a member makes in Safari would not carry into the app on
-  // the home screen (separate storage), so signing in here only means signing in
-  // twice. Android shares the login with Chrome and a computer installs nothing,
-  // so neither is held. An existing Safari session is not affected: `checking`
-  // has already sent a signed-in member on to the feed.
-  // Only once they ask to SIGN IN (the sheet below): the landing is also where a
-  // newcomer arrives to register, and holding a full-screen install guide in front
-  // of someone who hasn't joined yet blocks the "מצטרפים למועדון" button
-  // (integration of the 2026-10-10 journey pass).
-  if (!checking && installFirst && showSignIn && !browserEscape) {
+  // Onboarding v2 preview, install first: on an iPhone browser a Safari login does not
+  // carry into the home-screen app, so the install guide comes before the form.
+  if (!checking && installFirst && !browserEscape) {
     return <InstallGuide canPrompt={false} onLater={() => {}} blocking onEscape={() => setBrowserEscape(true)} />;
   }
 
   if (checking) {
     return (
-      // The "do we already have a session?" frame, so it's part of the cold-open
-      // sequence and follows AppSplash's monochrome, not the brand ring the rest
-      // of this page's loading states use.
       <div className="min-h-screen bg-[#f0f0f0] flex items-center justify-center">
         <LoadingBlock tone="ink" />
       </div>
     );
   }
 
-  const hasBandData = !!stats && (stats.totalKm > 0 || stats.workouts > 0 || stats.totalHours > 0);
-
   return (
-    <div className="min-h-screen bg-[#f0f0f0] text-ink-900">
-      {/* Hero Section */}
-      <section className="relative flex flex-col overflow-hidden">
-        {/* Decorative brand glow */}
-        <div className="pointer-events-none absolute -top-40 end-[-10%] h-[520px] w-[520px] rounded-full bg-brand-600/10 blur-3xl" aria-hidden="true"></div>
-        <div className="pointer-events-none absolute top-1/3 start-[-15%] h-[420px] w-[420px] rounded-full bg-brand-600/5 blur-3xl" aria-hidden="true"></div>
+    <main dir="rtl" className="safe-top flex min-h-screen flex-col items-center bg-[#f0f0f0] px-6 pb-10 pt-16 text-ink-900">
+      <div className="flex w-full max-w-sm flex-col items-center gap-8">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-600 shadow-lg shadow-brand-600/25">
+            <img src="/images/logo-white.png" alt="" className="h-10 w-10 object-contain" />
+          </span>
+          <h1 className="text-3xl font-black">כניסה למדרגות</h1>
+          <p className="text-base text-ink-500">מכניסים את המייל, מקבלים קוד, ונכנסים.</p>
+        </div>
 
-        {/* Nav — sticky glass bar, safe-area aware */}
-        <nav className="sticky top-0 z-40 safe-top safe-inline-start safe-inline-end bg-[#f0f0f0]/80 backdrop-blur-md border-b border-black/5">
-          <div className="flex items-center justify-between px-4 sm:px-8 lg:px-20 h-16">
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-brand-600 shadow-lg shadow-brand-600/25">
-                <img src="/images/logo-white.png" alt="Madregot After 2KM" className="h-6 w-6 sm:h-7 sm:w-7 object-contain" />
-              </span>
-              <div className="flex flex-col leading-none">
-                <span className="text-sm sm:text-base font-black uppercase tracking-tight rtl:tracking-normal">{t('madregot')}</span>
-                {/* 11px, up from 9. It wraps to two lines ("מועדון ריצה" / "AFTER 2KM") as it
-                    always did — at 375 this bar also holds the Strava button and the locale
-                    switch, and forcing one line pushes the button off the screen. The
-                    tracking came down from 0.14em, which at 11px broke it into four rows. */}
-                <span className="text-xs font-semibold uppercase tracking-[0.02em] rtl:tracking-normal text-ink-400 mt-0.5">{t('after2km')}</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <LocaleSwitcher />
-              <button
-                type="button"
-                onClick={() => setShowSignIn(true)}
-                className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-full border border-black/10 bg-white px-4 text-sm font-bold text-ink-900 transition active:scale-[0.98] sm:px-5"
-              >
-                {t('signIn')}
-              </button>
-            </div>
-          </div>
-        </nav>
-
-        {/* The sign-in error, right under the bar (#83). It used to sit under the
-            big button further down, which at 375 is below the fold: a member who
-            came back from Strava saw the hero and no reason. */}
-        {displayError && (
-          <div role="alert" dir="rtl" className="relative z-10 mx-4 mt-4 rounded-card border border-accent-red/20 bg-accent-red/5 px-4 py-3 sm:mx-8 lg:mx-20">
-            <p className="text-sm font-semibold text-accent-red">{displayError}</p>
-            {displayDebug && (
-              <p className="mt-1 text-2xs text-ink-400">
-                קוד לדיווח: <bdi dir="ltr">{displayDebug}</bdi>
-              </p>
-            )}
+        {resolveError && (
+          <div role="alert" className="w-full rounded-2xl border border-accent-red/20 bg-accent-red/5 px-4 py-3">
+            <p className="text-sm font-semibold text-accent-red">{resolveError.text}</p>
+            {resolveError.debug && <p className="mt-1 text-2xs text-ink-400">קוד לדיווח: <bdi dir="ltr">{resolveError.debug}</bdi></p>}
           </div>
         )}
 
-        {/* Admin Login Sheet (triggered from footer) */}
-        <EmailCodeSheet open={showEmailCode} onOpenChange={setShowEmailCode} />
-        <Sheet open={showSignIn} onOpenChange={setShowSignIn} title={t('signInTitle')}>
-          <div className="flex flex-col gap-3 pb-2">
-            <button
-              type="button"
-              onClick={signIn}
-              disabled={signingIn}
-              className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-full bg-[#FC4C02] px-6 text-base font-bold text-ink-900 shadow-xl shadow-band-3/20 transition hover:bg-[#e34402] active:scale-[0.99] disabled:opacity-50"
-            >
-              {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : (
-                <>
-                  <StravaMark className="h-5 w-5" />
-                  {t('signInWithStrava')}
-                </>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => { setShowSignIn(false); setShowEmailCode(true); }}
-              className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full border-2 border-brand-600/25 bg-white px-6 text-[15px] font-bold text-brand-600 active:scale-[0.99]"
-            >
-              אין לי Strava · כניסה עם קוד במייל
-            </button>
-            {/* The page's error banner sits behind this sheet, so a failed Strava start is said here too. */}
-            {stravaError && <p role="alert" className="text-center text-sm font-semibold text-accent-red">{stravaError}</p>}
-          </div>
-        </Sheet>
-        <Sheet open={showAdminLogin} onOpenChange={setShowAdminLogin} title={th('adminLogin')}>
-          <form onSubmit={handleAdminLogin} className="space-y-3 pb-2">
-            <input
-              type="email"
-              value={adminEmail}
-              onChange={e => setAdminEmail(e.target.value)}
-              className="w-full min-h-[44px] bg-page/50 border border-page/50 rounded-xl px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50"
-              placeholder="admin@madregot.club"
-              required
-            />
-            <PasswordInput
-              autoComplete="current-password"
-              value={adminPassword}
-              onChange={e => setAdminPassword(e.target.value)}
-              className="w-full min-h-[44px] bg-page/50 border border-page/50 rounded-xl px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50"
-              placeholder={th('password')}
-              required
-            />
-            {adminError && (
-              <p className="text-xs text-accent-red">{adminError}</p>
-            )}
-            <Button type="submit" variant="primary" size="lg" className="w-full" disabled={adminLoading}>
-              {adminLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
-              {adminLoading ? tc('signingIn') : th('signInAsAdmin')}
-            </Button>
-          </form>
-        </Sheet>
+        <EmailCodeLogin />
 
-        {/* Mobile Hero Image */}
-        <div className="lg:hidden px-4 sm:px-8 pt-3 pb-3 relative z-10">
-          <Figure
-            src="/images/hero-running.jpg"
-            alt={t('heroAlt')}
-            ratio="aspect-[16/9]"
-            priority
-            className="rounded-3xl shadow-xl ring-1 ring-black/5"
-          />
-        </div>
-
-        {/* Hero Content */}
-        <div className="relative z-10 flex-1 flex items-center px-4 sm:px-8 lg:px-20 py-4 lg:py-0 lg:min-h-[74vh]">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-20 items-center w-full max-w-7xl mx-auto">
-            {/* Text */}
-            <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full bg-brand-600/10 text-brand-600 px-3.5 py-1.5 mb-4 sm:mb-8">
-                <span className="h-1.5 w-1.5 rounded-full bg-brand-600"></span>
-                <span className="text-[13px] sm:text-sm font-black uppercase tracking-[0.18em] rtl:tracking-normal">{t('after2km')}</span>
-              </div>
-              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black uppercase leading-[0.9] tracking-tight rtl:tracking-normal text-brand-600 break-words hyphens-none">
-                {t('redefining')}<br />
-                {t('running')}<br />
-                {t('culture')}
-              </h1>
-              <div className="w-12 sm:w-16 h-1.5 bg-brand-600 mt-4 sm:mt-8 mb-3 sm:mb-6 rounded-full"></div>
-              <p className="text-lg sm:text-xl md:text-2xl text-ink-900 font-light leading-relaxed">
-                {t('connectingRunners')}<br />
-                {t('buildingCommunity')}
-              </p>
-              {/* Joining is the main action; sign-in is the quiet second line. */}
-              <div className="flex flex-col gap-1 mt-6 sm:mt-10 sm:max-w-sm">
-                <PrimaryButton href={JOIN_HREF}>{t('joinClub')}</PrimaryButton>
-                <SecondaryButton onClick={() => setShowSignIn(true)}>{t('alreadyMember')}</SecondaryButton>
-              </div>
-            </div>
-
-            {/* Visual (desktop only) */}
-            <div className="relative hidden lg:block">
-              <div className="absolute -inset-4 rounded-[2rem] bg-brand-600/10 blur-2xl" aria-hidden="true"></div>
-              <Figure
-                src="/images/hero-running.jpg"
-                alt={t('heroAlt')}
-                ratio="aspect-[3/4]"
-                className="relative rounded-[2rem] shadow-2xl ring-1 ring-black/5"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Live stats band + top-3 podium (only when we have real data) */}
-      {stats && (hasBandData || stats.topResults.length > 0) && (
-        <section className="px-4 sm:px-8 lg:px-20 pb-4 sm:pb-6 -mt-2">
-          <div className="max-w-7xl mx-auto">
-            {hasBandData && (
-              <>
-              {stats.since && (
-                <p className="text-center text-[13px] sm:text-sm font-bold uppercase tracking-[0.18em] rtl:tracking-normal text-ink-400 mb-3 sm:mb-4">
-                  {/* The club dates from 2022; these totals only count what the app measured (#24). */}
-                  {t.rich('trackedInAppSince', { date: fmtMonthYear(stats.since, locale), d: (c) => <bdi>{c}</bdi> })}
-                </p>
-              )}
-              <div className="grid grid-cols-3 gap-2 sm:gap-6">
-                <div className="group bg-white rounded-2xl sm:rounded-3xl border border-page p-3 sm:p-8 text-center shadow-sm transition-all sm:hover:-translate-y-1 sm:hover:shadow-lg">
-                  <div className="mx-auto mb-2 sm:mb-4 flex h-8 w-8 sm:h-14 sm:w-14 items-center justify-center rounded-xl sm:rounded-2xl bg-brand-600/10 text-brand-600">
-                    <Route className="h-4 w-4 sm:h-7 sm:w-7" />
-                  </div>
-                  <BigStat
-                    value={<span dir="ltr">{fmtNum(stats.totalKm, locale)}</span>}
-                    label={t('statKm')}
-                    valueClassName="text-2xl sm:text-5xl text-brand-600"
-                  />
-                </div>
-                <div className="group bg-white rounded-2xl sm:rounded-3xl border border-page p-3 sm:p-8 text-center shadow-sm transition-all sm:hover:-translate-y-1 sm:hover:shadow-lg">
-                  <div className="mx-auto mb-2 sm:mb-4 flex h-8 w-8 sm:h-14 sm:w-14 items-center justify-center rounded-xl sm:rounded-2xl bg-brand-600/10 text-brand-600">
-                    <Activity className="h-4 w-4 sm:h-7 sm:w-7" />
-                  </div>
-                  <BigStat
-                    value={<span dir="ltr">{fmtNum(stats.workouts, locale)}</span>}
-                    label={t('statWorkouts')}
-                    valueClassName="text-2xl sm:text-5xl text-brand-600"
-                  />
-                </div>
-                <div className="group bg-white rounded-2xl sm:rounded-3xl border border-page p-3 sm:p-8 text-center shadow-sm transition-all sm:hover:-translate-y-1 sm:hover:shadow-lg">
-                  <div className="mx-auto mb-2 sm:mb-4 flex h-8 w-8 sm:h-14 sm:w-14 items-center justify-center rounded-xl sm:rounded-2xl bg-brand-600/10 text-brand-600">
-                    <Clock className="h-4 w-4 sm:h-7 sm:w-7" />
-                  </div>
-                  <BigStat
-                    value={<span dir="ltr">{fmtNum(stats.totalHours, locale)}</span>}
-                    label={t('statHours')}
-                    valueClassName="text-2xl sm:text-5xl text-brand-600"
-                  />
-                </div>
-              </div>
-              </>
-            )}
-
-            {stats.topResults.length > 0 && (
-              <div className="bg-white rounded-3xl border border-page shadow-sm p-6 sm:p-10 mt-3 sm:mt-6">
-                <div className="flex flex-col items-center gap-1 mb-5 sm:mb-10">
-                  <div className="flex items-center gap-2">
-                    <Trophy className="h-5 w-5 text-brand-600" />
-                    <h3 className="text-lg sm:text-2xl font-black uppercase tracking-tight rtl:tracking-normal text-ink-900">
-                      {stats.topResults[0].test} — {t('topThree')}
-                    </h3>
-                  </div>
-                  {stats.testDate && (
-                    <span className="text-[13px] sm:text-sm font-semibold text-ink-400">{fmtDate(stats.testDate, locale)}</span>
-                  )}
-                </div>
-                <div className="flex items-end justify-center gap-3 sm:gap-8">
-                  {/* 2nd place */}
-                  {stats.topResults.length >= 2 && (
-                    <div className="flex flex-1 max-w-[104px] flex-col items-center">
-                      <span className="mb-2 text-sm sm:text-lg font-black tabular-nums text-ink-400">{fmtTime(stats.topResults[1].timeSeconds)}</span>
-                      <div className="flex w-full items-start justify-center rounded-t-2xl bg-gradient-to-b from-page to-ink-300 pt-3 shadow-inner" style={{ height: '96px' }}>
-                        <span className="text-lg font-black text-ink-700/90">2</span>
-                      </div>
-                      <span className="mt-3 max-w-full truncate text-xs sm:text-sm font-bold text-ink-900" dir="auto">{stats.topResults[1].name.split(' ')[0]}</span>
-                    </div>
-                  )}
-                  {/* 1st place */}
-                  {stats.topResults.length >= 1 && (
-                    <div className="flex flex-1 max-w-[104px] flex-col items-center">
-                      <span className="mb-0.5 text-xl sm:text-2xl leading-none">👑</span>
-                      <span className="mb-2 text-base sm:text-2xl font-black tabular-nums text-brand-600">{fmtTime(stats.topResults[0].timeSeconds)}</span>
-                      {/* Gold: the brightest step on the podium. Band 3 lightened
-                          rather than a token pair, because the designer's palette
-                          has exactly one orange — and 1st and 3rd both collapsing
-                          onto it is how gold and bronze became the same step. */}
-                      <div className="flex w-full items-start justify-center rounded-t-2xl bg-gradient-to-b from-[#FF8A4D] to-[#FF5315] pt-3 shadow-md" style={{ height: '140px' }}>
-                        <span className="text-xl font-black text-ink-700">1</span>
-                      </div>
-                      <span className="mt-3 max-w-full truncate text-sm sm:text-base font-black text-ink-900" dir="auto">{stats.topResults[0].name.split(' ')[0]}</span>
-                    </div>
-                  )}
-                  {/* 3rd place */}
-                  {stats.topResults.length >= 3 && (
-                    <div className="flex flex-1 max-w-[104px] flex-col items-center">
-                      <span className="mb-2 text-sm sm:text-lg font-black tabular-nums text-[#C43C0B]">{fmtTime(stats.topResults[2].timeSeconds)}</span>
-                      {/* Bronze: band 3 darkened, so the podium still reads
-                          gold / silver / bronze at a glance. White numeral —
-                          ink on this deep burnt orange is only 2.6:1. */}
-                      <div className="flex w-full items-start justify-center rounded-t-2xl bg-gradient-to-b from-[#C43C0B] to-[#9E3009] pt-3 shadow-inner" style={{ height: '68px' }}>
-                        <span className="text-lg font-black text-white/95">3</span>
-                      </div>
-                      <span className="mt-3 max-w-full truncate text-xs sm:text-sm font-bold text-ink-900" dir="auto">{stats.topResults[2].name.split(' ')[0]}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* Who We Are */}
-      <section className="py-12 lg:py-32 px-4 sm:px-8 lg:px-20">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-3xl sm:text-5xl md:text-6xl lg:text-8xl font-black uppercase leading-[0.9] tracking-tight rtl:tracking-normal text-brand-600 mb-4 lg:mb-8">
-            {t('whoWeAre')}{' '}<br className="hidden lg:block" />{t('weAre')}
-          </h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-16 mt-6 lg:mt-12 items-center">
-            <div>
-              <h3 className="text-2xl sm:text-3xl font-bold text-ink-900 mb-3 lg:mb-6">
-                {t('fromTwoRunners')}
-              </h3>
-              <div className="w-16 h-1.5 bg-brand-600 mb-4 lg:mb-8 rounded-full"></div>
-              <p className="text-lg text-ink-400 leading-relaxed mb-3 lg:mb-6">
-                {t('foundedDescription1')}
-              </p>
-              <p className="text-lg text-ink-400 leading-relaxed">
-                {t('foundedDescription2')}
-              </p>
-            </div>
-            <div className="space-y-4">
-              <Figure src="/images/team-race.jpg" alt={t('teamRaceAlt')} ratio="aspect-[16/9]" className="rounded-3xl shadow-lg ring-1 ring-black/5" imgClassName="motion-safe:transition-transform motion-safe:duration-500 sm:hover:scale-105" />
-              <div className="grid grid-cols-2 gap-4">
-                <Figure src="/images/team-group.jpg" alt={t('teamGroupAlt')} ratio="aspect-[3/4]" className="rounded-3xl shadow-lg ring-1 ring-black/5" imgClassName="motion-safe:transition-transform motion-safe:duration-500 sm:hover:scale-105" />
-                <Figure src="/images/runners-group.jpg" alt={t('runnersGroupAlt')} ratio="aspect-[3/4]" className="rounded-3xl shadow-lg ring-1 ring-black/5" imgClassName="motion-safe:transition-transform motion-safe:duration-500 sm:hover:scale-105" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Journey Timeline */}
-      <section className="py-12 lg:py-32 px-4 sm:px-8 lg:px-20 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-3xl sm:text-5xl md:text-7xl font-black uppercase leading-[0.9] tracking-tight rtl:tracking-normal text-brand-600 mb-8 lg:mb-16">
-            {t('our')}{' '}<br className="hidden lg:block" />{t('journey')}
-          </h2>
-
-          {/* Timeline */}
-          <div className="relative">
-            <div className="absolute top-8 inset-x-0 h-0.5 bg-gradient-to-r from-brand-600 to-brand-600/20 hidden sm:block"></div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8">
-              <div className="group relative pt-12 rounded-2xl p-4 -m-4 transition-colors hover:bg-[#f0f0f0]">
-                <div className="absolute top-[26px] start-4 sm:start-4 w-3.5 h-3.5 rounded-full bg-brand-600 ring-4 ring-white"></div>
-                <div className="text-2xl font-black text-brand-600">{t('year2022')}</div>
-                <div className="text-sm font-bold mt-1">{t('founded')}</div>
-                <div className="text-sm text-ink-400 mt-2">{t('foundedDesc')}</div>
-              </div>
-              <div className="group relative pt-12 rounded-2xl p-4 -m-4 transition-colors hover:bg-[#f0f0f0]">
-                <div className="absolute top-[26px] start-4 w-3.5 h-3.5 rounded-full bg-brand-600 ring-4 ring-white"></div>
-                <div className="text-2xl font-black text-brand-600">{t('year2023')}</div>
-                <div className="text-sm font-bold mt-1">{t('firstTeam')}</div>
-                <div className="text-sm text-ink-400 mt-2">{t('firstTeamDesc')}</div>
-              </div>
-              <div className="group relative pt-12 rounded-2xl p-4 -m-4 transition-colors hover:bg-[#f0f0f0]">
-                <div className="absolute top-[26px] start-4 w-3.5 h-3.5 rounded-full bg-brand-600 ring-4 ring-white"></div>
-                <div className="text-2xl font-black text-brand-600">{t('year2025')}</div>
-                <div className="text-sm font-bold mt-1">{t('historicValencia')}</div>
-                <div className="text-sm text-ink-400 mt-2">{t('historicValenciaDesc')}</div>
-              </div>
-              <div className="group relative pt-12 rounded-2xl p-4 -m-4 transition-colors hover:bg-[#f0f0f0]">
-                <div className="absolute top-[26px] start-4 w-3.5 h-3.5 rounded-full bg-brand-600 ring-4 ring-white"></div>
-                <div className="text-2xl font-black text-brand-600">{t('year2026')}</div>
-                <div className="text-sm font-bold mt-1">{t('nextLevel')}</div>
-                <div className="text-sm text-ink-400 mt-2">{t('nextLevelDesc')}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* More Than a Running Team */}
-      <section className="py-12 lg:py-32 px-4 sm:px-8 lg:px-20">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-2xl sm:text-4xl md:text-5xl lg:text-7xl font-black uppercase leading-[0.9] tracking-tight rtl:tracking-normal text-brand-600 mb-3 lg:mb-6">
-            {t('moreThanA')}{' '}<br className="hidden lg:block" />{t('runningTeam')}
-          </h2>
-          <p className="text-xl text-ink-400 mb-6 lg:mb-16 max-w-3xl">
-            {t('supportSystem')}
-          </p>
-
-          {/* Two real-proof hero cards — actual numbers, not stock copy. */}
-          <div className="grid sm:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
-            <div className="group relative overflow-hidden rounded-3xl border border-page bg-white p-6 sm:p-8 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-              <div className="pointer-events-none absolute -top-10 -end-10 h-40 w-40 rounded-full bg-brand-600/[0.06] blur-2xl" aria-hidden="true" />
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600/10 text-brand-600">
-                <Trophy className="h-6 w-6 stroke-[1.75]" />
-              </div>
-              <h3 className="text-lg font-bold mb-1">{t('performance')}</h3>
-              <BigStat
-                value={<span dir="ltr">17</span>}
-                label={t('videoGuidedExercises')}
-                className="flex-row items-baseline text-start gap-2 mb-3"
-                valueClassName="text-4xl sm:text-5xl text-brand-600"
-              />
-              <ul className="text-sm text-ink-400 space-y-1">
-                <li>{t('professionalCoach')}</li>
-                <li>{t('gymAccess')}</li>
-                <li>{t('personalizedPrograms')}</li>
-              </ul>
-            </div>
-            <div className="group relative overflow-hidden rounded-3xl border border-page bg-white p-6 sm:p-8 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-              <div className="pointer-events-none absolute -top-10 -end-10 h-40 w-40 rounded-full bg-brand-600/[0.06] blur-2xl" aria-hidden="true" />
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600/10 text-brand-600">
-                <Users className="h-6 w-6 stroke-[1.75]" />
-              </div>
-              <h3 className="text-lg font-bold mb-1">{t('community')}</h3>
-              <BigStat
-                value={<span dir="ltr">{stats && stats.athletes > 0 ? fmtNum(stats.athletes, locale) : '20+'}</span>}
-                label={t('activeRunnersThisSeason')}
-                className="flex-row items-baseline text-start gap-2 mb-3"
-                valueClassName="text-4xl sm:text-5xl text-brand-600"
-              />
-              <ul className="text-sm text-ink-400 space-y-1">
-                <li>{t('trainingPartners')}</li>
-                <li>{t('raceTravel')}</li>
-                <li>{t('memberBenefits')}</li>
-              </ul>
-            </div>
-          </div>
-
-          {/* Three smaller supporting cards. */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
-            <div className="group bg-white rounded-3xl border border-page p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-accent-red/10 text-accent-red-ink">
-                <Heart className="h-5 w-5 stroke-[1.75]" />
-              </div>
-              <h3 className="text-base font-bold mb-2">{t('recovery')}</h3>
-              <ul className="text-sm text-ink-400 space-y-1">
-                <li>{t('physiotherapy')}</li>
-                <li>{t('orthopedicCare')}</li>
-                <li>{t('injuryPrevention')}</li>
-              </ul>
-            </div>
-            <div className="group bg-white rounded-3xl border border-page p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-band-3/10 text-band-3-ink">
-                <Zap className="h-5 w-5 stroke-[1.75]" />
-              </div>
-              <h3 className="text-base font-bold mb-2">{t('nutrition')}</h3>
-              <ul className="text-sm text-ink-400 space-y-1">
-                <li>{t('sportsNutrition')}</li>
-                <li>{t('energyProducts')}</li>
-                <li>{t('recoverySupport')}</li>
-              </ul>
-            </div>
-            <div className="group bg-white rounded-3xl border border-page p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg">
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600">
-                <Camera className="h-5 w-5 stroke-[1.75]" />
-              </div>
-              <h3 className="text-base font-bold mb-2">{t('content')}</h3>
-              <p className="text-sm text-ink-400">{t('feedProof')}</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="bg-[#f0f0f0] px-4 py-8 sm:px-8 sm:py-20 lg:px-20 lg:py-24">
-        <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[2rem] bg-page px-6 py-10 text-center shadow-2xl sm:px-12 sm:py-20">
-          <div className="pointer-events-none absolute -end-20 -top-24 h-72 w-72 rounded-full bg-[#FC4C02]/25 blur-3xl" aria-hidden="true"></div>
-          <div className="pointer-events-none absolute -bottom-28 -start-16 h-72 w-72 rounded-full bg-brand-600/20 blur-3xl" aria-hidden="true"></div>
-          <div className="relative mx-auto max-w-3xl">
-            <h2 className="text-3xl font-black uppercase tracking-tight rtl:tracking-normal text-ink-700 sm:text-5xl md:text-6xl">
-              {t('readyToRun')}
-            </h2>
-            <p className="mx-auto mt-3 sm:mt-5 max-w-xl text-base text-ink-500 sm:text-lg">
-              {t('joinCommunity')}
-            </p>
-            <div className="mx-auto mt-7 flex w-full max-w-sm flex-col gap-1 sm:mt-9">
-              <PrimaryButton href={JOIN_HREF}>{t('joinClub')}</PrimaryButton>
-              <SecondaryButton onClick={() => setShowSignIn(true)}>{t('alreadyMember')}</SecondaryButton>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-10 px-4 sm:px-8 lg:px-20 bg-black text-white safe-bottom safe-inline-start safe-inline-end">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <img src="/images/logo-white.png" alt="Madregot After 2KM" className="h-8 w-8 object-contain" />
-            <div className="flex flex-col leading-tight">
-              <span className="text-base font-bold tracking-tight rtl:tracking-normal">{t('madregot')}</span>
-              <span className="text-[13px] font-medium tracking-wide rtl:tracking-normal text-white/70">{t('after2km')}</span>
-            </div>
-          </div>
-          <div className="flex flex-col items-center sm:items-end gap-2">
-            <p className="text-white/70 text-sm" dir="ltr">
-              {t('copyright')}
-            </p>
-            <button
-              onClick={() => setShowAdminLogin(!showAdminLogin)}
-              className="inline-flex items-center justify-center gap-1.5 min-h-[44px] px-2 text-white/70 hover:text-white text-xs font-medium transition-colors"
-            >
-              <Shield className="h-3.5 w-3.5" />
-              {t('adminSignIn')}
-            </button>
-          </div>
-        </div>
-      </footer>
-    </div>
+        {signupsOpen && (
+          <a href={JOIN_HREF} className="text-base font-bold text-brand-600 underline">עוד לא חברים? מצטרפים למועדון</a>
+        )}
+      </div>
+    </main>
   );
 }

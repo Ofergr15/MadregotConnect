@@ -12,6 +12,7 @@
 // Server only.
 
 import type { createServerClient } from '@/lib/supabase/server';
+import { signupsOpen } from '@/lib/signups/open';
 
 type Db = ReturnType<typeof createServerClient>;
 
@@ -39,8 +40,18 @@ export async function isLiveInvite(supabase: Db, token: string | null | undefine
   return !(data as { archived_at?: string | null }).archived_at;
 }
 
+/**
+ * The public door: the manager's academy switch AND the club-wide `signups_open`
+ * (lib/signups/open, default off — no new members right now, 2026-11-25). Either
+ * one closed shuts it; a personal invitation still gets through (mayRegister).
+ */
+export async function isPublicDoorOpen(supabase: Db): Promise<boolean> {
+  const [academy, club] = await Promise.all([isRegistrationOpen(supabase), signupsOpen(supabase)]);
+  return academy && club;
+}
+
 /** May this visitor register: the door is open, or they hold an invitation. */
 export async function mayRegister(supabase: Db, inviteToken?: string | null): Promise<boolean> {
-  if (await isRegistrationOpen(supabase)) return true;
+  if (await isPublicDoorOpen(supabase)) return true;
   return isLiveInvite(supabase, inviteToken);
 }

@@ -1,5 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
+// signups_open defaults off (lib/signups/open); these tests exercise the route with the door open.
+vi.mock('@/lib/signups/open', () => ({ signupsOpen: async () => true, SIGNUPS_CLOSED_BODY: { error: 'signups-closed' } }));
+
 // POST /api/academy/register is public and unauthenticated — it is the academy's front door.
 // It used to rewrite ANY existing row whose email matched with approved:false, role
 // 'academy_user' and status 'invited', so typing a club member's address into the form logged

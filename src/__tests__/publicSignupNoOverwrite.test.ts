@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// signups_open defaults off (lib/signups/open); these tests exercise the route with the door open.
+vi.mock('@/lib/signups/open', () => ({ signupsOpen: async () => true, SIGNUPS_CLOSED_BODY: { error: 'signups-closed' } }));
 import { COACH_ID } from '@/lib/constants';
 
 /**

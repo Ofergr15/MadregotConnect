@@ -39,11 +39,10 @@ describe('sign in with a code by email', () => {
     expect(mint).toMatch(/createSyntheticSession\(admin, member\.email,/);
   });
 
-  it('is offered on the landing page under Strava', () => {
+  it('is the landing page itself (email-only since 2026-11-25)', () => {
     const page = read('app/page.tsx');
-    expect(page).toMatch(/אין לי Strava · כניסה עם קוד במייל/);
-    expect(page).toMatch(/<EmailCodeSheet open=\{showEmailCode\}/);
-    expect(read('components/auth/EmailCodeSheet.tsx')).toMatch(/autoComplete="one-time-code"/);
+    expect(page).toMatch(/<EmailCodeLogin \/>/);
+    expect(read('components/auth/EmailCodeLogin.tsx')).toMatch(/autoComplete=\{i === 0 \? 'one-time-code'/);
   });
 });
 

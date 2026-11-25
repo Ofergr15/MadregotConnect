@@ -3,6 +3,9 @@
 // FIXTURE only; mail, push and events are stubbed.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// signups_open defaults off (lib/signups/open); these tests exercise the route with the door open.
+vi.mock('@/lib/signups/open', () => ({ signupsOpen: async () => true, SIGNUPS_CLOSED_BODY: { error: 'signups-closed' } }));
+
 const inserts: Array<Record<string, unknown>> = [];
 let missingChannelColumn = false;
 let insertedThisPost = false;
