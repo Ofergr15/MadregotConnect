@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
+import { eventRowFrom, type WebhookPayload } from '@/lib/email/tracking';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +21,8 @@ export const dynamic = 'force-dynamic';
  * ── SETUP (both halves, or this is inert) ─────────────────────────────────────────
  *   1. Resend → Webhooks → add `https://www.madregot.app/api/webhooks/resend`,
  *      subscribed to email.delivered / email.bounced / email.complained /
- *      email.delivery_delayed.
+ *      email.delivery_delayed — and, for the b25 email center, email.sent /
+ *      email.opened / email.clicked (turn on open + click tracking on the domain).
  *   2. Set `RESEND_WEBHOOK_SECRET` (the `whsec_…` value) in Vercel.
  *
  * ⚠️ SECURITY. This is an UNAUTHENTICATED public endpoint — it has to be, webhooks
@@ -81,17 +83,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'bad signature' }, { status: 401 });
   }
 
-  let event: { type?: string; data?: { email_id?: string } };
+  let event: WebhookPayload;
   try {
     event = JSON.parse(body);
   } catch {
     return NextResponse.json({ error: 'bad payload' }, { status: 400 });
   }
 
+  // b25: every tracked event also lands in email_events (migration 221) — the email
+  // center's opens/clicks. Deduped on svix-id so a retry is a no-op. Before 221 is
+  // pasted the table is missing (42P01) and this is skipped silently; any other failure
+  // is a 500 so Resend retries.
+  const row = eventRowFrom(event, request.headers.get('svix-id'));
+  if (row) {
+    try {
+      const { error } = await createServerClient().from('email_events').insert(row);
+      if (error && error.code !== '42P01' && error.code !== '23505') throw error;
+    } catch (err) {
+      console.error('Failed to record a Resend email event:', err);
+      return NextResponse.json({ error: 'could not record' }, { status: 500 });
+    }
+  }
+
   const status = STATUS_BY_EVENT[event.type || ''];
   const providerId = event.data?.email_id;
   // 200 for an event we don't care about: a non-2xx makes Resend retry it forever.
-  if (!status || !providerId) return NextResponse.json({ ok: true, ignored: event.type || null });
+  if (!status || !providerId) return NextResponse.json({ ok: true, ignored: row ? null : event.type || null, recorded: row?.type ?? null });
 
   try {
     const { error } = await createServerClient()

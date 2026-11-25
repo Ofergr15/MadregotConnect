@@ -24,7 +24,7 @@ export interface TransportResult {
 
 export interface EmailTransport {
   name: 'resend' | 'dev-log';
-  send(m: { from: string; to: string[]; subject: string; html: string; replyTo?: string | null }): Promise<TransportResult>;
+  send(m: { from: string; to: string[]; subject: string; html: string; replyTo?: string | null; headers?: Record<string, string> }): Promise<TransportResult>;
 }
 
 /** dev-log is only ever honoured on the dev project, and never on a production deployment. */
@@ -47,6 +47,7 @@ const resend: EmailTransport = {
       subject: m.subject,
       html: m.html,
       ...(m.replyTo ? { replyTo: m.replyTo } : {}),
+      ...(m.headers ? { headers: m.headers } : {}),
     });
     if (error) return { ok: false, code: error.name || 'resend_error', reason: error.message || 'Resend refused the send' };
     return { ok: true, id: data?.id ?? null };

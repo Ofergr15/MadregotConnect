@@ -62,6 +62,10 @@ export interface OutboundEmail {
   fromName?: string | null;
   /** Where a reply goes. Unset, it goes to the sending address, which nobody reads. */
   replyTo?: string | null;
+  /** b25: the email_campaigns row this mail belongs to (migration 221). */
+  campaignId?: string | null;
+  /** Extra headers — the newsletter's List-Unsubscribe. */
+  headers?: Record<string, string>;
 }
 
 /** `Name <addr>` with the configured address and another display name. */
@@ -131,6 +135,11 @@ async function writeLog(row: Record<string, unknown>): Promise<string | null> {
       const { candidate_id: _dropped, ...rest } = row;
       ({ data, error } = await insert(rest));
     }
+    // Before migration 221 there is no campaign_id column: same rule.
+    if (error && 'campaign_id' in row && isMissingColumn(error, 'campaign_id')) {
+      const { campaign_id: _dropped, ...rest } = row;
+      ({ data, error } = await insert(rest));
+    }
     if (error) {
       // 42P01 = table missing, i.e. migration 096 has not been applied yet. Expected,
       // and not worth shouting about; anything else is a real problem worth a log line.
@@ -170,6 +179,7 @@ export async function sendEmail(msg: OutboundEmail): Promise<SendResult> {
     athlete_id: msg.athleteId ?? null,
     signup_request_id: msg.signupRequestId ?? null,
     ...(msg.candidateId ? { candidate_id: msg.candidateId } : {}),
+    ...(msg.campaignId ? { campaign_id: msg.campaignId } : {}),
   };
 
   if (!to.length && blockedOnDev.length) {
@@ -217,7 +227,7 @@ export async function sendEmail(msg: OutboundEmail): Promise<SendResult> {
   try {
     // The transport (lib/email/transport.ts) is the pluggable part; this file keeps
     // the rules: a result not an exception, never throw, log every attempt.
-    const sent = await transport.send({ from, to, subject: msg.subject, html: msg.html, replyTo: msg.replyTo });
+    const sent = await transport.send({ from, to, subject: msg.subject, html: msg.html, replyTo: msg.replyTo, headers: msg.headers });
     const error = sent.ok ? null : { name: sent.code, message: sent.reason };
     const data = sent.ok ? { id: sent.id ?? null } : null;
 

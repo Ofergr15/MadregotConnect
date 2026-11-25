@@ -574,6 +574,18 @@ answers **503** while 203 is unapplied, which the client reads as "fall back to
 /api/feedback". If you add a field to a report response, it must never reach a non-staff
 caller. Pinned by `src/__tests__/moderationRoutes.test.ts`.
 
+Recorded exposure change, **2026-11-25** (b25 email center, migration 221, flag
+`email_center` default off): `GET/POST /api/admin/email-center` is the first route that
+reads **who opened / clicked which club mail**, per named member, and its POST mails the
+whole club. Gated **admin-only** (`isSuperUser || role === 'admin'`), like
+`/api/admin/notifications`, and 404 while the flag is off. A test send goes only to the
+caller's own verified address — no body field names a recipient; a send to everyone needs a
+prior test of that campaign plus the typed confirmation `שלח לכולם`. `email_events`
+(webhook-fed, Svix-signature verified in the existing `/api/webhooks/resend`) and
+`email_campaigns` are RLS-on/no-policies; the route is in `NEVER_PERSIST`
+(`swr-persist.ts`). Opens are approximate (Apple Mail Privacy Protection pre-loads the pixel);
+the screen says so. Pinned by `emailCenterRoute.test.ts` and `emailTracking.test.ts`.
+
 ## The AI parser — the accuracy-critical path
 
 `src/lib/ai/parser.ts` + `prompt.ts`. Two tiers:

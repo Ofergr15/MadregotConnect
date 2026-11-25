@@ -195,6 +195,9 @@ export const FEATURES = {
   academy_read_nudge: { label: 'תזכורת למי שלא קרא (אפליקציה)', defaultEnabled: false },
   /** Native: staff edit a group chat's name / description / image (PATCH /api/chat/group). */
   native_chat_group_edit: { label: 'עריכת קבוצת צ׳אט (אפליקציה)', defaultEnabled: false },
+  /** b25 email center: admin-only preview + test-to-me, newsletter send to all members, delivery tracking
+   *  (migration 221). Off → /api/admin/email-center answers 404. Enable for the admin's own athlete row. */
+  email_center: { label: 'מרכז המיילים (ניהול)', defaultEnabled: false },
   feed_banner: { label: 'באנר עליון בפיד: ציון איכות, שיאים (אפליקציה)', defaultEnabled: false },
   native_mgmt_podium_admin: { label: 'ניהול פודיום (אפליקציה)', defaultEnabled: false },
   /** Native b23: חנות והטבות — the store, perks, badges and challenges row in ניהול. */
