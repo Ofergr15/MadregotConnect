@@ -72,7 +72,7 @@ describe('retention counts (doc p.3 belonging and retention) — counts only', (
   });
   it('the manager payload never carries names or amounts for it', () => {
     const src = readFileSync(join(process.cwd(), 'src/lib/academy/hub-server.ts'), 'utf8');
-    expect(src).toContain(".select('athlete_id').eq('period', month)");
+    expect(src).toContain(".select('athlete_id').eq('period', `${month}-01`)");
     expect(src).not.toContain("select('athlete_id, amount_ils')");
     expect(src).toContain(".lt('date', nextMonth)");
   });

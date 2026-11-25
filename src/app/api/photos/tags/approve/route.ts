@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   const b = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!isDriveId(b?.photoId)) return NextResponse.json({ error: 'photoId required' }, { status: 400 });
   try {
-    const { data, error } = await createServerClient().from('photos_social')
+    const { data, error } = await createServerClient().from('photo_tags')
       .update({ status: 'approved', approved_at: new Date().toISOString() })
       .eq('photo_id', b!.photoId as string).eq('athlete_id', g.actor.athleteId).eq('status', 'pending').select('id');
     if (missingTable(error)) return NextResponse.json({ error: 'not ready' }, { status: 503 });

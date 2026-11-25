@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     const result = await notifyAthlete({
       athleteId,
       kind: 'coach_message',
-      url: '/inbox',
+      url: '/dashboard/notifications',
       tag: `coach-message-${athleteId}-${Date.now()}`,
       category: 'coach',
       actorAthleteId: caller.athleteId,

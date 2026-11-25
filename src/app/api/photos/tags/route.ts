@@ -21,7 +21,7 @@ export async function GET(request: Request) {
   if (!isDriveId(folderId)) return NextResponse.json({ error: 'folderId required' }, { status: 400 });
   try {
     const db = createServerClient();
-    const { data, error } = await db.from('photos_social').select('*').eq('folder_id', folderId);
+    const { data, error } = await db.from('photo_tags').select('*').eq('folder_id', folderId);
     if (missingTable(error)) return NextResponse.json({ error: 'not ready' }, { status: 503 });
     if (error) return NextResponse.json({ error: 'failed', details: error.message }, { status: 500 });
     const rows = (data || []) as PhotoTagRow[];
@@ -53,12 +53,12 @@ export async function POST(request: Request) {
       approved_at: status === 'approved' ? new Date().toISOString() : null,
     };
     // An existing tag is kept as it is (never downgraded from approved, never re-attributed).
-    const { data, error } = await db.from('photos_social').upsert(row, { onConflict: 'photo_id,athlete_id', ignoreDuplicates: true }).select('*');
+    const { data, error } = await db.from('photo_tags').upsert(row, { onConflict: 'photo_id,athlete_id', ignoreDuplicates: true }).select('*');
     if (missingTable(error)) return NextResponse.json({ error: 'not ready' }, { status: 503 });
     if (error) return NextResponse.json({ error: 'failed', details: error.message }, { status: 500 });
     let saved = (data as PhotoTagRow[] | null)?.[0];
     if (!saved) {
-      const { data: existing } = await db.from('photos_social').select('*').eq('photo_id', photoId).eq('athlete_id', athleteId).maybeSingle<PhotoTagRow>();
+      const { data: existing } = await db.from('photo_tags').select('*').eq('photo_id', photoId).eq('athlete_id', athleteId).maybeSingle<PhotoTagRow>();
       saved = existing ?? undefined;
     }
     if (!saved) return NextResponse.json({ error: 'failed' }, { status: 500 });
@@ -80,12 +80,12 @@ export async function DELETE(request: Request) {
   }
   try {
     const db = createServerClient();
-    const { data: tag, error } = await db.from('photos_social').select('*').eq('photo_id', photoId).eq('athlete_id', athleteId).maybeSingle<PhotoTagRow>();
+    const { data: tag, error } = await db.from('photo_tags').select('*').eq('photo_id', photoId).eq('athlete_id', athleteId).maybeSingle<PhotoTagRow>();
     if (missingTable(error)) return NextResponse.json({ error: 'not ready' }, { status: 503 });
     if (error) return NextResponse.json({ error: 'failed', details: error.message }, { status: 500 });
     if (!tag) return NextResponse.json({ ok: true });
     if (!mayRemove(g.actor, tag)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    const del = await db.from('photos_social').delete().eq('id', tag.id);
+    const del = await db.from('photo_tags').delete().eq('id', tag.id);
     if (del.error) return NextResponse.json({ error: 'failed', details: del.error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -31,7 +31,12 @@ export async function POST(request: Request) {
 
     const db = createServerClient();
     const billing = await db.from('academy_billing').select(BILLING_COLUMNS).eq('athlete_id', athleteId);
-    if (billing.error && isMissingTable(billing.error)) return NextResponse.json({ error: 'payments not set up' }, { status: 503 });
+    // Any read error → 503 and nothing sent. A failed read must never look like "unpaid" / "awaiting_link"
+    // (QA 25.11 #2: someone who already paid could get a reminder).
+    if (billing.error) {
+      if (!isMissingTable(billing.error)) console.error('remind: academy_billing read failed:', billing.error.message);
+      return NextResponse.json({ error: isMissingTable(billing.error) ? 'payments not set up' : 'payments unavailable' }, { status: 503 });
+    }
     const roster = (await loadRoster(db)).filter((t) => t.athleteId === athleteId);
     if (!roster.length) return NextResponse.json({ error: 'not an academy trainee' }, { status: 404 });
 
@@ -39,6 +44,10 @@ export async function POST(request: Request) {
     const month = monthKey(now);
     const period = `${month}-01`;
     const paid = await db.from('academy_payments').select('athlete_id, period, amount_ils, source').eq('athlete_id', athleteId).eq('period', period);
+    if (paid.error) {
+      console.error('remind: academy_payments read failed:', paid.error.message);
+      return NextResponse.json({ error: 'payments unavailable' }, { status: 503 });
+    }
     const payments: PaymentRecord[] = (paid.data || []).map((r) => ({
       athleteId: String(r.athlete_id), period: String(r.period),
       amountIls: r.amount_ils == null ? null : Number(r.amount_ils), source: (r.source as PaymentRecord['source']) || 'manual',
@@ -50,11 +59,24 @@ export async function POST(request: Request) {
     const row = board.rows[0];
     if (!row || !REMINDABLE.has(row.state)) return NextResponse.json({ error: 'nothing to remind', state: row?.state ?? null }, { status: 409 });
 
+    // One reminder per athlete per calendar month. The in-app inbox row notifyAthlete writes
+    // (scheduled_notifications, kind payment_reminder) is the record — no new table needed.
+    const prior = await db.from('scheduled_notifications').select('id, last_sent_at')
+      .eq('kind', 'payment_reminder').eq('audience_type', 'athlete').eq('audience_id', athleteId)
+      .gte('last_sent_at', `${period}T00:00:00Z`).limit(1);
+    if (prior.error) {
+      console.error('remind: dedupe read failed:', prior.error.message);
+      return NextResponse.json({ error: 'reminders unavailable' }, { status: 503 });
+    }
+    if (prior.data?.length) {
+      return NextResponse.json({ error: 'already reminded this month', state: row.state, sentAt: prior.data[0].last_sent_at ?? null }, { status: 409 });
+    }
+
     const monthHe = new Intl.DateTimeFormat('he-IL', { month: 'long', timeZone: 'UTC' }).format(new Date(`${period}T00:00:00Z`));
     const text = paymentReminderText(row, monthHe);
     const result = await notifyAthlete({
       athleteId, kind: 'payment_reminder', actorAthleteId: caller.athleteId ?? null,
-      title: 'תזכורת תשלום · אקדמיה', body: text, url: '/inbox', tag: `payment-reminder-${athleteId}-${month}`,
+      title: 'תזכורת תשלום · אקדמיה', body: text, url: '/dashboard/notifications', tag: `payment-reminder-${athleteId}-${month}`,
     });
     return NextResponse.json({ ok: true, state: row.state, delivered: result.delivered, subscriptions: result.subscriptions });
   } catch (err) {

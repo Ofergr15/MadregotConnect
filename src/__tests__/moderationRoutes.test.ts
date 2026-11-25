@@ -43,7 +43,7 @@ function seed(migrated = true) {
     schema: {
       ...(migrated
         ? {
-            content_reports: ['id', 'reporter_athlete_id', 'target_type', 'target_id', 'author_athlete_id', 'reason', 'note', 'status', 'created_at', 'handled_at', 'handled_by'],
+            content_reports: ['id', 'reporter_athlete_id', 'target_type', 'target_id', 'author_athlete_id', 'author_verified', 'reason', 'note', 'status', 'created_at', 'handled_at', 'handled_by'],
             athlete_blocks: ['blocker_athlete_id', 'blocked_athlete_id', 'created_at'],
           }
         : {}),
@@ -82,6 +82,54 @@ describe('POST /api/moderation/report', () => {
     db.tables.feed_items.push({ id: item, author_athlete_id: AUTHOR });
     await report.POST(req('POST', { targetType: 'feed_item', targetId: item, authorId: SOMEONE, reason: 'offensive' }));
     expect(db.tables.content_reports[0].author_athlete_id).toBe(AUTHOR);
+  });
+
+  it('marks a server-read author verified and a client hint unverified', async () => {
+    const item = uid();
+    db.tables.feed_items.push({ id: item, author_athlete_id: AUTHOR });
+    await report.POST(req('POST', { targetType: 'feed_item', targetId: item, reason: 'offensive' }));
+    await report.POST(req('POST', { targetType: 'photo', targetId: 'drive-file-1', authorId: SOMEONE, reason: 'privacy' }));
+    expect(db.tables.content_reports[0]).toMatchObject({ author_athlete_id: AUTHOR, author_verified: true });
+    expect(db.tables.content_reports[1]).toMatchObject({ author_athlete_id: SOMEONE, author_verified: false });
+  });
+
+  it('pre-220 (no author_verified column): still saves, keeping only a verified author', async () => {
+    db = createMemoryDb({ schema: {
+      content_reports: ['id', 'reporter_athlete_id', 'target_type', 'target_id', 'author_athlete_id', 'reason', 'note', 'status', 'created_at'],
+      feed_items: ['id', 'author_athlete_id'], feed_comments: ['id', 'athlete_id'],
+    } });
+    const res = await report.POST(req('POST', { targetType: 'photo', targetId: 'drive-file-1', authorId: SOMEONE, reason: 'privacy' }));
+    expect(res.status).toBe(201);
+    expect(db.tables.content_reports[0].author_athlete_id).toBeNull();
+  });
+
+  it('dedupes on (reporter, target): same id back, one row, one push', async () => {
+    const a = await (await report.POST(req('POST', { targetType: 'comment', targetId: 'c1', reason: 'spam' }))).json();
+    const res = await report.POST(req('POST', { targetType: 'comment', targetId: 'c1', reason: 'offensive' }));
+    expect(res.status).toBe(201);
+    expect((await res.json()).id).toBe(a.id);
+    expect(db.tables.content_reports).toHaveLength(1);
+    expect(notifyStaff).toHaveBeenCalledTimes(1);
+  });
+
+  it('pushes staff once per open target, however many members report it', async () => {
+    await report.POST(req('POST', { targetType: 'comment', targetId: 'c1', reason: 'spam' }));
+    as(SOMEONE);
+    const res = await report.POST(req('POST', { targetType: 'comment', targetId: 'c1', reason: 'spam' }));
+    expect(res.status).toBe(201);
+    expect(db.tables.content_reports).toHaveLength(2);
+    expect(notifyStaff).toHaveBeenCalledTimes(1);
+  });
+
+  it('429 past the hourly cap, and nothing is saved or pushed', async () => {
+    const now = new Date().toISOString();
+    for (let i = 0; i < 10; i++) {
+      db.tables.content_reports.push({ id: uid(), reporter_athlete_id: ME, target_type: 'comment', target_id: `old-${i}`, status: 'dismissed', created_at: now });
+    }
+    const res = await report.POST(req('POST', { targetType: 'comment', targetId: 'new', reason: 'spam' }));
+    expect(res.status).toBe(429);
+    expect(db.tables.content_reports).toHaveLength(10);
+    expect(notifyStaff).not.toHaveBeenCalled();
   });
 
   it('notifies staff only, through the content_report kind, naming nobody', async () => {
