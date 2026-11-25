@@ -10,7 +10,6 @@ import { helpWhatsAppHref } from '@/lib/help-whatsapp';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase/client';
-import { Sheet } from '@/components/ui';
 
 export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const help = helpWhatsAppHref('היי, ניסיתי להיכנס לאפליקציה של מדרגות עם קוד במייל והוא לא מגיע');
@@ -73,13 +72,22 @@ export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenCh
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="כניסה עם המייל">
-      <div dir="rtl" className="px-1 pb-4">
+    // A top-anchored full-screen layer, not a bottom sheet: on iOS the keyboard pushed the
+    // bottom drawer off-screen ("everything jumps up", 25.11). Content at the top never sits
+    // under the keyboard.
+    !open ? null : (
+    <div role="dialog" aria-modal="true" aria-label="כניסה עם המייל" dir="rtl"
+      className="fixed inset-0 z-[310] overflow-y-auto bg-page px-5 pb-[env(safe-area-inset-bottom)] pt-[calc(env(safe-area-inset-top)+16px)]">
+      <div className="mx-auto flex max-w-md items-center justify-between pb-4">
+        <h2 className="text-xl font-black text-ink-700">כניסה עם המייל</h2>
+        <button type="button" aria-label="סגירה" onClick={() => onOpenChange(false)} className="min-h-[44px] min-w-[44px] text-2xl text-ink-500">×</button>
+      </div>
+      <div className="mx-auto max-w-md pb-4">
         {step === 'email' ? (
           <form onSubmit={send} className="flex flex-col gap-3">
             <p className="text-sm leading-relaxed text-ink-500">כותבים את המייל שאיתו נרשמתם למדרגות, ונשלח אליו קוד של 6 ספרות.</p>
             <input
-              type="email" inputMode="email" autoComplete="email" dir="ltr" required onFocus={(e) => { const el = e.currentTarget; setTimeout(() => el.scrollIntoView({ block: 'center' }), 300); }}
+              type="email" inputMode="email" autoComplete="email" dir="ltr" required autoFocus
               value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com"
               className="h-[52px] rounded-xl border border-page bg-card px-4 text-base text-ink-700 focus:border-brand-600 focus:outline-none"
             />
@@ -100,7 +108,7 @@ export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenCh
               {help && <> <a href={help} target="_blank" rel="noopener noreferrer" className="font-bold text-brand-600 underline">כתבו לנו בווטסאפ</a></>}
             </p>
             <input
-              inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]*" maxLength={7} dir="ltr" required onFocus={(e) => { const el = e.currentTarget; setTimeout(() => el.scrollIntoView({ block: 'center' }), 300); }}
+              inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]*" maxLength={7} dir="ltr" required autoFocus
               value={code} onChange={(e) => setCode(e.target.value.replace(/[^\d]/g, '').slice(0, 6))} placeholder="123456"
               className="h-[60px] rounded-xl border border-page bg-card px-4 text-center text-[28px] font-black tracking-[0.3em] text-ink-700 focus:border-brand-600 focus:outline-none"
             />
@@ -115,6 +123,7 @@ export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenCh
           </form>
         )}
       </div>
-    </Sheet>
+    </div>
+    )
   );
 }
