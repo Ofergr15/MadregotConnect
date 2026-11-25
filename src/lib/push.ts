@@ -404,7 +404,7 @@ export async function computeUnreadCounts(athleteIds: string[]): Promise<Record<
   // `role` for the mute rule — see countsTowardBadge. notifications_seen_at: migration 213 (read cutoff).
   let { data: athletesData, error: athletesError } = await supabase
     .from('athletes')
-    .select('id, group_id, role, is_academy, last_seen_at, notifications_seen_at')
+    .select('id, group_id, role, is_academy, last_seen_at, notifications_seen_at, created_at')
     .in('id', athleteIds);
   if (isMissingColumn(athletesError)) {
     ({ data: athletesData } = await supabase
@@ -412,7 +412,7 @@ export async function computeUnreadCounts(athleteIds: string[]): Promise<Record<
       .select('id, group_id, role, is_academy, last_seen_at')
       .in('id', athleteIds) as { data: any[] | null; error: any });
   }
-  type BadgeAthlete = { id: string; group_id: string | null; role: string | null; is_academy: boolean | null; last_seen_at: string | null; notifications_seen_at?: string | null };
+  type BadgeAthlete = { id: string; group_id: string | null; role: string | null; is_academy: boolean | null; last_seen_at: string | null; notifications_seen_at?: string | null; created_at?: string | null };
   const athleteById = new Map(((athletesData || []) as BadgeAthlete[]).map((a) => [a.id, a]));
   const prefsById = await prefsByAthlete(athleteIds);
   // Chat unread, in one batched call. The badge is one number to the person looking
@@ -459,10 +459,10 @@ export async function unreadCountForAthlete(athleteId: string): Promise<number> 
   const supabase = createServerClient();
   // The row, the prefs and the chat count do not depend on each other: one wave, then
   // the notifications read that needs the row (this runs on every screen's header).
-  type SeenAthlete = { group_id: string | null; role: string | null; is_academy: boolean | null; last_seen_at: string | null; notifications_seen_at?: string | null };
+  type SeenAthlete = { group_id: string | null; role: string | null; is_academy: boolean | null; last_seen_at: string | null; notifications_seen_at?: string | null; created_at?: string | null };
   const readRow = async () => {
     // `role` for the mute rule — see countsTowardBadge. notifications_seen_at: migration 213.
-    const r = await supabase.from('athletes').select('group_id, role, is_academy, last_seen_at, notifications_seen_at')
+    const r = await supabase.from('athletes').select('group_id, role, is_academy, last_seen_at, notifications_seen_at, created_at')
       .eq('id', athleteId).maybeSingle<SeenAthlete>();
     if (!isMissingColumn(r.error)) return r;
     return supabase.from('athletes').select('group_id, role, is_academy, last_seen_at')

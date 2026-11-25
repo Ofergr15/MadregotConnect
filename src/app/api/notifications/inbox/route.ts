@@ -151,7 +151,7 @@ export async function GET(request: Request) {
     // is migration 213; before it is pasted, the select without it (old cutoff).
     let { data: a, error: athleteError } = await supabase
       .from('athletes')
-      .select('group_id, role, is_academy, last_seen_at, notifications_seen_at, notification_prefs')
+      .select('group_id, role, is_academy, last_seen_at, notifications_seen_at, created_at, notification_prefs')
       .eq('id', athleteId)
       .maybeSingle<Record<string, any>>();
     if (isMissingColumn(athleteError)) {

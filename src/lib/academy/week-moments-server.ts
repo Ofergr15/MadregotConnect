@@ -2,6 +2,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
 import { traineeIdsOfCoach } from './trainee-coaches';
 import { MOMENT_KINDS, type MomentKind, draftFor, momentState, onTime, windowOf } from './week-moments';
+import { isFeatureEnabled } from '@/lib/features/server';
 
 type Db = ReturnType<typeof createServerClient>;
 
@@ -119,11 +120,17 @@ export async function sendMoment(db: Db, momentId: string, nowIso: string): Prom
 /** The tick: send what a coach SCHEDULED and whose time has come. Never sends anything unscheduled. */
 export async function dispatchScheduledMoments(db: Db, nowIso: string): Promise<{ sent: number }> {
   try {
-    const { data, error } = await db.from('academy_week_moments').select('id')
+    const { data, error } = await db.from('academy_week_moments').select('id, author_id')
       .is('sent_at', null).not('scheduled_at', 'is', null).lte('scheduled_at', nowIso).limit(50);
     if (error) return { sent: 0 };
     let sent = 0;
-    for (const r of (data || []) as Array<{ id: string }>) sent += (await sendMoment(db, r.id, nowIso)).sent;
+    // Gated rollout: a moment scheduled while the author had the flag stays unsent if it was turned off since.
+    const allowed = new Map<string, boolean>();
+    for (const r of (data || []) as Array<{ id: string; author_id: string }>) {
+      if (!allowed.has(r.author_id)) allowed.set(r.author_id, await isFeatureEnabled('academy_week_moments', r.author_id, db).catch(() => false));
+      if (!allowed.get(r.author_id)) continue;
+      sent += (await sendMoment(db, r.id, nowIso)).sent;
+    }
     return { sent };
   } catch (e) {
     console.error('[week-moments] dispatch failed', e);

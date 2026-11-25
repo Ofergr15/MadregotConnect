@@ -4,7 +4,11 @@ import { NextRequest } from 'next/server';
 /** PATCH /api/chat/group — staff-only (JWT), group channels only, validated fields. */
 
 const requireStaff = vi.fn();
-vi.mock('@/lib/auth/self-or-staff', () => ({ requireStaff: (r: Request) => requireStaff(r) }));
+vi.mock('@/lib/auth/self-or-staff', () => ({
+  requireStaffCaller: async (r: Request) => ({ denied: await requireStaff(r), caller: { athleteId: 'staff-1' } }),
+}));
+const flagOn = vi.fn(async (_k: string, _id: string | null) => true);
+vi.mock('@/lib/features/server', () => ({ isFeatureEnabled: (k: string, id: string | null) => flagOn(k, id) }));
 const updatePartial = vi.fn();
 const channel = vi.fn(() => ({ updatePartial }));
 vi.mock('@/lib/stream/server', () => ({ getStreamServerClient: () => ({ channel }) }));
@@ -19,6 +23,7 @@ const call = (body: unknown) =>
 
 beforeEach(() => {
   requireStaff.mockReset().mockResolvedValue(null);
+  flagOn.mockReset().mockResolvedValue(true);
   updatePartial.mockReset().mockResolvedValue({});
   channel.mockClear();
 });
@@ -28,6 +33,14 @@ describe('chat group edit', () => {
     requireStaff.mockResolvedValue(new Response('{}', { status: 403 }));
     const res = await call({ channelId: 'academy-pack-1', name: 'X' });
     expect(res.status).toBe(403);
+    expect(updatePartial).not.toHaveBeenCalled();
+  });
+
+  it('404 while native_chat_group_edit is off for the caller, before touching Stream', async () => {
+    flagOn.mockResolvedValue(false);
+    const res = await call({ channelId: 'academy-pack-1', name: 'X' });
+    expect(res.status).toBe(404);
+    expect(flagOn).toHaveBeenCalledWith('native_chat_group_edit', 'staff-1');
     expect(updatePartial).not.toHaveBeenCalled();
   });
 
