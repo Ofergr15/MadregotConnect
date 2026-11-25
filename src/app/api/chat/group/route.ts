@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireStaff } from '@/lib/auth/self-or-staff';
+import { requireStaffCaller } from '@/lib/auth/self-or-staff';
+import { isFeatureEnabled } from '@/lib/features/server';
 import { getStreamServerClient } from '@/lib/stream/server';
 import { CHANNEL_TYPE } from '@/lib/stream/constants';
 import { isGroupChannelId, parseGroupEdit } from '@/lib/stream/group-edit';
@@ -14,8 +15,12 @@ export const dynamic = 'force-dynamic';
  */
 export async function PATCH(req: NextRequest) {
   try {
-    const denied = await requireStaff(req);
+    const { denied, caller } = await requireStaffCaller(req);
     if (denied) return denied;
+    // Gated rollout: native_chat_group_edit is off by default and the server enforces it, not just the app.
+    if (!(await isFeatureEnabled('native_chat_group_edit', caller.athleteId).catch(() => false))) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
     let body: unknown;
     try {
       body = await req.json();

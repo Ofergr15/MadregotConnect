@@ -26,6 +26,10 @@ describe('readCutoff — the read cutoff is notifications_seen_at, not last-acti
     expect(readCutoff({ last_seen_at: '2026-11-24T00:00:00Z' })).toBe('2026-11-24T00:00:00Z');
     expect(readCutoff({})).toBe('1970-01-01');
   });
+  it('a member who joined after 213 (seen_at null) counts from created_at, never last-active', () => {
+    expect(readCutoff({ notifications_seen_at: null, last_seen_at: '2026-11-24T09:00:00Z', created_at: '2026-11-23T00:00:00Z' })).toBe('2026-11-23T00:00:00Z');
+    expect(readCutoff({ notifications_seen_at: null, last_seen_at: '2026-11-24T09:00:00Z' })).toBe('1970-01-01');
+  });
 });
 
 describe('setup checklist → the exact missing field', () => {

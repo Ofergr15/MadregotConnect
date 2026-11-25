@@ -8,10 +8,19 @@
 export interface SeenRow {
   notifications_seen_at?: string | null;
   last_seen_at?: string | null;
+  created_at?: string | null;
 }
 
+/**
+ * Post-213 (the key is present, even as null) a null `notifications_seen_at` means "never opened the
+ * inbox" — 213 backfilled everyone who existed, so that is a member who joined after the paste. Their
+ * cutoff is when they joined, NOT `last_seen_at`: falling back to "last active" is the very bug 213
+ * fixed, and it never healed because the page posts /seen only when it has rows (QA 25.11).
+ * Pre-213 (key absent, the fallback select) keeps the old `last_seen_at` cutoff.
+ */
 export function readCutoff(a: SeenRow): string {
-  return a.notifications_seen_at || a.last_seen_at || '1970-01-01';
+  if ('notifications_seen_at' in a) return a.notifications_seen_at || a.created_at || '1970-01-01';
+  return a.last_seen_at || '1970-01-01';
 }
 
 /** PostgREST / Postgres "column does not exist" — the pre-213 shape. */

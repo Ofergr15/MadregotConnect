@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaffCaller } from '@/lib/auth/self-or-staff';
+import { isFeatureEnabled } from '@/lib/features/server';
 import { planWeekStartOf } from '@/lib/utils';
 import { isMomentKind } from '@/lib/academy/week-moments';
 import { sendMoment, MomentsNotMigrated } from '@/lib/academy/week-moments-server';
@@ -16,6 +17,10 @@ export async function POST(request: Request) {
   const { denied, caller } = await requireStaffCaller(request);
   if (denied) return denied;
   if (!caller.athleteId) return NextResponse.json({ error: 'no athlete identity' }, { status: 403 });
+  // Gated rollout: academy_week_moments is enforced on the write and the send, not only in the app.
+  if (!(await isFeatureEnabled('academy_week_moments', caller.athleteId).catch(() => false))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   try {
     const b = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     if (!isMomentKind(b.kind)) return NextResponse.json({ error: 'kind is required' }, { status: 400 });

@@ -24,16 +24,29 @@ export async function GET(request: Request) {
 
     const db = createServerClient();
     const since = `${addDaysToDateStr(israelToday(), -WAITING_DAYS)}T00:00:00Z`;
-    const [scope, fb, msgs, reqs] = await Promise.all([
+    const [scope, fb, reqs] = await Promise.all([
       staffAthleteScope(db, caller),
       db.from('workout_feedback').select('id, athlete_id, created_at, pain, wants_feedback, comment, coach_reply_at')
         .gte('created_at', since).eq('pain', true),
-      db.from('workout_feedback_messages').select('feedback_id, sender_athlete_id, created_at').gte('created_at', since),
       db.from('signup_requests').select('id, created_at, athlete_id, full_name').eq('status', 'pending').neq('source', 'club-backfill'),
     ]);
+    // A failed read is an error, never "quiet" — an empty urgent list would tell the manager nobody is in pain.
+    if (fb.error || reqs.error) {
+      console.error('manager-home read failed:', fb.error?.message ?? reqs.error?.message);
+      return NextResponse.json({ error: 'Failed to load' }, { status: 500 });
+    }
 
     type Fb = { id: string; athlete_id: string; created_at: string; pain: boolean | null; wants_feedback: boolean | null; comment: string | null; coach_reply_at: string | null };
     const rows = inScope((fb.data ?? []) as Fb[], scope, (r) => r.athlete_id);
+    // Only the threads of these pain reports — a club-wide 14-day read would hit the 1000-row cap.
+    const msgs = rows.length
+      ? await db.from('workout_feedback_messages').select('feedback_id, sender_athlete_id, created_at')
+        .in('feedback_id', rows.map((r) => r.id)).gte('created_at', since)
+      : { data: [], error: null };
+    if (msgs.error) {
+      console.error('manager-home messages read failed:', msgs.error.message);
+      return NextResponse.json({ error: 'Failed to load' }, { status: 500 });
+    }
     const owner = new Map(rows.map((r) => [r.id, r.athlete_id]));
     const thread = new Map<string, Array<{ createdAt: string; fromStaff: boolean }>>();
     for (const m of (msgs.data ?? []) as Array<{ feedback_id: string; sender_athlete_id: string; created_at: string }>) {
@@ -42,7 +55,9 @@ export async function GET(request: Request) {
     }
     const reqRows = (reqs.data ?? []) as Array<{ id: string; created_at: string; athlete_id: string | null; full_name?: string | null }>;
     const ids = [...new Set([...rows.map((r) => r.athlete_id), ...reqRows.map((r) => r.athlete_id).filter((x): x is string => !!x)])];
-    const { data: ath } = ids.length ? await db.from('athletes').select('id, name, approved').in('id', ids) : { data: [] };
+    const athRead = ids.length ? await db.from('athletes').select('id, name, approved').in('id', ids) : { data: [], error: null };
+    if (athRead.error) return NextResponse.json({ error: 'Failed to load' }, { status: 500 });
+    const ath = athRead.data;
     const athletes = (ath ?? []) as Array<{ id: string; name: string | null; approved: boolean | null }>;
     const names = new Map(athletes.map((a) => [a.id, a.name ?? '—']));
     const approved = new Set(athletes.filter((a) => a.approved === true).map((a) => a.id));
