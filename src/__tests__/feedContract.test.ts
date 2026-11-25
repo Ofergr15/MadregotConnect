@@ -54,7 +54,7 @@ let verdicts = new Map<string, unknown>();
 vi.mock('@/lib/feed/plan-verdicts', () => ({
   loadFeedPlanVerdicts: async (_db: unknown, _rows: unknown, viewer: unknown) => { verdictViewers.push(viewer); return verdicts; },
 }));
-vi.mock('@/lib/activities/quality-name', () => ({ qualityNames: async () => new Map() }));
+vi.mock('@/lib/activities/quality-name', () => ({ qualityNames: async () => new Map(), qualityNamesForPage: async () => new Map() }));
 const notified: unknown[] = [];
 vi.mock('@/lib/feed/notify', async (orig) => ({
   ...(await orig<typeof import('@/lib/feed/notify')>()),

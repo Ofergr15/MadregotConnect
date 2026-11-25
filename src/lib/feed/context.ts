@@ -11,7 +11,7 @@ import {
   buildCommentPreviewIndex,
 } from '@/lib/feed/comments';
 import { loadFeedPlanVerdicts, type VerdictActivityRow } from '@/lib/feed/plan-verdicts';
-import { qualityNames } from '@/lib/activities/quality-name';
+import { qualityNamesForPage } from '@/lib/activities/quality-name';
 import { hiddenInteractorsFor, hiddenCountsByItem, withoutHiddenInteractors } from '@/lib/feed/test-account-filter';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
@@ -108,7 +108,7 @@ export async function loadFeedContext(
       isStaff: viewer.isStaff,
     }),
     // A quality session's run goes under the coach's name for it; never throws.
-    qualityNames(supabase, activityRows).catch(() => new Map<string, string>()),
+    qualityNamesForPage(supabase, activityRows as never).catch(() => new Map<string, string>()),
   ]);
   if (likesRes.error) throw likesRes.error;
   if (commentsRes.error) throw commentsRes.error;

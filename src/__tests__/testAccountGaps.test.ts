@@ -56,7 +56,7 @@ vi.mock('@/lib/auth/pending-athletes', async (orig) => ({
   isPendingAthlete: async () => false,
 }));
 vi.mock('@/lib/feed/plan-verdicts', () => ({ loadFeedPlanVerdicts: async () => new Map() }));
-vi.mock('@/lib/activities/quality-name', () => ({ qualityNames: async () => new Map() }));
+vi.mock('@/lib/activities/quality-name', () => ({ qualityNames: async () => new Map(), qualityNamesForPage: async () => new Map() }));
 vi.mock('@/lib/supabase/paginate', () => ({ fetchAllRows: async () => [] }));
 vi.mock('@/lib/prs/exclusions-store', () => ({ readAllPrExclusions: async () => new Map() }));
 vi.mock('@/lib/prs/club-records', async (orig) => {
