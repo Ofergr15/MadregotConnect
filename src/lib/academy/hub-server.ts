@@ -6,6 +6,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { getPlanWeekStart, shiftWeekStart, getActivityWeekStart } from '@/lib/utils';
 import { coachIdsByTrainee } from './trainee-coaches';
+import { monthKey } from '@/lib/finance/summary';
 import { fetchWeeklyVolume } from '@/lib/athletes/weekly-volume';
 import {
   traineePromises, countPromises, oldestUnansweredHours, daysSinceContact, medianReplyHours, planDeadline,
@@ -148,10 +149,11 @@ export async function readHub(opts: {
     // Retention (doc p.3 "שייכות ושימור"): payment recorded this month + an event this month. Both reads
     // degrade to empty (tables hand-migrated); the counts then read 0, never an error.
     const activeIds = trainees.filter((t) => !t.paused).map((t) => t.athleteId);
-    const month = weekStart.slice(0, 7);
+    // The calendar month we're in, not the month of the plan week's Sunday (wrong on the 1st-6th).
+    const month = monthKey(now);   // Israel calendar month; academy_payments.period is a DATE (YYYY-MM-01)
     const [y, m] = month.split('-').map(Number);
     const nextMonth = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-01`;   // a real date, not "-31"
-    const paidRows = activeIds.length ? await safe<any[]>(supabase.from('academy_payments').select('athlete_id').eq('period', month).in('athlete_id', activeIds), []) : [];
+    const paidRows = activeIds.length ? await safe<any[]>(supabase.from('academy_payments').select('athlete_id').eq('period', `${month}-01`).in('athlete_id', activeIds), []) : [];
     const monthEvents = await safe<any[]>(supabase.from('events').select('id').gte('date', `${month}-01`).lt('date', nextMonth), []);
     const regRows = activeIds.length && monthEvents.length
       ? await safe<any[]>(supabase.from('event_registrations').select('athlete_id').eq('status', 'registered')

@@ -138,3 +138,21 @@ describe('likes', () => {
     expect(sql.match(/ENABLE ROW LEVEL SECURITY/g)).toHaveLength(2);
   });
 });
+
+// QA 25.11 #1: the routes queried `photos_social` (the flag's name) and 503'd forever. The in-memory DB
+// does not check table names against migrations, so pin every `.from()` in the tag routes to 214's table.
+describe('photo tag routes — table name matches migration 214', () => {
+  it('every from() in /api/photos/tags* names the table 214 creates', () => {
+    const sql = readFileSync(new URL('../../supabase/migrations/214_photo_tags_likes.sql', import.meta.url), 'utf8');
+    const created = new Set([...sql.matchAll(/CREATE TABLE IF NOT EXISTS (\w+)/g)].map((m) => m[1]));
+    expect(created.has('photo_tags')).toBe(true);
+    const files = ['route.ts', 'approve/route.ts', 'mine/route.ts'];
+    let n = 0;
+    for (const f of files) {
+      const src = readFileSync(new URL(`../app/api/photos/tags/${f}`, import.meta.url), 'utf8');
+      expect(src).not.toMatch(/from\('photos_social'\)/);   // the flag's name, not a table
+      n += (src.match(/\.from\('photo_tags'\)/g) || []).length;
+    }
+    expect(n).toBe(7);
+  });
+});

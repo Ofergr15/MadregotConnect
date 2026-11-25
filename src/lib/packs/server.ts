@@ -7,6 +7,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { addDaysToDateStr, planWeekStartOf, resolveGroup } from '@/lib/utils';
 import { extractWorkouts } from '@/lib/plans/workout-parsing';
+import { PLAN_STATUSES } from '@/lib/plans/plan-status';
 import { autoMarks, buildRows, parseTimeOfDay, type AttendanceRow, type StoredMark } from './attendance';
 
 type Db = SupabaseClient;
@@ -62,7 +63,7 @@ export async function packSession(db: Db, date: string, groupIndex: number): Pro
   const weekStart = planWeekStartOf(date);
   const { data: plans } = await db.from('weekly_plans')
     .select('parsed_workouts, created_at')
-    .is('athlete_id', null).eq('week_start_date', weekStart)
+    .is('athlete_id', null).eq('week_start_date', weekStart).in('status', [...PLAN_STATUSES])   // a draft is not the plan
     .order('created_at', { ascending: false }).limit(1);
   const plan = plans?.[0];
   if (!plan) return null;
@@ -75,7 +76,7 @@ export async function packSession(db: Db, date: string, groupIndex: number): Pro
 /** When the pack's current week plan was published — for "read the plan". */
 export async function planPublishedAt(db: Db, date: string): Promise<string | null> {
   const { data } = await db.from('weekly_plans').select('created_at')
-    .is('athlete_id', null).eq('week_start_date', planWeekStartOf(date))
+    .is('athlete_id', null).eq('week_start_date', planWeekStartOf(date)).in('status', [...PLAN_STATUSES])
     .order('created_at', { ascending: false }).limit(1);
   return data?.[0]?.created_at ?? null;
 }
