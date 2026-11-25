@@ -1,4 +1,3 @@
-import { SIGNUPS_CLOSED_BODY, signupsOpen } from '@/lib/signups/open';
 import { cleanIntake } from '@/lib/join/intake';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
@@ -91,8 +90,6 @@ async function recordMemberSubmission(
 
 export async function POST(request: Request) {
   try {
-    // Closed to new members unless the club switch is on (lib/signups/open). Checked first, same answer for everyone.
-    if (!(await signupsOpen())) return NextResponse.json(SIGNUPS_CLOSED_BODY, { status: 403 });
     const body = (await request.json().catch(() => ({}))) as { email?: string; groupId?: string; fullName?: string; phone?: string; onb?: string; intake?: unknown; channel?: unknown };
     const email = normaliseEmail(body.email || '');
     const ip = clientIp(request.headers);

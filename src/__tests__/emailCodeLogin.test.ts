@@ -39,10 +39,15 @@ describe('sign in with a code by email', () => {
     expect(mint).toMatch(/createSyntheticSession\(admin, member\.email,/);
   });
 
-  it('is the landing page itself (email-only since 2026-11-25)', () => {
+  it('is THE sign-in on the landing page: no Strava/Google sign-in buttons (2026-11-25)', () => {
     const page = read('app/page.tsx');
-    expect(page).toMatch(/<EmailCodeLogin \/>/);
-    expect(read('components/auth/EmailCodeLogin.tsx')).toMatch(/autoComplete=\{i === 0 \? 'one-time-code'/);
+    expect(page).toMatch(/<EmailCodeSheet open=\{showEmailCode\}/);
+    expect(page).not.toMatch(/useStravaLogin|signInWithStrava|strava\?mode=login|showSignIn/);
+    // Header "כניסה", both "כבר חברים? כניסה" and ?signin=1 open the code sheet.
+    expect(page.match(/onClick=\{\(\) => setShowEmailCode\(true\)\}/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(page).toMatch(/if \(!open\) return;\s+setShowEmailCode\(true\);/);
+    expect(read('components/auth/EmailCodeSheet.tsx')).not.toMatch(/להיכנס עם Strava/);
+    expect(read('components/auth/EmailCodeSheet.tsx')).toMatch(/autoComplete="one-time-code"/);
   });
 });
 

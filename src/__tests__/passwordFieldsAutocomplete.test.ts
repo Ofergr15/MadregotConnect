@@ -9,6 +9,7 @@ import path from 'path';
 
 const SRC = path.join(__dirname, '..');
 const EXPECTED: Record<string, { kind: 'garmin' | 'login'; autoComplete: string; name: string | null }> = {
+  'app/page.tsx': { kind: 'login', autoComplete: 'current-password', name: null },
   'app/admin/login/page.tsx': { kind: 'login', autoComplete: 'current-password', name: null },
   'app/(app)/dashboard/profile/page.tsx': { kind: 'garmin', autoComplete: 'off', name: 'garmin-password' },
   'app/join/academy/[token]/page.tsx': { kind: 'garmin', autoComplete: 'off', name: 'garmin-password' },
@@ -39,7 +40,7 @@ const found = walk(path.join(SRC, 'app')).flatMap(f => passwordTags(readFileSync
   .map(tag => ({ file: path.relative(SRC, f).split(path.sep).join('/'), tag })));
 
 describe('password fields and autofill', () => {
-  it('the list of password fields is exactly the expected five', () => {
+  it('the list of password fields is exactly the expected six', () => {
     expect(found.map(f => f.file).sort()).toEqual(Object.keys(EXPECTED).sort());
   });
 

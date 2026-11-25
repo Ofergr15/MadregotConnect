@@ -22,7 +22,7 @@ describe('every post-login landing uses postLoginPath', () => {
     'components/auth/EmailCodeSheet.tsx',
     'app/auth/resolve/page.tsx',
     'app/welcome/page.tsx',
-    'components/auth/EmailCodeLogin.tsx',
+    'app/page.tsx',
     'app/admin/login/page.tsx',
     'components/setup/SetupGate.tsx',
   ];

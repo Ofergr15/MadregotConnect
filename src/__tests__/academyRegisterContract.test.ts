@@ -1,8 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// signups_open defaults off (lib/signups/open); these tests exercise the route with the door open.
-vi.mock('@/lib/signups/open', () => ({ signupsOpen: async () => true, SIGNUPS_CLOSED_BODY: { error: 'signups-closed' } }));
-
 /**
  * CONTRACT for the native academy form client: POST /api/academy/register.
  * Pins the body the route reads, which parts it validates (only name and email — the

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAcademyManager } from '@/lib/academy/pairing-server';
-import { isPublicDoorOpen, mayRegister, REGISTRATION_KEY } from '@/lib/academy/registration';
+import { isRegistrationOpen, mayRegister, REGISTRATION_KEY } from '@/lib/academy/registration';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   const supabase = createServerClient();
   const invite = new URL(request.url).searchParams.get('invite');
-  const [open, canRegister] = await Promise.all([isPublicDoorOpen(supabase), mayRegister(supabase, invite)]);
+  const [open, canRegister] = await Promise.all([isRegistrationOpen(supabase), mayRegister(supabase, invite)]);
   return NextResponse.json({ open, canRegister }, { headers: { 'Cache-Control': 'no-store' } });
 }
 

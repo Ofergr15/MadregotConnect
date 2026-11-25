@@ -1,8 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// signups_open defaults off (lib/signups/open); these tests exercise the route with the door open.
-vi.mock('@/lib/signups/open', () => ({ signupsOpen: async () => true, SIGNUPS_CLOSED_BODY: { error: 'signups-closed' } }));
-
 // app_settings, athletes and the funnel, filtered the way PostgREST would.
 const db: Record<string, Record<string, unknown>[]> = {};
 const upserts: Record<string, unknown>[] = [];

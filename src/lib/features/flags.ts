@@ -20,9 +20,6 @@
 // ═════════════════════════════════════════════════════════════════════════════
 
 export const FEATURES = {
-  /** New sign-ups (/register, /academy-register, their POST routes). Off: the club takes no new members right now
-   *  (Ofer, 2026-11-25). Existing invite links (/join/{token}) are unaffected. Public: read signed out. */
-  signups_open: { label: 'הרשמה פתוחה לחברים חדשים', defaultEnabled: false },
   /** Post-workout feedback prompts + pain reports (design/feedback-prototype). */
   feedback_pain: { label: 'משוב ודיווח כאב', defaultEnabled: false },
   /** שיאים tab: weekly board, champions, squad comparison (design/records-prototype). */
@@ -219,7 +216,7 @@ export function isFeatureKey(v: unknown): v is FeatureKey {
  * on the signed-out gateway, where there is no caller to resolve. Only a club-wide switch is ever
  * disclosed — never a per-athlete/squad/role row.
  */
-export const PUBLIC_FEATURE_KEYS: readonly FeatureKey[] = ['academy_register', 'u21_entry', 'native_onboarding_setup', 'gateway_v4', 'signups_open'];
+export const PUBLIC_FEATURE_KEYS: readonly FeatureKey[] = ['academy_register', 'u21_entry', 'native_onboarding_setup', 'gateway_v4'];
 
 /** The club-wide answer alone: only a `club` row counts; no row = the default (off). */
 export function resolveClubScope(feature: FeatureKey, rows: EnablementRow[]): boolean {

@@ -1,8 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// signups_open defaults off (lib/signups/open); these tests exercise the route with the door open.
-vi.mock('@/lib/signups/open', () => ({ signupsOpen: async () => true, SIGNUPS_CLOSED_BODY: { error: 'signups-closed' } }));
-
 /**
  * POST /api/public/signup is public and every accepted submission writes a row and mails
  * the approver, staff and the typed address. Five a minute per person (ip|email), forty
