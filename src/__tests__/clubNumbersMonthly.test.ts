@@ -81,3 +81,23 @@ describe('computeMonthlySeries', () => {
     const s = JSON.stringify(out); expect(s).not.toMatch(/Runner [ab]|"b"/);
   });
 });
+
+describe('Israel-month bucketing of real timestamps (Q25-8)', () => {
+  // 00:30 Israel on 1 Nov 2026 (UTC+2) = 22:30 UTC on 31 Oct.
+  const out = computeMonthlySeries(input({
+    athletes: [
+      ath('early', { createdAt: '2026-10-31T22:30:00Z' }),
+      ath('left', { status: 'removed', removedAt: '2026-10-31T22:30:00Z' }),
+    ],
+  }));
+  const nov = out.series.find((s) => s.month === '2026-11')!;
+  const oct = out.series.find((s) => s.month === '2026-10')!;
+  it('a join at 00:30 Israel on the 1st counts in the new month', () => {
+    expect(nov.joined).toBe(1);
+    expect(oct.joined).toBe(0);
+  });
+  it('a removal at 00:30 Israel on the 1st counts in the new month', () => {
+    expect(nov.left).toBe(1);
+    expect(oct.left).toBe(0);
+  });
+});
