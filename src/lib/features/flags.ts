@@ -28,6 +28,8 @@ export const FEATURES = {
   week_health: { label: 'השבוע — עיצוב בריאות', defaultEnabled: false },
   /** Race-day live tracking + milestone pushes (lib/race-live, migration 196). */
   race_live: { label: 'מעקב חי במרוץ', defaultEnabled: false },
+  /** Native ולנסיה v3: Mediterranean timeline, countdown ring, a colour per stop (design/b24/valencia-v3, direction B). */
+  valencia_v3: { label: 'ולנסיה — עיצוב חדש', defaultEnabled: false },
   /** b24: a runner on the board shares their phone's location during the race (POST /api/race-live/{id}/position). */
   race_live_phone: { label: 'שיתוף מיקום מהטלפון במרוץ', defaultEnabled: false },
   /** Native היסטוריית אימונים: every own run, paged, month/type/plan filters (ios Features/History). */
