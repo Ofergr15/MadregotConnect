@@ -79,7 +79,7 @@ export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenCh
           <form onSubmit={send} className="flex flex-col gap-3">
             <p className="text-sm leading-relaxed text-ink-500">כותבים את המייל שאיתו נרשמתם למדרגות, ונשלח אליו קוד של 6 ספרות.</p>
             <input
-              type="email" inputMode="email" autoComplete="email" dir="ltr" required autoFocus
+              type="email" inputMode="email" autoComplete="email" dir="ltr" required onFocus={(e) => { const el = e.currentTarget; setTimeout(() => el.scrollIntoView({ block: 'center' }), 300); }}
               value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com"
               className="h-[52px] rounded-xl border border-page bg-card px-4 text-base text-ink-700 focus:border-brand-600 focus:outline-none"
             />
@@ -100,7 +100,7 @@ export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenCh
               {help && <> <a href={help} target="_blank" rel="noopener noreferrer" className="font-bold text-brand-600 underline">כתבו לנו בווטסאפ</a></>}
             </p>
             <input
-              inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]*" maxLength={7} dir="ltr" required autoFocus
+              inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]*" maxLength={7} dir="ltr" required onFocus={(e) => { const el = e.currentTarget; setTimeout(() => el.scrollIntoView({ block: 'center' }), 300); }}
               value={code} onChange={(e) => setCode(e.target.value.replace(/[^\d]/g, '').slice(0, 6))} placeholder="123456"
               className="h-[60px] rounded-xl border border-page bg-card px-4 text-center text-[28px] font-black tracking-[0.3em] text-ink-700 focus:border-brand-600 focus:outline-none"
             />
