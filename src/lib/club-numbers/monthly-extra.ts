@@ -9,9 +9,12 @@
  * Each section is `null` for a month it cannot answer (nothing marked, no plan) rather than 0,
  * so a client never draws a collapse that is really missing data.
  */
+import { israelToday } from '@/lib/utils';
 import { CLUB_PACKS, packOf } from './compute';
 
 const monthOf = (iso: string) => iso.slice(0, 7);
+/** A real UTC timestamp (created_at/removed_at), bucketed by its Asia/Jerusalem month. */
+const stampMonthOf = (iso: string) => israelToday(new Date(iso)).slice(0, 7);
 const lastDay = (ym: string) => {
   const [y, m] = ym.split('-').map(Number);
   return `${ym}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`;
@@ -130,7 +133,7 @@ export function computeMonthlyExtra(x: XInput) {
     for (const p of MONTHLY_PACKS) packs[p].km = Math.round(packs[p].km);
 
     const academy = members.filter((a) => academyAt(a, ym)).length;
-    const tracks = { club: members.length - academy, academy, u21: x.u21.filter((u) => monthOf(u.createdAt) === ym).length };
+    const tracks = { club: members.length - academy, academy, u21: x.u21.filter((u) => stampMonthOf(u.createdAt) === ym).length };
 
     // Watch at the month's end. A disconnection carries no date, so a member who has since
     // disconnected reads as never connected — the history undercounts, today's figure is exact.
@@ -162,7 +165,7 @@ export function computeMonthlyExtra(x: XInput) {
   // Retention by join month: of those who joined in month X, the share who ran in X+0, X+1, …
   const ranIn = new Map<string, Set<string>>(x.months.map((m) => [m, new Set((runsBy.get(m) ?? []).map((r) => r.athleteId))]));
   const cohorts = x.months.map((ym, i) => {
-    const joined = x.athletes.filter((a) => monthOf(a.createdAt) === ym);
+    const joined = x.athletes.filter((a) => stampMonthOf(a.createdAt) === ym);
     const ran = x.months.slice(i).map((m) => (joined.length ? r2(joined.filter((a) => ranIn.get(m)!.has(a.id)).length / joined.length) : null));
     return { month: ym, size: joined.length, ran };
   }).filter((c) => c.size > 0);

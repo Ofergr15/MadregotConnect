@@ -11,6 +11,7 @@
  *   `undefined` for everyone and left/retention are `null`; active members then fall back to
  *   accounts created by the month's end that are not `status = 'removed'` today.
  */
+import { israelToday } from '@/lib/utils';
 import { RUN_TYPES } from './compute';
 
 export const WINDOWS = ['3m', '12m', 'ytd', 'all'] as const;
@@ -27,6 +28,8 @@ export interface MInput {
 }
 
 const monthOf = (iso: string) => iso.slice(0, 7);
+/** A real UTC timestamp (created_at/removed_at), bucketed by its Asia/Jerusalem month. */
+const stampMonthOf = (iso: string) => israelToday(new Date(iso)).slice(0, 7);
 export function addMonths(ym: string, n: number): string {
   const t = Number(ym.slice(0, 4)) * 12 + Number(ym.slice(5, 7)) - 1 + n;
   return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`;
@@ -67,11 +70,11 @@ export function computeMonthlySeries(x: MInput) {
   for (const r of runs) byMonth.get(r.month)!.push(r);
 
   const memberAt = (a: MAthlete, ym: string) => {
-    if (a.createdAt.slice(0, 10) > lastDay(ym)) return false;
-    if (hasRemovedAt) return !a.removedAt || a.removedAt.slice(0, 10) >= `${ym}-01`;
+    if (israelToday(new Date(a.createdAt)) > lastDay(ym)) return false;
+    if (hasRemovedAt) return !a.removedAt || israelToday(new Date(a.removedAt)) >= `${ym}-01`;
     return a.status !== 'removed';
   };
-  const countBy = (rows: Array<{ athleteId: string; createdAt: string }>, ym: string) => rows.filter((r) => ids.has(r.athleteId) && monthOf(r.createdAt) === ym).length;
+  const countBy = (rows: Array<{ athleteId: string; createdAt: string }>, ym: string) => rows.filter((r) => ids.has(r.athleteId) && stampMonthOf(r.createdAt) === ym).length;
 
   const series = months.map((ym) => {
     const rs = byMonth.get(ym)!;
@@ -79,19 +82,19 @@ export function computeMonthlySeries(x: MInput) {
     for (const r of rs) per.set(r.athleteId, (per.get(r.athleteId) ?? 0) + 1);
     const ran = per.size;
     const km = rs.reduce((s, r) => s + r.km, 0);
-    const startMembers = people.filter((a) => a.createdAt.slice(0, 10) < `${ym}-01` && memberAt(a, ym));
+    const startMembers = people.filter((a) => israelToday(new Date(a.createdAt)) < `${ym}-01` && memberAt(a, ym));
     const paces = rs.filter((r) => r.km >= 5 && r.km <= 25 && r.type !== 'treadmill_running' && r.seconds > 0)
       .map((r) => r.seconds / 60 / r.km).filter((v) => v > 3 && v < 8);
     const md = median(paces);
     const kudos = countBy(x.kudos, ym), comments = countBy(x.comments, ym);
-    const painRows = x.pain.filter((p) => ids.has(p.athleteId) && monthOf(p.createdAt) === ym);
+    const painRows = x.pain.filter((p) => ids.has(p.athleteId) && stampMonthOf(p.createdAt) === ym);
     return {
       month: ym,
       activeMembers: people.filter((a) => memberAt(a, ym)).length,
-      joined: people.filter((a) => monthOf(a.createdAt) === ym).length,
-      left: hasRemovedAt ? people.filter((a) => a.removedAt && monthOf(a.removedAt) === ym).length : null,
+      joined: people.filter((a) => stampMonthOf(a.createdAt) === ym).length,
+      left: hasRemovedAt ? people.filter((a) => a.removedAt && stampMonthOf(a.removedAt) === ym).length : null,
       retention: hasRemovedAt && startMembers.length
-        ? r2(startMembers.filter((a) => !a.removedAt || a.removedAt.slice(0, 10) > lastDay(ym)).length / startMembers.length) : null,
+        ? r2(startMembers.filter((a) => !a.removedAt || israelToday(new Date(a.removedAt)) > lastDay(ym)).length / startMembers.length) : null,
       ran1: ran,
       ran8: [...per.values()].filter((n) => n >= 8).length,
       runs: rs.length,
