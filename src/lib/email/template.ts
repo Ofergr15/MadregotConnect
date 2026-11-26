@@ -94,6 +94,9 @@ export interface EmailBlocks {
   /** The line above "צוות מדרגות" at the end of a member mail. `false` = no sign-off
    *  (staff alerts). Default "נתראה בריצה,". */
   signoff?: string | false;
+  /** One quiet line under the club footer — the newsletter's "why you got this /
+   *  how to stop" (b25). Plain text, escaped. */
+  footerNote?: string;
 }
 
 export interface SetupProgressRow {
@@ -236,7 +239,8 @@ export function renderEmail(blocks: EmailBlocks): string {
 ${preheader}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${D.page}" style="background-color: ${D.page};">
 <tr><td align="center" style="padding: 22px 12px 28px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 560px;">
+<!--[if mso]><table role="presentation" width="560" align="center" cellpadding="0" cellspacing="0" border="0" dir="rtl"><tr><td><![endif]-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width: 100%; max-width: 560px;">
 
   <!-- the badge on the sunset (lib/email/academy-form-received): Outlook shows the dusk colour alone -->
   <tr><td bgcolor="${D.dusk}" align="center" style="background-color: ${D.dusk}; background-image: linear-gradient(160deg, ${D.dusk} 0%, ${D.sun} 100%); border-radius: 26px 26px 0 0; padding: 30px 20px 28px;">
@@ -257,9 +261,11 @@ ${preheader}
 
   <tr><td align="center" style="padding: 20px 10px 0; font-family: ${FONT};">
     <a href="${esc(APP_URL)}" dir="ltr" style="font-size: 11px; font-weight: 700; letter-spacing: 0.2em; color: ${D.muted}; text-decoration: none;">MADREGOT · AFTER 2KM · RUNNING CLUB</a>
+    ${blocks.footerNote ? `<div style="font-family: ${FONT}; font-size: 11px; color: ${D.muted}; line-height: 1.6; margin-top: 8px;">${esc(blocks.footerNote)}</div>` : ''}
   </td></tr>
 
 </table>
+<!--[if mso]></td></tr></table><![endif]-->
 </td></tr>
 </table>
 </body>

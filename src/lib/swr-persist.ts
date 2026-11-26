@@ -61,6 +61,8 @@ const NEVER_PERSIST = [
   // The leads screen: applicants' names, contact details and staff notes, read on a
   // shared iPad. Staff-only on the server; must never rest on the device.
   /\/api\/admin\/leads/,
+  // b25 email center: every member's address and who opened what.
+  /\/api\/admin\/email-center/,
   /\/api\/pain-reports/, /\/api\/workout-feedback/, /\/api\/feedback-prompts/];
 
 export function neverPersisted(key: string): boolean {
