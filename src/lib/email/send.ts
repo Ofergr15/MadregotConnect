@@ -62,7 +62,7 @@ export interface OutboundEmail {
   fromName?: string | null;
   /** Where a reply goes. Unset, it goes to the sending address, which nobody reads. */
   replyTo?: string | null;
-  /** b25: the email_campaigns row this mail belongs to (migration 221). */
+  /** b25: the email_campaigns row this mail belongs to (migration 222). */
   campaignId?: string | null;
   /** Extra headers — the newsletter's List-Unsubscribe. */
   headers?: Record<string, string>;
@@ -135,7 +135,7 @@ async function writeLog(row: Record<string, unknown>): Promise<string | null> {
       const { candidate_id: _dropped, ...rest } = row;
       ({ data, error } = await insert(rest));
     }
-    // Before migration 221 there is no campaign_id column: same rule.
+    // Before migration 222 there is no campaign_id column: same rule.
     if (error && 'campaign_id' in row && isMissingColumn(error, 'campaign_id')) {
       const { campaign_id: _dropped, ...rest } = row;
       ({ data, error } = await insert(rest));

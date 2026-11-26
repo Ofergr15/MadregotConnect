@@ -1,4 +1,4 @@
--- 221_email_tracking.sql — b25 club email center: campaigns + per-message delivery events.
+-- 222_email_tracking.sql — b25 club email center: campaigns + per-message delivery events.
 --
 -- NOT applied automatically. Paste into the Supabase SQL editor by hand. Idempotent.
 --

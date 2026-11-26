@@ -90,8 +90,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'bad payload' }, { status: 400 });
   }
 
-  // b25: every tracked event also lands in email_events (migration 221) — the email
-  // center's opens/clicks. Deduped on svix-id so a retry is a no-op. Before 221 is
+  // b25: every tracked event also lands in email_events (migration 222) — the email
+  // center's opens/clicks. Deduped on svix-id so a retry is a no-op. Before 222 is
   // pasted the table is missing (42P01) and this is skipped silently; any other failure
   // is a 500 so Resend retries.
   const row = eventRowFrom(event, request.headers.get('svix-id'));

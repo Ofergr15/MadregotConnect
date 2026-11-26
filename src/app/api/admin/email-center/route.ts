@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 /**
- * /api/admin/email-center — b25 club email center (flag `email_center`, migration 221).
+ * /api/admin/email-center — b25 club email center (flag `email_center`, migration 222).
  *
  *   GET  ?preview=welcome|newsletter|declined   → { subject, html } (sample data)
  *   GET                                        → campaigns with totals + transactional mail by template (30 days)
@@ -49,7 +49,7 @@ async function gate(request: Request): Promise<{ denied: Response | null; caller
 }
 
 const missingTable = (e: { code?: string } | null) => e?.code === '42P01';
-const notReady = () => NextResponse.json({ ready: false, error: 'migration 221 not applied' }, { status: 503 });
+const notReady = () => NextResponse.json({ ready: false, error: 'migration 222 not applied' }, { status: 503 });
 
 function build(kind: string, input: NewsletterInput | null, name?: string | null): BuiltEmail | null {
   if (kind === 'welcome') return welcomeEmail({ name, coachName: null, groupName: null });

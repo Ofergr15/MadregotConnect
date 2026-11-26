@@ -574,7 +574,7 @@ answers **503** while 203 is unapplied, which the client reads as "fall back to
 /api/feedback". If you add a field to a report response, it must never reach a non-staff
 caller. Pinned by `src/__tests__/moderationRoutes.test.ts`.
 
-Recorded exposure change, **2026-11-25** (b25 email center, migration 221, flag
+Recorded exposure change, **2026-11-25** (b25 email center, migration 222, flag
 `email_center` default off): `GET/POST /api/admin/email-center` is the first route that
 reads **who opened / clicked which club mail**, per named member, and its POST mails the
 whole club. Gated **admin-only** (`isSuperUser || role === 'admin'`), like
@@ -585,6 +585,19 @@ prior test of that campaign plus the typed confirmation `שלח לכולם`. `em
 `email_campaigns` are RLS-on/no-policies; the route is in `NEVER_PERSIST`
 (`swr-persist.ts`). Opens are approximate (Apple Mail Privacy Protection pre-loads the pixel);
 the screen says so. Pinned by `emailCenterRoute.test.ts` and `emailTracking.test.ts`.
+
+Recorded change, **2026-11-26** (migration 221): a run is graded on **the pack it was run
+with**, not only the assigned one. `resolveRanLane` (`lib/plan-execution/ran-lane.ts`)
+picks manual → pace (the dominant block fits one pack's band with a 4 s/km margin) →
+watch (the steps carry one pack's paces) → assigned. Pace outranks the watch because the
+device holds the copy pushed for the pack at push time; `retargetToLane` then keeps the
+watch's steps and swaps in the graded lane's paces, and the verdict/feed summary carry
+`matchedLane` + `laneSource`. `POST /api/activities/{id}/lane` stores the runner's own
+"I ran with pack N" in `activity_plan_matches.ran_lane` — self-or-staff (`mayActFor`),
+athlete taken from the run row, 404 for a stranger, 503 while 221 is unapplied;
+`matchAthleteActivities` carries it across re-matching. The segments route and the feed
+also grade the plan slot the run was **matched** to (`pickPlanned`), so a session run a
+day or two early is graded on its own day; the matcher allows early-by-2 (late stays ≤1).
 
 ## The AI parser — the accuracy-critical path
 

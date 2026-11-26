@@ -10,7 +10,6 @@ import { helpWhatsAppHref } from '@/lib/help-whatsapp';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase/client';
-import { Sheet } from '@/components/ui';
 
 export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const help = helpWhatsAppHref('היי, ניסיתי להיכנס לאפליקציה של מדרגות עם קוד במייל והוא לא מגיע');
@@ -73,8 +72,17 @@ export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenCh
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="כניסה עם קוד במייל">
-      <div dir="rtl" className="px-1 pb-4">
+    // A top-anchored full-screen layer, not a bottom sheet: on iOS the keyboard pushed the
+    // bottom drawer off-screen ("everything jumps up", 25.11). Content at the top never sits
+    // under the keyboard.
+    !open ? null : (
+    <div role="dialog" aria-modal="true" aria-label="כניסה עם המייל" dir="rtl"
+      className="fixed inset-0 z-[310] overflow-y-auto bg-page px-5 pb-[env(safe-area-inset-bottom)] pt-[calc(env(safe-area-inset-top)+16px)]">
+      <div className="mx-auto flex max-w-md items-center justify-between pb-4">
+        <h2 className="text-xl font-black text-ink-700">כניסה עם המייל</h2>
+        <button type="button" aria-label="סגירה" onClick={() => onOpenChange(false)} className="min-h-[44px] min-w-[44px] text-2xl text-ink-500">×</button>
+      </div>
+      <div className="mx-auto max-w-md pb-4">
         {step === 'email' ? (
           <form onSubmit={send} className="flex flex-col gap-3">
             <p className="text-sm leading-relaxed text-ink-500">כותבים את המייל שאיתו נרשמתם למדרגות, ונשלח אליו קוד של 6 ספרות.</p>
@@ -87,6 +95,21 @@ export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenCh
             <button type="submit" disabled={busy || !email.trim()} className="min-h-[52px] rounded-pill bg-brand-600 text-base font-black text-white disabled:opacity-50">
               {busy ? 'שולח…' : 'שליחת קוד'}
             </button>
+            <div className="flex items-center gap-3 py-1 text-sm font-bold text-ink-500"><span className="h-px flex-1 bg-current opacity-30" />או<span className="h-px flex-1 bg-current opacity-30" /></div>
+            {/* 12 of 62 members joined through Strava and have no real email on file (25.11), so
+                Strava sign-in stays available here as the fallback for them. */}
+            <button type="button" disabled={busy} onClick={async () => {
+              setBusy(true);
+              try {
+                const r = await fetch('/api/strava?mode=login');
+                const d = await r.json();
+                if (d.authUrl) { window.location.href = d.authUrl; return; }
+                throw new Error();
+              } catch { setError('לא הצלחנו לפתוח את Strava, נסו שוב'); setBusy(false); }
+            }} className="min-h-[52px] rounded-pill bg-[#FC4C02] text-base font-black text-white disabled:opacity-50">
+              כניסה עם Strava
+            </button>
+            <p className="text-center text-[13px] text-ink-500">נרשמתם דרך Strava ולא זוכרים את המייל? השתמשו בכפתור הכתום.</p>
           </form>
         ) : (
           <form onSubmit={verify} className="flex flex-col gap-3">
@@ -96,7 +119,7 @@ export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenCh
             {/* Nothing comes for an address the club doesn't have — say what to do then,
                 rather than leave them waiting (Chen Becher, 2026-10-20). */}
             <p className="text-[13px] leading-relaxed text-ink-500">
-              לא מגיע תוך דקה? אולי נרשמתם עם כתובת אחרת — אפשר לנסות אותה, או להיכנס עם Strava.
+              לא מגיע תוך דקה? אולי נרשמתם עם כתובת אחרת — אפשר לנסות אותה.
               {help && <> <a href={help} target="_blank" rel="noopener noreferrer" className="font-bold text-brand-600 underline">כתבו לנו בווטסאפ</a></>}
             </p>
             <input
@@ -115,6 +138,7 @@ export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenCh
           </form>
         )}
       </div>
-    </Sheet>
+    </div>
+    )
   );
 }

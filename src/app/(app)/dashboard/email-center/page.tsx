@@ -187,7 +187,7 @@ function ComposeTab({ onSent }: { onSent: () => void }) {
 function SendsTab() {
   const { data, error } = useApi<ListResp>(API);
   const [open, setOpen] = useState<string | null>(null);
-  if (error) return <p className="text-sm text-[#b91c1c]">{String((error as Error).message || error)} — אם מיגרציה 221 לא הורצה, המעקב עוד לא פעיל.</p>;
+  if (error) return <p className="text-sm text-[#b91c1c]">{String((error as Error).message || error)} — אם מיגרציה 222 לא הורצה, המעקב עוד לא פעיל.</p>;
   if (!data) return <p className="text-sm text-ink-500">טוען…</p>;
   return (
     <div className="space-y-4">

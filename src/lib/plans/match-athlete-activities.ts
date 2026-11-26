@@ -424,6 +424,20 @@ export async function matchAthleteActivities(
     const manualActivityIds = new Set((manualMatches || []).map((match) => match.activity_id));
     const manualWorkoutKeys = new Set((manualMatches || []).map((match) => match.workout_key));
 
+    // "I ran with pack N" (migration 221) lives on the match row, and the derived rows
+    // are rebuilt below — so it is read first and carried onto the run's new row.
+    // Nothing to carry before 221 is applied (the select errors, the map stays empty).
+    const ranLaneByActivity = new Map<string, number>();
+    {
+      const { data: laneRows, error: laneError } = await supabase
+        .from('activity_plan_matches')
+        .select('activity_id, ran_lane')
+        .eq('athlete_id', athleteId)
+        .eq('weekly_plan_id', plan.id)
+        .not('ran_lane', 'is', null);
+      if (!laneError) for (const r of (laneRows || []) as Array<{ activity_id: string; ran_lane: number }>) ranLaneByActivity.set(r.activity_id, r.ran_lane);
+    }
+
     // Both derived methods go, not just 'auto': a garmin_workout row is recomputed
     // from the deliveries every time too, and leaving stale ones behind would trip
     // the unique constraints on the way back in.
@@ -537,8 +551,11 @@ export async function matchAthleteActivities(
       })),
     ];
     if (!rows.length) continue;
+    const insertRows = rows.map((row) => ranLaneByActivity.has(row.activity_id)
+      ? { ...row, ran_lane: ranLaneByActivity.get(row.activity_id) }
+      : row);
 
-    const { error: insertError } = await supabase.from('activity_plan_matches').insert(rows);
+    const { error: insertError } = await supabase.from('activity_plan_matches').insert(insertRows);
     if (insertError) {
       if (isMissingMatchesTable(insertError)) {
         matched += rows.length;

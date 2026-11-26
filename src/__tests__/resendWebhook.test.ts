@@ -19,7 +19,7 @@ let updateError: { code: string; message: string } | null;
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: () => ({
     from: () => ({
-      // b25: email_events (migration 221) — not this file's subject.
+      // b25: email_events (migration 222) — not this file's subject.
       insert: () => Promise.resolve({ error: null }),
       update: (patch: Record<string, unknown>) => ({
         eq: (_col: string, providerId: unknown) => {
