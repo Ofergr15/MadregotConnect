@@ -202,6 +202,12 @@ export interface ExecutionVerdict {
   paceScope: ExecutionPaceScope | null;
   /** The run's average pace, when the pace row above isn't it. */
   wholeRunPace: number | null;
+  /**
+   * The pack (1-3) whose paces this run was graded against, and why that one —
+   * see `plan-execution/ran-lane.ts`. Absent from callers that don't resolve it.
+   */
+  matchedLane?: 1 | 2 | 3;
+  laneSource?: 'manual' | 'watch' | 'pace' | 'assigned';
   metrics: ExecutionMetric[];
   reps: ExecutionRep[];
   repsAligned: boolean;
@@ -493,6 +499,9 @@ export interface VerdictInput {
   /** See `ExecutionPaceScope`. Omit when `adherence.pace` is the whole-run average. */
   paceScope?: ExecutionPaceScope | null;
   wholeRunPace?: number | null;
+  /** See `ExecutionVerdict.matchedLane`. */
+  matchedLane?: 1 | 2 | 3;
+  laneSource?: ExecutionVerdict['laneSource'];
 }
 
 export function buildVerdict(input: VerdictInput): ExecutionVerdict {
@@ -503,6 +512,7 @@ export function buildVerdict(input: VerdictInput): ExecutionVerdict {
     activityId,
     athleteId,
     toleranceSec: tolerances.paceSec,
+    ...(input.matchedLane ? { matchedLane: input.matchedLane, laneSource: input.laneSource ?? 'assigned' } : {}),
   };
 
   if (!adherence || !adherence.completed) {
@@ -721,6 +731,8 @@ export interface ExecutionSummary {
   workoutName: string | null;
   /** See `ExecutionVerdict.partsNotReps`. Only present when true. */
   partsNotReps?: boolean;
+  matchedLane?: ExecutionVerdict['matchedLane'];
+  laneSource?: ExecutionVerdict['laneSource'];
 }
 
 /**
@@ -739,6 +751,7 @@ export function toExecutionSummary(verdict: ExecutionVerdict): ExecutionSummary 
     direction: verdict.direction,
     workoutName: verdict.workoutName,
     ...(verdict.partsNotReps ? { partsNotReps: true } : {}),
+    ...(verdict.matchedLane ? { matchedLane: verdict.matchedLane, laneSource: verdict.laneSource } : {}),
   };
 }
 

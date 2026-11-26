@@ -5,6 +5,8 @@ import { assessWorkout, buildPlannedWorkout } from '@/lib/academy/adherence';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 import { loadPackLanes } from '@/lib/groups/pack-history';
+import { pickPlanned, resolveRanLane } from '@/lib/plan-execution/ran-lane';
+import { readRunMatches } from '@/lib/plan-execution/run-match';
 import { buildVerdict, toExecutionSummary, type ExecutionSummary } from '@/lib/plan-execution/verdict';
 import { resolveDominantPace } from '@/lib/plan-execution/dominant-pace';
 import { satelliteIds } from '@/lib/plan-execution/satellite';
@@ -150,7 +152,7 @@ export async function loadFeedPlanVerdicts(
     // workout's entire content, its per-rep paces, is unreadable, so `buildVerdict`
     // correctly refuses to score it and the card loses its ring. Nothing off them
     // reaches the client; only the five-field summary crosses the wire.
-    const [laneOn, indivRes, sharedRes, settings, executed] = await Promise.all([
+    const [laneOn, indivRes, sharedRes, settings, executed, runMatches] = await Promise.all([
       // The pack each runner was in ON the run's day, not today's (migration 145).
       loadPackLanes(supabase, athleteIds),
       supabase
@@ -165,6 +167,9 @@ export async function loadFeedPlanVerdicts(
         .order('created_at', { ascending: false }),
       loadAcademySettings(),
       executedWorkoutsFor(supabase, runs.map(r => r.id)),
+      // The plan slot each run was matched to (a session run a day or two early is
+      // graded against its own day) and any "I ran with pack N" the runner gave.
+      readRunMatches(supabase, runs.map(r => r.id)).catch(() => new Map()),
     ]);
     const { tolerances } = settings;
 
@@ -201,14 +206,30 @@ export async function loadFeedPlanVerdicts(
       if (satellites.has(row.id)) continue;
       const date = activityLocalDateStr(row.start_time);
       const weekStart = planWeekStartOf(date);
-      const lane = laneOn(row.athlete_id, date);
+      const assigned = laneOn(row.athlete_id, date) as Lane;
       // The athlete's own plan wins over the club-wide one, as everywhere else.
       const indiv = indivByKey.get(`${row.athlete_id}|${weekStart}`);
       const parsed = indiv ?? sharedByWeek.get(weekStart);
       if (!parsed) continue;
       const cacheKey = indiv ? `i:${row.athlete_id}:${weekStart}` : `s:${weekStart}`;
       const dayOfWeek = new Date(`${date}T12:00:00Z`).getUTCDay();
-      const planned = workoutsFor(parsed, cacheKey, lane).find(w => w.dayOfWeek === dayOfWeek);
+      const match = runMatches.get(row.id);
+      const plannedFor = (l: Lane) => pickPlanned(workoutsFor(parsed, cacheKey, l), dayOfWeek, match?.workoutKey);
+      const laps = normalizeStoredLaps(row.laps);
+      const workout = executed.get(row.id);
+      // The pack this run was run with (ran-lane.ts) — the same resolution the run
+      // detail makes, so the ring and the detail grade one lane.
+      const ran = resolveRanLane({
+        assigned,
+        override: match?.ranLane ?? null,
+        executed: workout,
+        trace: traceFromLaps(laps),
+        plannedFor,
+        paceSec: tolerances.paceSec,
+      });
+      const lane = plannedFor(ran.lane) ? ran.lane : assigned;
+      const laneSource = lane === ran.lane ? ran.source : 'assigned';
+      const planned = plannedFor(lane);
       if (!planned) continue;
 
       const graded = assessWorkout(
@@ -233,8 +254,6 @@ export async function loadFeedPlanVerdicts(
       // The watch's own account of which step each lap was comes first when it exists,
       // because it is evidence where the block search is inference. Both funnel through
       // the same "one dominant step" rule, so a run cannot pick up two verdicts.
-      const laps = normalizeStoredLaps(row.laps);
-      const workout = executed.get(row.id);
       const watched = workout
         ? gradeWatchSteps(workout, laps, lane, tolerances.paceSec)
         : null;
@@ -273,6 +292,8 @@ export async function loadFeedPlanVerdicts(
         workoutName: planned.name,
         paceScope,
         wholeRunPace: graded.pace.actual,
+        matchedLane: lane,
+        laneSource,
       });
       // Only a real score earns a place on the card. `ungraded` (reps unread) and
       // `unplanned` (no workout that day) are both honest answers, but a ring

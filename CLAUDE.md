@@ -574,6 +574,17 @@ answers **503** while 203 is unapplied, which the client reads as "fall back to
 /api/feedback". If you add a field to a report response, it must never reach a non-staff
 caller. Pinned by `src/__tests__/moderationRoutes.test.ts`.
 
+Recorded change, **2026-11-26** (migration 221): a run is graded on **the pack it was run
+with**, not only the assigned one. `resolveRanLane` (`lib/plan-execution/ran-lane.ts`)
+picks manual → watch (the watch steps carry one pack's paces) → pace (the dominant block
+fits one pack's band with a 4 s/km margin) → assigned, and the verdict/feed summary carry
+`matchedLane` + `laneSource`. `POST /api/activities/{id}/lane` stores the runner's own
+"I ran with pack N" in `activity_plan_matches.ran_lane` — self-or-staff (`mayActFor`),
+athlete taken from the run row, 404 for a stranger, 503 while 221 is unapplied;
+`matchAthleteActivities` carries it across re-matching. The segments route and the feed
+also grade the plan slot the run was **matched** to (`pickPlanned`), so a session run a
+day or two early is graded on its own day; the matcher allows early-by-2 (late stays ≤1).
+
 ## The AI parser — the accuracy-critical path
 
 `src/lib/ai/parser.ts` + `prompt.ts`. Two tiers:

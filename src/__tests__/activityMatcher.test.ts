@@ -143,3 +143,38 @@ describe('extra runs and the run that fits', () => {
     expect(m.map((x) => x.workoutKey)).toEqual(['thu-easy']);
   });
 });
+
+// Ofer, 2026-11-26: tomorrow's workout today, or the day after's, matches that workout.
+describe('a session run early', () => {
+  // 2026-10-18 is a Sunday (day 0).
+  const at = (day: number, hh: number) => `2026-10-${String(18 + day).padStart(2, '0')}T${String(hh).padStart(2, '0')}:00:00+00:00`;
+  const run = (id: string, day: number, km: number) => ({ id, start_time: at(day, 6), distance: km * 1000, activity_name: 'Run' });
+  const session = (key: string, day: number, km: number): ParsedWorkout => ({
+    dayOfWeek: day, name: key, workoutKey: key, partIndex: 1, partCount: 1, expectedDistanceM: km * 1000, steps: [],
+  });
+
+  it('early by one: Thursday\'s session run on Wednesday', () => {
+    const m = matchActivityParts([run('wed', 3, 16.1)], [session('thu-long', 4, 16)]);
+    expect(m.map((x) => [x.activityId, x.workoutKey, x.evidence.dayDelta])).toEqual([['wed', 'thu-long', 1]]);
+  });
+  it('early by two: Friday\'s session run on Wednesday', () => {
+    const m = matchActivityParts([run('wed', 3, 16.1)], [session('fri-long', 5, 16)]);
+    expect(m.map((x) => [x.activityId, x.workoutKey, x.evidence.dayDelta])).toEqual([['wed', 'fri-long', 2]]);
+  });
+  it('the whole week is searched: the run takes the session it fits, not the nearest day', () => {
+    // Thursday is a 6 km easy, Friday the 16 km: a 16 km run on Wednesday is Friday's.
+    const m = matchActivityParts([run('wed', 3, 16.1)], [session('thu-easy', 4, 6), session('fri-long', 5, 16)]);
+    expect(m.map((x) => x.workoutKey)).toEqual(['fri-long']);
+  });
+  it('early by one beats early by two when both fit', () => {
+    const m = matchActivityParts([run('wed', 3, 12)], [session('thu', 4, 12), session('fri', 5, 12)]);
+    expect(m.map((x) => x.workoutKey)).toEqual(['thu']);
+  });
+  it('a day whose own session was run does not also take a later day\'s', () => {
+    const m = matchActivityParts([run('wed-am', 3, 10), run('wed-pm', 3, 16)], [session('wed', 3, 10), session('fri-long', 5, 16)]);
+    expect(m.map((x) => [x.activityId, x.workoutKey])).toEqual([['wed-am', 'wed']]);
+  });
+  it('two days LATE is still not a match', () => {
+    expect(matchActivityParts([run('fri', 5, 16)], [session('wed-long', 3, 16)])).toEqual([]);
+  });
+});

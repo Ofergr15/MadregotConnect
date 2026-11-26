@@ -23,7 +23,7 @@ export interface ActivityPartMatch {
     activityOrder: number;
     partIndex: number;
     matchedNameTokens: string[];
-    /** 0 = ran on the planned day, 1 = shifted by a day. See DAY_SHIFT_SCORE. */
+    /** 0 = ran on the planned day, 1 = shifted by a day, 2 = two days early. See DAY_SHIFT_SCORE. */
     dayDelta: number;
     plannedDayOfWeek: number;
   };
@@ -46,7 +46,16 @@ export interface ActivityPartMatch {
  */
 const SAME_DAY_SCORE = 30;
 const DAY_SHIFT_SCORE = 12;
-const MAX_DAY_DELTA = 1;
+/**
+ * Early by two: a runner who does Friday's session on Wednesday (a trip, a race, the
+ * pack meeting moved). Late by two is not allowed — two days late is a skipped
+ * session and an unrelated run, far more often than a moved one. Lower still than
+ * a one-day shift, so whenever a closer day fits it wins, and it only clears the
+ * threshold on a genuinely close distance fit.
+ */
+const EARLY_BY_TWO_SCORE = 6;
+const MAX_EARLY_DAYS = 2;
+const MAX_LATE_DAYS = 1;
 
 function workoutKind(workout: ParsedWorkout): 'quality' | 'easy' | 'other' {
   try {
@@ -64,8 +73,10 @@ function pairScore(
   // Linear, not circular: the caller has already narrowed the activities to this
   // plan's Sun→Sat week, so a Sunday workout run on Saturday is six days late,
   // not one day early.
-  const dayDelta = Math.abs(activityLocalDay(activity.start_time) - workout.dayOfWeek);
-  if (dayDelta > MAX_DAY_DELTA) return null;
+  // Positive: the run came BEFORE the session's day (tomorrow's workout today).
+  const shift = workout.dayOfWeek - activityLocalDay(activity.start_time);
+  if (shift > MAX_EARLY_DAYS || -shift > MAX_LATE_DAYS) return null;
+  const dayDelta = Math.abs(shift);
 
   const actual = activity.distance || null;
   const expected = workout.expectedDistanceM || null;
@@ -79,7 +90,7 @@ function pairScore(
     return null;
   }
 
-  let score = dayDelta === 0 ? SAME_DAY_SCORE : DAY_SHIFT_SCORE;
+  let score = dayDelta === 0 ? SAME_DAY_SCORE : dayDelta === 1 ? DAY_SHIFT_SCORE : EARLY_BY_TWO_SCORE;
   if (difference != null && tolerance != null) {
     score += Math.max(0, 50 * (1 - difference / Math.max(tolerance * 2, 1)));
   } else {

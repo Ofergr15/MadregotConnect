@@ -30,6 +30,8 @@ import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
 import { PLAN_STATUSES } from '@/lib/plans/plan-status';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
+import { pickPlanned, resolveRanLane, type RanLane } from '@/lib/plan-execution/ran-lane';
+import { readRunMatch } from '@/lib/plan-execution/run-match';
 
 export const dynamic = 'force-dynamic';
 
@@ -130,6 +132,11 @@ async function handleGET(request: Request) {
     // overlap that one instead of adding to the response time.
     // The pack on THAT day — a member who moved since is graded as they ran (145).
     const lanePromise = groupNumberForAthlete(supabase, athleteId, date.slice(0, 10));
+    // The run's stored plan match, when the page names the run: which plan slot it was
+    // attributed to (a run that did tomorrow's session today is graded against
+    // tomorrow's), and the pack the runner said they ran with. Null before 221.
+    const matchRead = byActivity ? readRunMatch(supabase, byActivity) : Promise.resolve(null);
+    matchRead.catch(() => {});
 
     // 1) Planned workout for that day — the athlete's individual plan wins (newest,
     //    tolerating duplicates), else the coach-wide shared plan (athlete_id NULL).
@@ -169,9 +176,14 @@ async function handleGET(request: Request) {
     // actually asked to run. An individual plan goes through it too — it's
     // single-lane, so a plain plan comes back untouched, and one that does carry
     // bracket notation resolves to this athlete's lane rather than the fastest.
-    const lane = (await lanePromise) as Lane;
+    const assignedLane = (await lanePromise) as Lane;
+    const runMatch = await matchRead.catch(() => null);
+    // Until the run itself is read, the lane is the runner's say-so or their pack.
+    let lane: Lane = (runMatch?.ranLane as Lane | null) ?? assignedLane;
+    let planBlob: unknown = null;
     if (!indiv.error && indiv.data && indiv.data.length) {
-      workouts = laneWorkouts(indiv.data[0].parsed_workouts, lane);
+      planBlob = indiv.data[0].parsed_workouts;
+      workouts = laneWorkouts(planBlob, lane);
     } else {
       let shared = await sharedRead;
       if (shared.error) {
@@ -181,10 +193,12 @@ async function handleGET(request: Request) {
           .in('status', PLAN_STATUSES)
           .order('created_at', { ascending: false });
       }
-      workouts = shared.data?.length ? laneWorkouts(shared.data[0].parsed_workouts, lane) : [];
+      planBlob = shared.data?.length ? shared.data[0].parsed_workouts : null;
+      workouts = planBlob ? laneWorkouts(planBlob, lane) : [];
     }
-    const planned = workouts.find(w => w.dayOfWeek === dayOfWeek);
-    if (!planned) {
+    const workoutKey = runMatch?.workoutKey ?? null;
+    const dayPlanned = pickPlanned(workouts, dayOfWeek, workoutKey);
+    if (!dayPlanned) {
       const reason = 'no planned workout for this day';
       if (wantsBands || wantsVerdict) {
         return NextResponse.json({
@@ -195,6 +209,7 @@ async function handleGET(request: Request) {
       }
       return NextResponse.json({ segments: [], aligned: false, reason });
     }
+    let planned: ParsedWorkout = dayPlanned;
 
     // Chart-overlay mode: the planned pace BANDS on a meter timeline. The client
     // projects them onto the activity's actual split distances (splits are not
@@ -203,7 +218,7 @@ async function handleGET(request: Request) {
     // No lap fetch needed, so `?bands=1` alone answers here. Asked for alongside
     // `?verdict=1` it rides along on the plan lookup both modes share, which is
     // what the activity detail wants: one request for the overlay and the verdict.
-    const bandsPayload = wantsBands
+    const bandsFor = () => wantsBands
       ? (() => {
         const bands = buildPlannedBands(planned);
         return {
@@ -217,6 +232,7 @@ async function handleGET(request: Request) {
         };
       })()
       : {};
+    let bandsPayload = bandsFor();
     // Everything below this line reads the athlete's activity and its laps, which
     // is work only a verdict needs. A bands-only request stops here — and so does a
     // request for a verdict this caller may not read, which is what keeps the
@@ -335,8 +351,39 @@ async function handleGET(request: Request) {
     const stored = await loadActivityStream(supabase, activity.id);
     const trace = traceFromStream(stored?.series) ?? traceFromLaps(laps);
 
+    const { tolerances } = await settingsPromise;
+    const { paceSec } = tolerances;
+
+    // The pack this run was actually run with — see ran-lane.ts. Resolved here, once
+    // the watch's step list and the trace are in hand, and everything below (blocks,
+    // watch steps, the verdict, the chart bands) is graded on it.
+    const laneCache = new Map<Lane, ParsedWorkout | undefined>();
+    const plannedFor = (l: Lane) => {
+      if (!laneCache.has(l)) laneCache.set(l, planBlob ? pickPlanned(laneWorkouts(planBlob, l), dayOfWeek, workoutKey) : undefined);
+      return laneCache.get(l);
+    };
+    const ranLane: RanLane = resolveRanLane({
+      assigned: assignedLane,
+      override: runMatch?.ranLane ?? null,
+      executed: executedWorkout,
+      trace,
+      plannedFor,
+      paceSec,
+    });
+    if (ranLane.lane !== lane) {
+      const relaned = plannedFor(ranLane.lane);
+      if (relaned) {
+        lane = ranLane.lane;
+        planned = relaned;
+        bandsPayload = bandsFor();
+      }
+    }
+    const matchedLane = lane;
+    const laneSource = lane === ranLane.lane ? ranLane.source : 'assigned';
+
     // 4) Flatten + match + grade.
     const flat = flattenPlannedSteps(planned);
+
     // A session the coach wrote in HR is graded on HR — see segments.ts. Written in
     // beats ("דופק 150") it needs nothing; written as a percentage it needs the
     // athlete's anchor, and that read is made only when the plan actually contains
@@ -347,8 +394,6 @@ async function handleGET(request: Request) {
         .from('athletes').select('max_hr_bpm').eq('id', athleteId).maybeSingle();
       hrAnchorBpm = (hrRow as { max_hr_bpm?: number | null } | null)?.max_hr_bpm ?? null;
     }
-    const { tolerances } = await settingsPromise;
-    const { paceSec } = tolerances;
     // Graded by the steps actually run, as /api/plan-execution grades it (resolve.ts
     // stepLaps): raw 1 km auto-laps under a stuck open step scored a 14 + 7 + 7 at 52%.
     const ranLaps = stepLaps({ laps, executed_workout: executedWorkout }, laps as never) as StoredLap[];
@@ -425,6 +470,8 @@ async function handleGET(request: Request) {
           workoutName: planned.name,
           paceScope,
           wholeRunPace: graded.pace.actual,
+          matchedLane,
+          laneSource,
         }),
         // Beside the verdict, not inside it: the verdict is the one scored answer
         // three surfaces render, and these are the working out behind it — every
