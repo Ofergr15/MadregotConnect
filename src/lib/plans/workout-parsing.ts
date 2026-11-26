@@ -10,6 +10,7 @@ import {
 } from './step-estimate';
 import { classifyWorkout } from './session-summary';
 import { sessionKind } from './session-label';
+import { lanePaceFromNotes } from '@/lib/ai/splitGroups';
 
 /**
  * Shared parsing/derivation logic for `weekly_plans.parsed_workouts` (the
@@ -142,20 +143,42 @@ function stepGroupPace(step: WorkoutStep | undefined): GroupPace {
   return { min: step.targetPaceMinPerKm, max: step.targetPaceMaxPerKm || step.targetPaceMinPerKm };
 }
 
-function annotateSteps(s1: WorkoutStep[], s2: WorkoutStep[], s3: WorkoutStep[]): WorkoutStep[] {
+function samePace(a: GroupPace, b: GroupPace): boolean {
+  return !!a && !!b && a.min === b.min && a.max === b.max;
+}
+
+/**
+ * A flat plan (no `group2`/`group3` split for the day) still carries the other packs'
+ * paces — in the step's own `group2Pace`/`group3Pace`, or in its notes in the coach's
+ * bracket notation `3:30 (3:40) ((3:50))`. Without this all three lanes came out as
+ * Group ❶'s pace (owner 25.11: "every pack the same pace" on a Tuesday). The notes are
+ * trusted for ❷/❸ only when their ❶ agrees with the step's own pace (or the step has
+ * none), so a stray pace in the prose can't invent a lane.
+ */
+function flatLanePaces(step: WorkoutStep): GroupPace[] {
+  const own = stepGroupPace(step);
+  const notes1 = lanePaceFromNotes(step.notes, 1);
+  const notesUsable = !!notes1 && (!own || samePace(own, notes1));
+  const g1 = own ?? (notesUsable ? notes1 : null);
+  const lane = (n: 2 | 3, field: GroupPace | undefined): GroupPace =>
+    field ?? (notesUsable ? lanePaceFromNotes(step.notes, n) : null) ?? g1;
+  return [g1, lane(2, step.group2Pace), lane(3, step.group3Pace)];
+}
+
+/** `s2`/`s3` null = no per-group split for this session: read the lanes off each step. */
+function annotateSteps(s1: WorkoutStep[], s2: WorkoutStep[] | null, s3: WorkoutStep[] | null): WorkoutStep[] {
+  const flat = !s2 && !s3;
   return s1.map((step, i) => {
-    const s2i = s2[i];
-    const s3i = s3[i];
+    const s2i = s2?.[i];
+    const s3i = s3?.[i];
     const annotated: any = {
       ...step,
-      groupPaces: [stepGroupPace(step), stepGroupPace(s2i), stepGroupPace(s3i)],
+      groupPaces: flat ? flatLanePaces(step) : [stepGroupPace(step), stepGroupPace(s2i), stepGroupPace(s3i)],
     };
     if (step.repeatSteps) {
-      annotated.repeatSteps = annotateSteps(
-        step.repeatSteps,
-        s2i?.repeatSteps || step.repeatSteps,
-        s3i?.repeatSteps || step.repeatSteps,
-      );
+      annotated.repeatSteps = flat
+        ? annotateSteps(step.repeatSteps, null, null)
+        : annotateSteps(step.repeatSteps, s2i?.repeatSteps || step.repeatSteps, s3i?.repeatSteps || step.repeatSteps);
     }
     return annotated;
   });
@@ -165,8 +188,8 @@ export function enrichWithGroupPaces(parsedWorkouts: any): ParsedWorkout[] {
   const g1 = extractWorkouts(parsedWorkouts);
   const g2 = parsedWorkouts?.group2?.workouts as ParsedWorkout[] | undefined;
   const g3 = parsedWorkouts?.group3?.workouts as ParsedWorkout[] | undefined;
-  // Flat plan (single group) or no per-group split → nothing extra to attach;
-  // groupPaces falls back to group1's own pace for all three.
+  // Flat plan (single group) or no per-group split → each step's own group2Pace/group3Pace
+  // or bracket notes (flatLanePaces), else group1's pace for all three.
   // Paired by day AND part: a day with a morning and an evening session used to take the
   // first session of the day for groups 2/3, so the evening's steps were annotated with the
   // morning's paces (or none, past the morning's step count).
@@ -182,6 +205,8 @@ export function enrichWithGroupPaces(parsedWorkouts: any): ParsedWorkout[] {
     const nth = g1.filter(x => x.dayOfWeek === w.dayOfWeek).indexOf(w);
     const w2 = twin(g2, w, nth);
     const w3 = twin(g3, w, nth);
+    // `twin` hands back `w` itself when the day has no split: that session is flat.
+    if (w2 === w && w3 === w) return { ...w, steps: annotateSteps(w.steps, null, null) };
     return { ...w, steps: annotateSteps(w.steps, w2.steps || [], w3.steps || []) };
   });
 }
