@@ -153,7 +153,7 @@ describe('b23 source pins', () => {
   it('records/weekly: day bars from the activity week, caller from the session, weekOffset', () => {
     const s = src('src/app/api/records/weekly/route.ts');
     expect(s).toMatch(/getActivityWeekStart\(israelDateAnchor\(\)\), 7 \* weekOffset/);
-    expect(s).toMatch(/dayKmOf\(await dayRowsP, weekStart, caller\.athleteId\)/);
+    expect(s).toMatch(/dayKmOf\(await dayRowsP, weekStart, caller\.athleteId, onBoard\)/);
     expect(s).not.toMatch(/err\.message/);
   });
 

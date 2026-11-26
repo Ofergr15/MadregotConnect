@@ -112,6 +112,15 @@ describe('POST /api/moderation/report', () => {
     expect(notifyStaff).toHaveBeenCalledTimes(1);
   });
 
+  it('concurrent twins (QA 26.11 #7): one row, one push, every caller gets the same id', async () => {
+    const res = await Promise.all(Array.from({ length: 8 }, () => report.POST(req('POST', { targetType: 'comment', targetId: 'c9', reason: 'spam' }))));
+    const ids = await Promise.all(res.map((r) => r.json().then((j) => j.id)));
+    expect(res.every((r) => r.status === 201)).toBe(true);
+    expect(new Set(ids).size).toBe(1);
+    expect(db.tables.content_reports).toHaveLength(1);
+    expect(notifyStaff).toHaveBeenCalledTimes(1);
+  });
+
   it('pushes staff once per open target, however many members report it', async () => {
     await report.POST(req('POST', { targetType: 'comment', targetId: 'c1', reason: 'spam' }));
     as(SOMEONE);

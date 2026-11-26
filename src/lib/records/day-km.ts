@@ -13,7 +13,12 @@ export interface DayKmRow { athlete_id: string; start_time: string; distance: nu
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
-export function dayKmOf(rows: DayKmRow[], weekStart: string, callerId: string | null): { dayKm: number[]; myDayKm: number[] } {
+/**
+ * `boardIds`: the people on the board (pace group + opt-out filter, QA 26.11 #8). The club bars count
+ * only them, so they add up to the board under ?group= and never carry an opted-out runner's km.
+ * The caller's own bars are theirs regardless. Omitted = every row (the old behaviour).
+ */
+export function dayKmOf(rows: DayKmRow[], weekStart: string, callerId: string | null, boardIds?: ReadonlySet<string>): { dayKm: number[]; myDayKm: number[] } {
   const club = Array(7).fill(0) as number[];
   const mine = Array(7).fill(0) as number[];
   const index = new Map(Array.from({ length: 7 }, (_, i) => [addDaysToDateStr(weekStart, i), i]));
@@ -21,7 +26,7 @@ export function dayKmOf(rows: DayKmRow[], weekStart: string, callerId: string | 
     const i = index.get(activityLocalDateStr(r.start_time));
     if (i == null) continue;
     const m = Number(r.distance) || 0;
-    club[i] += m;
+    if (!boardIds || boardIds.has(String(r.athlete_id))) club[i] += m;
     if (callerId && r.athlete_id === callerId) mine[i] += m;
   }
   return { dayKm: club.map((m) => r1(m / 1000)), myDayKm: mine.map((m) => r1(m / 1000)) };

@@ -19,6 +19,13 @@ describe('records weekly dayKm (b23 club week bars)', () => {
     expect(myDayKm).toEqual([10, 0, 0, 0, 0, 0, 20]);
   });
 
+  it('club bars count only the board (group + opt-out, QA 26.11 #8); the caller keeps their own', () => {
+    const rows = [run('a', '2026-11-23T06:00:00Z', 10), run('hidden', '2026-11-23T07:00:00Z', 7), run('g2', '2026-11-24T07:00:00Z', 4)];
+    const { dayKm, myDayKm } = dayKmOf(rows, '2026-11-23', 'hidden', new Set(['a']));
+    expect(dayKm).toEqual([10, 0, 0, 0, 0, 0, 0]);
+    expect(myDayKm).toEqual([7, 0, 0, 0, 0, 0, 0]);
+  });
+
   it('no caller id → zero row for "mine"', () => {
     expect(dayKmOf([run('a', '2026-11-23T06:00:00Z', 4)], '2026-11-23', null).myDayKm).toEqual([0, 0, 0, 0, 0, 0, 0]);
   });
