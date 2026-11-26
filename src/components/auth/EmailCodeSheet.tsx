@@ -10,6 +10,7 @@ import { helpWhatsAppHref } from '@/lib/help-whatsapp';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase/client';
+import { useStravaLogin } from '@/lib/auth/use-strava-login';
 
 export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const help = helpWhatsAppHref('היי, ניסיתי להיכנס לאפליקציה של מדרגות עם קוד במייל והוא לא מגיע');
@@ -19,6 +20,7 @@ export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenCh
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const strava = useStravaLogin();
 
   const post = (body: object) => fetch('/api/auth/email-code', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -91,22 +93,17 @@ export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenCh
               value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com"
               className="h-[52px] rounded-xl border border-page bg-card px-4 text-base text-ink-700 focus:border-brand-600 focus:outline-none"
             />
-            {error && <p className="text-sm font-semibold text-accent-red">{error}</p>}
+            {(error || strava.error) && <p className="text-sm font-semibold text-accent-red">{error || strava.error}</p>}
             <button type="submit" disabled={busy || !email.trim()} className="min-h-[52px] rounded-pill bg-brand-600 text-base font-black text-white disabled:opacity-50">
               {busy ? 'שולח…' : 'שליחת קוד'}
             </button>
             <div className="flex items-center gap-3 py-1 text-sm font-bold text-ink-500"><span className="h-px flex-1 bg-current opacity-30" />או<span className="h-px flex-1 bg-current opacity-30" /></div>
             {/* 12 of 62 members joined through Strava and have no real email on file (25.11), so
                 Strava sign-in stays available here as the fallback for them. */}
-            <button type="button" disabled={busy} onClick={async () => {
-              setBusy(true);
-              try {
-                const r = await fetch('/api/strava?mode=login');
-                const d = await r.json();
-                if (d.authUrl) { window.location.href = d.authUrl; return; }
-                throw new Error();
-              } catch { setError('לא הצלחנו לפתוח את Strava, נסו שוב'); setBusy(false); }
-            }} className="min-h-[52px] rounded-pill bg-[#FC4C02] text-base font-black text-white disabled:opacity-50">
+            {/* text-ink-900, not white: white on #FC4C02 is 3.40:1 (under AA); ink-900 on the
+                true brand orange is 4.87:1. */}
+            <button type="button" disabled={busy || strava.loading} onClick={strava.signIn}
+              className="min-h-[52px] rounded-pill bg-[#FC4C02] text-base font-black text-ink-900 disabled:opacity-50">
               כניסה עם Strava
             </button>
             <p className="text-center text-[13px] text-ink-500">נרשמתם דרך Strava ולא זוכרים את המייל? השתמשו בכפתור הכתום.</p>
