@@ -5,7 +5,7 @@ import { assessWorkout, buildPlannedWorkout } from '@/lib/academy/adherence';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 import { loadPackLanes } from '@/lib/groups/pack-history';
-import { pickPlanned, resolveRanLane } from '@/lib/plan-execution/ran-lane';
+import { pickPlanned, resolveRanLane, retargetToLane } from '@/lib/plan-execution/ran-lane';
 import { readRunMatches } from '@/lib/plan-execution/run-match';
 import { buildVerdict, toExecutionSummary, type ExecutionSummary } from '@/lib/plan-execution/verdict';
 import { resolveDominantPace } from '@/lib/plan-execution/dominant-pace';
@@ -255,7 +255,7 @@ export async function loadFeedPlanVerdicts(
       // because it is evidence where the block search is inference. Both funnel through
       // the same "one dominant step" rule, so a run cannot pick up two verdicts.
       const watched = workout
-        ? gradeWatchSteps(workout, laps, lane, tolerances.paceSec)
+        ? gradeWatchSteps(retargetToLane(workout, lane, plannedFor)!, laps, lane, tolerances.paceSec)
         : null;
       // Only searched for when the watch has no answer — locating a block on the
       // distance axis is the expensive half of this loop, and on a page of twenty runs

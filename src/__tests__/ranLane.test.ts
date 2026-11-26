@@ -7,7 +7,7 @@ import type { ParsedWorkout } from '@/lib/ai/types';
 import type { Lane } from '@/lib/academy/group-lane';
 import type { Trace } from '@/lib/academy/execution';
 import type { ExecutedWorkout } from '@/lib/garmin/executed-workout';
-import { laneFromPace, laneFromWatch, pickPlanned, resolveRanLane } from '@/lib/plan-execution/ran-lane';
+import { laneFromPace, laneFromWatch, pickPlanned, resolveRanLane, retargetToLane } from '@/lib/plan-execution/ran-lane';
 
 const block = (min: number, max: number, extra: Partial<ParsedWorkout> = {}): ParsedWorkout => ({
   dayOfWeek: 4, name: 'tempo', workoutKey: 'day-4-part-1-single', partIndex: 1, partCount: 1,
@@ -45,10 +45,14 @@ describe('the pack a run was run with', () => {
   it('a pace outside every pack (a jog) says nothing', () => {
     expect(laneFromPace(steady(330), plannedFor, 5)).toBeNull();
   });
-  it('the watch carrying one pack\'s pace names that pack, over the pace', () => {
+  it('the watch carrying one pack\'s pace names that pack when the pace can\'t say', () => {
     expect(laneFromWatch(watch('4:20-4:25'), plannedFor)).toBe(3);
-    expect(resolveRanLane({ assigned: 2, executed: watch('4:20-4:25'), trace: steady(252), plannedFor, paceSec: 5 }))
+    expect(resolveRanLane({ assigned: 2, executed: watch('4:20-4:25'), trace: steady(257.5), plannedFor, paceSec: 5 }))
       .toEqual({ lane: 3, source: 'watch' });
+  });
+  it('the pace outranks the watch: the watch holds the copy pushed for the old pack', () => {
+    expect(resolveRanLane({ assigned: 2, executed: watch('4:10-4:15'), trace: steady(262), plannedFor, paceSec: 5 }))
+      .toEqual({ lane: 3, source: 'pace' });
   });
   it('a watch note listing every pack is no evidence of which one was followed', () => {
     expect(laneFromWatch(watch('4:00 (4:10) ((4:20))'), plannedFor)).toBeNull();
@@ -81,5 +85,48 @@ describe('the plan day a run is graded on', () => {
   });
   it('no match: the run\'s own day', () => {
     expect(pickPlanned(week, 4, null)?.name).toBe('thursday');
+  });
+});
+
+// Owner's run 2026-11-26 (a261280c): pushed as pack 2 (5:00 / 3:53 / 3:45 / 3:38), run with
+// pack 3 at 4:58 / 4:02 / 3:55 / 3:46. Graded on pack 3, the watch's steps keep their shape
+// and take pack 3's targets: 5:00 / 4:03 / 3:55 / 3:48.
+describe('a watch workout pushed for another pack', () => {
+  const ladder = (paces: number[]): ParsedWorkout => ({
+    dayOfWeek: 5, name: 'ladder', workoutKey: 'day-5-part-1-single', partIndex: 1, partCount: 1,
+    steps: [1000, 4000, 8000, 4000].map((m, i) => ({
+      order: i + 1, type: i === 0 ? 'warmup' : 'active', durationType: 'distance', durationValue: m,
+      targetType: 'pace', targetPaceMinPerKm: paces[i], targetPaceMaxPerKm: paces[i],
+    })),
+  } as ParsedWorkout);
+  const lanes: Record<Lane, ParsedWorkout> = {
+    1: ladder([300, 223, 215, 208]), 2: ladder([300, 233, 225, 218]), 3: ladder([300, 243, 235, 228]),
+  };
+  const pf = (l: Lane) => lanes[l];
+  const pushed: ExecutedWorkout = {
+    name: 'Ladder', createdAt: null,
+    steps: [['5:00', 1000], ['3:53', 4000], ['3:45', 8000], ['3:38', 4000]].map(([n, m], i) => ({
+      stepIndex: i, intensity: i === 0 ? 'WARMUP' : 'ACTIVE', durationType: 'DISTANCE', distanceM: m as number, notes: n as string,
+    })),
+  } as ExecutedWorkout;
+  // 1 km 4:58, 4 km 4:02, 8 km 3:55, 4 km 3:46.
+  const ran = (() => {
+    const d = [0]; const t = [0];
+    for (const [km, p] of [[1, 298], [4, 242], [8, 235], [4, 226]]) for (let k = 0; k < km; k++) { d.push(d[d.length - 1] + 1000); t.push(t[t.length - 1] + p); }
+    return { d, t, resolutionM: 1000, source: 'laps' } as Trace;
+  })();
+
+  it('detects pack 3 from the pace, not pack 2 from the watch', () => {
+    expect(laneFromWatch(pushed, pf)).toBe(2);
+    expect(resolveRanLane({ assigned: 2, executed: pushed, trace: ran, plannedFor: pf, paceSec: 5 }))
+      .toEqual({ lane: 3, source: 'pace' });
+  });
+  it('the targets come out as pack 3\'s', () => {
+    const steps = retargetToLane(pushed, 3, pf)!.steps;
+    expect(steps.map(s => s.paceMin)).toEqual([300, 243, 235, 228]);
+    expect(steps.map(s => s.distanceM)).toEqual([1000, 4000, 8000, 4000]);
+  });
+  it('graded on the watch\'s own pack nothing changes', () => {
+    expect(retargetToLane(pushed, 2, pf)).toBe(pushed);
   });
 });

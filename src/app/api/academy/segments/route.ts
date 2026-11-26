@@ -30,7 +30,7 @@ import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
 import { PLAN_STATUSES } from '@/lib/plans/plan-status';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
-import { pickPlanned, resolveRanLane, type RanLane } from '@/lib/plan-execution/ran-lane';
+import { pickPlanned, resolveRanLane, retargetToLane, type RanLane } from '@/lib/plan-execution/ran-lane';
 import { readRunMatch } from '@/lib/plan-execution/run-match';
 
 export const dynamic = 'force-dynamic';
@@ -412,8 +412,11 @@ async function handleGET(request: Request) {
     // lap already carries the step it was, so the block does not have to be located and
     // a rep does not have to be recognised by its length. Null for the ~85% of runs
     // started as plain runs, and for a stamped run whose indices don't fit the list.
-    const watched = executedWorkout
-      ? gradeWatchSteps(executedWorkout, laps, lane, paceSec)
+    // The device holds the copy pushed for the runner's pack at push time; graded on
+    // another lane, its steps keep their shape and take this lane's paces.
+    const watchFor = retargetToLane(executedWorkout, lane, plannedFor);
+    const watched = watchFor
+      ? gradeWatchSteps(watchFor, laps, lane, paceSec)
       : null;
 
     // Verdict mode: the accuracy verdict for ONE run, from the single scorer in

@@ -576,8 +576,10 @@ caller. Pinned by `src/__tests__/moderationRoutes.test.ts`.
 
 Recorded change, **2026-11-26** (migration 221): a run is graded on **the pack it was run
 with**, not only the assigned one. `resolveRanLane` (`lib/plan-execution/ran-lane.ts`)
-picks manual → watch (the watch steps carry one pack's paces) → pace (the dominant block
-fits one pack's band with a 4 s/km margin) → assigned, and the verdict/feed summary carry
+picks manual → pace (the dominant block fits one pack's band with a 4 s/km margin) →
+watch (the steps carry one pack's paces) → assigned. Pace outranks the watch because the
+device holds the copy pushed for the pack at push time; `retargetToLane` then keeps the
+watch's steps and swaps in the graded lane's paces, and the verdict/feed summary carry
 `matchedLane` + `laneSource`. `POST /api/activities/{id}/lane` stores the runner's own
 "I ran with pack N" in `activity_plan_matches.ran_lane` — self-or-staff (`mayActFor`),
 athlete taken from the run row, 404 for a stranger, 503 while 221 is unapplied;

@@ -12,11 +12,16 @@ import { isRepeatMarker, stepPaceBand, type ExecutedWorkout } from '@/lib/garmin
 // run is graded on is resolved per run, best evidence first:
 //
 //   manual   — the runner (or staff) said "I ran with pack N" on this run.
-//   watch    — the workout on the watch carried ONE pack's paces: they are the
-//              paces the runner was following, so that is the pack.
 //   pace     — the main block's actual pace sits clearly inside one pack's band and
 //              clearly closer to it than to any other (a confidence margin).
+//   watch    — the workout on the watch carried ONE pack's paces.
 //   assigned — nothing above could tell; the pack they're in on that day.
+//
+// Pace outranks the watch on purpose (owner, 2026-11-26): the watch holds whatever
+// pack's copy was PUSHED, which is the pack the runner was in at push time — Ofer's
+// Thursday carried pack 2's 3:53/3:45/3:38 while he ran 4:02/3:55/3:46 with pack 3,
+// moved to pack 3 that morning. When the graded lane differs from the watch's,
+// `retargetToLane` keeps the watch's step STRUCTURE and swaps in that lane's paces.
 
 export type LaneSource = 'manual' | 'watch' | 'pace' | 'assigned';
 
@@ -116,10 +121,10 @@ export function resolveRanLane(input: {
 }): RanLane {
   const o = input.override;
   if (o === 1 || o === 2 || o === 3) return { lane: o, source: 'manual' };
-  const watch = laneFromWatch(input.executed, input.plannedFor);
-  if (watch) return { lane: watch, source: 'watch' };
   const pace = laneFromPace(input.trace ?? null, input.plannedFor, input.paceSec);
   if (pace) return { lane: pace, source: 'pace' };
+  const watch = laneFromWatch(input.executed, input.plannedFor);
+  if (watch) return { lane: watch, source: 'watch' };
   return { lane: input.assigned, source: 'assigned' };
 }
 
@@ -147,4 +152,41 @@ export function pickPlanned(
     }
   }
   return workouts.find(w => w.dayOfWeek === dayOfWeek);
+}
+
+/**
+ * The watch's step list with each paced step's target replaced by `lane`'s pace, when
+ * the workout on the device was built for another lane. Steps are mapped through the
+ * plan: a watch band is matched to the nearest band of the lane it was built for, and
+ * the same position in `lane`'s plan supplies the new target (the lanes share every
+ * step and differ only in pace). Unchanged when the watch's lane can't be told (notes
+ * carrying all three packs already read per lane) or is already `lane`.
+ */
+export function retargetToLane(
+  executed: ExecutedWorkout | null,
+  lane: Lane,
+  plannedFor: (lane: Lane) => ParsedWorkout | undefined,
+): ExecutedWorkout | null {
+  if (!executed) return executed;
+  const from = laneFromWatch(executed, plannedFor);
+  if (!from || from === lane) return executed;
+  const fromBands = planBands(plannedFor(from));
+  const toBands = planBands(plannedFor(lane));
+  if (!fromBands.length || fromBands.length !== toBands.length) return executed;
+  return {
+    ...executed,
+    steps: executed.steps.map(step => {
+      if (isRepeatMarker(step)) return step;
+      const band = stepPaceBand(step, from);
+      if (!band) return step;
+      let best = -1;
+      let bestOff = Infinity;
+      fromBands.forEach((b, i) => {
+        const off = Math.abs(centre(b) - centre(band));
+        if (off < bestOff) { bestOff = off; best = i; }
+      });
+      if (best < 0 || bestOff > WATCH_MATCH_SEC) return step;
+      return { ...step, paceMin: toBands[best].min, paceMax: toBands[best].max };
+    }),
+  };
 }
