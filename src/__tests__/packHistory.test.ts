@@ -125,3 +125,10 @@ describe('laneKeysLikeTheWatch', () => {
     expect(keys).toEqual({ a: 'group1' });
   });
 });
+
+describe('laneKeysLikeTheWatch without goals', () => {
+  it('leaves the name rule in charge when a pack has no marathon goal', async () => {
+    const { laneKeysLikeTheWatch } = await import('@/lib/groups/pack-history');
+    expect(laneKeysLikeTheWatch([{ id: 'g1' }, { id: 'g3' }])).toEqual({});
+  });
+});

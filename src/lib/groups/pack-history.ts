@@ -107,6 +107,12 @@ export function laneKeysLikeTheWatch(
   groups: Array<{ id: string; coach_id?: string | null; pace_profile?: { marathonGoal?: string | number | null } | null }>,
 ): Record<string, PaceGroupKey> {
   const clubGroups = groups.filter((g) => g.coach_id === undefined || g.coach_id === COACH_ID);
+  // Ranking means something only when every pack states a goal; otherwise keep the name rule.
+  const hasGoal = (g: (typeof clubGroups)[number]) => {
+    const goal = g.pace_profile?.marathonGoal;
+    return goal !== null && goal !== undefined && goal !== '';
+  };
+  if (clubGroups.length === 0 || !clubGroups.every(hasGoal)) return {};
   return paceGroupMap(clubGroups.map((g) => ({ id: g.id, marathonGoal: g.pace_profile?.marathonGoal ?? null })));
 }
 
