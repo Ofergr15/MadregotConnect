@@ -204,6 +204,25 @@ describe('LiveTrack through the race pipeline', () => {
     expect(own.runners.find((r) => r.athleteId === 'r1')?.liveTrack?.set).toBe(true);
   });
 
+  it('Q26-5: a stop is durable: the poller keeps the splits but never writes the position back, and the board hides it', async () => {
+    const db = seed();
+    const clock = { now: T0 + 3600e3 };
+    await raceLiveTick({ db, nowMs: clock.now, fetcher: fakeGarmin(clock) });
+    expect(db.tables.race_positions.find((r: any) => r.athlete_id === 'r1')?.source).toBe('livetrack');
+    // What DELETE /position does: the stop on race_entries, then the row goes.
+    db.tables.race_entries.find((e: any) => e.athlete_id === 'r1').sharing_stopped_at = new Date(clock.now).toISOString();
+    db.tables.race_positions = db.tables.race_positions.filter((r: any) => r.athlete_id !== 'r1');
+    const splitsBefore = db.tables.race_splits.filter((s: any) => s.athlete_id === 'r1').length;
+    clock.now += 1800e3;
+    await raceLiveTick({ db, nowMs: clock.now, fetcher: fakeGarmin(clock) });
+    expect(db.tables.race_positions.find((r: any) => r.athlete_id === 'r1')).toBeUndefined();
+    expect(db.tables.race_splits.filter((s: any) => s.athlete_id === 'r1').length).toBeGreaterThan(splitsBefore);
+    // Even a row that slipped in (an in-flight write) is not shown.
+    db.tables.race_positions.push({ event_id: EVENT, athlete_id: 'r1', lat: 1, lon: 1, distance_m: 1, elapsed_sec: 1, at: 'x' });
+    const fan1 = await liveBoard(db, EVENT, 'fan1');
+    expect(fan1.runners.find((r) => r.athleteId === 'r1')?.position).toBeNull();
+  });
+
   it('a passcode link is marked and not retried; everything is deleted 24 h after the window', async () => {
     const db = seed();
     const clock = { now: T0 + 600e3 };

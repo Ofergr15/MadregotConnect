@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
-import { isMissingTable } from '@/lib/supabase/schema-drift';
+import { isMissingTable, isMissingColumn } from '@/lib/supabase/schema-drift';
 import { enablementRows } from '@/lib/features/server';
 import { resolveFeature } from '@/lib/features/flags';
 import { sendPushLocalized, subscriptionsForAthletes, persistNotifications } from '@/lib/push';
@@ -13,7 +13,7 @@ import { replayFeedAt, replayRaceSec } from './replay';
 import {
   LIVETRACK_POLL_SEC, LiveTrackError, parseLiveTrackUrl, progressToSplits, readLiveTrack, sessionLooksEnded, trackProgress,
 } from './livetrack';
-import { phoneEtaSec } from './phone';
+import { phoneEtaSec, positionSharingOn } from './phone';
 
 export type SplitSource = 'manual' | 'feed' | 'livetrack' | 'replay';
 /** Who wins the same point: staff's official chip time, then the organizer's feed, then the watch. */
@@ -62,6 +62,31 @@ export async function fetchFeed(urlTemplate: string, bibs: string[], fetcher: ty
   }
   if (bibs.length && failures === bibs.length) throw new Error('feed unreachable for every bib');
   return out;
+}
+
+/**
+ * race_entries rows with the sharing stop (222). Pre-migration the column is missing: read without it,
+ * so the board and the poller keep working (the stop then only lasts until the next poll, as before).
+ */
+export async function entriesWithSharing(db: Db, eventId: string, columns: string, athleteId?: string): Promise<any[]> {
+  const run = (cols: string) => {
+    let q = db.from('race_entries').select(cols).eq('event_id', eventId);
+    if (athleteId) q = q.eq('athlete_id', athleteId);
+    return q;
+  };
+  const first = await run(`${columns}, sharing_stopped_at`);
+  if (!first.error) return (first.data || []) as any[];
+  if (!isMissingColumn(first.error, 'sharing_stopped_at')) return [];
+  return ((await run(columns)).data || []) as any[];
+}
+
+/** The one race_positions write (phone + LiveTrack). Stamps `source`; retries without it pre-222. */
+export async function writePosition(db: Db, row: Record<string, unknown> & { source: 'phone' | 'livetrack' }): Promise<{ error: unknown }> {
+  const first = await db.from('race_positions').upsert(row, { onConflict: 'event_id,athlete_id' });
+  if (!first.error || !isMissingColumn(first.error, 'source')) return { error: first.error };
+  const { source: _drop, ...rest } = row;
+  const retry = await db.from('race_positions').upsert(rest, { onConflict: 'event_id,athlete_id' });
+  return { error: retry.error };
 }
 
 async function loadEntries(db: Db, eventId: string): Promise<Entry[]> {
@@ -261,7 +286,7 @@ export async function raceLiveTick(opts: { nowMs?: number; db?: Db; fetcher?: ty
  * the same storeSplits → announceMilestones path (so dedup and source precedence hold).
  */
 export async function pollLiveTrack(db: Db, cfg: RaceConfig, nowMs: number, fetcher?: typeof fetch): Promise<{ polled: number; changed: number; pushed: number }> {
-  const { data } = await db.from('race_entries').select('athlete_id, live_opt_out, livetrack_url, livetrack_state, livetrack_polled_at').eq('event_id', cfg.event_id);
+  const data = await entriesWithSharing(db, cfg.event_id, 'athlete_id, live_opt_out, livetrack_url, livetrack_state, livetrack_polled_at');
   const { data: fin } = await db.from('race_splits').select('athlete_id').eq('event_id', cfg.event_id).eq('point', 'finish');
   const finished = new Set((fin || []).map((r: any) => String(r.athlete_id)));
   const out = { polled: 0, changed: 0, pushed: 0 };
@@ -279,8 +304,9 @@ export async function pollLiveTrack(db: Db, cfg: RaceConfig, nowMs: number, fetc
       const ended = sessionLooksEnded(r, nowMs);
       const p = trackProgress(r.points);
       const splits = progressToSplits(p, { ended });
-      if (p.last) {
-        await db.from('race_positions').upsert({ event_id: cfg.event_id, athlete_id: id, lat: p.last.lat, lon: p.last.lon, distance_m: Math.round(p.distanceM), elapsed_sec: p.elapsedSec, at: new Date(p.last.t).toISOString() }, { onConflict: 'event_id,athlete_id' });
+      // Q26-5: splits still flow (the board's times), but a runner who stopped sharing gets no position row.
+      if (p.last && positionSharingOn(e)) {
+        await writePosition(db, { event_id: cfg.event_id, athlete_id: id, lat: p.last.lat, lon: p.last.lon, distance_m: Math.round(p.distanceM), elapsed_sec: p.elapsedSec, at: new Date(p.last.t).toISOString(), source: 'livetrack' });
       }
       if ((await storeSplits(db, cfg.event_id, new Map([[id, splits]]), 'livetrack')).length) changed.push(id);
       if (ended) state = 'ended';
@@ -344,7 +370,7 @@ export async function liveBoard(db: Db, eventId: string, viewerId: string | null
   const visible = entries.filter((e) => !e.optOut || e.athleteId === viewerId);
   const ids = visible.map((e) => e.athleteId);
   const { data: people } = ids.length ? await db.from('athletes').select('id, name, avatar_url').in('id', ids) : { data: [] as any[] };
-  const { data: goals } = await db.from('race_entries').select('athlete_id, goal_sec, livetrack_url, livetrack_state').eq('event_id', eventId);
+  const goals = await entriesWithSharing(db, eventId, 'athlete_id, goal_sec, livetrack_url, livetrack_state');
   const { data: srcRows } = await db.from('race_splits').select('athlete_id, point, source').eq('event_id', eventId);
   const mapOn = viewerId ? !!((await db.from('race_map_viewers').select('athlete_id').eq('event_id', eventId).eq('athlete_id', viewerId)).data || []).length : false;
   const { data: posRows } = mapOn ? await db.from('race_positions').select('athlete_id, lat, lon, distance_m, elapsed_sec, at').eq('event_id', eventId) : { data: [] as any[] };
@@ -370,7 +396,7 @@ export async function liveBoard(db: Db, eventId: string, viewerId: string | null
       isSelf: e.athleteId === viewerId,
       lastSource: (srcRows || []).find((r: any) => String(r.athlete_id) === e.athleteId && r.point === last?.point)?.source ?? null,
       position: (() => {
-        if (e.optOut) return null;
+        if (e.optOut || ltOf.get(e.athleteId)?.sharing_stopped_at) return null;
         const pr = (posRows || []).find((r: any) => String(r.athlete_id) === e.athleteId);
         // b24: elapsed + a finish estimate from the device's own pace (phone or watch) for the fans' map.
         return pr ? { lat: pr.lat, lon: pr.lon, distanceM: pr.distance_m, elapsedSec: pr.elapsed_sec ?? null, etaSec: phoneEtaSec(pr.distance_m, pr.elapsed_sec ?? 0), at: pr.at } : null;
