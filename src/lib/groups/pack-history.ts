@@ -1,6 +1,8 @@
 import type { createServerClient } from '@/lib/supabase/server';
 import { resolveGroup } from '@/lib/utils';
 import type { Lane } from '@/lib/academy/group-lane';
+import { COACH_ID } from '@/lib/constants';
+import { paceGroupMap, type PaceGroupKey } from '@/lib/plans/pace-group';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
@@ -74,11 +76,14 @@ export async function loadPackLanes(
   if (ids.length === 0) return () => 2;
   const [athletesRes, groupsRes, history] = await Promise.all([
     supabase.from('athletes').select('id, group_id').in('id', ids),
-    supabase.from('groups').select('id, name'),
+    supabase.from('groups').select('id, name, coach_id, pace_profile'),
     readPackHistory(supabase, ids),
   ]);
   const current = new Map((athletesRes.data || []).map((a: { id: string; group_id: string | null }) => [a.id, a.group_id]));
-  const nameById = new Map((groupsRes.data || []).map((g: { id: string; name: string | null }) => [g.id, g.name]));
+  type GroupRow = { id: string; name: string | null; coach_id?: string | null; pace_profile?: { marathonGoal?: string | number | null } | null };
+  const groupRows = (groupsRes.data || []) as GroupRow[];
+  const nameById = new Map(groupRows.map((g) => [g.id, g.name]));
+  const keyById = laneKeysLikeTheWatch(groupRows);
   const byAthlete = new Map<string, PackHistoryRow[]>();
   for (const r of history) {
     const list = byAthlete.get(r.athlete_id);
@@ -86,8 +91,23 @@ export async function loadPackLanes(
   }
   return (athleteId, date) => {
     const groupId = packOn(byAthlete.get(athleteId) || [], current.get(athleteId) ?? null, date);
-    return laneOfName(groupId ? nameById.get(groupId) : null);
+    if (!groupId) return laneOfName(null);
+    // The lane the WATCH got its paces from (pace-group.ts), so a run is graded
+    // against the targets that were on the wrist. Grading by name alone put a
+    // pack-3 runner whose group isn't named "SUB 2:45"/"Group 3" on lane 2.
+    const key = keyById[groupId];
+    return key ? LANE_OF_KEY[key] : laneOfName(nameById.get(groupId));
   };
+}
+
+const LANE_OF_KEY: Record<PaceGroupKey, Lane> = { group1: 1, group2: 2, group3: 3 };
+
+/** group id → plan variant, by the same rule and over the same groups the watch push uses. */
+export function laneKeysLikeTheWatch(
+  groups: Array<{ id: string; coach_id?: string | null; pace_profile?: { marathonGoal?: string | number | null } | null }>,
+): Record<string, PaceGroupKey> {
+  const clubGroups = groups.filter((g) => g.coach_id === undefined || g.coach_id === COACH_ID);
+  return paceGroupMap(clubGroups.map((g) => ({ id: g.id, marathonGoal: g.pace_profile?.marathonGoal ?? null })));
 }
 
 /**

@@ -100,3 +100,28 @@ describe('pack switch helpers', async () => {
     });
   });
 });
+
+describe('laneKeysLikeTheWatch', () => {
+  it('ranks the club packs by marathon goal, whatever they are named', async () => {
+    const { laneKeysLikeTheWatch } = await import('@/lib/groups/pack-history');
+    const { COACH_ID } = await import('@/lib/constants');
+    const keys = laneKeysLikeTheWatch([
+      { id: 'slow', coach_id: COACH_ID, pace_profile: { marathonGoal: 'SUB 2:50' } },
+      { id: 'fast', coach_id: COACH_ID, pace_profile: { marathonGoal: 'SUB 2:30' } },
+      { id: 'mid', coach_id: COACH_ID, pace_profile: { marathonGoal: 'SUB 2:35' } },
+    ]);
+    expect(keys).toEqual({ fast: 'group1', mid: 'group2', slow: 'group3' });
+    // The bug: a third pack named anything but "SUB 2:45"/"Group 3" was graded as lane 2.
+    expect(laneOfName('דבוקה 3')).toBe(2);
+  });
+
+  it('ignores another coach’s groups, as the watch push does', async () => {
+    const { laneKeysLikeTheWatch } = await import('@/lib/groups/pack-history');
+    const { COACH_ID } = await import('@/lib/constants');
+    const keys = laneKeysLikeTheWatch([
+      { id: 'other', coach_id: 'someone-else', pace_profile: { marathonGoal: 'SUB 2:10' } },
+      { id: 'a', coach_id: COACH_ID, pace_profile: { marathonGoal: 'SUB 2:30' } },
+    ]);
+    expect(keys).toEqual({ a: 'group1' });
+  });
+});
