@@ -3,6 +3,17 @@
 @tailwind utilities;
 
 @layer base {
+  /* Design-language tokens (docs/design-language.md). Mirrors tailwind.config.ts
+     so inline styles / SVG / canvas code can read the same values. */
+  :root {
+    --mg-brand: #1525FF;
+    --mg-brand-pressed: #0F1CCC;
+    --mg-orange: #FF5315;
+    --mg-ink: #1D1E26;
+    --mg-ink-body: #2D2E38;
+    --mg-page: #DFDFDF;
+    --mg-card: #FFFFFF;
+  }
   /* The designer's light system is the app's default now: page grey behind
      white cards, ink for body copy. (Was bg-slate-900/text-white, the old dark
      palette — every screen has been converted, so the default flipped with

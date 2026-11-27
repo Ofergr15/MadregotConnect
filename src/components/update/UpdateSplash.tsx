@@ -97,11 +97,11 @@ export function UpdateSplash({
             {/* The splash's own fluid, minus its rise animation: here the
                 height is the progress. */}
             <div className="mc-update-fluid absolute inset-x-0 bottom-0" style={{ height: `${p * 100}%` }} />
-            <div className="absolute inset-0 bg-[#1D1E26]" style={{ opacity: clamp((p - 0.97) / 0.03) }} />
+            <div className="absolute inset-0 bg-ink-900" style={{ opacity: clamp((p - 0.97) / 0.03) }} />
           </div>
         </div>
       </div>
-      <p dir="ltr" className="mt-3.5 text-2xl font-black tabular-nums tracking-tight text-[#1D1E26]">
+      <p dir="ltr" className="mt-3.5 text-2xl font-black tabular-nums tracking-tight text-ink-900">
         {Math.round(p * 100)}%
       </p>
       <p className="mt-1.5 text-xs text-ink-500">{caption}</p>

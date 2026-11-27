@@ -70,7 +70,7 @@ function Toggle({ label, on, onClick }: { label: string; on: boolean; onClick: (
       className="mb-2 flex min-h-[44px] w-full items-center justify-between rounded-xl bg-white/[0.08] px-3 text-sm font-bold text-white"
     >
       {label}
-      <span className={cn('relative h-6 w-10 rounded-full transition-colors', on ? 'bg-[#FF5315]' : 'bg-white/25')}>
+      <span className={cn('relative h-6 w-10 rounded-full transition-colors', on ? 'bg-orange' : 'bg-white/25')}>
         <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', on ? 'end-0.5' : 'start-0.5')} />
       </span>
     </button>
@@ -390,7 +390,7 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
     <div
       key={`${p}-${on ? 'on' : 'off'}-${i}`}
       className={cn('pointer-events-none absolute rounded-[10px]', on
-        ? 'border-[2.5px] border-[#FF5315] shadow-[0_0_0_999px_rgba(5,6,18,0.5),0_0_0_5px_rgba(255,83,21,0.3)]'
+        ? 'border-[2.5px] border-orange shadow-[0_0_0_999px_rgba(5,6,18,0.5),0_0_0_5px_rgba(255,83,21,0.3)]'
         : 'border-[1.5px] border-dashed border-white/80')}
       style={{
         left: (box.x0 - OUTLINE_PAD) * scale, top: (box.y0 - OUTLINE_PAD) * scale,
@@ -462,7 +462,7 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
       type="button"
       onClick={onClick}
       aria-pressed={on}
-      className={cn('min-h-[40px] rounded-full px-3.5 text-xs font-bold', on ? 'bg-[#FF5315] text-white' : 'bg-white/[0.08] text-white/80')}
+      className={cn('min-h-[40px] rounded-full px-3.5 text-xs font-bold', on ? 'bg-orange text-white' : 'bg-white/[0.08] text-white/80')}
     >
       {label}
     </button>
@@ -507,14 +507,14 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
                   aria-pressed={on}
                   className={cn(
                     'relative min-h-[48px] touch-none rounded-xl border-[1.5px] px-1 py-1.5 text-center transition-colors',
-                    on ? 'border-[#FF5315] bg-[#FF5315]/20' : health ? 'border-[#B7ACFF]/40 bg-white/[0.06]' : 'border-white/15 bg-white/[0.06]',
+                    on ? 'border-orange bg-orange/20' : health ? 'border-[#B7ACFF]/40 bg-white/[0.06]' : 'border-white/15 bg-white/[0.06]',
                     blocked && 'opacity-40',
                     dragKey === k && 'opacity-60',
                     dropKey === k && 'outline outline-2 outline-dashed outline-white',
                   )}
                 >
                   {on && cap > 1 && (
-                    <em className="absolute -top-1.5 start-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#FF5315] px-1 text-[10px] font-extrabold not-italic text-white">
+                    <em className="absolute -top-1.5 start-1 grid h-4 min-w-4 place-items-center rounded-full bg-orange px-1 text-[10px] font-extrabold not-italic text-white">
                       {place + 1}
                     </em>
                   )}
@@ -543,7 +543,7 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
               aria-label={b === 'badge' ? t('brandBadge') : b === 'stairs' ? t('brandStairs') : 'MADREGOT'}
               className={cn(
                 'flex h-14 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 bg-white/[0.08]',
-                shown === b ? 'border-[#FF5315]' : 'border-transparent',
+                shown === b ? 'border-orange' : 'border-transparent',
               )}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -617,7 +617,7 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
                   }}
                   className={cn(
                     'flex h-[76px] min-w-0 flex-1 flex-col items-center justify-center gap-1.5 rounded-xl border-2 bg-white/[0.08] text-2xs font-bold text-white',
-                    on ? 'border-[#FF5315]' : 'border-transparent',
+                    on ? 'border-orange' : 'border-transparent',
                   )}
                 >
                   <span className="grid h-7 w-7 place-items-center rounded-lg" style={{ background: BG_SWATCH[b] }}>
@@ -639,7 +639,7 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
           const on = look === l;
           return (
             <button key={l} type="button" onClick={() => pickLook(l)} aria-pressed={on} className={cn('min-w-0 flex-1 text-center', on ? 'text-white' : 'text-white/55')}>
-              <span className={cn('block w-full overflow-hidden rounded-lg border-2 bg-white/[0.08]', on ? 'border-[#FF5315]' : 'border-transparent')} style={{ aspectRatio: '9 / 16' }}>
+              <span className={cn('block w-full overflow-hidden rounded-lg border-2 bg-white/[0.08]', on ? 'border-orange' : 'border-transparent')} style={{ aspectRatio: '9 / 16' }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 {thumbs[l] && <img src={thumbs[l]} alt="" className="h-full w-full object-cover" />}
               </span>
@@ -744,7 +744,7 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
                     {editing && labelled.filter(p => p !== mode).flatMap(p => pieces(p).map((b, i) => outline(p, b, false, i)))}
                     {inPart && mode !== 'background' && hitMap[mode] && pieces(mode).map((b, i) => outline(mode, b, true, i))}
                     {mode === 'background' && (
-                      <div className="pointer-events-none absolute inset-1.5 rounded-xl border-[2.5px] border-[#FF5315]" />
+                      <div className="pointer-events-none absolute inset-1.5 rounded-xl border-[2.5px] border-orange" />
                     )}
                     {editing && [...labelled, 'background' as const].map(p => {
                       const r = labels[p];
@@ -759,7 +759,7 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
                           className={cn(
                             'absolute whitespace-nowrap rounded-full text-center text-3xs font-extrabold shadow-[0_2px_6px_rgba(0,0,0,0.45)] transition-colors',
                             "after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-['']",
-                            on ? 'bg-[#FF5315] text-white' : 'bg-white text-ink-900',
+                            on ? 'bg-orange text-white' : 'bg-white text-ink-900',
                           )}
                           style={{ left: r.x, top: r.y, width: r.w, height: r.h, lineHeight: `${r.h}px` }}
                         >
@@ -795,7 +795,7 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
               return (
                 <button key={k} type="button" aria-pressed={on} disabled={blocked} onClick={() => tapNumber(k)}
                   className={cn('flex min-h-[34px] flex-none items-center gap-1 rounded-full px-3 text-2xs font-extrabold',
-                    on ? 'bg-[#FF5315] text-white' : 'bg-white/[0.08] text-white/75', blocked && 'opacity-35')}>
+                    on ? 'bg-orange text-white' : 'bg-white/[0.08] text-white/75', blocked && 'opacity-35')}>
                   {on && <Check className="h-3 w-3" strokeWidth={3} />}{text.labels[k]}
                 </button>
               );

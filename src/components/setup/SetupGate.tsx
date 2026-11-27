@@ -274,7 +274,7 @@ const SIZE_LABEL: Record<SizeKey, string> = { shoeSize: 'נעליים', shirtSiz
 const HEIGHTS = Array.from({ length: 81 }, (_, i) => 140 + i);
 const WEIGHTS = Array.from({ length: 91 }, (_, i) => 40 + i);
 
-function Dot() { return <span className="h-[7px] w-[7px] shrink-0 rounded-full bg-[#FF5315]" aria-label="חסר" />; }
+function Dot() { return <span className="h-[7px] w-[7px] shrink-0 rounded-full bg-orange" aria-label="חסר" />; }
 
 /** A settings-style row whose value opens the phone's own picker (date wheel, list wheel). */
 function PickRow({ label, value, missing, optional, children }: { label: string; value: string | null; missing: boolean; optional?: boolean; children: ReactNode }) {

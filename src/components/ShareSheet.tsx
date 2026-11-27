@@ -443,7 +443,7 @@ function ClassicShareSheet({ subject, onClose, onShared }: { subject: ShareSubje
                         <img src={thumbs[v.key]} alt="" className="h-full w-full object-cover" />
                       )}
                       {on && (
-                        <span className="absolute end-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#FF5315] text-white shadow">
+                        <span className="absolute end-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-orange text-white shadow">
                           <Check size={13} strokeWidth={3} aria-hidden />
                         </span>
                       )}
@@ -670,7 +670,7 @@ function ClassicShareSheet({ subject, onClose, onShared }: { subject: ShareSubje
               )}
             >
               {t('avgLine')}
-              <span className={cn('relative h-6 w-10 rounded-full transition-colors', avgLine ? 'bg-[#FF5315]' : 'bg-ink-300/60')}>
+              <span className={cn('relative h-6 w-10 rounded-full transition-colors', avgLine ? 'bg-orange' : 'bg-ink-300/60')}>
                 <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', avgLine ? 'end-0.5' : 'start-0.5')} />
               </span>
             </button>
@@ -681,7 +681,7 @@ function ClassicShareSheet({ subject, onClose, onShared }: { subject: ShareSubje
                 className="mt-2 flex min-h-[44px] w-full items-center justify-between rounded-xl border border-page bg-card px-3 text-sm font-bold text-ink-700"
               >
                 {t('hrLine')}
-                <span className={cn('relative h-6 w-10 rounded-full transition-colors', hrLine ? 'bg-[#FF5315]' : 'bg-ink-300/60')}>
+                <span className={cn('relative h-6 w-10 rounded-full transition-colors', hrLine ? 'bg-orange' : 'bg-ink-300/60')}>
                   <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', hrLine ? 'end-0.5' : 'start-0.5')} />
                 </span>
               </button>

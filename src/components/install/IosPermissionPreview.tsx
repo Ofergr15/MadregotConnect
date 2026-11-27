@@ -45,7 +45,7 @@ export function IosPermissionPreview() {
             <span className="flex-1 py-2.5">{c.no}</span>
             <span className="relative flex-1 border-s border-[#d1d1d6] py-2.5 font-semibold">
               {c.yes}
-              <span className="absolute inset-[3px] rounded-[10px] border-[3px] border-[#FF5315]" />
+              <span className="absolute inset-[3px] rounded-[10px] border-[3px] border-orange" />
             </span>
           </div>
         </div>
@@ -56,7 +56,7 @@ export function IosPermissionPreview() {
             <span className="px-3 py-1.5">{c.no}</span>
             <span className="relative rounded-full bg-[#0b57d0] px-4 py-1.5 text-white">
               {c.yes}
-              <span className="absolute -inset-[5px] rounded-full border-[3px] border-[#FF5315]" />
+              <span className="absolute -inset-[5px] rounded-full border-[3px] border-orange" />
             </span>
           </div>
         </div>

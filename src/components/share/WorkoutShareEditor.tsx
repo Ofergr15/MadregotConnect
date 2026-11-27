@@ -100,7 +100,7 @@ function Toggle({ label, on, onClick }: { label: string; on: boolean; onClick: (
       className="mb-2 flex min-h-[44px] w-full items-center justify-between rounded-xl bg-white/[0.08] px-3 text-sm font-bold text-white"
     >
       {label}
-      <span className={cn('relative h-6 w-10 rounded-full transition-colors', on ? 'bg-[#FF5315]' : 'bg-white/25')}>
+      <span className={cn('relative h-6 w-10 rounded-full transition-colors', on ? 'bg-orange' : 'bg-white/25')}>
         <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', on ? 'end-0.5' : 'start-0.5')} />
       </span>
     </button>
@@ -566,7 +566,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
       <div
         key={`${p}-${piece}`}
         className={cn('pointer-events-none absolute rounded-[10px]', on
-          ? 'border-[2.5px] border-[#FF5315] shadow-[0_0_0_999px_rgba(5,6,18,0.5),0_0_0_5px_rgba(255,83,21,0.3)]'
+          ? 'border-[2.5px] border-orange shadow-[0_0_0_999px_rgba(5,6,18,0.5),0_0_0_5px_rgba(255,83,21,0.3)]'
           : 'border-[1.5px] border-dashed border-white/80')}
         style={{
           left: (box.x0 - pad) * scale, top: (box.y0 - pad) * scale,
@@ -735,7 +735,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
                       aria-pressed={on}
                       className={cn(
                         'min-h-[44px] min-w-0 rounded-xl px-2 py-0.5 text-start transition-transform',
-                        on ? 'touch-none bg-[#FF5315] text-white' : blocked ? 'bg-white/[0.05] text-white/30' : 'bg-white/[0.08] text-white/85',
+                        on ? 'touch-none bg-orange text-white' : blocked ? 'bg-white/[0.05] text-white/30' : 'bg-white/[0.08] text-white/85',
                         draggingChip === chip.key && 'z-10 scale-105 shadow-lg ring-2 ring-white',
                       )}
                     >
@@ -772,7 +772,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
                 aria-label={t(b === 'badge' ? 'brandBadge' : b === 'wordmark' ? 'brandWordmark' : 'brandStairs')}
                 className={cn(
                   'flex h-14 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 bg-white/[0.08]',
-                  shownBrand === b ? 'border-[#FF5315]' : 'border-transparent',
+                  shownBrand === b ? 'border-orange' : 'border-transparent',
                 )}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -814,7 +814,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
           key={label}
           onClick={onClick}
           aria-pressed={on}
-          className={cn('min-h-[40px] rounded-full px-3.5 text-xs font-bold', on ? 'bg-[#FF5315] text-white' : 'bg-white/[0.08] text-white/80')}
+          className={cn('min-h-[40px] rounded-full px-3.5 text-xs font-bold', on ? 'bg-orange text-white' : 'bg-white/[0.08] text-white/80')}
         >
           {label}
         </button>
@@ -873,7 +873,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
             }}
             className={cn(
               'flex h-[76px] flex-1 flex-col items-center justify-center gap-1.5 rounded-xl border-2 bg-white/[0.08] text-2xs font-bold text-white',
-              on ? 'border-[#FF5315]' : 'border-transparent',
+              on ? 'border-orange' : 'border-transparent',
               !ok && 'opacity-30',
             )}
           >
@@ -887,7 +887,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
       return (
         <>
           <div className="flex gap-2">
-            {opt('club', t('bgClub'), 'bg-gradient-to-br from-[#1525FF] to-[#0a0f5c]', true)}
+            {opt('club', t('bgClub'), 'bg-gradient-to-br from-brand to-[#0a0f5c]', true)}
             {opt('color', t('bgColor'), 'bg-[conic-gradient(#FF5315,#ffb703,#2ec27e,#1525FF,#9b5de5,#FF5315)]', true)}
             {opt('sticker', t('bgClear'), 'bg-[repeating-conic-gradient(#555_0_25%,#999_0_50%)] bg-[length:10px_10px]', stickerView)}
             {opt('photo', photo && bg === 'photo' ? t('changePhoto') : t('bgPhoto'), 'bg-white/15', photoView)}
@@ -898,7 +898,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
               <div className="mt-2.5 flex items-center gap-2" dir="ltr">
                 {COLOR_SWATCHES.map(c => (
                   <button key={c} type="button" aria-label={c} aria-pressed={bgColor.toLowerCase() === c.toLowerCase()} onClick={() => setBgColor(c)}
-                    className={cn('h-9 w-9 flex-none rounded-full border-[2.5px]', bgColor.toLowerCase() === c.toLowerCase() ? 'border-white ring-2 ring-[#FF5315]' : 'border-transparent')}
+                    className={cn('h-9 w-9 flex-none rounded-full border-[2.5px]', bgColor.toLowerCase() === c.toLowerCase() ? 'border-white ring-2 ring-orange' : 'border-transparent')}
                     style={{ background: c }} />
                 ))}
                 <label className="relative h-9 w-9 flex-none cursor-pointer rounded-full bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)]" aria-label={t('colorOther')}>
@@ -940,7 +940,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
               className={cn('min-w-0 flex-1 text-center', on ? 'text-white' : 'text-white/55')}
             >
               <span
-                className={cn('block w-full overflow-hidden rounded-lg border-2 bg-white/[0.08]', on ? 'border-[#FF5315]' : 'border-transparent')}
+                className={cn('block w-full overflow-hidden rounded-lg border-2 bg-white/[0.08]', on ? 'border-orange' : 'border-transparent')}
                 style={{ aspectRatio: stickerViews.length ? '9 / 13' : '9 / 16', ...(clear ? { background: CHECKER, backgroundSize: '8px 8px' } : {}) }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -966,7 +966,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
               onClick={() => setShelf(k)}
               className={cn(
                 'relative text-xs font-extrabold transition-colors',
-                shelf === k ? 'text-white after:absolute after:inset-x-0 after:bottom-0.5 after:h-0.5 after:rounded-full after:bg-[#FF5315]' : 'text-white/45',
+                shelf === k ? 'text-white after:absolute after:inset-x-0 after:bottom-0.5 after:h-0.5 after:rounded-full after:bg-orange' : 'text-white/45',
               )}
             >
               {t(k === 'cards' ? 'looksCards' : 'looksStickers')}
@@ -1082,7 +1082,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
                         : outline(mode, hitMap[mode]!, true)
                     )}
                     {mode === 'background' && (
-                      <div className="pointer-events-none absolute inset-1.5 rounded-xl border-[2.5px] border-[#FF5315]" />
+                      <div className="pointer-events-none absolute inset-1.5 rounded-xl border-[2.5px] border-orange" />
                     )}
                     {/* The labels are buttons, over everything, so a part drawn small (the
                         logo) still has a target it can be opened from. */}
@@ -1100,7 +1100,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
                             'absolute whitespace-nowrap rounded-full text-center text-3xs font-extrabold shadow-[0_2px_6px_rgba(0,0,0,0.45)] transition-colors',
                             // The pill is drawn small; its target is not.
                             "after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-['']",
-                            on ? 'bg-[#FF5315] text-white' : 'bg-white text-ink-900',
+                            on ? 'bg-orange text-white' : 'bg-white text-ink-900',
                           )}
                           style={{ left: r.x, top: r.y, width: r.w, height: r.h, lineHeight: `${r.h}px` }}
                         >
@@ -1138,26 +1138,26 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
                 <button key={chip.key} type="button" aria-pressed={on} disabled={!on && full}
                   onClick={() => { if (blocked) return; keysChosen.current = true; setKeys(prev => toggleChip(prev, chip.key, capacity)); }}
                   className={cn('flex min-h-[34px] flex-none items-center gap-1 rounded-full px-3 text-2xs font-extrabold',
-                    on ? 'bg-[#FF5315] text-white' : 'bg-white/[0.08] text-white/75', !on && full && 'opacity-35')}>
+                    on ? 'bg-orange text-white' : 'bg-white/[0.08] text-white/75', !on && full && 'opacity-35')}>
                   {on && <Check className="h-3 w-3" strokeWidth={3} />}{chip.label}
                 </button>
               );
             })}
             {titleOk && (
               <button type="button" aria-pressed={showTitle} onClick={() => setShowTitle(v => !v)}
-                className={cn('flex min-h-[34px] flex-none items-center gap-1 rounded-full px-3 text-2xs font-extrabold', showTitle ? 'bg-[#FF5315] text-white' : 'bg-white/[0.08] text-white/75')}>
+                className={cn('flex min-h-[34px] flex-none items-center gap-1 rounded-full px-3 text-2xs font-extrabold', showTitle ? 'bg-orange text-white' : 'bg-white/[0.08] text-white/75')}>
                 {showTitle && <Check className="h-3 w-3" strokeWidth={3} />}{t('whatsTitle')}
               </button>
             )}
             {dateOk && (
               <button type="button" aria-pressed={showDate} onClick={() => setShowDate(v => !v)}
-                className={cn('flex min-h-[34px] flex-none items-center gap-1 rounded-full px-3 text-2xs font-extrabold', showDate ? 'bg-[#FF5315] text-white' : 'bg-white/[0.08] text-white/75')}>
+                className={cn('flex min-h-[34px] flex-none items-center gap-1 rounded-full px-3 text-2xs font-extrabold', showDate ? 'bg-orange text-white' : 'bg-white/[0.08] text-white/75')}>
                 {showDate && <Check className="h-3 w-3" strokeWidth={3} />}{t('whatsDate')}
               </button>
             )}
             {startOk && (
               <button type="button" aria-pressed={showStartTime} onClick={() => setShowStartTime(v => !v)}
-                className={cn('flex min-h-[34px] flex-none items-center gap-1 rounded-full px-3 text-2xs font-extrabold', showStartTime ? 'bg-[#FF5315] text-white' : 'bg-white/[0.08] text-white/75')}>
+                className={cn('flex min-h-[34px] flex-none items-center gap-1 rounded-full px-3 text-2xs font-extrabold', showStartTime ? 'bg-orange text-white' : 'bg-white/[0.08] text-white/75')}>
                 {showStartTime && <Check className="h-3 w-3" strokeWidth={3} />}{t('whatsStart')}
               </button>
             )}

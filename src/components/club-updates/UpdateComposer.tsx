@@ -128,7 +128,7 @@ export function UpdateComposer({ open, onOpenChange, me, editing, onSubmit }: {
                 : 'כתום בזרם, והתראה לכל המועדון'}
             </small>
           </span>
-          <Switch checked={v.breaking} onChange={(breaking) => setV((x) => ({ ...x, breaking }))} activeColor="bg-[#FF5315]" ariaLabel="מבזק" />
+          <Switch checked={v.breaking} onChange={(breaking) => setV((x) => ({ ...x, breaking }))} activeColor="bg-orange" ariaLabel="מבזק" />
         </label>
 
         {err && <p className="text-[13px] font-bold text-accent-red" role="alert">{err}</p>}

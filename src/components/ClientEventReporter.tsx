@@ -362,9 +362,9 @@ export function ClientEventReporter() {
   if (!slow) return null;
   return (
     <div dir="rtl" role="alert" data-slow-notice className="fixed inset-x-3 bottom-[calc(84px+env(safe-area-inset-bottom))] z-[60] mx-auto max-w-md rounded-[18px] bg-white px-4 py-3.5 shadow-[0_12px_30px_-12px_rgba(0,0,0,0.4)]">
-      <b className="block text-[15px] text-[#1D1E26]">משהו לוקח יותר מהרגיל</b>
+      <b className="block text-[15px] text-ink-900">משהו לוקח יותר מהרגיל</b>
       <p className="mt-0.5 text-[13px] leading-snug text-[#5F5F6B]">המסך עדיין נטען. אפשר לחכות עוד רגע או לנסות שוב.</p>
-      <button type="button" onClick={() => window.location.reload()} className="mt-2.5 flex min-h-[44px] w-full items-center justify-center rounded-[13px] bg-[#1525FF] text-[15px] font-extrabold text-white">לנסות שוב</button>
+      <button type="button" onClick={() => window.location.reload()} className="mt-2.5 flex min-h-[44px] w-full items-center justify-center rounded-[13px] bg-brand text-[15px] font-extrabold text-white">לנסות שוב</button>
       <p className="mt-2 text-[12px] font-bold text-[#12A150]">✓ דיווחנו על זה אוטומטית למנהל האפליקציה</p>
     </div>
   );

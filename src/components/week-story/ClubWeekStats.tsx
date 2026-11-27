@@ -11,7 +11,7 @@ export function ClubWeekStats({ week }: { week: ClubWeekPayload }) {
   return (
     <div className="mt-3 grid grid-cols-2 gap-2" dir="rtl">
       {tiles.map(([v, label]) => (
-        <div key={label} className="rounded-2xl bg-gradient-to-b from-[#1525FF] to-[#0a1080] px-3.5 py-3 text-white [&:last-child:nth-child(odd)]:col-span-2">
+        <div key={label} className="rounded-2xl bg-gradient-to-b from-brand to-[#0a1080] px-3.5 py-3 text-white [&:last-child:nth-child(odd)]:col-span-2">
           <b className="block text-[24px] font-black leading-none tabular-nums"><bdi>{v.toLocaleString('en-US')}</bdi></b>
           <small className="text-[12px] opacity-85">{label}</small>
         </div>

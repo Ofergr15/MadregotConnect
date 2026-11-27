@@ -83,7 +83,7 @@ export function PhotosLoading({ what, folderId, onRetry }: { what: 'home' | 'fol
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/images/logo.png" alt="" className="absolute bottom-3 left-3 h-10 w-10 rounded-full bg-white object-contain p-0.5" />
       </div>
-      <div className="mx-1 mt-3.5 h-1 overflow-hidden rounded-full bg-[#E3E3EA]"><i className="mcl-progress block h-full rounded-full bg-gradient-to-l from-[#5BC0EB] to-[#1525FF]" /></div>
+      <div className="mx-1 mt-3.5 h-1 overflow-hidden rounded-full bg-[#E3E3EA]"><i className="mcl-progress block h-full rounded-full bg-gradient-to-l from-[#5BC0EB] to-brand" /></div>
       <p className="mx-1 mt-2 text-12 font-semibold text-ink-400">{(what === 'folder' ? FOLDER_LINES : LINES)[line]}</p>
       {slow && (
         <div className="mcl-in mt-4 rounded-[18px] bg-card px-4 py-3.5 shadow-[0_10px_24px_-12px_rgba(0,0,0,0.35)]">

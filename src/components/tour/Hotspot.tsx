@@ -29,7 +29,7 @@ export function Hotspot({ id, title, body, children, className, off = false }: {
         <>
           <button type="button" aria-label={`חדש: ${title}`} onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
             className="mc-hotspot absolute -end-4 -top-4 z-10 grid h-11 w-11 place-items-center">
-            <span className="block h-[18px] w-[18px] rounded-full border-[3px] border-white bg-[#1525FF]" />
+            <span className="block h-[18px] w-[18px] rounded-full border-[3px] border-white bg-brand" />
           </button>
           {open && (
             <div dir="rtl" role="dialog" className="absolute end-0 top-full z-20 mt-2 w-[min(300px,calc(100vw-32px))] rounded-[18px] bg-[#111827] px-4 py-3 text-white shadow-[0_14px_30px_rgba(0,0,0,.3)]">

@@ -31,7 +31,7 @@ export function BirthdayYearCard() {
   return (
     <>
       <button type="button" onClick={() => setOpen(true)}
-        className="flex w-full min-h-[64px] items-center gap-3 rounded-[22px] bg-gradient-to-l from-[#1525FF] to-[#0a1080] px-4 py-3 text-start text-white shadow-[0_10px_24px_-14px_rgba(21,37,255,.7)]">
+        className="flex w-full min-h-[64px] items-center gap-3 rounded-[22px] bg-gradient-to-l from-brand to-[#0a1080] px-4 py-3 text-start text-white shadow-[0_10px_24px_-14px_rgba(21,37,255,.7)]">
         <span className="text-[28px]" aria-hidden>🎂</span>
         <span className="min-w-0 flex-1">
           <b className="block text-[16px] font-extrabold">מזל טוב, {story.name}!</b>
@@ -57,7 +57,7 @@ export function BirthdayYearButton({ athleteId }: { athleteId: string }) {
   return (
     <>
       <button type="button" onClick={() => setOpen(true)}
-        className="mt-3 flex w-full min-h-[52px] items-center gap-3 rounded-2xl bg-gradient-to-l from-[#1525FF] to-[#0a1080] px-4 text-start text-white">
+        className="mt-3 flex w-full min-h-[52px] items-center gap-3 rounded-2xl bg-gradient-to-l from-brand to-[#0a1080] px-4 text-start text-white">
         <span className="text-[22px]" aria-hidden>🎂</span>
         <span className="min-w-0 flex-1">
           <b className="block text-[15px] font-extrabold">צפו בשנה של {story.name}</b>
