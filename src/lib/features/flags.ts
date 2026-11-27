@@ -77,6 +77,8 @@ export const FEATURES = {
   /** Native wellness strip on home. */
   wellness_strip: { label: 'פס בריאות (אפליקציה)', defaultEnabled: false },
   /** Native weekly summary card on the week tab, Sunday 19:00 – Monday (b25, GET /api/week-story?mode=summary). */
+  /** Shoes without their own limit get a default retire threshold (700 km) and its push (lib/shoes/mileage). */
+  shoe_retire_alert: { label: 'התראת החלפת נעל (ברירת מחדל 700 ק״מ)', defaultEnabled: false },
   week_summary: { label: 'סיכום שבועי (אפליקציה)', defaultEnabled: false },
   /** Native birthday year-in-review card. */
   birthday_year_card: { label: 'כרטיס שנה ביום הולדת (אפליקציה)', defaultEnabled: false },

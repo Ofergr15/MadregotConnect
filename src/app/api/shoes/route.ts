@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { checkShoeAlert } from '@/lib/shoes';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
+import { fetchAllRows } from '@/lib/supabase/paginate';
+import { kmByShoe as shoeKm, type ShoeActivity } from '@/lib/shoes/mileage';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,13 +43,14 @@ export async function GET(request: Request) {
     const [{ data: athlete }, { data: shoes }, { data: acts }] = await Promise.all([
       supabase.from('athletes').select('active_shoe_id').eq('id', athleteId).maybeSingle(),
       supabase.from('shoes').select('*').eq('athlete_id', athleteId).order('created_at', { ascending: true }),
-      supabase.from('athlete_activities').select('shoe_id, distance').eq('athlete_id', athleteId).not('shoe_id', 'is', null),
+      // Paged past the 1000-row cap; twins counted once (lib/shoes/mileage).
+      fetchAllRows<ShoeActivity>((from, to) => supabase.from('athlete_activities')
+        .select('id, shoe_id, athlete_id, start_time, distance, duration, source')
+        .eq('athlete_id', athleteId).not('shoe_id', 'is', null)
+        .order('start_time', { ascending: true }).range(from, to)).then((data) => ({ data })),
     ]);
 
-    const kmByShoe = new Map<string, number>();
-    for (const a of (acts || []) as Array<{ shoe_id: string; distance: number | null }>) {
-      kmByShoe.set(a.shoe_id, (kmByShoe.get(a.shoe_id) || 0) + (a.distance || 0) / 1000);
-    }
+    const kmByShoe = shoeKm(acts || []);
 
     const result = (shoes || []).map((s: Record<string, unknown>) => ({
       id: s.id,

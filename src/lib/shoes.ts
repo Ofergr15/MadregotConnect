@@ -1,6 +1,9 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
 import { shoeLimitCopy } from '@/lib/notifications/copy';
+import { fetchAllRows } from '@/lib/supabase/paginate';
+import { isFeatureEnabled } from '@/lib/features/server';
+import { dueShoeAlert, effectiveLimitKm, kmByShoe, type ShoeActivity } from '@/lib/shoes/mileage';
 
 /**
  * Checks one shoe's accumulated mileage against its limit/alert-before
@@ -13,23 +16,32 @@ export async function checkShoeAlert(shoeId: string): Promise<void> {
   try {
     const supabase = createServerClient();
     const { data: shoe } = await supabase.from('shoes').select('*').eq('id', shoeId).maybeSingle();
-    if (!shoe || shoe.retired || shoe.distance_limit_km == null) return;
+    if (!shoe || shoe.retired) return;
+    // No limit of its own: only the default-off retire alert gives it one (lib/shoes/mileage).
+    const retireAlertOn = shoe.distance_limit_km == null
+      ? await isFeatureEnabled('shoe_retire_alert', shoe.athlete_id).catch(() => false)
+      : false;
+    const limit = effectiveLimitKm(shoe.distance_limit_km, retireAlertOn);
+    if (limit == null) return;
 
-    const { data: acts } = await supabase
+    // Paged (Supabase caps a select at 1000 rows) and twins counted once.
+    const acts = await fetchAllRows<ShoeActivity>((from, to) => supabase
       .from('athlete_activities')
-      .select('distance')
-      .eq('shoe_id', shoeId);
-    const totalKm = (acts || []).reduce((sum: number, a: { distance: number | null }) => sum + (a.distance || 0), 0) / 1000;
+      .select('id, shoe_id, athlete_id, start_time, distance, duration, source')
+      .eq('shoe_id', shoeId)
+      .order('start_time', { ascending: true })
+      .range(from, to));
+    // The query already filtered on shoe_id; stamp it so a row the select didn't return it on still counts.
+    const totalKm = kmByShoe(acts.map((a) => ({ ...a, shoe_id: shoeId }))).get(shoeId) || 0;
 
-    const limit = Number(shoe.distance_limit_km);
-    // != null, not `|| 50` — an explicit 0 ("only alert exactly at the
-    // limit") is a legitimate stored value, not a falsy "unset".
-    const alertBefore = shoe.alert_before_km != null ? Number(shoe.alert_before_km) : 50;
-    const nearThreshold = limit - alertBefore;
+    const due = dueShoeAlert({
+      totalKm, limitKm: limit, alertBeforeKm: shoe.alert_before_km,
+      alertedNear: !!shoe.alerted_near_at, alertedOver: !!shoe.alerted_over_at, retired: !!shoe.retired,
+    });
     const kmRounded = Math.round(totalKm);
     const limitRounded = Math.round(limit);
 
-    if (!shoe.alerted_over_at && totalKm >= limit) {
+    if (due === 'over') {
       await supabase.from('shoes').update({ alerted_over_at: new Date().toISOString() }).eq('id', shoeId);
       await notifyAthlete({
         athleteId: shoe.athlete_id,
@@ -40,7 +52,7 @@ export async function checkShoeAlert(shoeId: string): Promise<void> {
         url: '/dashboard/profile', // ShoeManager lives on the profile's landing screen
         category: 'workouts',
       });
-    } else if (!shoe.alerted_near_at && totalKm >= nearThreshold) {
+    } else if (due === 'near') {
       await supabase.from('shoes').update({ alerted_near_at: new Date().toISOString() }).eq('id', shoeId);
       await notifyAthlete({
         athleteId: shoe.athlete_id,
@@ -52,5 +64,8 @@ export async function checkShoeAlert(shoeId: string): Promise<void> {
         category: 'workouts',
       });
     }
-  } catch { /* best-effort — never break the activity insert that triggered this */ }
+  } catch (err) {
+    // Best-effort — never break the activity insert that triggered this.
+    console.error('checkShoeAlert failed:', err);
+  }
 }
