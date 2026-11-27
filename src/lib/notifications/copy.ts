@@ -1705,3 +1705,14 @@ export function painReplyCopy(locale: NotificationLocale, p: { coachName: string
     ? { title: `${p.coachName} ענה/תה על הדיווח`, body }
     : { title: `${p.coachName} replied to your report`, body };
 }
+
+/** Group chat (b26): "<name> · <group>" over the message, like a group chat banner everywhere else. */
+export function groupChatMessageCopy(
+  locale: NotificationLocale,
+  p: { name: string | null | undefined; group: string; text: string },
+): PushCopy {
+  const who = (p.name || '').trim() || SOMEONE[locale];
+  const preview = p.text.trim().replace(/\s+/g, ' ');
+  const clipped = preview.length > 90 ? `${preview.slice(0, 90)}…` : preview;
+  return { title: `${who} · ${p.group}`, body: clipped || (locale === 'he' ? 'לחצו לקריאה' : 'Tap to read') };
+}
