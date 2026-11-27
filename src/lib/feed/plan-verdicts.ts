@@ -152,7 +152,7 @@ export async function loadFeedPlanVerdicts(
     // workout's entire content, its per-rep paces, is unreadable, so `buildVerdict`
     // correctly refuses to score it and the card loses its ring. Nothing off them
     // reaches the client; only the five-field summary crosses the wire.
-    const [laneOn, indivRes, sharedRes, settings, executed, runMatches] = await Promise.all([
+    const [laneOn, indivRes, sharedRes, settings, executed, runMatches, satellites] = await Promise.all([
       // The pack each runner was in ON the run's day, not today's (migration 145).
       loadPackLanes(supabase, athleteIds),
       supabase
@@ -170,6 +170,9 @@ export async function loadFeedPlanVerdicts(
       // The plan slot each run was matched to (a session run a day or two early is
       // graded against its own day) and any "I ran with pack N" the runner gave.
       readRunMatches(supabase, runs.map(r => r.id)).catch(() => new Map()),
+      // Warm-ups and cool-downs saved on their own are part of a session, never a try at it.
+      // Depends only on the runs, so it rides in this batch instead of a round trip after it.
+      satelliteIds(supabase, runs).catch(() => new Set<string>()),
     ]);
     const { tolerances } = settings;
 
@@ -200,8 +203,6 @@ export async function loadFeedPlanVerdicts(
       return cached;
     };
 
-    // Warm-ups and cool-downs saved on their own are part of a session, never a try at it.
-    const satellites = await satelliteIds(supabase, runs).catch(() => new Set<string>());
     for (const row of runs) {
       if (satellites.has(row.id)) continue;
       const date = activityLocalDateStr(row.start_time);

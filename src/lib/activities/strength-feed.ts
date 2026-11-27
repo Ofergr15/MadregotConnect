@@ -66,6 +66,13 @@ export function applyStrength(
   return out;
 }
 
+type StrengthRow = {
+  id: string;
+  training_effect?: { aerobic?: number | null } | null;
+  suffer_score?: number | null;
+  exercise_sets?: StrengthSet[] | null;
+};
+
 export async function strengthForFeed(db: Db, items: FeedItem[], viewerAthleteId: string | null): Promise<FeedItem[]> {
   const ids = items.filter(i => i.activity && isStrengthType(i.activity.activityType)).map(i => i.activity!.id);
   if (!ids.length) return items;
@@ -73,18 +80,34 @@ export async function strengthForFeed(db: Db, items: FeedItem[], viewerAthleteId
   const setsById = new Map<string, StrengthSet[] | null>();
   const extrasById = new Map<string, StrengthExtras>();
   if (viewerHasFlag) {
-    const { data: te } = await db.from('athlete_activities').select('id, training_effect').in('id', ids);
-    for (const r of (te || []) as Array<{ id: string; training_effect: { aerobic?: number | null } | null }>) {
-      extrasById.set(r.id, { te: r.training_effect?.aerobic ?? null, sufferScore: null });
+    // One read in the normal case. Each column came from its own migration (pasted by hand), so
+    // when the combined select fails on a missing column, fall back to one read per column —
+    // in parallel — and let only the missing one come back empty.
+    const combined = await db.from('athlete_activities').select('id, training_effect, suffer_score, exercise_sets').in('id', ids);
+    let teRows: StrengthRow[] | null = null;
+    let ssRows: StrengthRow[] | null = null;
+    let setRows: StrengthRow[] | null = null;
+    let setsError: { message: string; code?: string } | null = null;
+    if (!combined.error) {
+      teRows = ssRows = setRows = (combined.data || []) as StrengthRow[];
+    } else {
+      const [te, ss, sets] = await Promise.all([
+        db.from('athlete_activities').select('id, training_effect').in('id', ids),
+        db.from('athlete_activities').select('id, suffer_score').in('id', ids),
+        db.from('athlete_activities').select('id, exercise_sets').in('id', ids),
+      ]);
+      teRows = (te.data || []) as StrengthRow[];
+      ssRows = (ss.data || []) as StrengthRow[];
+      setRows = sets.error ? null : (sets.data || []) as StrengthRow[];
+      setsError = sets.error;
     }
-    const { data: ss } = await db.from('athlete_activities').select('id, suffer_score').in('id', ids);
-    for (const r of (ss || []) as Array<{ id: string; suffer_score: number | null }>) {
+    for (const r of teRows) extrasById.set(r.id, { te: r.training_effect?.aerobic ?? null, sufferScore: null });
+    for (const r of ssRows) {
       const cur = extrasById.get(r.id) ?? { te: null, sufferScore: null };
       extrasById.set(r.id, { ...cur, sufferScore: r.suffer_score ?? null });
     }
-    const { data, error } = await db.from('athlete_activities').select('id, exercise_sets').in('id', ids);
-    if (!error) for (const r of (data || []) as Array<{ id: string; exercise_sets: StrengthSet[] | null }>) setsById.set(r.id, r.exercise_sets);
-    else if (!isMissingExerciseSetsColumn(error)) console.error('strength feed sets read failed', error.message);
+    if (setRows) for (const r of setRows) setsById.set(r.id, r.exercise_sets ?? null);
+    else if (setsError && !isMissingExerciseSetsColumn(setsError)) console.error('strength feed sets read failed', setsError.message);
   }
   return applyStrength(items, viewerHasFlag, setsById, extrasById);
 }
