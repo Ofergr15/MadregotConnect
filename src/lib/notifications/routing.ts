@@ -159,6 +159,12 @@ export const ROUTED_KINDS: RoutedKind[] = [
     hint: 'פעם ביום ב-09:00 — אם לא נכנסה שום פעילות במשך 24 שעות',
     source: 'api/cron/tick',
   },
+  {
+    kind: 'session_folder_failed',
+    label: 'תיקיית תמונות לא נוצרה',
+    hint: 'Drive מסרב ליצור את תיקיית האימון האיכותי (3 ניסיונות ברצף) — פעם ביום',
+    source: 'api/cron/tick',
+  },
 ];
 
 export const ROUTED_KIND_KEYS = new Set(ROUTED_KINDS.map((k) => k.kind));

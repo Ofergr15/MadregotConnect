@@ -21,6 +21,8 @@ vi.mock('@/lib/quality-session/server', () => ({
 }));
 vi.mock('@/lib/quality-session/access', () => ({ storyEditorIds: async () => ['editor-1'], qualitySessionRecipientIds: async () => ['editor-1', 'super-1'] }));
 vi.mock('@/lib/push', () => ({ notifyAthlete: h.notify }));
+const staff = vi.hoisted(() => ({ notifyStaff: vi.fn(async (_o: unknown) => ({ recipients: 2, sent: 2 })) }));
+vi.mock('@/lib/notifications/staff', () => staff);
 // Since 10-20 the folder is read through the Drive API, subfolders included.
 vi.mock('@/lib/photos/drive-browse', () => ({
   THUMB: 480,
@@ -294,5 +296,49 @@ describe('the ledger keeps two weeks counted from the tick, not from the wall cl
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('Drive refuses the folder (Q27-1)', () => {
+  const denied = () => Object.assign(new Error('Insufficient permissions for the specified parent.'), { code: 403 });
+  beforeEach(() => { staff.notifyStaff.mockClear(); });
+
+  it('keeps trying after midnight on the day itself, alerts staff once a day after 3, and makes it once Drive allows', async () => {
+    const s = db();
+    h.ensureDayFolder.mockRejectedValue(denied());
+    // The evening before: 20:00, 20:05, 20:10 fail → one alert on the third, none on the fourth.
+    for (const t of ['17:00', '17:05', '17:10', '17:15']) {
+      const out = await runSessionPhotoFolders(s, at(`2026-10-19T${t}:00Z`));
+      expect(out).toContain('sessionFolderFailed:2026-10-20');
+    }
+    expect(staff.notifyStaff).toHaveBeenCalledTimes(1);
+    const call = staff.notifyStaff.mock.calls[0][0] as { kind: string; copy: (l: string) => { body: string } };
+    expect(call.kind).toBe('session_folder_failed');
+    expect(call.copy('he').body).toContain('Editor');
+    // After midnight (00:30 on the day): still due — the old code dropped it here — and a new day's alert.
+    expect(await runSessionPhotoFolders(s, at('2026-10-19T21:30:00Z'))).toContain('sessionFolderFailedAlert:2026-10-20');
+    expect(staff.notifyStaff).toHaveBeenCalledTimes(2);
+    // The permission is fixed: the next tick (06:00 on the day) makes it.
+    h.ensureDayFolder.mockImplementation(async (_d: unknown, date: string) => ({ id: `folder-${date}`, link: `https://drive.google.com/drive/folders/folder-${date}` }));
+    expect(await runSessionPhotoFolders(s, at('2026-10-20T03:00:00Z'))).toEqual(['sessionFolder:2026-10-20']);
+    const entry = JSON.parse(h.settings[FOLDER_LEDGER_KEY])['2026-10-20'];
+    expect(entry.folderId).toBe('folder-2026-10-20');
+    expect(entry.failures).toBeUndefined();
+    expect(await runSessionPhotoFolders(s, at('2026-10-20T03:05:00Z'))).not.toContain('sessionFolder:2026-10-20');
+  });
+
+  it('one failing day does not stop the others', async () => {
+    h.qualityDays = new Set();
+    h.settings[FOLDER_LEDGER_KEY] = JSON.stringify({
+      '2026-10-22': { folderId: '', link: '', manual: true, name: 'a', createAt: '2026-10-21T08:00' },
+      '2026-10-23': { folderId: '', link: '', manual: true, name: 'b', createAt: '2026-10-21T08:00' },
+    });
+    h.ensureDayFolder.mockImplementation(async (_d: unknown, date: string) => {
+      if (date === '2026-10-22') throw denied();
+      return { id: `folder-${date}`, link: 'l' };
+    });
+    const out = await runSessionPhotoFolders(db(), at('2026-10-21T06:00:00Z'));
+    expect(out).toEqual(['sessionFolderFailed:2026-10-22', 'sessionFolder:2026-10-23']);
+    h.ensureDayFolder.mockImplementation(async (_d: unknown, date: string) => ({ id: `folder-${date}`, link: `https://drive.google.com/drive/folders/folder-${date}` }));
   });
 });

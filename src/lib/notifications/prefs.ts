@@ -175,6 +175,7 @@ export const KIND_CATEGORY: Record<string, Category> = {
   problem_report: 'management',
   workout_delivery_failed: 'management',
   sync_stalled: 'management',
+  session_folder_failed: 'management',
   video_budget: 'management',
   // These two predate the channel and used to be sent with no category at all,
   // which made them the only staff alerts no toggle could reach. They go through
