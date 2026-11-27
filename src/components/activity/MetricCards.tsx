@@ -165,7 +165,7 @@ export function RepsVsTarget({ laps, target }: { laps: Array<{ distance: number;
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11.5px] font-bold text-ink-500">
         <span><i className="me-1 inline-block h-2.5 w-2.5 rounded-sm bg-[#12A150] align-[-1px]" />ביעד או מהר</span>
         <span><i className="me-1 inline-block h-2.5 w-2.5 rounded-sm bg-[#F5B83D] align-[-1px]" />איטי מהיעד</span>
-        <span><i className="me-1 inline-block h-2.5 w-2.5 rounded-sm bg-[#1525FF]/15 align-[-1px]" />טווח הדבוקות <bdi dir="ltr">{formatPace(target.min)}–{formatPace(target.max)}</bdi></span>
+        <span><i className="me-1 inline-block h-2.5 w-2.5 rounded-sm bg-brand/15 align-[-1px]" />טווח הדבוקות <bdi dir="ltr">{formatPace(target.min)}–{formatPace(target.max)}</bdi></span>
       </div>
     </div>
   );

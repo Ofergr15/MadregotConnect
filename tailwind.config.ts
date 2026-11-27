@@ -145,6 +145,11 @@ const config: Config = {
           700: '#0F1CCC', // pressed state (derived; the frames show no press)
           DEFAULT: '#1525FF',
         },
+        // The frames' secondary accent (CTA orange, group-3 tint). One token so
+        // components stop repeating `bg-[#FF5315]`. See docs/design-language.md.
+        orange: {
+          DEFAULT: '#FF5315',
+        },
         // Text ramp. `ink` is body copy, descending to the hairline used for
         // outline pills. Numbered high→low like a Tailwind ramp so the darker
         // the number, the darker the ink.

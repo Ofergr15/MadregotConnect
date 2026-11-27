@@ -125,7 +125,7 @@ export function RunCard({ m, myPace, dayLabel, className }: { m: RunMeetup; myPa
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap gap-1"><KindChip m={m} /><MatchChip m={m} myPace={myPace} />{m.joined && <span className="rounded-lg bg-accent-600/15 px-2 py-0.5 text-[11.5px] font-black text-accent-900">מגיע/ה ✓</span>}</span>
-        <span className="mt-1.5 flex items-center gap-1 truncate text-[14px] font-extrabold text-ink-900"><MapPin className="h-[15px] w-[15px] shrink-0 text-[#FF5315]" /><bdi className="truncate">{m.location}</bdi></span>
+        <span className="mt-1.5 flex items-center gap-1 truncate text-[14px] font-extrabold text-ink-900"><MapPin className="h-[15px] w-[15px] shrink-0 text-orange" /><bdi className="truncate">{m.location}</bdi></span>
         <span className="mt-1.5 flex items-center gap-1.5">
           <PackChip pack={m.pack} small />
           {m.plannedPace && <span className="inline-flex items-center gap-0.5 text-[12.5px] font-extrabold text-ink-500"><Gauge className="h-3.5 w-3.5 text-ink-300" /><bdi>{m.plannedPace}</bdi></span>}

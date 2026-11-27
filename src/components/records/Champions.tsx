@@ -42,7 +42,7 @@ export function Champions() {
 
   return (
     <div dir="rtl">
-      <section className="overflow-hidden rounded-[22px] bg-gradient-to-b from-[#1525FF] to-[#0a1080] px-3.5 pt-3.5 text-white">
+      <section className="overflow-hidden rounded-[22px] bg-gradient-to-b from-brand to-[#0a1080] px-3.5 pt-3.5 text-white">
         <div className="flex items-start justify-between gap-2">
           <span>
             <h2 className="text-[22px] font-black">🏆 אלופי המדרגות</h2>
@@ -58,7 +58,7 @@ export function Champions() {
         <div className="mt-3 flex gap-1 rounded-[12px] bg-white/15 p-[3px]" role="tablist">
           {CHAMP_DISTANCES.map((d) => (
             <button key={d} type="button" role="tab" aria-selected={distance === d} onClick={() => setDistance(d)}
-              className={cn('min-h-[34px] flex-1 rounded-[9px] text-[13px] font-extrabold', distance === d ? 'bg-white text-[#1525FF]' : 'opacity-85')}>{DISTANCE_LABEL[d]}</button>
+              className={cn('min-h-[34px] flex-1 rounded-[9px] text-[13px] font-extrabold', distance === d ? 'bg-white text-brand' : 'opacity-85')}>{DISTANCE_LABEL[d]}</button>
           ))}
         </div>
         <div className="mt-2.5 flex items-center justify-between">
@@ -71,7 +71,7 @@ export function Champions() {
           <div className="flex gap-1">
             {([['all', 'כל הזמנים'], ['year', 'השנה']] as Array<[ChampScope, string]>).map(([s, l]) => (
               <button key={s} type="button" aria-pressed={scope === s} onClick={() => setScope(s)}
-                className={cn('min-h-[30px] rounded-full px-2.5 text-[12px] font-bold', scope === s ? 'bg-white text-[#1525FF]' : 'opacity-80')}>{l}</button>
+                className={cn('min-h-[30px] rounded-full px-2.5 text-[12px] font-bold', scope === s ? 'bg-white text-brand' : 'opacity-80')}>{l}</button>
             ))}
           </div>
         </div>
@@ -202,7 +202,7 @@ function ManageSheet({ open, onOpenChange, onChanged }: { open: boolean; onOpenC
           <input value={form.raceName} onChange={(e) => setForm({ ...form, raceName: e.target.value })} placeholder="איזה מרוץ" aria-label="מרוץ" className="mt-2 min-h-[44px] w-full rounded-xl bg-white px-3 text-base" />
           <button type="button" disabled={busy || !form.athleteId || !form.raceDate}
             onClick={async () => { if (await add({ athleteId: form.athleteId, distance: form.distance, seconds: parseRaceTime(form.time), raceName: form.raceName, raceDate: form.raceDate })) setForm({ ...form, athleteId: '', q: '', time: '', raceName: '' }); }}
-            className="mt-2 min-h-[46px] w-full rounded-xl bg-[#1525FF] text-[15px] font-extrabold text-white disabled:opacity-50">להוסיף לטבלה</button>
+            className="mt-2 min-h-[46px] w-full rounded-xl bg-brand text-[15px] font-extrabold text-white disabled:opacity-50">להוסיף לטבלה</button>
         </div>
 
         {(data?.results.length ?? 0) > 0 && (
@@ -229,7 +229,7 @@ function ResultEdit({ r, busy, onSave, onCancel }: { r: ResultRow; busy: boolean
       <div className="flex min-h-[48px] items-center gap-2 px-1 text-[14px]">
         <span className="min-w-0 flex-1 truncate" dir="auto">{r.name} · {DISTANCE_LABEL[r.distance]} · {r.raceName || ''} {dm(r.raceDate)}</span>
         <span dir="ltr" className="font-bold tabular-nums">{fmtRaceTime(r.seconds)}</span>
-        <button type="button" onClick={() => setOpen(!open)} aria-label="עריכה" className="min-h-[40px] px-2 text-13 font-bold text-[#1525FF]">{open ? 'סגירה' : '✏️ עריכה'}</button>
+        <button type="button" onClick={() => setOpen(!open)} aria-label="עריכה" className="min-h-[40px] px-2 text-13 font-bold text-brand">{open ? 'סגירה' : '✏️ עריכה'}</button>
       </div>
       {open && (
         <div className="space-y-2 rounded-[14px] bg-page p-2.5">
@@ -247,7 +247,7 @@ function ResultEdit({ r, busy, onSave, onCancel }: { r: ResultRow; busy: boolean
           <div className="flex gap-2">
             <button type="button" disabled={busy || !parseRaceTime(f.time)}
               onClick={async () => { if (await onSave({ seconds: parseRaceTime(f.time), distance: f.distance, raceName: f.raceName, raceDate: f.raceDate })) setOpen(false); }}
-              className="min-h-[42px] flex-1 rounded-xl bg-[#1525FF] text-[14px] font-extrabold text-white disabled:opacity-50">שמירה</button>
+              className="min-h-[42px] flex-1 rounded-xl bg-brand text-[14px] font-extrabold text-white disabled:opacity-50">שמירה</button>
             <button type="button" disabled={busy} onClick={() => void onCancel()} className="min-h-[42px] flex-1 rounded-xl bg-white text-[14px] font-extrabold text-accent-red-ink">לבטל את התוצאה</button>
           </div>
         </div>
@@ -321,7 +321,7 @@ function Waiting({ suggestions, results, busy, onApprove, onReject }: {
             <span className="min-w-0">
               <b dir="auto" className="block text-[14.5px] leading-tight text-ink-900">{s.name}</b>
               {edited
-                ? <span className="block text-[11.5px] font-bold text-[#1525FF]">בשעון <bdi dir="ltr">{fmtRaceTime(s.watchSeconds)}</bdi></span>
+                ? <span className="block text-[11.5px] font-bold text-brand">בשעון <bdi dir="ltr">{fmtRaceTime(s.watchSeconds)}</bdi></span>
                 : isWomanG(s.gender) && <span className="text-[11px] font-bold text-[#9D174D]">נשים</span>}
             </span>
           </Link>
@@ -331,7 +331,7 @@ function Waiting({ suggestions, results, busy, onApprove, onReject }: {
             onBlur={() => commit(s)}
             onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
             dir="ltr" inputMode="numeric" aria-label={`זמן רשמי · ${s.name}`}
-            className={cn('h-[36px] w-[76px] shrink-0 rounded-[10px] text-center text-[15px] font-extrabold tabular-nums', edited ? 'bg-white text-[#1525FF]' : 'bg-page text-ink-900')}
+            className={cn('h-[36px] w-[76px] shrink-0 rounded-[10px] text-center text-[15px] font-extrabold tabular-nums', edited ? 'bg-white text-brand' : 'bg-page text-ink-900')}
           />
           <button type="button" disabled={busy} aria-label={`לאשר · ${s.name}`} onClick={() => void onApprove([{ ...s, seconds }])}
             className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-[#15803d] text-[16px] font-black text-white disabled:opacity-50">✓</button>
@@ -342,7 +342,7 @@ function Waiting({ suggestions, results, busy, onApprove, onReject }: {
         <Link href={run} onClick={hint} className="ms-[76px] mt-0.5 flex min-h-[26px] items-center gap-1 text-[12px] text-ink-500">
           <span aria-hidden>📍</span>
           <span dir="auto" className="min-w-0 truncate">{where}</span>
-          <span className="ms-auto shrink-0 font-bold text-[#1525FF]">לריצה ‹</span>
+          <span className="ms-auto shrink-0 font-bold text-brand">לריצה ‹</span>
         </Link>
       </div>
     );

@@ -111,7 +111,7 @@ function WeekCircle({ km, seen, onOpen }: { km: number; seen: boolean; onOpen: (
     <button type="button" onClick={onOpen} className="flex w-[72px] shrink-0 flex-col items-center text-center active:opacity-80" aria-label="השבוע שלך">
       <span className={cn('cring week relative rounded-full p-[3px]', seen && 'seen', !seen && 'breathe')}>
         <span className="block rounded-full border-[3px] border-card">
-          <span className="flex h-[54px] w-[54px] items-center justify-center rounded-full bg-gradient-to-b from-[#1525FF] to-[#0a1080] text-2xl">🏃</span>
+          <span className="flex h-[54px] w-[54px] items-center justify-center rounded-full bg-gradient-to-b from-brand to-[#0a1080] text-2xl">🏃</span>
         </span>
       </span>
       <span className="mt-1.5 w-full truncate text-[12px] font-bold leading-tight text-ink-900">השבוע שלך</span>
@@ -191,7 +191,7 @@ function Slide({ entry, active, onComment, myId, onYear }: {
         <button
           type="button"
           onClick={() => onYear(story)}
-          className="mt-3 flex min-h-[50px] w-full items-center justify-center gap-2 rounded-pill bg-gradient-to-l from-[#1525FF] to-[#0a1080] text-[15px] font-extrabold text-white active:opacity-85"
+          className="mt-3 flex min-h-[50px] w-full items-center justify-center gap-2 rounded-pill bg-gradient-to-l from-brand to-[#0a1080] text-[15px] font-extrabold text-white active:opacity-85"
         >
           🎬 {story.athleteId === myId ? 'השנה שלך בריצה' : `השנה של ${story.name} בריצה`}
         </button>
