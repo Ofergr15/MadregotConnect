@@ -64,7 +64,7 @@ Who should be allowed, by prefix: `/api/admin/**`, `/api/plan-builder/**` → st
 | `/api/photos/browse/video` | signed-url | same, verifyVideoUrl |
 | `/api/auth/email-code` | login | send/verify a 6-digit sign-in code; only to an address on an approved athlete row |
 | `/api/auth/silent-session` | login | re-mints a session for a browser holding the mc_device HMAC from a real login |
-| `/api/admin/login` | login | shared admin password + best-effort throttle (see owner question in the PR) |
+| `/api/admin/login` | login | verified JWT + admin/coach role; the shared-password path only when `ADMIN_PASSWORD_LOGIN=on` (default off) |
 | `/api/u21/register` | public-form | U21 application, default OFF behind a feature switch, honeypot + rate limit, stores pending_review only |
 
 ## Every route

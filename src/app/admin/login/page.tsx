@@ -9,6 +9,7 @@ import { Loader2, Shield } from 'lucide-react';
 import { Card, Button } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 
 // Local input primitive (kept local to this screen rather than promoted to
 // the shared ui/index.tsx) — rounded-2xl, min-h-[44px], one consistent focus
@@ -45,7 +46,9 @@ export default function AdminLoginPage() {
     try {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // A signed-in staff member is admitted by their session (JWT + role); the password
+        // is only read when the server's ADMIN_PASSWORD_LOGIN fallback is on.
+        headers: await bearerHeaders(true),
         body: JSON.stringify({ email, password }),
       });
 
