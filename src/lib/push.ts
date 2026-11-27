@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { OUTBOUND_TIMEOUT_MS } from '@/lib/http/timeout';
 import { readCutoff, isMissingColumn } from '@/lib/notifications/seen';
 import { isTestAccount } from '@/lib/athletes/test-accounts';
 import * as webpush from 'web-push';   // 4.x is ESM with named exports only (no default)
@@ -693,6 +694,7 @@ export async function sendPushDetailed(
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
           body,
+          { timeout: OUTBOUND_TIMEOUT_MS.webpush },
         );
         sent++;
         byAthlete[s.athlete_id] = (byAthlete[s.athlete_id] || 0) + 1;

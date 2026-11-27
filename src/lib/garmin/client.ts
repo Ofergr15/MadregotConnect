@@ -1,4 +1,5 @@
 import { GarminConnect } from 'garmin-connect';
+import { OUTBOUND_TIMEOUT_MS } from '@/lib/http/timeout';
 import { GarminAuth, GarminWorkout, GarminActivity } from './types';
 import {
   assertWorkoutOnAccount,
@@ -26,10 +27,12 @@ export class GarminClient {
       username: this.auth.email,
       password: '',
     });
+    setGarminTimeout(this.gc);
   }
 
   static async authenticate(email: string, password: string): Promise<GarminAuth> {
     const gc = new GarminConnect({ username: email, password });
+    setGarminTimeout(gc);
     await gc.login();
     const tokens = gc.exportToken();
 
@@ -355,3 +358,14 @@ export function emptyWellnessShapes(): string[] {
   return emptyShapes.splice(0, emptyShapes.length);
 }
 
+
+/**
+ * garmin-connect builds its own axios instance with no timeout, so a hung Garmin call held the
+ * cron function until Vercel killed it. Its HttpClient is not exported, hence the shape check.
+ */
+export function setGarminTimeout(gc: unknown, timeoutMs = OUTBOUND_TIMEOUT_MS.garmin): boolean {
+  const axiosInstance = (gc as { client?: { client?: { defaults?: { timeout?: number } } } })?.client?.client;
+  if (!axiosInstance?.defaults) return false;
+  axiosInstance.defaults.timeout = timeoutMs;
+  return true;
+}

@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import { OUTBOUND_TIMEOUT_MS } from '@/lib/http/timeout';
 import qs from 'qs';
 import crypto from 'crypto';
 
@@ -69,6 +70,7 @@ export async function garminLogin(email: string, password: string): Promise<
 > {
   try {
     const client = axios.create({
+      timeout: OUTBOUND_TIMEOUT_MS.garmin,
       maxRedirects: 0,
       validateStatus: (s) => s < 500,
     });
@@ -219,6 +221,7 @@ export async function garminVerifyMfa(sessionId: string, code: string): Promise<
     const { cookies, csrf, signinParams } = session;
 
     const client = axios.create({
+      timeout: OUTBOUND_TIMEOUT_MS.garmin,
       maxRedirects: 0,
       validateStatus: (s) => s < 500,
     });
@@ -295,7 +298,7 @@ export async function exchangeTicketForTokens(
   loginUrl: string = SSO_EMBED,
 ): Promise<{ oauth1: any; oauth2: any }> {
   // Fetch OAuth consumer credentials
-  const consumerRes = await axios.get(OAUTH_CONSUMER_URL);
+  const consumerRes = await axios.get(OAUTH_CONSUMER_URL, { timeout: OUTBOUND_TIMEOUT_MS.garmin });
   const consumer = consumerRes.data;
 
   // Get OAuth1 token
@@ -318,6 +321,7 @@ export async function exchangeTicketForTokens(
   const oauthHeaders = oauth.toHeader(oauth.authorize(requestData));
 
   const oauth1Res = await axios.get(preAuthUrl, {
+    timeout: OUTBOUND_TIMEOUT_MS.garmin,
     headers: { ...oauthHeaders, 'User-Agent': 'com.garmin.android.apps.connectmobile' },
   });
   const oauth1 = qs.parse(oauth1Res.data);
@@ -337,6 +341,7 @@ export async function exchangeTicketForTokens(
   const exchangeHeaders = exchangeOauth.toHeader(exchangeOauth.authorize(exchangeRequestData, token));
 
   const oauth2Res = await axios.post(exchangeUrl, null, {
+    timeout: OUTBOUND_TIMEOUT_MS.garmin,
     headers: { ...exchangeHeaders, 'User-Agent': 'com.garmin.android.apps.connectmobile', 'Content-Type': 'application/x-www-form-urlencoded' },
   });
 

@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from '@/lib/http/timeout';
 /**
  * Strava API client — ported/adapted from RunGPT `lib/strava.ts`,
  * plus streams → GPX / gps_points for run-chat actuals.
@@ -125,7 +126,7 @@ export async function refreshStravaToken(refreshToken: string): Promise<StravaTo
   if (!clientId || !clientSecret) return null;
 
   try {
-    const response = await fetch('https://www.strava.com/oauth/token', {
+    const response = await fetchWithTimeout('strava', 'https://www.strava.com/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -191,7 +192,7 @@ export class StravaClient {
         url.searchParams.append(key, String(value));
       }
     }
-    const response = await fetch(url.toString(), {
+    const response = await fetchWithTimeout('strava', url.toString(), {
       headers: { Authorization: `Bearer ${this.accessToken}` },
     });
     if (!response.ok) {
