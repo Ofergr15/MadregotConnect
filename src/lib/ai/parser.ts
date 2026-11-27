@@ -24,6 +24,24 @@ export class EmptyParseError extends Error {
   }
 }
 
+/**
+ * The read ran out of wall-clock before Vercel's 300 s function ceiling. Thrown
+ * by our own deadline so the route can answer with a real explanation instead of
+ * the platform killing the function mid-stream (a bare 504 with no body).
+ */
+export class ParseTimeoutError extends Error {
+  readonly code = 'parse_timeout';
+  constructor() {
+    super('Reading this plan took too long. Try again, or split the PDF into fewer pages.');
+    this.name = 'ParseTimeoutError';
+  }
+}
+
+/** Whole-parse budget (both attempts), kept well inside maxDuration = 300 on the routes. */
+export const PARSE_DEADLINE_MS = 270_000;
+/** A retry with less than this left would just be killed by the deadline — skip it. */
+export const MIN_RETRY_MS = 60_000;
+
 // --- Claude AI parser (for images/PDFs, or complex text fallback) ---
 
 // Time units the coach uses in notes (Hebrew + English). Presence of these is a
@@ -68,7 +86,7 @@ export function paceFromNotes(notes: string | undefined): { min: number; max: nu
   return null;
 }
 
-function validateAndFixStep(step: WorkoutStep): WorkoutStep {
+export function validateAndFixStep(step: WorkoutStep): WorkoutStep {
   const fixed = { ...step };
 
   // Skip duration validation for repeat parent steps — they don't need a duration
@@ -191,7 +209,12 @@ const TEXT_MODEL = 'claude-haiku-4-5-20251001';
 const VISION_EFFORT: 'low' | 'medium' | 'high' = 'low';
 
 async function parseWithClaude(content: Anthropic.MessageCreateParams['messages'][0]['content'], useVision = false): Promise<ParsedWeeklyPlan> {
+  const deadline = Date.now() + PARSE_DEADLINE_MS;
   const call = async (extra?: string): Promise<ParsedWeeklyPlan> => {
+    // Abort the stream at the deadline: an aborted request stops billing and
+    // returns control to us while there is still time to answer the coach.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.max(0, deadline - Date.now()));
     const msgContent = extra
       ? ([...(Array.isArray(content) ? content : [{ type: 'text', text: String(content) }]),
           { type: 'text', text: extra }] as typeof content)
@@ -216,8 +239,16 @@ async function parseWithClaude(content: Anthropic.MessageCreateParams['messages'
         : {}),
       system: WORKOUT_PARSER_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: msgContent }],
-    });
-    const response = await stream.finalMessage();
+    }, { signal: controller.signal });
+    let response: Anthropic.Message;
+    try {
+      response = await stream.finalMessage();
+    } catch (err) {
+      if (controller.signal.aborted) throw new ParseTimeoutError();
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
 
     const text = response.content
       .filter((block): block is Anthropic.TextBlock => block.type === 'text')
@@ -241,7 +272,10 @@ async function parseWithClaude(content: Anthropic.MessageCreateParams['messages'
 
   try {
     return await call();
-  } catch {
+  } catch (err) {
+    // A timeout is final, and so is a retry that could not finish in time.
+    if (err instanceof ParseTimeoutError) throw err;
+    if (deadline - Date.now() < MIN_RETRY_MS) throw err;
     // One retry — transient truncation or a stray non-JSON preamble. Nudge the
     // model to return only the JSON object this time.
     return call('Return ONLY the JSON object, with no other text or markdown fences.');

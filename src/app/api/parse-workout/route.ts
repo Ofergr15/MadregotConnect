@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { EmptyParseError, parseWorkoutPlan } from '@/lib/ai/parser';
+import { EmptyParseError, ParseTimeoutError, parseWorkoutPlan } from '@/lib/ai/parser';
 import { authError, requireSession } from '@/lib/auth-session';
 
 // Image/PDF plans go through Opus 4.8 vision + adaptive thinking, which can take
@@ -46,6 +46,10 @@ export async function POST(req: NextRequest) {
 
     // Read succeeded mechanically but found no workouts — not a server fault,
     // and the one failure the coach can actually act on.
+    if (error instanceof ParseTimeoutError) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: 504 });
+    }
+
     if (error instanceof EmptyParseError) {
       return NextResponse.json(
         {
