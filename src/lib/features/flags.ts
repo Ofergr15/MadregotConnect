@@ -198,6 +198,24 @@ export const FEATURES = {
   /** Native: staff edit a group chat's name / description / image (PATCH /api/chat/group). */
   native_chat_group_edit: { label: 'עריכת קבוצת צ׳אט (אפליקציה)', defaultEnabled: false },
   feed_banner: { label: 'באנר עליון בפיד: ציון איכות, שיאים (אפליקציה)', defaultEnabled: false },
+  /** Native "אני מאחר": the coach shifts today's session start; runners coming get a push + banner. */
+  coach_late: { label: 'מאמן מאחר: הזזת שעת האימון (אפליקציה)', defaultEnabled: false },
+  /** Native per-runner data check for staff (watch/sync/data health + one fix action). */
+  data_check: { label: 'בדיקת נתונים לרץ (אפליקציה)', defaultEnabled: false },
+  /** Native email sign-in polish: "הדבקת קוד" and the mailed magic link. Public (signed out). */
+  signin_magic: { label: 'כניסה במייל: הדבקת קוד וקישור קסם (אפליקציה)', defaultEnabled: false },
+  /** Native "כניסה עם Strava" on the sign-in screen. Public (signed out). */
+  native_strava_signin: { label: 'כניסה עם Strava (אפליקציה)', defaultEnabled: false },
+  /** Native group chat (club group or academy pack) over api/group-chat/messages. */
+  native_pack_chat: { label: 'צ׳אט קבוצה (אפליקציה)', defaultEnabled: false },
+  /** Native redesigned share sheet (swipeable card, "what's on the card" switches). */
+  native_share_v2: { label: 'שיתוף ריצה — עיצוב חדש (אפליקציה)', defaultEnabled: false },
+  /** Native store order management for staff (PATCH /api/admin/store/orders/:id). */
+  native_store_orders: { label: 'ניהול הזמנות החנות (אפליקציה)', defaultEnabled: false },
+  /** Native MetricKit crash/hang/launch summaries → POST /api/client-metrics, linked to the member. */
+  native_metrickit: { label: 'דוחות קריסה ואיטיות מהטלפון (אפליקציה)', defaultEnabled: false },
+  /** Native comment preview under a feed card (newest 1–2 + "הצגת כל N התגובות"); reads the feed's commentPreview. */
+  native_feed_comment_preview: { label: 'תצוגת תגובות בכרטיס בפיד (אפליקציה)', defaultEnabled: false },
   native_mgmt_podium_admin: { label: 'ניהול פודיום (אפליקציה)', defaultEnabled: false },
   /** Native b23: חנות והטבות — the store, perks, badges and challenges row in ניהול. */
   native_mgmt_rewards: { label: 'חנות והטבות (אפליקציה)', defaultEnabled: false },
