@@ -34,6 +34,6 @@ export function OnboardingTestReset() {
       await mutate(ONBOARDING_KEY);
       window.location.reload();
     })().catch(() => {});
-  }, [superUser]);
+  }, [superUser, mutate]);
   return null;
 }
