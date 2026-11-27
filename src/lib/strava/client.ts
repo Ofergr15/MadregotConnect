@@ -265,18 +265,6 @@ export class StravaClient {
   }
 }
 
-/** Fetch laps; null on error (callers can skip). */
-export async function fetchStravaLaps(
-  activityId: number,
-  accessToken: string,
-): Promise<StravaLap[] | null> {
-  try {
-    return await new StravaClient(accessToken).getActivityLaps(activityId);
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Turn Strava's auto per-km splits into the lap shape the rest of the app
  * consumes. Used when the watch recorded no manual/auto laps, so the actuals

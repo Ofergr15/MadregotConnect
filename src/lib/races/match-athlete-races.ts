@@ -5,19 +5,6 @@ import { fetchAllRows } from '@/lib/supabase/paginate';
 import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
-export interface RaceMatchRow {
-  id: string;
-  activity_id: string;
-  athlete_id: string;
-  event_id: string | null;
-  is_race: boolean;
-  match_method: 'auto' | 'manual';
-  evidence: Record<string, unknown>;
-  overridden_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 /**
  * Recomputes automatic race matches for one athlete (roadmap #20): any
  * activity that falls on the same calendar day as an `events` row with

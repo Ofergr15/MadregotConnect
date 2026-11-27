@@ -1,18 +1,4 @@
-/**
- * Run meetups — the rules behind "שידוכי ריצות" (398963c7).
- *
- * Pure on purpose: every decision here is either caller-supplied input being
- * validated before it reaches a service-role write, or a date comparison. Both
- * are the parts where a wrong answer is invisible in a screenshot — a meetup that
- * quietly stays on the board after it happened, or a pace field that accepts
- * anything and then reads as garbage on somebody's card.
- *
- * No clock reads in here. The caller passes `today`, so the tests are not a
- * function of the day they run on, and the route can use Israel's calendar day
- * rather than the server's UTC one.
- */
 
-export type MeetupStatus = 'open' | 'cancelled';
 /** What kind of run it is — the card's first words (v2, migration 157). */
 export type MeetupKind = 'easy' | 'long' | 'quality' | 'recovery';
 export const MEETUP_KINDS: MeetupKind[] = ['easy', 'long', 'quality', 'recovery'];
@@ -32,7 +18,6 @@ export const CLUB_SPOTS: Array<{ name: string; lat: number; lng: number }> = [
   { name: 'פארק הירקון', lat: 32.0998, lng: 34.8115 },
   { name: 'פארק הרצליה', lat: 32.1655, lng: 34.8205 },
 ];
-export type MeetupRequestStatus = 'pending' | 'accepted' | 'declined';
 
 /** A member as a run shows them: a face, a first name, the pack colour. */
 export interface MeetupPerson {

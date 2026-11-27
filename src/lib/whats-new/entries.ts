@@ -142,10 +142,6 @@ export const WHATS_NEW: WhatsNewEntry[] = [
 export const WHATS_NEW_LANGS = ['he', 'en'] as const;
 export type WhatsNewLang = (typeof WHATS_NEW_LANGS)[number];
 
-export function entryCopy(entry: WhatsNewEntry, lang: WhatsNewLang): WhatsNewCopy {
-  return entry[lang];
-}
-
 /** Drops story-gated entries the reader may not see. Unknown access (`null`) = closed. */
 export function filterByStoryAccess<T extends { story?: 'weekly' }>(entries: T[], weeklyAllowed: boolean | null | undefined): T[] {
   return entries.filter((e) => !e.story || weeklyAllowed === true);

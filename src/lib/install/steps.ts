@@ -193,4 +193,3 @@ export function stepsFor(platform: InstallPlatform, canPrompt: boolean): Install
 
 /** How long each step's picture stays in the video, and the total. */
 export const VIDEO_STEP_MS = 5200;
-export const videoLengthMs = (steps: InstallStep[]) => steps.length * VIDEO_STEP_MS;

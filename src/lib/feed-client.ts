@@ -91,20 +91,6 @@ export function takePrimedFeedPage(): ReturnType<typeof fetchFeed> | null {
   return p && Date.now() - p.at < PRIME_TTL_MS ? p.page : null;
 }
 
-/**
- * The single card pinned above the feed. Takes no athlete id — the server reads
- * it off the JWT, so this can only ever return the caller's own numbers.
- *
- * `highlight` is null whenever there's nothing true to say (a member with no
- * synced runs, staff with no athlete row, or a server-side failure the route
- * swallows on purpose). Callers render nothing in that case; the card is not
- * load-bearing.
- */
-export async function fetchFeedHighlight() {
-  const res = await fetch('/api/feed/highlight', { headers: await authHeaders() });
-  return parse<{ highlight: FeedHighlight | null }>(res);
-}
-
 export async function toggleLike(itemId: string) {
   const res = await fetch('/api/feed/like', {
     method: 'POST',

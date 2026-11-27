@@ -64,12 +64,6 @@ export async function trySilentReauth(): Promise<string | null> {
   return inFlight;
 }
 
-/** Lets a real login clear the give-up latch without a page reload. */
-export function resetSilentReauth(): void {
-  hopeless = false;
-  inFlight = null;
-}
-
 /**
  * The reverse, for signing out: stop recovering this session.
  *

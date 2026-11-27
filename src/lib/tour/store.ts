@@ -42,8 +42,5 @@ export function useTourPractice(): boolean {
   return s.phase === 'step' || s.phase === 'closing';
 }
 
-/** Reset — tests only. */
-export function __resetTour(): void { state = IDLE; stopPractice(); emit(); }
-
 export const TOUR_FILL_EVENT = 'mc:tour-fill-sample';
 export const TOUR_REPLAY_EVENT = 'mc:tour-replay';

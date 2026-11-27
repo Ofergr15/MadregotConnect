@@ -4,11 +4,6 @@ export function paceToMetersPerSecond(secondsPerKm: number): number {
   return 1000 / secondsPerKm;
 }
 
-export function metersPerSecondToPace(mps: number): string {
-  const secondsPerKm = 1000 / mps;
-  return formatPace(secondsPerKm);
-}
-
 export function parsePaceString(pace: string): number {
   const parts = pace.split(':');
   if (parts.length === 2) {

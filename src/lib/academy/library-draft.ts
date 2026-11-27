@@ -60,8 +60,6 @@ export type DraftStep =
   /** A block held at a share of max heart rate — the one kind that needs no threshold. */
   | { kind: 'hr'; seconds: number; minPct: number; maxPct: number };
 
-export const DRAFT_KINDS: readonly DraftStep['kind'][] = ['easy', 'continuous', 'reps', 'hr'];
-
 /** A new row of each kind, with the numbers a coach most often writes already in it. */
 export function blankStep(kind: DraftStep['kind']): DraftStep {
   switch (kind) {

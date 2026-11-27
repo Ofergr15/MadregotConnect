@@ -42,8 +42,6 @@ export const KIT_SIZE_FIELDS = [
   options: readonly string[];
 }>;
 
-export type KitSizeField = (typeof KIT_SIZE_FIELDS)[number]['field'];
-
 /**
  * The columns migration 100 adds, as a PostgREST select fragment.
  *

@@ -147,7 +147,3 @@ export function parsedWorkoutToClipboard(workout: ParsedWorkout, opts?: Estimate
         : { min: km.min, max: km.max, estimated: isEstimate(km.from) },
   };
 }
-
-export function withClipboardText(workout: ParsedWorkout): ParsedWorkout {
-  return { ...workout, clipboardText: workoutToClipboardText(workout) };
-}

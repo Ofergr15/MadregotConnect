@@ -192,8 +192,6 @@ const LIBRARY_BUCKET = 'club-photos';
 const LIBRARY_PATH = 'library.json';
 let local: { at: number; value: Library | null } | null = null;
 let reading: Promise<Library | null> | null = null;
-/** This instance reads the stored listing afresh on its next use. */
-export function forgetLibrary(): void { local = null; }
 
 async function readStoredLibrary(): Promise<Library | null> {
   const { data } = await createServerClient().storage.from(LIBRARY_BUCKET).download(LIBRARY_PATH);

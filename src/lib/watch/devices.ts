@@ -108,38 +108,3 @@ export interface NativePushDevice {
   athlete_id: string;
   apns_token: string;
 }
-
-/**
- * The live, push-capable devices of these athletes: not revoked, with a stored APNs token.
- * Empty (never an error) when migration 138 isn't applied or the read fails — native push is
- * additive to web push and must never break a send.
- */
-export async function nativeDevicesForAthletes(db: Db, athleteIds: string[]): Promise<NativePushDevice[]> {
-  if (athleteIds.length === 0) return [];
-  try {
-    const { data, error } = await db
-      .from(WATCH_TABLES.devices)
-      .select('id, athlete_id, apns_token')
-      .in('athlete_id', athleteIds)
-      .is('revoked_at', null)
-      .not('apns_token', 'is', null);
-    if (error || !data) return [];
-    return (data as NativePushDevice[]).filter((d) => !!d.apns_token);
-  } catch {
-    return [];
-  }
-}
-
-/**
- * APNs said these tokens are dead (410 Unregistered, 400 BadDeviceToken / DeviceTokenNotForTopic):
- * clear them so they are not tried again. The device row itself stays — the app re-registers a new
- * token on its next launch (POST /api/device/token carries apnsToken). Best effort.
- */
-export async function clearApnsTokens(db: Db, deviceIds: string[]): Promise<void> {
-  if (deviceIds.length === 0) return;
-  try {
-    await db.from(WATCH_TABLES.devices).update({ apns_token: null }).in('id', deviceIds);
-  } catch {
-    /* evidence of a dead token is not a reason to fail the send */
-  }
-}

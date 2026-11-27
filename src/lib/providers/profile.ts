@@ -20,9 +20,6 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-/** The columns this can fill, as a PostgREST select fragment. */
-export const PROVIDER_PROFILE_COLUMNS = 'gender, birth_date';
-
 export type Gender = 'male' | 'female';
 
 export interface ProviderProfileFields {

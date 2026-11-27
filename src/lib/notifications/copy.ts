@@ -1635,12 +1635,6 @@ export function sessionPhotosStartedCopy(locale: NotificationLocale, p: { count:
     : { title: "📸 This morning's photos are coming in", body: `The first ${p.count} are in the folder · tap to check and publish` };
 }
 
-export function sessionPhotosFoundCopy(locale: NotificationLocale, p: { count: number; first: boolean }): PushCopy {
-  return locale === 'he'
-    ? { title: `📸 ${p.count} תמונות חדשות בתיקייה`, body: p.first ? 'מאימון האיכות של הבוקר. נגיעה כדי לבדוק ולפרסם.' : 'נוספו לתיקייה אחרי הפרסום. נגיעה כדי להוסיף אותן.' }
-    : { title: `📸 ${p.count} new photos in the folder`, body: p.first ? "From this morning's quality session. Tap to check and publish." : 'Added after publishing. Tap to add them.' };
-}
-
 // ── Run together v3 (migration 190) ─────────────────────────────────────────
 
 const firstName = (n: string | null | undefined, locale: NotificationLocale) => ((n || '').trim().split(/\s+/)[0]) || SOMEONE[locale];

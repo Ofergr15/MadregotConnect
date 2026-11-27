@@ -22,7 +22,7 @@
  * exactly the view `status` alone would have put it in.
  */
 
-import { normalizeStatus, type FeedbackStatus } from './status';
+import { normalizeStatus } from './status';
 
 /**
  * The five drawers the panel is divided into. Not the same axis as `status`:
@@ -182,13 +182,3 @@ export function groupDuplicates<T extends LifecycleRow>(rows: T[]): FeedbackIssu
   }
   return issues;
 }
-
-/**
- * The status a triage decision implies, so the panel's one-tap "accept" and the
- * five-way control cannot drift apart.
- */
-export const TRIAGE_DECISION: Record<'bug' | 'idea' | 'no', FeedbackStatus> = {
-  bug: 'sprint',
-  idea: 'idea',
-  no: 'denied',
-};

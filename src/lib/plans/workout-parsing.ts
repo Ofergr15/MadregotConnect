@@ -227,20 +227,6 @@ export function computeStepDistance(
   return stepDistanceRange(step, { assumeOpenBlocks: true, ...opts }).range;
 }
 
-export function computeWorkoutDistance(
-  workout: ParsedWorkout,
-  opts: EstimateOptions = {},
-): { min: number; max: number } {
-  let totalMin = 0;
-  let totalMax = 0;
-  for (const step of workout.steps) {
-    const d = computeStepDistance(step, opts);
-    totalMin += d.min;
-    totalMax += d.max;
-  }
-  return { min: totalMin, max: totalMax };
-}
-
 // Single source of truth for a workout type's display color/label — used by
 // both the dashboard's weekly bar chart and the Program page's day cards, so
 // "long_run" is always purple everywhere rather than two palettes drifting.

@@ -172,4 +172,3 @@ export function computeMonthlyExtra(x: XInput) {
 
   return { packs: [...MONTHLY_PACKS], series, cohorts };
 }
-export type MonthlyExtra = ReturnType<typeof computeMonthlyExtra>;
