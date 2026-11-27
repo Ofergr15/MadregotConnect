@@ -200,3 +200,19 @@ export function suppressedAddresses(events: Array<Pick<EventRow, 'type' | 'recip
   }
   return out;
 }
+
+/**
+ * Task 79: who a resumed bulk send still owes. A send cut by the time budget leaves the
+ * campaign `tested` (not sent); the next run mails only addresses with no email_log row
+ * for this campaign yet — an attempted address (sent OR failed) is never mailed twice.
+ */
+export function remainingRecipients<T extends { email: string }>(people: T[], logged: Array<Pick<LogRow, 'recipients'>>): T[] {
+  const done = new Set<string>();
+  for (const l of logged) for (const r of l.recipients || []) done.add(String(r).trim().toLowerCase());
+  return people.filter((p) => !done.has(p.email.trim().toLowerCase()));
+}
+
+/** Status a bulk send closes the campaign out with: only a complete pass is `sent`. */
+export function closingStatus(notAttempted: number): 'sent' | 'tested' {
+  return notAttempted > 0 ? 'tested' : 'sent';
+}
