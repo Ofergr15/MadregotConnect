@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { computeChallengeProgress, type ChallengeRow } from '@/lib/challenges/engine';
+import { israelToday } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +33,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+    // The club's day, not UTC's: between 00:00 and 02:00/03:00 Israel the UTC date is
+    // still yesterday, which hid a challenge starting today and showed one that ended.
+    const today = israelToday();
     const { data: rows, error } = await supabase
       .from('challenges')
       .select('id, badge_id, name_he, name_en, description_he, description_en, metric, target_value, scope, start_date, end_date')

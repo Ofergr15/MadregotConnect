@@ -7,6 +7,7 @@ import { groupNumberForAthlete, isMissingMatchesTable } from '@/lib/plans/match-
 import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
 
 import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 export const dynamic = 'force-dynamic';
 
 // Every write path that reaches activity_plan_matches needs this table. Until the
@@ -96,14 +97,23 @@ export async function GET(
     const nextWeek = new Date(`${plan.week_start_date}T00:00:00Z`);
     nextWeek.setUTCDate(nextWeek.getUTCDate() + 7);
 
+    type WeekRun = { id: string; athlete_id: string; start_time: string; activity_name: string | null; distance: number | null; average_pace: number | null; average_hr: number | null };
+    // The whole club's runs for one week passes Supabase's 1000-row cap on a busy week, and
+    // ordered by start_time it was Thu-Sat that fell off. Paged on a stable key, then sorted.
+    const activitiesRead = fetchAllRows<WeekRun>((from, to) => supabase
+      .from('athlete_activities')
+      .select('id, athlete_id, start_time, activity_name, distance, average_pace, average_hr').or(RUNS_ONLY_OR)
+      .gte('start_time', `${plan.week_start_date}T00:00:00`)
+      .lt('start_time', `${nextWeek.toISOString().slice(0, 10)}T00:00:00`)
+      .order('id')
+      .range(from, to) as never)
+      .then((rows) => ({
+        data: rows.sort((a, b) => (a.start_time < b.start_time ? -1 : a.start_time > b.start_time ? 1 : 0)),
+        error: null as unknown,
+      }), (error: unknown) => ({ data: null as WeekRun[] | null, error }));
     const [{ data: activities, error: activitiesError }, { data: matches, error: matchesError }] =
       await Promise.all([
-        supabase
-          .from('athlete_activities')
-          .select('id, athlete_id, start_time, activity_name, distance, average_pace, average_hr').or(RUNS_ONLY_OR)
-          .gte('start_time', `${plan.week_start_date}T00:00:00`)
-          .lt('start_time', `${nextWeek.toISOString().slice(0, 10)}T00:00:00`)
-          .order('start_time', { ascending: true }),
+        activitiesRead,
         supabase
           .from('activity_plan_matches')
           .select('*')

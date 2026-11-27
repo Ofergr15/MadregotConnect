@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { ACTION_TOKEN_HEADER, rsvpScope, verifyActionToken } from '@/lib/auth/action-token';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,12 +57,15 @@ export async function GET(request: Request) {
       lowerWeek.setDate(lowerWeek.getDate() - 6);
       const lowerStr = lowerWeek.toISOString().split('T')[0];
 
-      const { data, error } = await supabase
+      // Paged: a month view is ~5 weeks × practices × the roster, past Supabase's
+      // 1000-row cap, and a capped read silently undercounted the last days.
+      const data = await fetchAllRows<{ week_start_date: string; day_of_week: number; attending: boolean }>((pFrom, pTo) => supabase
         .from('workout_attendance')
         .select('week_start_date, day_of_week, attending')
         .gte('week_start_date', lowerStr)
-        .lte('week_start_date', to);
-      if (error) throw error;
+        .lte('week_start_date', to)
+        .order('id')
+        .range(pFrom, pTo) as never);
 
       // Fold into a map keyed by the practice's real ISO date.
       const days: Record<string, { going: number; notGoing: number; total: number }> = {};

@@ -115,6 +115,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id } = await params;
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
+    // Read-only while viewing as someone, like the GET's seen-stamp and the pain-report
+    // writes: otherwise staff "viewing as" a runner would post AS that runner.
+    if (caller.viewingAsBy) return NextResponse.json({ error: 'read-only while viewing as' }, { status: 403 });
     const { body } = await request.json();
     const trimmed = typeof body === 'string' ? body.trim().slice(0, 2000) : '';
     if (!trimmed) return NextResponse.json({ error: 'body is required' }, { status: 400 });
