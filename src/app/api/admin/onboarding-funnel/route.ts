@@ -115,9 +115,12 @@ export async function GET(request: Request) {
     (from, to) => db.from('email_log').select('template, recipients, status, athlete_id, signup_request_id, candidate_id, created_at')
       .in('template', MEMBER_TEMPLATES).gte('created_at', COHORT_SINCE).order('created_at').range(from, to),
   );
-  const { data: pushRows } = await db.from('scheduled_notifications').select('kind, audience_id, status, created_at')
-    .eq('audience_type', 'athlete').in('kind', MEMBER_PUSH_KINDS).gte('created_at', COHORT_SINCE);
-  const pushes = (pushRows ?? []) as Array<{ kind: string; audience_id: string | null; status: string; created_at: string }>;
+  // Paged like the mails above — the cohort's pushes pass 1,000 rows too.
+  const pushes = (await readAll<{ kind: string; audience_id: string | null; status: string; created_at: string }>(
+    (from, to) => db.from('scheduled_notifications').select('kind, audience_id, status, created_at')
+      .eq('audience_type', 'athlete').in('kind', MEMBER_PUSH_KINDS).gte('created_at', COHORT_SINCE)
+      .order('created_at').order('id').range(from, to),
+  )).rows;
   const sentFor = (who: { athleteId?: string | null; requestId?: string | null; candidateId?: string | null; emails: string[] }): SentItem[] => {
     const addrs = who.emails.map((e) => e.toLowerCase().trim()).filter((e) => e && !isSyntheticAuthEmail(e));
     const out: SentItem[] = mails.rows

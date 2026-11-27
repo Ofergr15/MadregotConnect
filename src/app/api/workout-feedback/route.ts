@@ -9,6 +9,7 @@ import { inScope, staffAthleteScope } from '@/lib/academy/staff-scope';
 import { academyThreadUrl } from '@/lib/academy/deep-links';
 import { requireCallerForAthlete, requireStaffCaller } from '@/lib/auth/self-or-staff';
 import { parseFeedbackInput } from '@/lib/feedback-scales';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 
 export const dynamic = 'force-dynamic';
 
@@ -212,13 +213,18 @@ export async function GET(request: Request) {
         // Every card's reply thread, in two queries rather than one request per
         // card. `threadsForFeedback` explains what this replaces.
         threadsForFeedback(supabase, feedbackRows.map((r) => r.id), caller.athleteId, new Map(feedbackRows.map((r) => [r.id, r.athlete_id]))),
-        supabase
+        // Paged: up to 180 days of the whole club is far past the 1000-row cap, and the
+        // newest-first cut dropped the OLDER runs — exactly the ones a "missing feedback"
+        // list is about. Same { data } shape as before; a read error is an empty list.
+        fetchAllRows<any>((from, to) => supabase
           .from('athlete_activities')
-          .select('athlete_id, garmin_activity_id, activity_name, activity_type, distance, start_time')
+          .select('id, athlete_id, garmin_activity_id, activity_name, activity_type, distance, start_time')
           .in('athlete_id', (activeAthletes || []).map((a: any) => a.id))
           .gt('distance', 0)
           .gte('start_time', since)
-          .order('start_time', { ascending: false }),
+          .order('start_time', { ascending: false })
+          .order('id')
+          .range(from, to) as never).then((data) => ({ data }), () => ({ data: [] as any[] })),
       ]);
 
       const actMap = new Map<number, any>();
