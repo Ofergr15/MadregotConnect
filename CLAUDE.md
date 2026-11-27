@@ -35,9 +35,9 @@ can't start, check `node -v` before anything else.
 |---|---|
 | `npm run dev` | Dev server on :3000 |
 | `npm run check` | **Run before every commit** — typecheck + test + lint |
-| `npm test` | vitest (120 tests, ~0.5s) |
+| `npm test` | vitest (9,717 tests in 869 files, ~40s) |
 | `npm run typecheck` | `tsc --noEmit` (~4s, currently clean) |
-| `npm run lint` | next lint (3 pre-existing `exhaustive-deps` warnings, 0 errors) |
+| `npm run lint` | next lint (4 pre-existing warnings, 0 errors) |
 | `npm run build` | Production build (~40s) |
 
 `npm run lint` warnings are pre-existing — don't treat them as your regression,
@@ -48,7 +48,7 @@ but don't add new ones.
 ```
 src/
   app/
-    api/**/route.ts     ~45 REST routes (see "API conventions")
+    api/**/route.ts     491 route files — map in docs/api-routes.md (see "API conventions")
     (app)/              Signed-in shell (layout.tsx: auth gate, Header, tab bar)
       dashboard/**      Coach + athlete UI, all client components
       feed/             The feed — the app's landing page, served at /feed
@@ -61,7 +61,7 @@ src/
     supabase/           Clients + hand-written DB types
     utils.ts            cn(), week-start + activity-time helpers, group identity
   i18n/                 next-intl cookie-based locale
-messages/{en,he}.json   1891 keys each, currently at parity
+messages/{en,he}.json   6212 keys each, currently at parity
 supabase/
   schema.sql            ⚠️ ORIGINAL schema only — stale
   migrations/0NN_*.sql  ⚠️ The real schema. Applied MANUALLY in the Supabase SQL editor.
@@ -651,10 +651,10 @@ via `Promise.allSettled` so one provider failing doesn't block the other, then w
 ## i18n
 
 `next-intl`, cookie-based (`NEXT_LOCALE`), **Hebrew default**, no locale in the URL.
-`messages/en.json` and `messages/he.json` are at 1891 keys each — keep them in sync;
+`messages/en.json` and `messages/he.json` are at 6212 keys each — keep them in sync;
 adding a key to one and not the other is the common mistake.
 
-Adoption is partial: 14 of 44 components use `useTranslations`. Several (notably the
+Adoption is partial: 217 of 422 `.tsx` files under `src/components` use `useTranslations` (plus 52 under `src/app`), counted 2026-11-27. Several (notably the
 Academy components and `WorkoutEditor`) have hardcoded Hebrew. New user-facing strings
 should go through `useTranslations`.
 
