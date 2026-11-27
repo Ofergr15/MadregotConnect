@@ -77,6 +77,8 @@ export const FEATURES = {
   /** Native wellness strip on home. */
   wellness_strip: { label: 'פס בריאות (אפליקציה)', defaultEnabled: false },
   /** Native weekly summary card on the week tab, Sunday 19:00 – Monday (b25, GET /api/week-story?mode=summary). */
+  /** Opt-in Sunday "your week" push (activity week + plan week). DRY-RUN ONLY: GET /api/cron/your-week sends nothing. */
+  your_week_push: { label: 'התראת "השבוע שלך" ביום ראשון (ניסוי)', defaultEnabled: false },
   week_summary: { label: 'סיכום שבועי (אפליקציה)', defaultEnabled: false },
   /** Native birthday year-in-review card. */
   birthday_year_card: { label: 'כרטיס שנה ביום הולדת (אפליקציה)', defaultEnabled: false },
