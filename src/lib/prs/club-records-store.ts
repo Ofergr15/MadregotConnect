@@ -136,7 +136,8 @@ export async function computeClubRecordsSnapshot(supabase: SupabaseServer): Prom
   // by every viewer, so it can't be viewer-scoped: excluded for everyone, staff
   // included. Fails open (no column → nobody excluded).
   const testIds = await testAccountIds(supabase as never);
-  const athletes: ClubRecordAthlete[] = (athleteRows || []).filter((a: any) => !testIds.has(a.id)).map((a: any) => ({
+  const athletes: ClubRecordAthlete[] = ((athleteRows || []) as Array<{ id: string; name: string; group_id: string | null; gender: 'male' | 'female' | null }>)
+    .filter((a) => !testIds.has(a.id)).map((a) => ({
     id: a.id,
     name: a.name,
     groupId: a.group_id ?? null,
@@ -203,7 +204,8 @@ export async function computeClubRecordsSnapshot(supabase: SupabaseServer): Prom
   // 42P01: migration 104 not pasted in yet. Same tolerance as the profile read —
   // an absent table means "nobody has stated a record", not a broken page.
   if (ovError && (ovError as { code?: string }).code !== UNDEFINED_TABLE) throw ovError;
-  for (const row of (overrideRows || []) as any[]) {
+  type OverrideRow = { athlete_id: string; bucket_key: string; seconds: number; achieved_on: string | null; note: string | null; hidden: boolean | null };
+  for (const row of (overrideRows || []) as OverrideRow[]) {
     const list = overridesByAthlete.get(row.athlete_id) || [];
     list.push({
       bucketKey: row.bucket_key,

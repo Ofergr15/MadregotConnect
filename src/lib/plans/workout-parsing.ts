@@ -101,29 +101,33 @@ export function formatPlanWeekRange(sundayISO: string): string {
   return `${fmt(sunday)} – ${fmt(saturday)}`;
 }
 
-export function extractWorkouts(parsedWorkouts: any): ParsedWorkout[] {
-  if (!parsedWorkouts) return [];
+/** The stored `weekly_plans.parsed_workouts` jsonb: one of several historical shapes. */
+type StoredPlanShape = unknown;
+
+const workoutsOf = (v: unknown): ParsedWorkout[] | null => {
+  const w = v && typeof v === 'object' ? (v as { workouts?: unknown }).workouts : undefined;
+  return Array.isArray(w) ? (w as ParsedWorkout[]) : null;
+};
+
+export function extractWorkouts(parsedWorkouts: StoredPlanShape): ParsedWorkout[] {
+  if (!parsedWorkouts || typeof parsedWorkouts !== 'object') return [];
 
   // Format: { workouts: [...] }
-  if (Array.isArray(parsedWorkouts.workouts)) {
-    return parsedWorkouts.workouts;
-  }
+  const top = workoutsOf(parsedWorkouts);
+  if (top) return top;
 
   // Format: { group1: { workouts: [...] }, group2: {...}, ... }
   // Use group1 as the default display group
+  const byKey = parsedWorkouts as Record<string, unknown>;
   for (const key of ['group1', 'group2', 'group3']) {
-    const group = parsedWorkouts[key];
-    if (group?.workouts && Array.isArray(group.workouts)) {
-      return group.workouts;
-    }
+    const w = workoutsOf(byKey[key]);
+    if (w) return w;
   }
 
   // Try any key that has workouts array
-  for (const val of Object.values(parsedWorkouts)) {
-    if (val && typeof val === 'object' && 'workouts' in (val as any)) {
-      const w = (val as any).workouts;
-      if (Array.isArray(w)) return w;
-    }
+  for (const val of Object.values(byKey)) {
+    const w = workoutsOf(val);
+    if (w) return w;
   }
 
   return [];
@@ -171,7 +175,8 @@ function annotateSteps(s1: WorkoutStep[], s2: WorkoutStep[] | null, s3: WorkoutS
   return s1.map((step, i) => {
     const s2i = s2?.[i];
     const s3i = s3?.[i];
-    const annotated: any = {
+    // Local GroupPace allows null per lane, which the shared type doesn't model yet.
+    const annotated: Omit<WorkoutStep, 'groupPaces'> & { groupPaces: GroupPace[] } = {
       ...step,
       groupPaces: flat ? flatLanePaces(step) : [stepGroupPace(step), stepGroupPace(s2i), stepGroupPace(s3i)],
     };
@@ -180,14 +185,15 @@ function annotateSteps(s1: WorkoutStep[], s2: WorkoutStep[] | null, s3: WorkoutS
         ? annotateSteps(step.repeatSteps, null, null)
         : annotateSteps(step.repeatSteps, s2i?.repeatSteps || step.repeatSteps, s3i?.repeatSteps || step.repeatSteps);
     }
-    return annotated;
+    return annotated as unknown as WorkoutStep;
   });
 }
 
-export function enrichWithGroupPaces(parsedWorkouts: any): ParsedWorkout[] {
+export function enrichWithGroupPaces(parsedWorkouts: StoredPlanShape): ParsedWorkout[] {
   const g1 = extractWorkouts(parsedWorkouts);
-  const g2 = parsedWorkouts?.group2?.workouts as ParsedWorkout[] | undefined;
-  const g3 = parsedWorkouts?.group3?.workouts as ParsedWorkout[] | undefined;
+  const byKey = (parsedWorkouts && typeof parsedWorkouts === 'object' ? parsedWorkouts : {}) as Record<string, unknown>;
+  const g2 = workoutsOf(byKey.group2) ?? undefined;
+  const g3 = workoutsOf(byKey.group3) ?? undefined;
   // Flat plan (single group) or no per-group split → each step's own group2Pace/group3Pace
   // or bracket notes (flatLanePaces), else group1's pace for all three.
   // Paired by day AND part: a day with a morning and an evening session used to take the
@@ -486,7 +492,7 @@ export function buildWeekSessions(workouts: ParsedWorkout[]): WeekSession[] {
  * those two surfaces can never compute a day's distance/type/highlight
  * differently.
  */
-export function buildWeekBreakdown(parsedWorkouts: any): WeekBreakdown {
+export function buildWeekBreakdown(parsedWorkouts: StoredPlanShape): WeekBreakdown {
   const workouts = dedupeWorkoutsByDay(enrichWithGroupPaces(parsedWorkouts));
 
   const sessions = buildWeekSessions(workouts);

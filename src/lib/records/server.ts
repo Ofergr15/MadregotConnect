@@ -6,6 +6,22 @@ import { ageBand, hidesPace, type BoardPerson, type RecordFacts } from './board'
 
 type Db = ReturnType<typeof createServerClient>;
 
+/** The athletes columns readRoster selects; the 195/193 columns are absent pre-migration. */
+interface RosterRow {
+  id: string;
+  name: string | null;
+  avatar_url: string | null;
+  group_id: string | null;
+  gender: string | null;
+  birth_date: string | null;
+  default_hidden_fields?: unknown;
+  leaderboard_opt_out?: boolean | null;
+  squad_compare?: boolean | null;
+  groups?: { name: string | null } | null;
+}
+
+interface BenchmarkRow { athlete_id: string; time_seconds: number | string | null; recorded_on: string | null }
+
 export interface RosterPerson extends BoardPerson, RecordFacts {
   squadCompare: boolean;
 }
@@ -17,7 +33,7 @@ export interface RosterPerson extends BoardPerson, RecordFacts {
  */
 export async function readRoster(db: Db, todayIso: string): Promise<RosterPerson[]> {
   const base = 'id, name, avatar_url, group_id, gender, birth_date, default_hidden_fields, groups!group_id(name)';
-  let rows: any[] | null = null;
+  let rows: RosterRow[] | null = null;
   const first = await db.from('athletes').select(`${base}, leaderboard_opt_out, squad_compare`)
     .eq('coach_id', COACH_ID).eq('status', 'active');
   if (first.error && isMissingColumn(first.error)) {
@@ -27,13 +43,13 @@ export async function readRoster(db: Db, todayIso: string): Promise<RosterPerson
       const third = await db.from('athletes').select('id, name, avatar_url, group_id, gender, birth_date, groups!group_id(name)')
         .eq('coach_id', COACH_ID).eq('status', 'active');
       if (third.error) throw third.error;
-      rows = third.data;
+      rows = third.data as unknown as RosterRow[] | null;
     } else if (second.error) throw second.error;
-    else rows = second.data;
+    else rows = second.data as unknown as RosterRow[] | null;
   } else if (first.error) throw first.error;
-  else rows = first.data;
+  else rows = first.data as unknown as RosterRow[] | null;
 
-  return (rows || []).map((a: any) => {
+  return (rows || []).map((a) => {
     const g = resolveGroup(a.groups?.name ?? null);
     return {
       id: String(a.id),
@@ -77,7 +93,7 @@ export async function benchmarkBests(db: Db): Promise<Array<{ athleteId: string;
     .eq('coach_id', COACH_ID).eq('test_name', '2000m').not('athlete_id', 'is', null);
   if (error) return [];
   const best = new Map<string, { athleteId: string; seconds: number; date: string | null }>();
-  for (const r of (data || []) as any[]) {
+  for (const r of (data || []) as unknown as BenchmarkRow[]) {
     const s = Number(r.time_seconds);
     if (!Number.isFinite(s) || s <= 0) continue;
     const cur = best.get(r.athlete_id);
