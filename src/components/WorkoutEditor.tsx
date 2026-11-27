@@ -640,7 +640,7 @@ function StepPanel({ step, insideRepeat, onPatch, onDuplicate, onDelete, onUnwra
 
       {canPace && <PackPaceEditor step={step} onPatch={onPatch} />}
 
-      <input
+      <input aria-label={t('notesPlaceholder')}
         type="text"
         value={step.notes || ''}
         onChange={(e) => onPatch((s) => ({ ...s, notes: e.target.value || undefined }))}
@@ -894,7 +894,7 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
       >
         <div className="sticky top-0 z-10 bg-card pb-1">
           <div className="flex items-center gap-2 px-4 pb-2">
-            <input
+            <input aria-label={t('workoutNamePlaceholder')}
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="bg-transparent text-sm text-ink-700 focus:outline-none flex-1 min-w-0 font-medium"

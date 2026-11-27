@@ -112,7 +112,7 @@ function Row({ row, onOpen }: { row: InboxRow; onOpen?: (athleteId: string) => v
   return (
     <button
       onClick={() => onOpen?.(row.athleteId)}
-      className="flex w-full items-center gap-3 rounded-card bg-card px-3 py-3 text-right active:bg-page/60"
+      className="flex w-full items-center gap-3 rounded-card bg-card px-3 py-3 text-start active:bg-page/60"
     >
       {/* The pair: the trainee in purple, their coach in green (lib/academy/seat-style.ts). */}
       <span className="flex shrink-0 items-center">

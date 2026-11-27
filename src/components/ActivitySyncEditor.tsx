@@ -323,7 +323,7 @@ export function ActivitySyncEditor({
               />
               <Pencil className="h-4 w-4 text-ink-400 shrink-0" />
             </div>
-            <textarea
+            <textarea aria-label={t('captionPlaceholder')}
               value={caption}
               onChange={e => setCaption(e.target.value)}
               placeholder={t('captionPlaceholder')}
@@ -333,7 +333,7 @@ export function ActivitySyncEditor({
             />
             <div className="flex items-center gap-2 px-3 py-2.5">
               <TagIcon className="h-4 w-4 text-ink-400 shrink-0" />
-              <input
+              <input aria-label={t('tagPlaceholder')}
                 value={tag}
                 onChange={e => setTag(e.target.value)}
                 placeholder={t('tagPlaceholder')}

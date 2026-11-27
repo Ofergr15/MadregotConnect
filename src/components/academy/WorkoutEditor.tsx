@@ -158,7 +158,7 @@ export function WorkoutEditor({
       <Head title={initial ? 'עריכת אימון' : 'אימון חדש'} onCancel={onCancel} />
 
       <Field label="שם האימון">
-        <input
+        <input aria-label="אינטרוולים קלאסי"
           type="text"
           value={name}
           onChange={e => setName(e.target.value)}
@@ -241,7 +241,7 @@ export function WorkoutEditor({
       </div>
 
       <Field label="הערה (לא חובה)">
-        <input
+        <input aria-label="מסלול, מה להדגיש"
           type="text"
           value={notes}
           onChange={e => setNotes(e.target.value)}

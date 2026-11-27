@@ -234,7 +234,7 @@ export default function CoreRunnersManager() {
             onChange={e => setQuery(e.target.value)}
             placeholder="חיפוש לפי שם או אימייל"
             aria-label="חיפוש לפי שם או אימייל"
-            className="h-full flex-1 border-0 bg-transparent p-0 pe-3 text-right text-sm text-ink-900 placeholder-ink-400 focus:outline-none focus:ring-0"
+            className="h-full flex-1 border-0 bg-transparent p-0 pe-3 text-start text-sm text-ink-900 placeholder-ink-400 focus:outline-none focus:ring-0"
           />
           {query && (
             <button onClick={() => setQuery('')} className="flex h-11 w-11 shrink-0 items-center justify-center text-ink-400" aria-label="ניקוי החיפוש">

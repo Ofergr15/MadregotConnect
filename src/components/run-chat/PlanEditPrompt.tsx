@@ -228,7 +228,7 @@ export function PlanEditPromptProvider({
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <textarea
+                <textarea aria-label={t('editPlanPlaceholder')}
                   autoFocus
                   className="min-h-28 w-full resize-y rounded-xl border border-page bg-page px-3 py-2.5 text-sm text-ink-700 outline-none focus:border-band-2"
                   data-testid="edit-plan-prompt"

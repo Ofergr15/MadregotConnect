@@ -196,7 +196,7 @@ export function PrEditSheet({
 
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-ink-400">{t('prNote')}</label>
-                  <input
+                  <input aria-label={t('prNotePlaceholder')}
                     type="text"
                     maxLength={200}
                     placeholder={t('prNotePlaceholder')}

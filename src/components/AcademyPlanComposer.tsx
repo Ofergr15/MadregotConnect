@@ -1014,7 +1014,7 @@ function TraineePicker({
         {athletes.length > 8 && (
           <div className="flex items-center gap-2 bg-page border border-page rounded-xl px-3 h-11 mx-1">
             <Search className="h-4 w-4 text-ink-400 shrink-0" />
-            <input
+            <input aria-label="חיפוש מתאמן/ת"
               value={q}
               onChange={e => setQ(e.target.value)}
               placeholder="חיפוש מתאמן/ת"
@@ -1344,7 +1344,7 @@ function BookPicker({
         {entries.length > 8 && (
           <div className="flex items-center gap-2 bg-page border border-page rounded-xl px-3 h-11 mx-1">
             <Search className="h-4 w-4 text-ink-400 shrink-0" />
-            <input
+            <input aria-label="חיפוש אימון"
               value={q}
               onChange={e => setQ(e.target.value)}
               placeholder="חיפוש אימון"

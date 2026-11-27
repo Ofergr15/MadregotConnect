@@ -555,7 +555,7 @@ export function NotificationCenter() {
                 <div className="space-y-1">
                   {upcoming.map(w => (
                     <button key={w.dayOfWeek} onClick={() => remindWorkout(w)}
-                      className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-card/60 hover:bg-page transition text-right" dir="rtl">
+                      className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-card/60 hover:bg-page transition text-start" dir="rtl">
                       <span className="text-xs text-ink-700 truncate">{w.dayName} · {w.name}</span>
                       <span className="text-3xs font-bold text-brand-600 shrink-0">שלח תזכורת ←</span>
                     </button>
@@ -583,7 +583,7 @@ export function NotificationCenter() {
               </div>
               <div>
                 <label className="text-xs font-semibold text-ink-400">תוכן (עברית)</label>
-                <textarea dir="rtl" value={bodyHe} onChange={e => setBodyHe(e.target.value)} rows={2} className={inputCls} placeholder="פרטי ההתראה" />
+                <textarea aria-label="פרטי ההתראה" dir="rtl" value={bodyHe} onChange={e => setBodyHe(e.target.value)} rows={2} className={inputCls} placeholder="פרטי ההתראה" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-ink-400 mb-1.5 block" dir="rtl">תמונה (אופציונלי)</label>
@@ -868,7 +868,7 @@ export function NotificationCenter() {
       {/* Athlete picker — a searchable bottom sheet, replacing the raw
           native <select> dropdown. */}
       <Sheet open={athletePickerOpen} onOpenChange={(o) => { setAthletePickerOpen(o); if (!o) setAthleteSearch(''); }} title="בחרו רץ">
-        <input
+        <input aria-label="חיפוש…"
           value={athleteSearch}
           onChange={e => setAthleteSearch(e.target.value)}
           placeholder="חיפוש…"

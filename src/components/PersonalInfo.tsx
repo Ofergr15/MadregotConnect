@@ -356,7 +356,7 @@ export function PersonalInfo({ athleteId, focusField }: { athleteId: string; foc
           leaderboards), so it can't be saved empty, and it is the key matching a
           Strava profile to this row, so it can't be saved in Hebrew either. */}
       <Sheet open={editField === 'name'} onOpenChange={o => !o && setEditField(null)} title={t('fullName')}>
-        <input
+        <input aria-label={t('fullNamePlaceholder')}
           type="text"
           value={name}
           onChange={e => { setName(e.target.value); setNameError(null); }}
@@ -468,7 +468,7 @@ export function PersonalInfo({ athleteId, focusField }: { athleteId: string; foc
 
       {/* Phone edit sheet */}
       <Sheet open={editField === 'phone'} onOpenChange={o => !o && setEditField(null)} title={t('phone')}>
-        <input
+        <input aria-label={t('phonePlaceholder')}
           type="tel"
           value={phone}
           onChange={e => setPhone(e.target.value)}

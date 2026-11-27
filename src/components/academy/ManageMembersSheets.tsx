@@ -584,7 +584,7 @@ export function AddMemberSheet({
           <>
             <div className="relative mb-2">
               <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="חיפוש במועדון"
+              <input aria-label="חיפוש במועדון" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="חיפוש במועדון"
                 className="w-full min-h-[44px] rounded-xl bg-card ps-9 pe-3 text-[16px] text-ink-700 placeholder:text-ink-400 focus:outline-none" />
             </div>
             <div className="max-h-[188px] overflow-y-auto rounded-card bg-card divide-y divide-page">

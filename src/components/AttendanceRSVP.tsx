@@ -252,7 +252,7 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
           </div>
           {/* Free-text "other group" — for anyone not in a preset דבוקה. Saves on
               blur / Enter; typing here clears any preset selection. */}
-          <input
+          <input aria-label={t('otherGroup')}
             value={customGroup}
             onChange={e => { setCustomGroup(e.target.value); if (e.target.value) setGroup(''); }}
             onBlur={() => { if (customGroup.trim()) submitGroup('', customGroup); }}

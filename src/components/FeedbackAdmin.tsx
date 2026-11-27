@@ -690,20 +690,20 @@ export function FeedbackAdmin() {
                     LTR tokens, and typing them into an RTL field puts the caret and
                     the punctuation on the wrong side. */}
                 <div className="space-y-2">
-                  <input
+                  <input aria-label={t('fixVersionPlaceholder')}
                     type="text" dir="ltr" value={fix.version} inputMode="decimal"
                     onChange={e => setFix(f => ({ ...f, version: e.target.value }))}
                     placeholder={t('fixVersionPlaceholder')}
                     className="w-full rounded-lg border border-page/50 bg-page/50 px-3 py-2 font-mono text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-1 focus:ring-brand-600/50"
                   />
                   <div className="flex gap-2">
-                    <input
+                    <input aria-label={t('fixBranchPlaceholder')}
                       type="text" dir="ltr" value={fix.branch}
                       onChange={e => setFix(f => ({ ...f, branch: e.target.value }))}
                       placeholder={t('fixBranchPlaceholder')}
                       className="min-w-0 flex-1 rounded-lg border border-page/50 bg-page/50 px-3 py-2 font-mono text-xs text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-1 focus:ring-brand-600/50"
                     />
-                    <input
+                    <input aria-label={t('fixCommitPlaceholder')}
                       type="text" dir="ltr" value={fix.commit}
                       onChange={e => setFix(f => ({ ...f, commit: e.target.value }))}
                       placeholder={t('fixCommitPlaceholder')}
@@ -756,7 +756,7 @@ export function FeedbackAdmin() {
               <div className="pt-3 border-t border-page/50">
                 <label className="text-xs font-semibold text-ink-400 mb-2 block">{t('adminNotes')}</label>
                 <div className="flex gap-2">
-                  <input
+                  <input aria-label={t('addTagOrNote')}
                     type="text"
                     value={adminNotes}
                     onChange={e => setAdminNotes(e.target.value)}

@@ -158,7 +158,7 @@ function CandidateCard({
     <button
       type="button"
       onClick={() => onOpen(candidate.id)}
-      className="w-full flex items-center gap-3 px-4 py-3 min-h-[56px] text-right active:bg-page/60"
+      className="w-full flex items-center gap-3 px-4 py-3 min-h-[56px] text-start active:bg-page/60"
     >
       <span className={cn(
         'shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-2xs font-bold',
@@ -333,7 +333,7 @@ export function FunnelBoardView({
                   key={candidate.id}
                   type="button"
                   onClick={() => onOpen(candidate.id)}
-                  className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] text-right active:bg-page/60"
+                  className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] text-start active:bg-page/60"
                 >
                   <span className="flex-1 min-w-0">
                     <span className="block text-sm text-ink-500 truncate" dir="auto">{candidate.name}</span>

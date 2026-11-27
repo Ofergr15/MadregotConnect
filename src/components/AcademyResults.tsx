@@ -206,7 +206,7 @@ export function AcademyResults() {
               className="w-full bg-page border border-page rounded-lg px-3 h-11 text-sm text-ink-700" placeholder="2000m" />
           </Field>
           <Field label="שם הספורטאי/ת">
-            <input value={editing?.athlete_name || ''} onChange={e => setEditing(prev => ({ ...prev, athlete_name: e.target.value }))}
+            <input aria-label="שם מלא" value={editing?.athlete_name || ''} onChange={e => setEditing(prev => ({ ...prev, athlete_name: e.target.value }))}
               dir="auto" className="w-full bg-page border border-page rounded-lg px-3 h-11 text-sm text-ink-700" placeholder="שם מלא" />
           </Field>
           <Field label="זמן (m:ss.ss)">
