@@ -103,7 +103,7 @@ function ConvRow({ row, data, onOpen }: { row: ChatRow; data: ChatPayload; onOpe
   const quietDays = row.reason === 'silent' && row.quietDays != null ? Math.round(row.quietDays) : null;
   return (
     <button type="button" onClick={() => onOpen?.(row.athleteId)}
-      className="flex w-full items-center gap-3 ps-4 text-right active:bg-page/60">
+      className="flex w-full items-center gap-3 ps-4 text-start active:bg-page/60">
       <ChatAvatar row={row} />
       {/* WhatsApp's row: the line under the text, not under the photo. */}
       <div className="min-w-0 flex-1 border-b-[0.5px] border-black/[0.08] py-3 pe-4">
@@ -139,7 +139,7 @@ function NewChatSheet({ open, onOpenChange, rows, onPick }: {
   const all = rows.filter((r) => hasThread(r) && match(r)).sort((a, b) => Date.parse(b.lastAt!) - Date.parse(a.lastAt!));
   const item = (r: ChatRow, cta: string, sub: string) => (
     <button key={r.athleteId} type="button" onClick={() => onPick(r.athleteId)}
-      className="flex min-h-[56px] w-full items-center gap-3 px-1 py-1.5 text-right">
+      className="flex min-h-[56px] w-full items-center gap-3 px-1 py-1.5 text-start">
       <ChatAvatar row={r} size={44} />
       <span className="min-w-0 flex-1">
         <b className="block truncate text-[15px] text-ink-900" dir="auto">{r.name}</b>

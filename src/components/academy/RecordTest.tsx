@@ -345,7 +345,7 @@ export function RecordTest({
       </Field>
 
       <Field label="הערות (לא חובה)">
-        <input
+        <input aria-label="מסלול, תנאים, מה שכדאי לזכור"
           type="text" value={notes} onChange={e => setNotes(e.target.value)}
           placeholder="מסלול, תנאים, מה שכדאי לזכור" className={INPUT}
         />

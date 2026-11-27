@@ -151,7 +151,7 @@ export function ReminderConfig() {
       {/* Meeting place. Empty input = clear it, which puts the Profile screen's
           מיקום column back to hidden. */}
       <Sheet open={locDraft !== null} onOpenChange={(o) => !o && setLocDraft(null)} title={t('teamWorkoutLocation')}>
-        <input
+        <input aria-label={t('teamWorkoutLocationPlaceholder')}
           value={locDraft ?? ''}
           onChange={e => setLocDraft(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}

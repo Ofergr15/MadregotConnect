@@ -34,7 +34,7 @@ export function FormStrip({ weeks, gender, onOpen }: {
       ))}
       {/* A fixed physical gap from the outlined square (its outline reaches 3px out): the
           row is LTR, so the word's space is on its LEFT whatever its own direction. */}
-      <span dir="rtl" className="ml-2.5 shrink-0 whitespace-nowrap text-[12px] font-black" style={{ color: BAND_TILE[band.key]?.ink }}>
+      <span dir="rtl" className="me-2.5 shrink-0 whitespace-nowrap text-[12px] font-black" style={{ color: BAND_TILE[band.key]?.ink }}>
         {t(band.wordKey as never, { gender } as never)}
       </span>
     </>

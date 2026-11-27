@@ -73,7 +73,7 @@ export function MemberDiscovery({ viewerId }: { viewerId: string }) {
     <div className="space-y-3">
       <div className="relative">
         <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-400" />
-        <input
+        <input aria-label={t('discoverSearchPlaceholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('discoverSearchPlaceholder')}

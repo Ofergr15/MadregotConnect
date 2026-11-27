@@ -53,7 +53,7 @@ export function StoryTesterBar({ feature, className, tone = 'dark' }: { feature:
             <p className="text-sm text-ink-500">תודה! המשוב הגיע.</p>
           ) : (
             <>
-              <textarea
+              <textarea aria-label="מה עבד? מה לא? מה חסר?"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 rows={4}

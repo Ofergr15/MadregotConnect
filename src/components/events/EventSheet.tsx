@@ -320,7 +320,7 @@ export function EventSheet({
             <InsetRow
               label={t('addEvent.name')}
               trailing={
-                <input
+                <input aria-label={t('addEvent.namePlaceholder')}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={t('addEvent.namePlaceholder')}
@@ -343,7 +343,7 @@ export function EventSheet({
             <InsetRow
               label={t('addEvent.capacity')}
               trailing={
-                <input
+                <input aria-label={t('addEvent.capacityPlaceholder')}
                   type="number"
                   min={1}
                   value={capacity}
@@ -356,7 +356,7 @@ export function EventSheet({
             <InsetRow
               label={t('addEvent.location')}
               trailing={
-                <input
+                <input aria-label={t('addEvent.locationPlaceholder')}
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   placeholder={t('addEvent.locationPlaceholder')}
@@ -372,7 +372,7 @@ export function EventSheet({
                 the map above and no navigate button on its page. */}
             <div className="px-4 py-3">
               <label className="block text-xs font-bold text-ink-400 mb-1.5">{t('addEvent.mapLink')}</label>
-              <input
+              <input aria-label={t('addEvent.mapLinkPlaceholder')}
                 value={mapLink}
                 onChange={(e) => setMapLink(e.target.value)}
                 placeholder={t('addEvent.mapLinkPlaceholder')}
@@ -407,7 +407,7 @@ export function EventSheet({
             </div>
             <div className="px-4 py-3">
               <label className="block text-xs font-bold text-ink-400 mb-1.5">{t('addEvent.description')}</label>
-              <textarea
+              <textarea aria-label={t('addEvent.descriptionPlaceholder')}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}

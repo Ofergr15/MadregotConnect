@@ -57,7 +57,7 @@ export function MeetupsMap({ meetups, selected, onSelect, className }: {
       const c = packHex(m.pack);
       const on = m.id === selected;
       const face = m.host.avatarUrl
-        ? `<img src="${esc(m.host.avatarUrl)}" referrerpolicy="no-referrer" style="width:24px;height:24px;border-radius:50%;object-fit:cover" />`
+        ? `<img src="${esc(m.host.avatarUrl)}" alt="" referrerpolicy="no-referrer" style="width:24px;height:24px;border-radius:50%;object-fit:cover" />`
         : `<span style="width:24px;height:24px;border-radius:50%;background:#E6E8FF;color:#1525FF;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px">${esc((m.host.name[0] || '?').toUpperCase())}</span>`;
       // A 100×46 box anchored at its bottom centre — the tap area — with the pill inside it.
       const html = `<div style="width:100px;height:46px;display:flex;align-items:flex-end;justify-content:center"><div dir="rtl" style="display:flex;align-items:center;gap:5px;white-space:nowrap;background:${on ? c : '#fff'};color:${on ? '#fff' : '#111218'};border:2.5px solid ${c};border-radius:99px;padding:2px 8px 2px 2px;box-shadow:0 4px 12px rgba(0,0,0,.22);font:900 13px -apple-system,system-ui,sans-serif;${on ? 'transform:scale(1.12);transform-origin:bottom center;' : ''}">

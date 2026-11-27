@@ -683,7 +683,7 @@ function DayScreen(props: DayScreenProps) {
               <Sparkles className="h-4 w-4 text-brand-600" />
               {t('refineTitle')}
             </h4>
-            <textarea
+            <textarea aria-label={t('refinePlaceholder')}
               value={props.instruction}
               onChange={(event) => props.onInstruction(event.target.value)}
               placeholder={t('refinePlaceholder')}

@@ -297,12 +297,12 @@ function EntryRow({
     <button
       type="button"
       onClick={() => onSelect(row.invite.athleteId)}
-      className="flex min-h-[48px] w-full items-start gap-3 px-3 py-3 text-right"
+      className="flex min-h-[48px] w-full items-start gap-3 px-3 py-3 text-start"
     >
       {body}
     </button>
   ) : (
-    <div className="flex items-start gap-3 px-3 py-3 text-right">{body}</div>
+    <div className="flex items-start gap-3 px-3 py-3 text-start">{body}</div>
   );
 
   if (!onOffer) return <div className="rounded-card bg-card">{head}</div>;

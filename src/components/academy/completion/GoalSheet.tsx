@@ -226,7 +226,7 @@ export function GoalSheet({ open, onOpenChange, goal, onDone, busy, error, athle
         {step === 'other' && (
           <>
             <Labeled label={t('raceName')}>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('raceNamePh')} dir="auto" maxLength={120}
+              <input aria-label={t('raceNamePh')} value={name} onChange={(e) => setName(e.target.value)} placeholder={t('raceNamePh')} dir="auto" maxLength={120}
                 className="w-full min-h-[48px] rounded-xl bg-[#F0F0F4] px-3 text-[16px] font-semibold text-ink-900 placeholder:font-normal placeholder:text-ink-300 focus:outline-none" />
             </Labeled>
             <Labeled label={t('distance')} hint={t('distanceHint')}>
@@ -239,7 +239,7 @@ export function GoalSheet({ open, onOpenChange, goal, onDone, busy, error, athle
                 ))}
               </div>
               {preset === 'other' && (
-                <input value={customKm} onChange={(e) => setCustomKm(e.target.value)} inputMode="decimal" placeholder={t('kmPh')} dir="ltr"
+                <input aria-label={t('kmPh')} value={customKm} onChange={(e) => setCustomKm(e.target.value)} inputMode="decimal" placeholder={t('kmPh')} dir="ltr"
                   className="mt-2 w-full min-h-[48px] rounded-xl bg-[#F0F0F4] px-3 text-end text-[16px] font-bold text-ink-900 placeholder:font-normal placeholder:text-ink-300 focus:outline-none" />
               )}
             </Labeled>
@@ -259,7 +259,7 @@ export function GoalSheet({ open, onOpenChange, goal, onDone, busy, error, athle
               </div>
             </Labeled>
             <Labeled label={t('place')}>
-              <input value={place} onChange={(e) => setPlace(e.target.value)} placeholder={t('placePh')} dir="auto" maxLength={120}
+              <input aria-label={t('placePh')} value={place} onChange={(e) => setPlace(e.target.value)} placeholder={t('placePh')} dir="auto" maxLength={120}
                 className="w-full min-h-[48px] rounded-xl bg-[#F0F0F4] px-3 text-[16px] font-semibold text-ink-900 placeholder:font-normal placeholder:text-ink-300 focus:outline-none" />
             </Labeled>
             {otherOk && <Horizon date={otherDate} today={today} km={otherKm as number} />}

@@ -192,7 +192,7 @@ export function ManualActivitySheet({
 
         <div>
           <label className="block text-xs font-medium text-ink-400 mb-1.5">{t('activityName')}</label>
-          <input
+          <input aria-label={t('activityNamePlaceholder')}
             type="text"
             placeholder={t('activityNamePlaceholder')}
             value={activityName}

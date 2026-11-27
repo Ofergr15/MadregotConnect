@@ -254,7 +254,7 @@ function Kpi({ value, label, tone }: { value: number; label: string; tone: strin
 
 function Row({ row, onAnalyse }: { row: RegistryRow; onAnalyse?: () => void }) {
   return (
-    <div className="flex items-center gap-3 rounded-card bg-card px-3 py-3 text-right">
+    <div className="flex items-center gap-3 rounded-card bg-card px-3 py-3 text-start">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-page text-xs font-bold text-ink-500">
         {initialsOf(row.name)}
       </div>

@@ -149,7 +149,7 @@ function KindTags({ kind, setKind, tags, setTags }: {
           })}
         </div>
         <div className="mt-1.5 flex gap-1.5">
-          <input value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder="תגית אחרת"
+          <input aria-label="תגית אחרת" value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder="תגית אחרת"
             className="min-h-[40px] flex-1 rounded-xl border-[1.5px] border-page bg-white px-3 text-[15px] text-ink-900" />
           <button type="button" disabled={!newTag.trim()} onClick={() => { setTags((x) => [...new Set([...x, newTag.trim()])]); setNewTag(''); }}
             className="min-h-[40px] rounded-xl bg-white px-3 text-[13px] font-bold text-brand-600 disabled:opacity-40">להוסיף</button>

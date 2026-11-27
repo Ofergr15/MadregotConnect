@@ -178,7 +178,7 @@ export function AcademyMembers({
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="חיפוש לפי שם"
+              <input aria-label="חיפוש לפי שם" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="חיפוש לפי שם"
                 className="w-full min-h-[44px] rounded-xl bg-ink-300/25 ps-9 pe-9 text-[16px] text-ink-700 placeholder:text-ink-500 focus:outline-none" />
               {query && (
                 <button type="button" onClick={() => setQuery('')} aria-label="ניקוי"
