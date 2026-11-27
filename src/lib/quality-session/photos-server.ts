@@ -6,7 +6,8 @@ import { folderPhotosNow, signedImageUrl, THUMB } from '@/lib/photos/drive-brows
 import { sessionPhotosStartedCopy } from '@/lib/notifications/copy';
 import { addDaysToDateStr, israelNow, israelToday } from '@/lib/utils';
 import { COACH_ID, SUPER_USER_EMAIL } from '@/lib/constants';
-import { sessionFolderReadyCopy, sessionPhotosCopy } from '@/lib/notifications/copy';
+import { sessionFolderFailedCopy, sessionFolderReadyCopy, sessionPhotosCopy } from '@/lib/notifications/copy';
+import { notifyStaff } from '@/lib/notifications/staff';
 import { driveWriter, ensureDayFolder } from '@/lib/google-drive/writer';
 import { loadQualityWorkout } from './server';
 import { qualitySessionRecipientIds } from './access';
@@ -58,6 +59,16 @@ export interface FolderEntry {
   tags?: string[];
   /** A scheduled folder made by hand: false keeps the editors from being told when it is made. */
   notifyEditors?: boolean;
+  /**
+   * Drive refused to make the folder (Q27-1: "Insufficient permissions for the specified
+   * parent"). Kept in the ledger so the next tick tries again — before this, the throw lost
+   * the attempt and after midnight the day was no longer "due", so it was dropped silently.
+   */
+  failures?: number;
+  lastError?: string;
+  failedAt?: string;
+  /** Israel date the staff were last told about the failures — once a day. */
+  alertedOn?: string;
 }
 export type FolderLedger = Record<string, FolderEntry>;
 
@@ -201,6 +212,16 @@ export function watchEveryMs(minuteOfDay: number, sameDay: boolean): number {
   return sameDay && minuteOfDay >= FAST_FROM_MIN && minuteOfDay <= FAST_UNTIL_MIN ? FAST_EVERY_MS : WATCH_EVERY_MS;
 }
 
+/** Consecutive failures to make one day's folder before the staff are told (once a day). */
+export const FOLDER_FAIL_ALERT_AFTER = 3;
+
+/** Drive's answer when the service account can't write into the parent folder. */
+export function isDrivePermissionError(err: unknown): boolean {
+  const e = err as { code?: number; status?: number; message?: string } | null;
+  const msg = String(e?.message ?? err ?? '');
+  return e?.code === 403 || e?.status === 403 || /insufficient permissions|permission/i.test(msg);
+}
+
 export async function editorIds(supabase: Db): Promise<string[]> {
   return qualitySessionRecipientIds(supabase, SUPER_USER_EMAIL);
 }
@@ -244,9 +265,41 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
     const kind: FolderKind = ahead?.kind || (isLong(workout) ? 'long' : 'quality');
     const name = ahead?.name || folderName(date, kind);
     const tags = ahead?.tags ?? suggestedTags(workout?.name || name);
-    const folder = await ensureDayFolder(drive, date, name);
+    let folder: Awaited<ReturnType<typeof ensureDayFolder>>;
+    try {
+      folder = await ensureDayFolder(drive, date, name);
+    } catch (err) {
+      // Q27-1: never give up silently. The entry stays in the ledger with no folderId, so
+      // it is "due" on every tick for the rest of that day (date >= today), the plan day
+      // included after midnight; and after a few in a row the staff hear it, once a day.
+      const failures = (ahead?.failures ?? 0) + 1;
+      const permission = isDrivePermissionError(err);
+      console.error(`[session-folders] ${date}: folder not made (attempt ${failures})`, err);
+      const failed: FolderEntry = {
+        ...(ahead ?? { folderId: '', link: '' }),
+        folderId: '', link: ahead?.link ?? '',
+        failures, failedAt: now.toISOString(),
+        lastError: String((err as { message?: string })?.message ?? err).slice(0, 300),
+      };
+      if (failures >= FOLDER_FAIL_ALERT_AFTER && failed.alertedOn !== today) {
+        await notifyStaff({
+          kind: 'session_folder_failed',
+          url: '/dashboard/social',
+          tag: `session-folder-failed-${date}`,
+          category: 'management',
+          copy: (locale) => sessionFolderFailedCopy(locale, { day: sessionDayLabel(date), failures, permission }),
+        });
+        failed.alertedOn = today;
+        fired.push(`sessionFolderFailedAlert:${date}`);
+      }
+      ledger[date] = failed;
+      dirty = true;
+      fired.push(`sessionFolderFailed:${date}`);
+      continue;
+    }
     await setFolderMeta(folder.id, { kind, tags }).catch((e) => console.warn('folder kind not set', e));
     ledger[date] = { ...ahead, folderId: folder.id, link: folder.link, name, createdAt: now.toISOString() };
+    delete ledger[date].failures; delete ledger[date].lastError; delete ledger[date].failedAt; delete ledger[date].alertedOn;
     dirty = true;
     fired.push(`sessionFolder:${date}`);
     const entry = ledger[date];

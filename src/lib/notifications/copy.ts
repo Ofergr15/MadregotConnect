@@ -1360,6 +1360,26 @@ export function videoBudgetCopy(
     : { title: '🎬 Half the free viewing minutes are used', body: `${pct}% of this month's free minutes. At 80% the videos switch to the originals automatically, at no cost` };
 }
 
+/** Q27-1: Drive keeps refusing the quality session's photo folder. Staff only, once a day. */
+export function sessionFolderFailedCopy(
+  locale: NotificationLocale,
+  p: { day: string; failures: number; permission: boolean },
+): PushCopy {
+  return locale === 'he'
+    ? {
+        title: '📁 תיקיית התמונות לא נוצרה',
+        body: p.permission
+          ? `התיקייה של ${p.day} לא נוצרה (${p.failures} ניסיונות): לחשבון השירות של Google אין הרשאה. צריך לשתף איתו את תיקיית האב ב-Drive בהרשאת עורך (Editor). המערכת ממשיכה לנסות כל 5 דקות.`
+          : `התיקייה של ${p.day} לא נוצרה (${p.failures} ניסיונות) — Google Drive מחזיר שגיאה. המערכת ממשיכה לנסות כל 5 דקות.`,
+      }
+    : {
+        title: '📁 Photo folder not created',
+        body: p.permission
+          ? `${p.day}'s folder failed ${p.failures} times: the Google service account has no permission. Share the parent Drive folder with it as Editor. Retrying every 5 minutes.`
+          : `${p.day}'s folder failed ${p.failures} times — Google Drive returns an error. Retrying every 5 minutes.`,
+      };
+}
+
 export function syncStalledCopy(
   locale: NotificationLocale,
   p: { hours: number },
