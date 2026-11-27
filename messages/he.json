@@ -6803,5 +6803,29 @@
   "emptyPlan": {
     "line": "התוכנית תופיע כאן ברגע שהמאמן יכין אותה.",
     "button": "לכתוב למאמן"
+  },
+  "planWatch": {
+    "dayLetters": [
+      "א",
+      "ב",
+      "ג",
+      "ד",
+      "ה",
+      "ו",
+      "ש"
+    ],
+    "sending": "שולח…",
+    "waiting": "ממתין לאייפון",
+    "failed": "✕ לא הגיע",
+    "fullWeek": "שבוע שלם אצל <n>{full}</n> מתוך <n>{total}</n>",
+    "sessionsOnWatches": "<n>{ok}</n> מתוך <n>{all}</n> אימונים כבר בשעונים",
+    "filterAll": "הכל",
+    "filterOk": "✓ הצליחו",
+    "filterFailed": "✕ נכשלו",
+    "filterWay": "בדרך",
+    "nobody": "אין כאן אף אחד",
+    "retryOne": "שוב",
+    "noWatch": "בלי שעון מחובר: {names}",
+    "retryFailed": "⌚ לשלוח שוב רק למי שלא קיבל · <n>{count}</n>"
   }
 }
