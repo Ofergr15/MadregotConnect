@@ -14,6 +14,7 @@ import { verifyRequest, isStaff } from '@/lib/auth/verify';
 import { createServerClient } from '@/lib/supabase/server';
 import { indexFace, deleteFace } from '@/lib/rekognition/client';
 import { backfillAthlete } from '@/lib/photos/backfill';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ labeled: true, photosTagged });
   } catch (error: unknown) {
     console.error('POST /api/photos/label error:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }
 
@@ -135,6 +136,6 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ untagged: true });
   } catch (error: unknown) {
     console.error('DELETE /api/photos/label error:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }

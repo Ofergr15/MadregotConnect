@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyRequest, isStaff } from '@/lib/auth/verify';
 import { createServerClient } from '@/lib/supabase/server';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +39,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ url: signed?.signedUrl ?? null });
   } catch (error: unknown) {
     console.error('GET /api/photos/selfie-url error:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }

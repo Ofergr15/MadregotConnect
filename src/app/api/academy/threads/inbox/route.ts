@@ -11,6 +11,7 @@ import {
 } from '@/lib/academy/thread';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
 import { coachIdsByTrainee, coachesOf, coachesTrainee } from '@/lib/academy/trainee-coaches';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -189,6 +190,6 @@ export async function GET(request: Request) {
     });
   } catch (err: unknown) {
     console.error('GET /api/academy/threads/inbox error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }

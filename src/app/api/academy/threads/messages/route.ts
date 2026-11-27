@@ -9,6 +9,7 @@ import { academyThreadMessageCopy } from '@/lib/notifications/copy';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
 import { coachIdsOf } from '@/lib/academy/trainee-coaches';
 import { academyManagerAthleteIds } from '@/lib/academy/thread-server';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,7 +89,7 @@ export async function GET(request: Request) {
     });
   } catch (err: unknown) {
     console.error('GET /api/academy/threads/messages error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }
 
@@ -219,6 +220,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, id: sent?.message?.id ?? null });
   } catch (err: unknown) {
     console.error('POST /api/academy/threads/messages error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }

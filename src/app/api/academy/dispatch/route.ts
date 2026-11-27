@@ -16,6 +16,7 @@ import { countPlanWorkouts, type DispatchRosterEntry } from '@/lib/academy/week-
 import { coachIdsByTrainee, coachesTrainee } from '@/lib/academy/trainee-coaches';
 
 import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
+import { internalErrorBody } from '@/lib/api-error';
 export const dynamic = 'force-dynamic';
 
 /**
@@ -214,6 +215,6 @@ export async function GET(request: Request) {
     });
   } catch (err: unknown) {
     console.error('GET /api/academy/dispatch error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }

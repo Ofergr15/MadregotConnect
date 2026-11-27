@@ -17,6 +17,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { detectFaces, indexFace, deleteFace } from '@/lib/rekognition/client';
 import { backfillAthlete } from '@/lib/photos/backfill';
 import { resolveAudience, sendPushToSubscriptions } from '@/lib/push';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -120,6 +121,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ enrolled: true, photosFound: tagged });
   } catch (error: unknown) {
     console.error('POST /api/photos/enroll-selfie error:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }

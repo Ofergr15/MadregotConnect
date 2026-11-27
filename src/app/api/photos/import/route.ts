@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyRequest, isStaff } from '@/lib/auth/verify';
 import { listPhotos } from '@/lib/google-drive/client';
 import { createServerClient } from '@/lib/supabase/server';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -78,6 +79,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ imported: photos.length, photoIds, runDate, folderName: folderName ?? folderId });
   } catch (error: unknown) {
     console.error('POST /api/photos/import error:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }

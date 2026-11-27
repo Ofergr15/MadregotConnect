@@ -5,6 +5,7 @@ import { getStreamServerClient, CHANNEL_TYPE } from '@/lib/stream/server';
 import { academyChannelId } from '@/lib/academy/thread';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
 import { coachIdsOf } from '@/lib/academy/trainee-coaches';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,6 +69,6 @@ export async function POST(request: Request) {
     );
   } catch (err: unknown) {
     console.error('POST /api/academy/threads/read error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500, headers: NO_STORE });
+    return NextResponse.json(internalErrorBody(), { status: 500, headers: NO_STORE });
   }
 }

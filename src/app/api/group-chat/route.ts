@@ -4,6 +4,7 @@ import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { getStreamServerClient, CHANNEL_TYPE } from '@/lib/stream/server';
 import { ensureGroupChannel, groupChannelId, groupChatMembers } from '@/lib/group-chat/server';
 import { mayEnter, sortRows, visibleGroupIds, type ChatRow } from '@/lib/group-chat/logic';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,7 +74,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ chats: list, unreadTotal: list.reduce((s, r) => s + r.unread, 0), streamError });
   } catch (err: unknown) {
     console.error('GET /api/group-chat error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }
 
@@ -98,6 +99,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ groupId, name: g?.name || groupId, channelId: id, cid, members, viewerId: caller.athleteId ?? null });
   } catch (err: unknown) {
     console.error('POST /api/group-chat error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }

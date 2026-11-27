@@ -24,6 +24,7 @@ import { isUnresolvedPlan } from '@/lib/run-chat/activity-workout';
 import type { PlannedWorkout } from '@/lib/run-chat/mock-workout';
 import { ensureChatSeeded } from '@/lib/run-chat/seed-chat';
 import { ensureMatchedWorkout } from '@/lib/plans/matched-workout';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -345,6 +346,6 @@ export async function POST(request: Request) {
     });
   } catch (err: unknown) {
     console.error('POST /api/run-chat error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }
