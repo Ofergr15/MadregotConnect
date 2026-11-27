@@ -14,6 +14,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { downloadFile } from '@/lib/google-drive/client';
 import { detectFaces, indexFace, searchByFaceId } from '@/lib/rekognition/client';
 import { cropFace } from '@/lib/photos/crop';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -170,6 +171,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: 'processed', facesDetected: detectedRows.length });
   } catch (error: unknown) {
     console.error('POST /api/photos/process error:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyRequest, isStaff } from '@/lib/auth/verify';
 import { listRunFolders } from '@/lib/google-drive/client';
 import { createServerClient } from '@/lib/supabase/server';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +43,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: unknown) {
     console.error('GET /api/photos/drive-dates error:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }

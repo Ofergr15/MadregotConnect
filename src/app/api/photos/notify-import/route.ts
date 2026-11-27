@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyRequest, isStaff } from '@/lib/auth/verify';
 import { resolveAudience, sendPushToSubscriptions } from '@/lib/push';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +36,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ sent });
   } catch (error: unknown) {
     console.error('POST /api/photos/notify-import error:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }

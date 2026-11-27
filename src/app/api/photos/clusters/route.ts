@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyRequest, isStaff } from '@/lib/auth/verify';
 import { createServerClient } from '@/lib/supabase/server';
 import { searchByFaceId } from '@/lib/rekognition/client';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -117,6 +118,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (error: unknown) {
     console.error('POST /api/photos/clusters error:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }

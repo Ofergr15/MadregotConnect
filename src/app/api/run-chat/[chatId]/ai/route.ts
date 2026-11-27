@@ -41,6 +41,7 @@ import {
 } from '@/lib/run-chat/attachments';
 
 import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
+import { internalErrorBody } from '@/lib/api-error';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
@@ -618,7 +619,7 @@ export async function POST(
       console.error('Failed to post AI error message:', postErr);
     }
 
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   } finally {
     if (claimed) releaseAiTurn(chatId);
   }

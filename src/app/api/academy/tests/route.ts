@@ -19,6 +19,7 @@ import {
 import { isAcademyManager } from '@/lib/academy/pairing-server';
 import { coachIdsByTrainee, coachIdsOf, coachesTrainee } from '@/lib/academy/trainee-coaches';
 import { notifyTestApproved, notifyTestSubmitted } from '@/lib/academy/loop-notify';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -241,7 +242,7 @@ export async function GET(request: Request) {
     });
   } catch (err: unknown) {
     console.error('GET /api/academy/tests error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }
 
@@ -501,7 +502,7 @@ export async function POST(request: Request) {
     });
   } catch (err: unknown) {
     console.error('POST /api/academy/tests error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }
 
@@ -675,6 +676,6 @@ export async function PATCH(request: Request) {
     });
   } catch (err: unknown) {
     console.error('PATCH /api/academy/tests error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }

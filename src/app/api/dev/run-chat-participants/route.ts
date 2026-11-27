@@ -7,6 +7,7 @@ import {
   resolveCoachStreamUser,
   upsertStreamUsersFromAthletes,
 } from '@/lib/stream/server';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,6 +88,6 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error('GET /api/dev/run-chat-participants error:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }

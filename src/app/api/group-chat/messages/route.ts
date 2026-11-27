@@ -8,6 +8,7 @@ import { ensureGroupChannel, groupChannelId, groupChatMembers } from '@/lib/grou
 import {
   cleanClientId, cleanText, groupChatTag, groupChatUrl, mayDelete, mayEdit, mayEnter, pushRecipients,
 } from '@/lib/group-chat/logic';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,7 +95,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, id: sentId });
   } catch (err: unknown) {
     console.error('POST /api/group-chat/messages error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }
 
@@ -117,7 +118,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     console.error('PATCH /api/group-chat/messages error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }
 
@@ -139,6 +140,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     console.error('DELETE /api/group-chat/messages error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }
