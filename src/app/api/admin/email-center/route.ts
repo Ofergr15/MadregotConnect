@@ -7,7 +7,7 @@ import {
   newsletterEmail, welcomeEmail, registrationDeclinedEmail, SAMPLE_NEWSLETTER, cleanNewsletter,
   type BuiltEmail, type NewsletterInput,
 } from '@/lib/email/club-mail';
-import { recipientStatuses, campaignTotals, unopened, suppressedAddresses, type LogRow } from '@/lib/email/tracking';
+import { recipientStatuses, campaignTotals, unopened, suppressedAddresses, remainingRecipients, closingStatus, type LogRow } from '@/lib/email/tracking';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -169,6 +169,7 @@ async function sendTo(
   input: NewsletterInput,
   people: Array<{ id: string | null; name: string | null; email: string }>,
   now: () => number = Date.now,
+  priorCount = 0,
 ) {
   const started = now();
   let sent = 0, failed = 0, attempted = 0;
@@ -187,10 +188,16 @@ async function sendTo(
     }
   } finally {
     // Always close the row out — 'sending' is a lock, and a stuck lock blocks nothing
-    // visibly but lies on the screen. recipient_count is who was actually attempted.
-    await db.from('email_campaigns').update({ status: 'sent', sent_at: new Date().toISOString(), recipient_count: attempted }).eq('id', campaignId);
+    // visibly but lies on the screen. recipient_count is who was actually attempted,
+    // across every run. A pass cut by the budget is NOT sent: it goes back to `tested`
+    // so the next send run picks up exactly who was not attempted (task 79).
+    const status = closingStatus(people.length - attempted);
+    await db.from('email_campaigns').update({
+      status, sent_at: status === 'sent' ? new Date().toISOString() : null, recipient_count: priorCount + attempted,
+    }).eq('id', campaignId);
   }
-  return { sent, failed, notAttempted: people.length - attempted };
+  const notAttempted = people.length - attempted;
+  return { sent, failed, notAttempted, complete: notAttempted === 0 };
 }
 
 /** Complained / hard-bounced addresses, from the webhook events. Read failure → empty
@@ -264,6 +271,8 @@ export async function POST(request: Request) {
       if (action === 'send') {
         // Nothing goes to everyone without a test having reached the admin first.
         if (campaign.status !== 'tested') return NextResponse.json({ error: 'send a test to yourself first' }, { status: 409 });
+        // A resend child resumes through resend_unopened (its audience is "unopened", not everyone).
+        if (campaign.kind !== 'newsletter') return NextResponse.json({ error: 'resume this through resend_unopened on its parent' }, { status: 409 });
         // Claim it: only one request can move tested → sending.
         const claim = await db.from('email_campaigns').update({ status: 'sending' }).eq('id', campaignId).eq('status', 'tested').select('id');
         if (claim.error || !(claim.data || []).length) return NextResponse.json({ error: 'already sending' }, { status: 409 });
@@ -274,12 +283,20 @@ export async function POST(request: Request) {
         }
         const suppressed = await suppressionList(db);
         const seen = new Set<string>(suppressed);
-        const people = (roster || [])
+        const everyone = (roster || [])
           .map(a => ({ id: a.id as string, name: (a.name as string) || null, email: String(a.email || '').trim().toLowerCase() }))
           .filter(a => a.email.includes('@') && !a.email.endsWith('.local') && !seen.has(a.email) && seen.add(a.email))
           .slice(0, MAX_RECIPIENTS);
-        const res = await sendTo(db, campaignId, input, people);
-        return NextResponse.json({ ok: true, recipients: people.length, ...res });
+        // A resumed run (a previous pass hit the budget): skip everyone already attempted.
+        const logged = await db.from('email_log').select('recipients').eq('campaign_id', campaignId).limit(2000);
+        if (logged.error) {
+          await db.from('email_campaigns').update({ status: 'tested' }).eq('id', campaignId);
+          return NextResponse.json({ error: 'log read failed' }, { status: 500 });
+        }
+        const loggedRows = (logged.data || []) as Array<Pick<LogRow, 'recipients'>>;
+        const people = remainingRecipients(everyone, loggedRows);
+        const res = await sendTo(db, campaignId, input, people, Date.now, Number(campaign.recipient_count) || 0);
+        return NextResponse.json({ ok: true, recipients: people.length, resumed: loggedRows.length > 0, ...res });
       }
 
       // resend_unopened: a child campaign to exactly who hasn't opened the parent.
@@ -288,27 +305,47 @@ export async function POST(request: Request) {
       if (campaign.status !== 'sent' || campaign.kind !== 'newsletter') {
         return NextResponse.json({ error: 'only a sent newsletter can be resent' }, { status: 409 });
       }
-      const prior = await db.from('email_campaigns').select('id').eq('parent_id', campaignId).limit(1);
+      const prior = await db.from('email_campaigns').select('id, status, recipient_count').eq('parent_id', campaignId).limit(1);
       if (prior.error) return NextResponse.json({ error: 'read failed' }, { status: 500 });
-      if ((prior.data || []).length) return NextResponse.json({ error: 'already resent once' }, { status: 409 });
+      const priorChild = (prior.data || [])[0] as { id: string; status: string; recipient_count: number | null } | undefined;
+      // Once per campaign — except a child a budget cut left `tested`: the next run resumes it.
+      if (priorChild && priorChild.status !== 'tested') return NextResponse.json({ error: 'already resent once' }, { status: 409 });
       const parent = await campaignRecipients(db, campaignId);
       if ('error' in parent && parent.error) return NextResponse.json({ error: 'read failed' }, { status: 500 });
       const suppressed = await suppressionList(db);
       const targets = unopened(parent.rows || []).filter(t => !suppressed.has(t.email));
       if (!targets.length) return NextResponse.json({ ok: true, recipients: 0, sent: 0, failed: 0 });
-      const { data: child, error: cErr } = await db.from('email_campaigns').insert({
-        created_by_email: caller.email, kind: 'resend_unopened', subject: campaign.subject, input: campaign.input,
-        status: 'sending', parent_id: campaignId, tested_at: campaign.tested_at,
-      }).select('id').single();
-      if (cErr) return NextResponse.json({ error: 'create failed' }, { status: 500 });
+      let child: { id: string };
+      let resumeFrom: Array<Pick<LogRow, 'recipients'>> = [];
+      if (priorChild) {
+        const claim = await db.from('email_campaigns').update({ status: 'sending' }).eq('id', priorChild.id).eq('status', 'tested').select('id');
+        if (claim.error || !(claim.data || []).length) return NextResponse.json({ error: 'already sending' }, { status: 409 });
+        const logged = await db.from('email_log').select('recipients').eq('campaign_id', priorChild.id).limit(2000);
+        if (logged.error) {
+          await db.from('email_campaigns').update({ status: 'tested' }).eq('id', priorChild.id);
+          return NextResponse.json({ error: 'log read failed' }, { status: 500 });
+        }
+        resumeFrom = (logged.data || []) as Array<Pick<LogRow, 'recipients'>>;
+        child = { id: priorChild.id };
+      } else {
+        const { data, error: cErr } = await db.from('email_campaigns').insert({
+          created_by_email: caller.email, kind: 'resend_unopened', subject: campaign.subject, input: campaign.input,
+          status: 'sending', parent_id: campaignId, tested_at: campaign.tested_at,
+        }).select('id').single();
+        if (cErr || !data) return NextResponse.json({ error: 'create failed' }, { status: 500 });
+        child = { id: data.id as string };
+      }
       const ids = targets.map(t => t.athleteId).filter(Boolean) as string[];
       const names: Record<string, string> = {};
       if (ids.length) {
         const { data } = await db.from('athletes').select('id, name').in('id', ids);
         for (const a of data || []) names[a.id as string] = (a.name as string) || '';
       }
-      const people = targets.map(t => ({ id: t.athleteId, name: t.athleteId ? names[t.athleteId] || null : null, email: t.email }));
-      const res = await sendTo(db, child.id as string, input, people);
+      const people = remainingRecipients(
+        targets.map(t => ({ id: t.athleteId, name: t.athleteId ? names[t.athleteId] || null : null, email: t.email })),
+        resumeFrom,
+      );
+      const res = await sendTo(db, child.id, input, people, Date.now, Number(priorChild?.recipient_count) || 0);
       return NextResponse.json({ ok: true, campaignId: child.id, recipients: people.length, ...res });
     }
 
