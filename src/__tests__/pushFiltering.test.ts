@@ -193,7 +193,8 @@ describe('countsTowardBadge', () => {
   it('lists exactly the kinds that land in a Stream channel', () => {
     // Pinned deliberately: adding a kind here silently REMOVES it from the badge,
     // so a kind that never reaches Stream would stop badging at all.
-    expect([...STREAM_OWNED_KINDS].sort()).toEqual(['academy_feedback', 'academy_message']);
+    // group_chat_message (b26): a group chat lands in its Stream channel, which getUnreadCount's total already counts.
+    expect([...STREAM_OWNED_KINDS].sort()).toEqual(['academy_feedback', 'academy_message', 'group_chat_message']);
   });
 
   it('still counts other coach traffic — the exclusion is per kind, not per url', () => {

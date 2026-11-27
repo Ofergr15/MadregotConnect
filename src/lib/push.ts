@@ -255,7 +255,7 @@ export function matchesAudience(
  * Stream wins the tie for a reason: it knows when the message was actually READ, on
  * whichever device read it, and this table only knows when it was sent.
  */
-export const STREAM_OWNED_KINDS: readonly string[] = ['academy_message', 'academy_feedback'];
+export const STREAM_OWNED_KINDS: readonly string[] = ['academy_message', 'academy_feedback', 'group_chat_message'];
 
 /**
  * Does this row count toward the app-icon badge for this athlete? Four rules,
