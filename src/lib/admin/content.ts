@@ -4,7 +4,6 @@
  */
 
 export type ChallengePhase = 'active' | 'scheduled' | 'ended';
-export const CHALLENGE_PHASES: ChallengePhase[] = ['active', 'scheduled', 'ended'];
 
 /**
  * By its dates first, then the switch: a challenge turned off inside its own

@@ -16,10 +16,6 @@ export function setAcademyCoachScope(on: boolean): void {
   coachScope = on;
 }
 
-export function academyCoachScope(): boolean {
-  return coachScope;
-}
-
 /** `url` with `scope=coach` added while the shell is in a coach-scoped view. */
 export function scoped(url: string, on: boolean = coachScope): string {
   if (!on || /[?&]scope=/.test(url)) return url;

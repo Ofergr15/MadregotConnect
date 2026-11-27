@@ -33,9 +33,6 @@ export const PHOTOS_STORY_LABEL = '📸 תמונות';
 /** The session's photo folder in the app — the photos themselves, one tap from the circle. */
 export const photosFolderHref = (folderId: string) => `/dashboard/photos?folder=${encodeURIComponent(folderId)}`;
 
-/** How long it stays: today only, or N days counting today. */
-export const STORY_DAYS = [1, 2, 7] as const;
-
 export function untilFor(from: string, days: number): string {
   return addDaysToDateStr(from, Math.max(1, Math.round(days)) - 1);
 }

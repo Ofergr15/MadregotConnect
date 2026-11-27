@@ -102,18 +102,6 @@ export async function sendOpenPush(db: Db, round: PodiumRound, r: any, opts: { a
   return due.length;
 }
 
-/** A runner sent an order over the budget: the staff are asked. */
-export async function askApproval(opts: { round: PodiumRound; athleteId: string; name: string; total: number; orderId: string }) {
-  await notifyStaff({
-    kind: 'podium_approval', url: `${PODIUM_ADMIN_URL}?order=${opts.orderId}`, tag: `podium-approval-${opts.orderId}`, category: 'management',
-    actorAthleteId: opts.athleteId,
-    copy: () => ({
-      title: `💳 ${opts.name} מעל התקציב בפודיום`,
-      body: `${shekel(opts.total)} מתוך ${shekel(opts.round.budget)}. ההפרש ${shekel(opts.total - opts.round.budget)} עליו/ה. צריך לאשר.`,
-    }),
-  });
-}
-
 /** The answer to the runner, and an admin's edit of their order. */
 export async function tellRunner(opts: { athleteId: string; kind: 'approved' | 'rejected' | 'edited' | 'orderedFor'; round: PodiumRound; total: number; actorId: string | null; actorName?: string }) {
   const budget = budgetOf(opts.round, null, opts.athleteId);

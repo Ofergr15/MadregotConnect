@@ -14,8 +14,6 @@ import type { PushResult, PushTargetAthlete } from '@/lib/garmin/push-week';
  */
 export type WatchProvider = 'garmin' | 'apple';
 
-export const WATCH_PROVIDERS: readonly WatchProvider[] = ['garmin', 'apple'];
-
 export type Db = ReturnType<typeof createServerClient>;
 
 /** The athlete row a delivery needs. A superset of the Garmin pusher's own shape. */

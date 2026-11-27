@@ -3,7 +3,6 @@
 // until it is pasted the routes answer MIGRATION_161 and the feed simply has no pins.
 
 export type PinChoice = 'evening' | 'day' | '3d' | 'week' | 'date' | 'close';
-export const PIN_CHOICES: PinChoice[] = ['evening', 'day', '3d', 'week', 'date'];
 export const PIN_LABEL: Record<PinChoice, string> = {
   evening: 'עד הערב', day: 'יום', '3d': '3 ימים', week: 'שבוע', date: 'עד תאריך…', close: 'עד שנסגר',
 };

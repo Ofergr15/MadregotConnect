@@ -133,18 +133,6 @@ export function orderTotal(items: Record<string, number>, products: Map<string, 
   return Math.round(sum * 100) / 100;
 }
 
-/** What the site's own regular price would have cost — for "חסכת" next to the total. */
-export function orderRegularTotal(items: Record<string, number>, products: PodiumProduct[]): number {
-  const byId = new Map(products.map((p) => [p.id, p]));
-  let sum = 0;
-  for (const [id, q] of Object.entries(items)) {
-    const p = byId.get(id);
-    const unit = p?.regularPrice ?? p?.price;
-    if (unit && q > 0) sum += unit * q;
-  }
-  return Math.round(sum * 100) / 100;
-}
-
 export function itemCount(items: Record<string, number>): number {
   return Object.values(items).reduce((s, q) => s + (q > 0 ? q : 0), 0);
 }

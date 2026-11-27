@@ -8,8 +8,6 @@ export const HOTSPOTS = {
   'zones-edit': { title: 'קצבים לעריכה', body: '✎ ליד כל אזור — משנים את הקצב המוצע למתאמן הזה. השאר ממשיכים לפי הבסיס.' },
 } as const;
 
-export type HotspotId = keyof typeof HOTSPOTS;
-
 export function hotspotVisible(id: string, ctx: { ready: boolean; prefs: TourPrefs; tourRunning: boolean; on?: boolean }): boolean {
   // The club switch (lib/tour/switch.ts): off — and unknown — shows no dots.
   if (!ctx.ready || ctx.tourRunning || ctx.on !== true) return false;

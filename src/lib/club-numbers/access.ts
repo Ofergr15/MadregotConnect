@@ -56,4 +56,3 @@ export async function writeSnapshot(supabase: Db, body: unknown, key = SNAPSHOT_
   const v = { at: Date.now(), body }; mem.set(key, v);
   await supabase.from('app_settings').upsert({ key, value: JSON.stringify(v), updated_at: new Date().toISOString() }, { onConflict: 'key' });
 }
-export const dropNumbers = () => { mem.clear(); };

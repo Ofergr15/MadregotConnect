@@ -119,4 +119,3 @@ export function computeMonthlySeries(x: MInput) {
 
   return { window: x.window, months, from: `${first}-01`, to: x.today, removedAtTracked: hasRemovedAt, series, heat };
 }
-export type ClubMonthly = ReturnType<typeof computeMonthlySeries>;
