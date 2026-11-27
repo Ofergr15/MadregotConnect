@@ -10,16 +10,16 @@ Every PR below is open, unmerged, branched from `origin/main`. Nothing was pushe
 | 65 | #184 | 40 swallowed server errors now logged via `noteSwallowed`; plan-push retry reports failures |
 | 66 | #185 | Read-only integrity checks (orphans, Garmin/Strava twins, impossible plan/activity dates) + script + docs |
 | 67 | #203 | Response-size budget test for 10 GET routes on a seeded club (fails CI above +25%) |
-| 68 | PR_68 | axe-core Playwright checks for 10 pages on a placeholder-env build |
+| 68 | #206 | axe-core Playwright checks for 10 pages on a placeholder-env build |
 | 69 | #192 | English wording pass (16 strings) |
 | 70 | #194 | `docs/he-glossary.md` + 41 he.json strings aligned |
 | 71 | #188, #190 | Dead code: 35 unreferenced exports in lib, then unused components |
-| 72 | PR_72 | `any` removed from 4 hot lib files (step 1 of many) |
+| 72 | #205 | `any` removed from 4 hot lib files (step 1 of many) |
 | 73 | #196 | DB types vs migrations drift test; enum names fixed; migration **241** records `athlete_status 'removed'` |
 | 74 | #199 | Security headers: framing/referrer/permissions enforced, full CSP report-only |
-| 75 | this PR | This summary + bug hunt: 6 API bugs fixed with tests |
+| 75 | #204 | This summary + bug hunt: 6 API bugs fixed with tests |
 
-The other agent's PRs (tasks 48–55 at time of writing): #178, #181, #182, #183, #186, #189, #191, #193.
+The other agent's PRs (tasks 48–61, as listed by `gh pr list` at the end of the run): #178, #181, #182, #183, #186, #189, #191, #193, #195, #197, #198, #200, #201, #202.
 
 ## Owner must do
 - Paste migrations **240** (#179) and **241** (#73's PR, on its own) when merging; the other queue used 230 — re-check numbering.
