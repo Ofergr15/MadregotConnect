@@ -1,8 +1,10 @@
 /**
  * Database schema types for MadregotConnect.
  *
- * These types are generated to match the Supabase schema exactly.
- * See supabase/schema.sql for the actual database schema.
+ * HAND-WRITTEN, and a subset: each interface lists only the columns typed so far,
+ * not every column the table has. The schema of record is supabase/schema.sql plus
+ * supabase/migrations/*.sql (applied by hand). `src/__tests__/dbTypesDrift.test.ts`
+ * fails if a field here has no column there, or an enum's values differ.
  */
 
 /**
@@ -47,7 +49,7 @@ export interface Group {
 /**
  * Athlete status values.
  */
-export type AthleteStatus = 'active' | 'invited' | 'disconnected';
+export type AthleteStatus = 'active' | 'invited' | 'disconnected' | 'removed';
 
 /**
  * Represents an athlete managed by a coach.
@@ -232,8 +234,8 @@ export interface Database {
     Functions: Record<string, never>;
     Enums: {
       athlete_status: AthleteStatus;
-      weekly_plan_status: WeeklyPlanStatus;
-      workout_delivery_status: WorkoutDeliveryStatus;
+      plan_status: WeeklyPlanStatus;
+      delivery_status: WorkoutDeliveryStatus;
     };
   };
 }
