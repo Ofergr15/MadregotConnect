@@ -410,7 +410,7 @@ export async function computeUnreadCounts(athleteIds: string[]): Promise<Record<
     ({ data: athletesData } = await supabase
       .from('athletes')
       .select('id, group_id, role, is_academy, last_seen_at')
-      .in('id', athleteIds) as { data: any[] | null; error: any });
+      .in('id', athleteIds) as unknown as { data: typeof athletesData; error: unknown });
   }
   type BadgeAthlete = { id: string; group_id: string | null; role: string | null; is_academy: boolean | null; last_seen_at: string | null; notifications_seen_at?: string | null; created_at?: string | null };
   const athleteById = new Map(((athletesData || []) as BadgeAthlete[]).map((a) => [a.id, a]));
