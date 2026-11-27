@@ -143,7 +143,7 @@ share-link only, so **the runner's own phone is the only legal source at 1–2 m
   own row only. Identity is the JWT (`resolveVerifiedCaller`); there is no athlete id in the body, and staff
   cannot write for anyone. Refused unless: `race_live_phone` on for the caller, the race window is open
   (`race_live_config.active` and `poll_from ≤ now ≤ poll_to`), the caller has a `race_entries` row that is not
-  `live_opt_out`. Rate: one write per 20 s; distance may not drop more than 200 m (a new session).
+  `live_opt_out`. Rate: one write per 8 s; distance may not drop more than 200 m unless the body says `resume: true` (a restarted phone session — the server continues the same track and returns `baseDistanceM`).
   `DELETE` = stop sharing, the row goes at once. Pure rules + tests: `lib/race-live/phone.ts`,
   `raceLivePhone.test.ts`.
 - **What is stored:** exactly what LiveTrack stores — ONE row in `race_positions` (latest point; no trail,
