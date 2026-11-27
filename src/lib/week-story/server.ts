@@ -18,6 +18,7 @@ import { displaySplits } from '@/lib/activities/km-splits';
 import { markKm, pairKm, planKmPaces, type KmMark } from './long';
 import { cleanLayout, memberChoices, pickTheme, pickWorkout, type StoryLayout, type Theme, type WorkoutPick } from './layout';
 import { addDays, storyWindow, weekdayOf, type StoryWindow, type WeekNumbers } from './model';
+import { buildWeekSummary, planWeekOfSummary, type SummaryPlan, type SummaryRun, type SummaryWindow, type WeekSummary } from './summary';
 
 /**
  * "השבוע שלך" — what one athlete's week story is made of (lib/week-story/model.ts for the
@@ -413,3 +414,43 @@ export async function loadWeekStory(db: Db, athleteId: string, today: string, ho
 }
 
 export { DAY_MS };
+
+/**
+ * GET /api/week-story?mode=summary — the b25 weekly summary card (lib/week-story/summary.ts).
+ * Monday–Sunday km, the plan share against the plan week that contains that Monday, and the
+ * same records / pack / highlight readings the story uses, so the two never disagree on those.
+ */
+export async function loadWeekSummary(db: Db, athleteId: string, w: SummaryWindow): Promise<WeekSummary | null> {
+  const { data: a } = await db.from('athletes').select('id, is_academy')
+    .eq('id', athleteId).eq('coach_id', COACH_ID).maybeSingle();
+  if (!a) return null;
+  const planWeek = planWeekOfSummary(w);
+  // Eight weeks back for "biggest in N weeks", and from the plan week's Sunday for the share.
+  const acts = filterQualifyingRuns(await runsBetween(db, athleteId, addDays(w.weekStart, -7 * 8), addDays(w.weekEnd, 1)));
+  const runs: SummaryRun[] = acts.map((r) => ({ day: r.start_time.slice(0, 10), km: r.distance / 1000, seconds: r.duration ?? 0 }));
+  if (!runs.some((r) => r.day >= w.weekStart && r.day <= w.weekEnd)) return null;
+  const storyW: StoryWindow = { weekStart: w.weekStart, weekEnd: w.weekEnd };
+  const [breakdown, records, pack] = await Promise.all([
+    planBreakdownFor(db, athleteId, planWeek).catch(() => null),
+    recordsIn(db, athleteId, storyW).catch(() => []),
+    (a as { is_academy?: boolean | null }).is_academy ? Promise.resolve(null) : packFor(db, athleteId, storyW).catch(() => null),
+  ]);
+  let plan: SummaryPlan | null = null;
+  if (breakdown?.dailyDistances?.length) {
+    const days = Array.from({ length: 7 }, (_, d) => addDays(planWeek, d));
+    const dayRuns = days.map((day) => acts.filter((r) => r.start_time.slice(0, 10) === day)
+      .map((r) => ({ id: r.id ?? null, km: r.distance / 1000, seconds: r.duration ?? 0, start: r.start_time })));
+    const sum = lastWeekSummary(breakdown.dailyDistances, dayRuns.map((rs) => rs.reduce((s, r) => s + r.km, 0)), dayRuns);
+    plan = {
+      plannedKm: sum.plannedKm, km: sum.km, sessionsPlanned: sum.sessionsPlanned, sessionsDone: sum.sessionsDone,
+      missed: sum.days.filter((d) => d.missed).map((d) => ({ dayOfWeek: d.dayOfWeek, plannedKm: d.planned })),
+    };
+  }
+  return buildWeekSummary({
+    window: w,
+    runs,
+    plan,
+    records: records.map((r) => ({ label: r.label, seconds: r.seconds ?? 0, previous: null })),
+    packRank: pack ? { rank: pack.rank, of: pack.of, lastRank: pack.lastRank } : null,
+  });
+}
