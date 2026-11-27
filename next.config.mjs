@@ -1,5 +1,6 @@
 import createNextIntlPlugin from 'next-intl/plugin';
 import { withSerwist } from '@serwist/turbopack';
+import { securityHeaders } from './src/lib/security-headers.mjs';
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
@@ -55,6 +56,8 @@ const nextConfig = {
   // out immediately, change the FILENAME too.
   async headers() {
     return [
+      // CSP / framing / referrer / permissions for every route (src/lib/security-headers.mjs).
+      { source: '/:path*', headers: securityHeaders() },
       {
         source: '/images/:path*',
         headers: [
