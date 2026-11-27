@@ -1,13 +1,14 @@
-// Owner report 2026-11-26: a pack-2 runner who ran with pack 3 was graded against
-// pack 2's paces. The pack a run was run with is resolved per run: the runner's own
-// say-so, else the watch's paces, else the main block's pace with a margin, else the
-// assigned pack. Synthetic workouts and traces only.
+// The pack a run is graded on (ran-lane.ts): the runner's own say-so, a stored
+// resolution, a leader's attendance mark, the watch's paces, else the assigned pack.
+// Never the pace alone (Q27-2). Synthetic workouts and traces only.
 import { describe, expect, it } from 'vitest';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import type { Lane } from '@/lib/academy/group-lane';
 import type { Trace } from '@/lib/academy/execution';
 import type { ExecutedWorkout } from '@/lib/garmin/executed-workout';
-import { laneFromPace, laneFromWatch, pickPlanned, resolveRanLane, retargetToLane } from '@/lib/plan-execution/ran-lane';
+import { laneFromWatch, pickPlanned, resolveRanLane, retargetToLane } from '@/lib/plan-execution/ran-lane';
+import { dominantBlock, gradePlanBlocks } from '@/lib/academy/execution';
+import { flattenPlannedSteps } from '@/lib/academy/segments';
 
 const block = (min: number, max: number, extra: Partial<ParsedWorkout> = {}): ParsedWorkout => ({
   dayOfWeek: 4, name: 'tempo', workoutKey: 'day-4-part-1-single', partIndex: 1, partCount: 1,
@@ -28,31 +29,37 @@ const watch = (notes: string): ExecutedWorkout => ({
   steps: [{ stepIndex: 0, intensity: 'ACTIVE', durationType: 'DISTANCE', distanceM: 10000, notes }],
 } as ExecutedWorkout);
 
-describe('the pack a run was run with', () => {
-  it('a pack-2 runner who ran pack 3 pace is graded on pack 3', () => {
-    expect(resolveRanLane({ assigned: 2, trace: steady(262), plannedFor, paceSec: 5 }))
-      .toEqual({ lane: 3, source: 'pace' });
+describe('the pack a run was run with — evidence, never pace (Q27-2)', () => {
+  // Q27-2: a pack-2 runner asked for 3:45 (225) who ran 3:55 (235) used to be "detected"
+  // as pack 3 and scored 100. Same shape at these packs: pack 2 asked 4:10-4:15, ran 4:22.
+  it('a pack-2 runner who ran slower than asked stays on pack 2 — and is graded as a miss', () => {
+    const ran = resolveRanLane({ assigned: 2, plannedFor });
+    expect(ran).toEqual({ lane: 2, source: 'assigned' });
+    const block = dominantBlock(gradePlanBlocks(flattenPlannedSteps(plannedFor(ran.lane)), steady(262), 5));
+    expect(block?.status).toBe('slower');
   });
-  it('on their own pack\'s pace they stay on it — detected, not defaulted', () => {
-    expect(resolveRanLane({ assigned: 2, trace: steady(252), plannedFor, paceSec: 5 }))
-      .toEqual({ lane: 2, source: 'pace' });
+  it('the 3:45 → 3:55 case from the report', () => {
+    const asked: Record<Lane, ParsedWorkout> = { 1: block(215, 215), 2: block(225, 225), 3: block(235, 235) };
+    const ran = resolveRanLane({ assigned: 2, plannedFor: (l) => asked[l] });
+    expect(ran.lane).toBe(2);
+    const b = dominantBlock(gradePlanBlocks(flattenPlannedSteps(asked[ran.lane]), steady(235), 5));
+    expect(b?.status).toBe('slower');
   });
-  it('halfway between two packs is too close to call: the assigned pack', () => {
-    expect(laneFromPace(steady(257.5), plannedFor, 5)).toBeNull();
-    expect(resolveRanLane({ assigned: 2, trace: steady(257.5), plannedFor, paceSec: 5 }))
-      .toEqual({ lane: 2, source: 'assigned' });
+  it('the runner\'s own "I ran with pack N" moves it, and wins over everything', () => {
+    expect(resolveRanLane({ assigned: 2, override: 3, plannedFor })).toEqual({ lane: 3, source: 'manual' });
+    expect(resolveRanLane({ assigned: 2, override: 1, attended: 3, executed: watch('4:20-4:25'), plannedFor }))
+      .toEqual({ lane: 1, source: 'manual' });
   });
-  it('a pace outside every pack (a jog) says nothing', () => {
-    expect(laneFromPace(steady(330), plannedFor, 5)).toBeNull();
+  it('an override outside 1-3 is ignored', () => {
+    expect(resolveRanLane({ assigned: 2, override: 7, plannedFor }).source).toBe('assigned');
   });
-  it('the watch carrying one pack\'s pace names that pack when the pace can\'t say', () => {
+  it('a leader\'s attendance mark with another pack moves it', () => {
+    expect(resolveRanLane({ assigned: 2, attended: 3, plannedFor })).toEqual({ lane: 3, source: 'attendance' });
+  });
+  it('the watch carrying one pack\'s pace names that pack', () => {
     expect(laneFromWatch(watch('4:20-4:25'), plannedFor)).toBe(3);
-    expect(resolveRanLane({ assigned: 2, executed: watch('4:20-4:25'), trace: steady(257.5), plannedFor, paceSec: 5 }))
+    expect(resolveRanLane({ assigned: 2, executed: watch('4:20-4:25'), pushedLane: 2, plannedFor }))
       .toEqual({ lane: 3, source: 'watch' });
-  });
-  it('the pace outranks the watch: the watch holds the copy pushed for the old pack', () => {
-    expect(resolveRanLane({ assigned: 2, executed: watch('4:10-4:15'), trace: steady(262), plannedFor, paceSec: 5 }))
-      .toEqual({ lane: 3, source: 'pace' });
   });
   it('a watch note listing every pack is no evidence of which one was followed', () => {
     expect(laneFromWatch(watch('4:00 (4:10) ((4:20))'), plannedFor)).toBeNull();
@@ -60,14 +67,25 @@ describe('the pack a run was run with', () => {
   it('identical packs (one pace for everybody) cannot be told apart', () => {
     const same = (l: Lane) => (void l, byLane[2]);
     expect(laneFromWatch(watch('4:10-4:15'), same)).toBeNull();
-    expect(laneFromPace(steady(252), same, 5)).toBeNull();
   });
-  it('the runner\'s own "I ran with pack N" wins over everything', () => {
-    expect(resolveRanLane({ assigned: 2, override: 1, executed: watch('4:20-4:25'), trace: steady(262), plannedFor, paceSec: 5 }))
-      .toEqual({ lane: 1, source: 'manual' });
+  it('a stored evidence answer is read back; a stored "assigned" yields to new evidence', () => {
+    expect(resolveRanLane({ assigned: 2, stored: { lane: 3, source: 'watch' }, plannedFor })).toEqual({ lane: 3, source: 'watch' });
+    expect(resolveRanLane({ assigned: 2, stored: { lane: 2, source: 'assigned' }, attended: 1, plannedFor })).toEqual({ lane: 1, source: 'attendance' });
   });
-  it('an override outside 1-3 is ignored', () => {
-    expect(resolveRanLane({ assigned: 2, override: 7, plannedFor, paceSec: 5 }).source).toBe('assigned');
+});
+
+describe('the feed ring and the run detail grade one lane (Q27-3)', () => {
+  it('the detail resolved from the watch; the feed, without the step list, reads the stored lane', () => {
+    // Run detail: has executed_workout (fetched on demand) → watch says pack 3, saved.
+    const detail = resolveRanLane({ assigned: 2, executed: watch('4:20-4:25'), pushedLane: 2, plannedFor });
+    // Feed: no step list on hand, but the match row now carries the detail's answer.
+    const feed = resolveRanLane({ assigned: 2, executed: null, stored: { lane: detail.lane, source: detail.source }, plannedFor });
+    expect(feed).toEqual(detail);
+  });
+  it('the trace no longer takes part, so a 45-point lap trace and a 1 Hz stream cannot disagree', () => {
+    const a = resolveRanLane({ assigned: 2, plannedFor });
+    const b = resolveRanLane({ assigned: 2, plannedFor });
+    expect(a).toEqual(b);
   });
 });
 
@@ -116,10 +134,11 @@ describe('a watch workout pushed for another pack', () => {
     return { d, t, resolutionM: 1000, source: 'laps' } as Trace;
   })();
 
-  it('detects pack 3 from the pace, not pack 2 from the watch', () => {
+  it('moved to pack 3 that morning: the stale pack-2 push is not evidence against the assigned pack', () => {
     expect(laneFromWatch(pushed, pf)).toBe(2);
-    expect(resolveRanLane({ assigned: 2, executed: pushed, trace: ran, plannedFor: pf, paceSec: 5 }))
-      .toEqual({ lane: 3, source: 'pace' });
+    expect(resolveRanLane({ assigned: 3, executed: pushed, pushedLane: 2, plannedFor: pf }))
+      .toEqual({ lane: 3, source: 'assigned' });
+    void ran;
   });
   it('the targets come out as pack 3\'s', () => {
     const steps = retargetToLane(pushed, 3, pf)!.steps;

@@ -143,3 +143,47 @@ export async function recordPackChange(
     await supabase.from('athlete_pack_history').insert(rows);
   } catch { /* best effort — see above */ }
 }
+
+/**
+ * Which pack a leader marked each runner present with, per (athlete, date) — the
+ * attendance evidence a run's graded lane may move on (ran-lane.ts, Q27-2). Only a
+ * leader's 'present' mark counts: a 'watch' auto-mark is inferred from the run's start
+ * time, which every pack sharing a meeting point would match equally. Two packs on one
+ * day is no answer. Empty when the table (216) is missing or unreadable.
+ */
+export async function loadAttendedLanes(
+  supabase: SupabaseServer,
+  athleteIds: string[],
+  dates: string[],
+): Promise<(athleteId: string, date: string) => Lane | null> {
+  const ids = [...new Set(athleteIds)];
+  const days = [...new Set(dates)];
+  const none = () => null;
+  if (!ids.length || !days.length) return none;
+  try {
+    const [marks, groupsRes] = await Promise.all([
+      supabase.from('pack_attendance').select('athlete_id, session_date, pack_id')
+        .in('athlete_id', ids).in('session_date', days).eq('status', 'present').eq('source', 'leader'),
+      supabase.from('groups').select('id, name, coach_id, pace_profile'),
+    ]);
+    if (marks.error || !marks.data?.length) return none;
+    type GroupRow = { id: string; name: string | null; coach_id?: string | null; pace_profile?: { marathonGoal?: string | number | null } | null };
+    const groupRows = (groupsRes.data || []) as GroupRow[];
+    const keyById = laneKeysLikeTheWatch(groupRows);
+    const nameById = new Map(groupRows.map((g) => [g.id, g.name]));
+    const laneOf = (packId: string): Lane => (keyById[packId] ? LANE_OF_KEY[keyById[packId]] : laneOfName(nameById.get(packId)));
+    const byKey = new Map<string, Set<Lane>>();
+    for (const r of marks.data as Array<{ athlete_id: string; session_date: string; pack_id: string }>) {
+      const k = `${r.athlete_id}|${String(r.session_date).slice(0, 10)}`;
+      const set = byKey.get(k) ?? new Set<Lane>();
+      set.add(laneOf(r.pack_id));
+      byKey.set(k, set);
+    }
+    return (athleteId, date) => {
+      const set = byKey.get(`${athleteId}|${date}`);
+      return set && set.size === 1 ? [...set][0] : null;
+    };
+  } catch {
+    return none;
+  }
+}

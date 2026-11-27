@@ -1,29 +1,32 @@
 import type { ParsedWorkout } from '@/lib/ai/types';
 import type { Lane } from '@/lib/academy/group-lane';
 import { flattenPlannedSteps } from '@/lib/academy/segments';
-import { dominantBlock, gradePlanBlocks, type Trace } from '@/lib/academy/execution';
 import { isRepeatMarker, stepPaceBand, type ExecutedWorkout } from '@/lib/garmin/executed-workout';
 
 // ── Which pack did the runner actually run with? ────────────────────────────
 // A runner's assigned pack is where they USUALLY run, not a fact about every run:
 // people tag along with the next pack up on a good day and drop a pack on a tired
-// one. Grading such a run against the assigned pack's paces turns a perfectly run
-// pack-3 session into "slower than target" (owner report 2026-11-26). So the lane a
-// run is graded on is resolved per run, best evidence first:
+// one (owner report 2026-11-26). But the lane is also what a miss is measured
+// against, so it moves off the assigned pack only on EVIDENCE, never on pace alone
+// (QA 2026-11-27, Q27-2): detecting the lane from the pace made a pack-2 runner
+// asked for 3:45 who ran 3:55 "a pack-3 runner on target" — every slow run inside a
+// slower pack's band scored 100, and the verdict could no longer say "slower".
 //
-//   manual   — the runner (or staff) said "I ran with pack N" on this run.
-//   pace     — the main block's actual pace sits clearly inside one pack's band and
-//              clearly closer to it than to any other (a confidence margin).
-//   watch    — the workout on the watch carried ONE pack's paces.
-//   assigned — nothing above could tell; the pack they're in on that day.
+//   manual     — the runner (or staff) said "I ran with pack N" on this run.
+//   stored     — an earlier resolution saved on activity_plan_matches (migration 224),
+//                so the feed ring and the run detail read ONE lane (one-verdict rule).
+//   attendance — a pack leader marked them present with pack N that day (pack_attendance).
+//   watch      — the workout on the watch carried ONE pack's paces — unless that is
+//                just the copy pushed for the pack they were in when the week was
+//                pushed and have since left (Ofer's Thursday: pack 2's 3:53/3:45/3:38
+//                on the wrist, moved to pack 3 that morning — the assigned pack on the
+//                day already says 3, and the stale push is not evidence against it).
+//   assigned   — nothing above; the pack they're in on that day.
 //
-// Pace outranks the watch on purpose (owner, 2026-11-26): the watch holds whatever
-// pack's copy was PUSHED, which is the pack the runner was in at push time — Ofer's
-// Thursday carried pack 2's 3:53/3:45/3:38 while he ran 4:02/3:55/3:46 with pack 3,
-// moved to pack 3 that morning. When the graded lane differs from the watch's,
-// `retargetToLane` keeps the watch's step STRUCTURE and swaps in that lane's paces.
+// When the graded lane differs from the watch's, `retargetToLane` keeps the watch's
+// step STRUCTURE and swaps in that lane's paces.
 
-export type LaneSource = 'manual' | 'watch' | 'pace' | 'assigned';
+export type LaneSource = 'manual' | 'attendance' | 'watch' | 'assigned';
 
 export interface RanLane {
   lane: Lane;
@@ -34,12 +37,6 @@ const LANES: Lane[] = [1, 2, 3];
 
 /** A watch band and a plan band are "the same pace" within this many s/km. */
 const WATCH_MATCH_SEC = 3;
-/**
- * How much closer (s/km, band centre to actual) the best pack must be than the
- * runner-up before the actual pace is allowed to overrule the assigned pack. The
- * packs sit ~10 s/km apart, so 4 is "clearly nearer one of them", not a coin toss.
- */
-const PACE_MARGIN_SEC = 4;
 
 const centre = (b: { min: number; max: number }) => (b.min + b.max) / 2;
 
@@ -81,50 +78,33 @@ export function laneFromWatch(
   return fits.length === 1 ? fits[0] : null;
 }
 
-/**
- * The pack whose main-block band the run's main block fits, with a margin — or null.
- * Each lane's plan is searched on its own (`gradePlanBlocks`), since the block's
- * window is located through its band; `dominantBlock` picks the one stretch the
- * verdict is about, the same rule every surface grades with.
- */
-export function laneFromPace(
-  trace: Trace | null,
-  plannedFor: (lane: Lane) => ParsedWorkout | undefined,
-  paceSec: number,
-): Lane | null {
-  if (!trace) return null;
-  const scored: { lane: Lane; miss: number; off: number }[] = [];
-  for (const lane of LANES) {
-    const workout = plannedFor(lane);
-    if (!workout) continue;
-    const block = dominantBlock(gradePlanBlocks(flattenPlannedSteps(workout), trace, paceSec));
-    if (!block || block.actualPace == null) continue;
-    const a = block.actualPace;
-    const miss = a < block.plannedPaceMin ? block.plannedPaceMin - a : a > block.plannedPaceMax ? a - block.plannedPaceMax : 0;
-    scored.push({ lane, miss, off: Math.abs(a - (block.plannedPaceMin + block.plannedPaceMax) / 2) });
-  }
-  if (scored.length < 2) return null;
-  scored.sort((x, y) => x.miss - y.miss || x.off - y.off);
-  const [best, next] = scored;
-  if (best.miss > paceSec) return null;          // fits none of them
-  if (next.off - best.off < PACE_MARGIN_SEC) return null; // packs too close to call
-  return best.lane;
-}
+const asLane = (v: unknown): Lane | null => (v === 1 || v === 2 || v === 3 ? v : null);
 
 export function resolveRanLane(input: {
   assigned: Lane;
   override?: number | null;
+  /** The lane saved on the run's plan match by an earlier resolution (224), with its source. */
+  stored?: { lane: number | null; source: string | null } | null;
+  /** A pack leader's "present" mark for that day, as a lane — null when none or ambiguous. */
+  attended?: number | null;
   executed?: ExecutedWorkout | null;
-  trace?: Trace | null;
+  /** The pack they were in when the week was pushed (plan week start) — see "watch" above. */
+  pushedLane?: number | null;
   plannedFor: (lane: Lane) => ParsedWorkout | undefined;
-  paceSec: number;
 }): RanLane {
-  const o = input.override;
-  if (o === 1 || o === 2 || o === 3) return { lane: o, source: 'manual' };
-  const pace = laneFromPace(input.trace ?? null, input.plannedFor, input.paceSec);
-  if (pace) return { lane: pace, source: 'pace' };
+  const o = asLane(input.override);
+  if (o) return { lane: o, source: 'manual' };
+  // A stored EVIDENCE answer is the run's lane; a stored 'assigned' may still be
+  // upgraded by evidence that arrived later (a step list fetched on demand, a leader's mark).
+  const st = asLane(input.stored?.lane);
+  const stSrc = input.stored?.source;
+  if (st && (stSrc === 'attendance' || stSrc === 'watch')) return { lane: st, source: stSrc };
+  const att = asLane(input.attended);
+  if (att) return { lane: att, source: 'attendance' };
   const watch = laneFromWatch(input.executed, input.plannedFor);
-  if (watch) return { lane: watch, source: 'watch' };
+  const pushed = asLane(input.pushedLane);
+  const stalePush = !!watch && pushed === watch && watch !== input.assigned;
+  if (watch && !stalePush) return { lane: watch, source: 'watch' };
   return { lane: input.assigned, source: 'assigned' };
 }
 
