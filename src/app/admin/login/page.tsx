@@ -9,7 +9,7 @@ import { Loader2, Shield } from 'lucide-react';
 import { Card, Button } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
-import { bearerHeaders } from '@/lib/api';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 
 // Local input primitive (kept local to this screen rather than promoted to
 // the shared ui/index.tsx) — rounded-2xl, min-h-[44px], one consistent focus
