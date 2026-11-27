@@ -1,4 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 import { isRunActivityType } from '@/lib/prs/pr-buckets';
 import { COACH_ID } from '@/lib/constants';
 import { getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
@@ -61,12 +62,15 @@ export async function snapshotWeeklyKm(weeksBack = 1): Promise<{ weeks: string[]
     weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
     const weekEndStr = weekEnd.toISOString().split('T')[0];
 
-    const { data: activities } = await supabase
+    // Paged: one club-wide week can pass the 1000-row cap.
+    const activities = await fetchAllRows<{ athlete_id: string; distance: number | null; duration: number | null; start_time: string; activity_type: string | null }>((from, to) => supabase
       .from('athlete_activities')
-      .select('athlete_id, distance, duration, start_time, activity_type').or(RUNS_ONLY_OR)
+      .select('id, athlete_id, distance, duration, start_time, activity_type').or(RUNS_ONLY_OR)
       .in('athlete_id', athleteIds)
       .gte('start_time', weekStart)
-      .lt('start_time', weekEndStr);
+      .lt('start_time', weekEndStr)
+      .order('id')
+      .range(from, to) as never).catch(() => []);
 
     // Aggregate per athlete.
     const stats = new Map<string, { distance: number; runs: number; duration: number }>();

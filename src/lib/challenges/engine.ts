@@ -13,6 +13,7 @@
  * sweep: nothing changes for a challenge between one athlete's activity syncs.
  */
 import { createServerClient } from '@/lib/supabase/server';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 import { awardBadge, isNewMember, type BadgeRow } from '@/lib/badges/award-engine';
 import { filterQualifyingRuns, type RunActivityRow } from '@/lib/prs/pr-buckets';
 
@@ -129,14 +130,16 @@ async function fetchActivities(
   endDate: string,
 ): Promise<ActivityForMetric[]> {
   if (athleteIds.length === 0) return [];
-  const { data, error } = await supabase
+  // Paged: a club-wide month-long challenge is ~100 members × ~30 runs, past the
+  // 1000-row PostgREST cap — an unpaged read silently dropped the overflow from the total.
+  return fetchAllRows<ActivityForMetric>((from, to) => supabase
     .from('athlete_activities')
-    .select('activity_type, start_time, distance, duration, elevation_gain')
+    .select('id, activity_type, start_time, distance, duration, elevation_gain')
     .in('athlete_id', athleteIds)
     .gte('start_time', shiftDate(startDate, -1))
-    .lt('start_time', shiftDate(endDate, 2));
-  if (error) throw error;
-  return (data || []) as ActivityForMetric[];
+    .lt('start_time', shiftDate(endDate, 2))
+    .order('id')
+    .range(from, to) as unknown as PromiseLike<{ data: ActivityForMetric[] | null; error: unknown }>);
 }
 
 /**
