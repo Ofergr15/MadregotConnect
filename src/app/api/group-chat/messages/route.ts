@@ -9,6 +9,7 @@ import {
   cleanClientId, cleanText, groupChatTag, groupChatUrl, mayDelete, mayEdit, mayEnter, pushRecipients,
 } from '@/lib/group-chat/logic';
 import { internalErrorBody } from '@/lib/api-error';
+import { takeSendSlot } from '@/lib/group-chat/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,6 +55,11 @@ export async function POST(request: Request) {
     const g = await gate(caller, groupId);
     if (g.error) return g.error;
     const { db, members } = g;
+    // Per-member rate limit (lib/group-chat/rate-limit): every message pushes the whole room.
+    const slot = takeSendSlot(caller.athleteId);
+    if (!slot.ok) {
+      return NextResponse.json({ error: 'too many messages', retryAfterSec: slot.retryAfterSec }, { status: 429, headers: { 'Retry-After': String(slot.retryAfterSec) } });
+    }
 
     const stream = getStreamServerClient();
     const { channel } = await ensureGroupChannel(stream, db, groupId, members, caller.athleteId);
