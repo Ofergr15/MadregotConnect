@@ -42,6 +42,22 @@ export interface EventRow {
   detail: string | null;
 }
 
+/**
+ * The clicked link as stored. Domain-wide click tracking rewrites EVERY link, including the
+ * transactional ones that carry a secret (login/phone-link/claim URLs with a token in the
+ * query or fragment). Storing the full URL would park live sign-in links in a staff-readable
+ * table, so only origin + path are kept — enough to tell which link was clicked.
+ */
+export function clickedLinkForLog(link?: string | null): string | null {
+  if (!link) return null;
+  try {
+    const u = new URL(link);
+    return `${u.origin}${u.pathname}`.slice(0, 500);
+  } catch {
+    return link.split(/[?#]/)[0].slice(0, 500) || null;
+  }
+}
+
 /** The email_events row for one webhook, or null for an event we don't record. */
 export function eventRowFrom(payload: WebhookPayload, svixId: string | null, now = new Date()): EventRow | null {
   const type = EVENT_BY_WEBHOOK[payload.type || ''];
@@ -52,7 +68,7 @@ export function eventRowFrom(payload: WebhookPayload, svixId: string | null, now
   const when = payload.created_at || payload.data?.created_at;
   const occurred = when && !Number.isNaN(Date.parse(when)) ? new Date(when).toISOString() : now.toISOString();
   let detail: string | null = null;
-  if (type === 'clicked') detail = payload.data?.click?.link?.slice(0, 500) ?? null;
+  if (type === 'clicked') detail = clickedLinkForLog(payload.data?.click?.link);
   if (type === 'bounced') {
     const b = payload.data?.bounce;
     detail = [b?.type, b?.subType, b?.message].filter(Boolean).join(' · ').slice(0, 500) || null;
@@ -171,4 +187,16 @@ export function campaignTotals(rows: RecipientStatus[]): CampaignTotals {
  *  sending domain gets blocked. */
 export function unopened(rows: RecipientStatus[]): RecipientStatus[] {
   return rows.filter(r => (r.state === 'sent' || r.state === 'delivered') && !r.openedAt && !r.clickedAt);
+}
+
+/** Addresses a bulk send must skip: anyone who complained (marked as spam) or hard-bounced.
+ *  Mailing them again is how a sending domain gets blocked. Soft/transient bounces stay. */
+export function suppressedAddresses(events: Array<Pick<EventRow, 'type' | 'recipient' | 'detail'>>): Set<string> {
+  const out = new Set<string>();
+  for (const e of events) {
+    if (!e.recipient) continue;
+    const hard = e.type === 'bounced' && !/transient|soft/i.test(e.detail || '');
+    if (e.type === 'complained' || hard) out.add(e.recipient.toLowerCase());
+  }
+  return out;
 }
