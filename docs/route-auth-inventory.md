@@ -31,6 +31,7 @@ Who should be allowed, by prefix: `/api/admin/**`, `/api/plan-builder/**` → st
 |---|---|---|
 | `/api/version` | public | build/version probe, no data |
 | `/api/ping` | public | liveness probe |
+| `/api/health` | public | uptime probe: DB reachable + ages of last cron tick / Garmin / Strava sync; ages only, no ids or error text |
 | `/api/config` | public | public client config (no secrets) |
 | `/api/badges` | public | badge catalogue, same public-read convention as /api/events |
 | `/api/client-log` | public | client error sink, write-only log line |

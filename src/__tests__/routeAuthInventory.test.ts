@@ -20,6 +20,7 @@ const DOC = fileURLToPath(new URL('../../docs/route-auth-inventory.md', import.m
 const PUBLIC_ROUTES = new Map<string, string>([
   ['version', 'public'],
   ['ping', 'public'],
+  ['health', 'public'],
   ['config', 'public'],
   ['badges', 'public'],
   ['client-log', 'public'],
