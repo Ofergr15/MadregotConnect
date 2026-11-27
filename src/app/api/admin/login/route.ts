@@ -3,6 +3,41 @@ import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
 import { createSyntheticSession } from '@/lib/auth/synthetic-session';
 import { DEVICE_COOKIE, DEVICE_COOKIE_OPTIONS, signDeviceToken } from '@/lib/auth/device-token';
+import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { ADMIN_LOGIN_ROLES, passwordLoginEnabled } from '@/lib/auth/admin-login';
+
+/**
+ * JWT path: the caller already holds a Supabase session (email code / Strava). The identity
+ * and role come from that session — nothing from the body — and no new session is minted.
+ */
+async function jwtLogin(req: NextRequest): Promise<NextResponse> {
+  const { denied, caller } = await resolveVerifiedCaller(req);
+  if (denied) return denied as NextResponse;
+  const roles = caller.roles ?? [caller.role];
+  if (!caller.isSuperUser && !roles.some((r) => ADMIN_LOGIN_ROLES.includes(r))) {
+    return NextResponse.json({ error: 'Not authorized as admin' }, { status: 403 });
+  }
+  let name: string | null = null;
+  let groupId: string | null = null;
+  if (caller.athleteId) {
+    const { data } = await createServerClient()
+      .from('athletes').select('name, group_id').eq('id', caller.athleteId).maybeSingle();
+    name = (data as { name?: string } | null)?.name ?? null;
+    groupId = (data as { group_id?: string } | null)?.group_id ?? null;
+  }
+  const response = NextResponse.json({
+    success: true,
+    email: caller.email,
+    name,
+    role: caller.role,
+    athleteId: caller.athleteId,
+    groupId,
+    session: null,
+  });
+  const deviceToken = signDeviceToken(caller.email);
+  if (deviceToken) response.cookies.set(DEVICE_COOKIE, deviceToken, DEVICE_COOKIE_OPTIONS);
+  return response;
+}
 
 // Best-effort throttle: this is a single shared password checked with a
 // plain !==, with no rate limiting at all before this. Module-scope state
@@ -31,6 +66,13 @@ function recordFailedAttempt(email: string): void {
 }
 
 export async function POST(req: NextRequest) {
+  if (req.headers.get('authorization')) return jwtLogin(req);
+  if (!passwordLoginEnabled()) {
+    return NextResponse.json(
+      { error: 'password_login_disabled', message: 'התחברו עם קוד במייל או עם Strava, ואז חזרו לכאן.' },
+      { status: 401 },
+    );
+  }
   try {
     const { email, password } = await req.json();
 
@@ -43,10 +85,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 });
     }
 
-    const adminPassword = process.env.ADMIN_PASSWORD;
-    if (!adminPassword) {
-      return NextResponse.json({ error: 'Admin login not configured' }, { status: 500 });
-    }
+    const adminPassword = process.env.ADMIN_PASSWORD!;
 
     if (password !== adminPassword) {
       recordFailedAttempt(normalizedEmail);
