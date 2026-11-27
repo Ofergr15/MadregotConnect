@@ -88,6 +88,10 @@ export default function BirthdaysPage() {
           null, shortDate(p.birthday)))}</Group>
       </>)}
 
+      {up && prep && waiting.length === 0 && week.length === 0 && later.length === 0 && (
+        <p className="mt-4 rounded-[20px] bg-card px-4 py-6 text-center text-[14px] font-bold text-ink-500">אין ימי הולדת קרובים</p>
+      )}
+
       {st && <FeatureSettings feature="birthday" home={st} onChanged={() => void reSt()} />}
     </div>
   );

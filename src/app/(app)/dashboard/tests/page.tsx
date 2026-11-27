@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui';
 import { FLOWS, QUICK_ORDER, type FlowId, type StepStatus } from '@/lib/testing/flows';
 import type { FlowStatus } from '@/lib/testing/status';
 import type { Check as ReadyCheck } from '@/lib/testing/readiness';
+import { useConfirm } from '@/components/ui/ConfirmStrip';
 
 // "בדיקות" — the hand-test screen for the super user (Ofer, 2026-10-20: "there should be
 // a screen that shows me what to do"). Each sign-up door as a checklist: what to do, the
@@ -79,6 +80,7 @@ export default function TestsPage() {
   const { data, error, mutate } = useApi<Payload>('/api/admin/tests', { refreshInterval: 4000 });
   const [tab, setTab] = useState<FlowId>('club');
   const [busy, setBusy] = useState(false);
+  const { ask, confirmUi } = useConfirm();
   const [msg, setMsg] = useState<string | null>(null);
 
   const post = async (body: object) => {
@@ -91,8 +93,8 @@ export default function TestsPage() {
     } finally { setBusy(false); }
   };
   const onFix = async (s: StepStatus) => { if (s.fix) await post({ action: s.fix.action, ...s.fix.payload }); };
-  const cleanup = async () => {
-    if (!window.confirm('למחוק את כל חשבונות הבדיקה של היום (+club20, +academy20, +movein20, +import20)? חשבונות אמיתיים לא נוגעים.')) return;
+  const cleanup = () => ask('למחוק את כל חשבונות הבדיקה של היום (+club20, +academy20, +movein20, +import20)? חשבונות אמיתיים לא נוגעים.', () => void doCleanup(), 'כן, למחוק');
+  const doCleanup = async () => {
     const { ok, out } = await post({ action: 'cleanup', confirm: 'מחיקה' });
     setMsg(ok ? (out.blocked ? `נמחק חלקית — ${out.blocked}` : 'נוקה. אפשר להתחיל מחדש.') : 'הניקוי נכשל');
   };
@@ -105,6 +107,7 @@ export default function TestsPage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-4 px-4 pb-24 pt-2">
+      {confirmUi}
       <header>
         <h1 className="text-[28px] font-black text-ink-900">בדיקות הרשמה</h1>
         <p className="text-[13px] text-ink-400">מתעדכן כל כמה שניות · <bdi dir="ltr">{time(data.at)}</bdi></p>

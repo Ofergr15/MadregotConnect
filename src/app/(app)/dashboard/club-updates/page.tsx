@@ -93,6 +93,9 @@ export default function ClubUpdatesAdminPage() {
         </label>
         <div className="overflow-hidden rounded-[20px] bg-card">
           {!data && Array.from({ length: 5 }, (_, i) => <div key={i} className="px-4 py-3"><Skeleton className="h-9 w-full" /></div>)}
+          {data && people.length === 0 && (
+            <p className="px-4 py-6 text-center text-[14px] font-bold text-ink-500">{q.trim() ? 'לא נמצא אף אחד בחיפוש הזה' : 'אין עדיין חברים להוספה'}</p>
+          )}
           {people.map((p) => (
             <div key={p.id} className="flex min-h-[60px] items-center gap-3 border-b border-page px-4 last:border-0">
               <FeedAvatar name={p.name} url={p.avatarUrl} className="h-9 w-9 text-xs" />
