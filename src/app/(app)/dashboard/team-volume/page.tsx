@@ -31,7 +31,7 @@ export default function TeamVolumePage() {
   const t = useTranslations('teamVolume');
   const [range, setRange] = useState(8);
   const { data } = useApi<{ athletes?: Row[]; weeks?: string[] }>(`/api/coach/volume?weeks=${range}`);
-  const rows = data?.athletes || [];
+  const rows = useMemo(() => data?.athletes || [], [data]);
   const loading = !data;
 
   // Shared max across all athletes so sparklines are comparable.

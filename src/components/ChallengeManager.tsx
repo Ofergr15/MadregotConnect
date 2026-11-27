@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Trophy, Loader2, Plus, Pencil, Trash2 } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 import { pickLocalized } from '@/lib/badges/localize';
@@ -77,7 +77,7 @@ export function ChallengeManager() {
    * staff access, and the `challenges` table not existing because migration 062
    * was never run by hand. Only the first of those is fixed by using the form.
    */
-  const fetchChallenges = () => {
+  const fetchChallenges = useCallback(() => {
     setLoading(true);
     setLoadError(null);
     authedFetch('/api/admin/challenges')
@@ -89,9 +89,9 @@ export function ChallengeManager() {
       })
       .catch((err: unknown) => setLoadError((err as Error).message || t('loadError')))
       .finally(() => setLoading(false));
-  };
+  }, [t]);
 
-  useEffect(() => { fetchChallenges(); }, []);
+  useEffect(() => { fetchChallenges(); }, [fetchChallenges]);
 
   const resetForm = () => {
     setEditingId(null);

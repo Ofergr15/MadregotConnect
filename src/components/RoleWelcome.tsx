@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Sheet } from '@/components/ui';
 import { useApi } from '@/lib/api';
@@ -108,12 +108,13 @@ export function RoleWelcome({ name }: { name: string }) {
   }, [roles, me?.role, identity.previewRole, identity.isSuper]);
 
   const view = welcome ? viewForRole(welcome) : null;
-  const tabs = welcome && view && roles && identity.ready
+  const meRole = me?.role;
+  const tabs = useMemo(() => (welcome && view && roles && identity.ready
     ? addedTabs(
-        resolveNavItems({ ...identity, previewRole: null, isOperator: false, fallback: true, effectiveRole: navRoleFor(view, roles, me?.role) }),
-        resolveNavItems({ ...identity, previewRole: null, isOperator: false, fallback: true, effectiveRole: navRoleFor('runner', roles, me?.role) }),
+        resolveNavItems({ ...identity, previewRole: null, isOperator: false, fallback: true, effectiveRole: navRoleFor(view, roles, meRole) }),
+        resolveNavItems({ ...identity, previewRole: null, isOperator: false, fallback: true, effectiveRole: navRoleFor('runner', roles, meRole) }),
       )
-    : [];
+    : []), [welcome, view, roles, identity, meRole]);
 
   const marked = useRef(false);
   useEffect(() => {
