@@ -77,6 +77,8 @@ export const FEATURES = {
   /** Native wellness strip on home. */
   wellness_strip: { label: 'פס בריאות (אפליקציה)', defaultEnabled: false },
   /** Native weekly summary card on the week tab, Sunday 19:00 – Monday (b25, GET /api/week-story?mode=summary). */
+  /** Web home: "today + my group's pace" card is the first element on the page (task 50). */
+  web_week_today_first: { label: 'היום והקצב של הדבוקה בראש העמוד (אתר)', defaultEnabled: false },
   week_summary: { label: 'סיכום שבועי (אפליקציה)', defaultEnabled: false },
   /** Native birthday year-in-review card. */
   birthday_year_card: { label: 'כרטיס שנה ביום הולדת (אפליקציה)', defaultEnabled: false },

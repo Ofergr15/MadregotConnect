@@ -19,6 +19,7 @@ import { NextWorkoutCard } from '@/components/NextWorkoutCard';
 import { WatchStatus } from '@/components/WatchStatus';
 import { HomeToday, ClubToday, CoachPinned, LastNight } from '@/components/home/HomeToday';
 import { TodayCards } from '@/components/home/TodayHome';
+import { useFeature } from '@/lib/features/use-feature';
 import { LastWeek } from '@/components/home/LastWeekCard';
 import { WeeklyLeaderboardCard } from '@/components/WeeklyLeaderboardCard';
 import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_TEXT_COLORS as typeTextColors, planDayKey } from '@/lib/plans/workout-parsing';
@@ -150,6 +151,9 @@ const EVENING_LOOKAHEAD_HOUR = 20;
 // booking-style apps, per an explicit product decision.
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
+  // Flag `web_week_today_first` (default off): today's session in my pack's lane
+  // and pace leads the page. TodayCards matches days by planDayKey(), not weekday.
+  const todayFirstFlag = useFeature('web_week_today_first');
   const tx = useTranslations('execution');
   const tc = useTranslations('common');
   const tm = useTranslations('momentum');
@@ -630,6 +634,25 @@ export default function DashboardPage() {
   const dayState = homeDayState({ hasPlan: !!weekly?.hasPlan, today: todayW, tomorrow: tomorrowW, isAcademy: false });
   const uploadCta = planUploadCta({ dayState, isStaff: isCoach, isAcademy: isAcademyMember });
 
+  const todayFirst = todayFirstFlag && showTodayHome;
+  const todayCards = showTodayHome ? (
+    <TodayCards
+          athleteId={athleteId!}
+          rsvpForToday
+          rsvp={rsvpTarget && !rsvpTarget.dayBefore ? (
+            <AttendanceRSVP
+              workoutLabel={rsvpLabel || undefined}
+              weekStart={rsvpWeekStart}
+              day={rsvpTarget.dow}
+              dayBefore={false}
+              workoutHour={workoutHour}
+              hideIfAnswered
+              onStatusChange={handleRsvpStatus}
+            />
+          ) : undefined}
+        />
+  ) : null;
+
   const heroWorkout = (() => {
     if (!todayW && !tomorrowW) return null;
 
@@ -690,6 +713,9 @@ export default function DashboardPage() {
           באיזור של הadmin — לקבל שם פירוט בעמוד הראשי"). Same component and the
           same request as the control room; renders NOTHING when there is nothing
           to act on, so it never becomes a permanent empty card above today's run. */}
+      {/* Flag web_week_today_first: today + my pack's pace is the top element. */}
+      {todayFirst && todayCards}
+
       {isAdminView && <AdminAttention compact />}
 
       {/* ═══ ATTENDANCE (coach) — the coach's own "today's action" hero. RSVP is a
@@ -756,21 +782,7 @@ export default function DashboardPage() {
       ) : showTraineeHome ? (
         <TraineeToday athleteId={athleteId!} firstName={firstName} academyOnly={isAcademyOnly} />
       ) : showTodayHome ? (
-        <TodayCards
-          athleteId={athleteId!}
-          rsvpForToday
-          rsvp={rsvpTarget && !rsvpTarget.dayBefore ? (
-            <AttendanceRSVP
-              workoutLabel={rsvpLabel || undefined}
-              weekStart={rsvpWeekStart}
-              day={rsvpTarget.dow}
-              dayBefore={false}
-              workoutHour={workoutHour}
-              hideIfAnswered
-              onStatusChange={handleRsvpStatus}
-            />
-          ) : undefined}
-        />
+        todayFirst ? null : todayCards
       ) : athleteId && heroWorkout ? (
         <NextWorkoutCard
           isToday={heroWorkout.showingToday}
