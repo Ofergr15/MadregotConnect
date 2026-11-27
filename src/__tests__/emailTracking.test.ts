@@ -5,7 +5,7 @@ import { eventRowFrom, recipientStatuses, campaignTotals, unopened, type LogRow 
 describe('eventRowFrom', () => {
   it('maps Resend events and keeps only link/bounce detail', () => {
     const r = eventRowFrom({ type: 'email.clicked', created_at: '2026-11-25T10:00:00Z', data: { email_id: 'e1', to: ['A@x.com'], click: { link: 'https://a' } } }, 'msg_1');
-    expect(r).toMatchObject({ type: 'clicked', provider_id: 'e1', recipient: 'a@x.com', detail: 'https://a', svix_id: 'msg_1' });
+    expect(r).toMatchObject({ type: 'clicked', provider_id: 'e1', recipient: 'a@x.com', detail: 'https://a/', svix_id: 'msg_1' });
     expect(eventRowFrom({ type: 'email.opened', data: { email_id: 'e1' } }, null)?.type).toBe('opened');
     expect(eventRowFrom({ type: 'contact.created', data: { email_id: 'e1' } }, null)).toBeNull();
     expect(eventRowFrom({ type: 'email.opened', data: {} }, null)).toBeNull();

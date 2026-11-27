@@ -68,4 +68,15 @@ describe('sending', () => {
     expect((await post({ action: 'send', campaignId: 'c1', confirm: 'שלח לכולם' })).status).toBe(409);
     expect(sendEmail).not.toHaveBeenCalled();
   });
+  it('resend to unopened refuses a campaign that has not finished sending', async () => {
+    as('admin');
+    campaign = { id: 'c1', kind: 'newsletter', status: 'tested', input: { title: 'עדכונים', items: [] } };
+    expect((await post({ action: 'resend_unopened', campaignId: 'c1', confirm: 'שלח לכולם' })).status).toBe(409);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+  it('resend to unopened refuses a resend of a resend', async () => {
+    as('admin');
+    campaign = { id: 'c2', kind: 'resend_unopened', status: 'sent', input: { title: 'עדכונים', items: [] } };
+    expect((await post({ action: 'resend_unopened', campaignId: 'c2', confirm: 'שלח לכולם' })).status).toBe(409);
+  });
 });

@@ -7,7 +7,7 @@ import {
   newsletterEmail, welcomeEmail, registrationDeclinedEmail, SAMPLE_NEWSLETTER, cleanNewsletter,
   type BuiltEmail, type NewsletterInput,
 } from '@/lib/email/club-mail';
-import { recipientStatuses, campaignTotals, unopened, type LogRow } from '@/lib/email/tracking';
+import { recipientStatuses, campaignTotals, unopened, suppressedAddresses, type LogRow } from '@/lib/email/tracking';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -35,6 +35,9 @@ const CONFIRM = 'שלח לכולם';
 const MAX_RECIPIENTS = 400;
 /** Resend's default rate limit is 2 requests/s. */
 const SPACING_MS = 550;
+/** Stop starting new sends well before maxDuration (300 s) so the campaign row is always
+ *  closed out; otherwise a killed function leaves it in 'sending' forever. */
+const SEND_BUDGET_MS = 240_000;
 
 async function gate(request: Request): Promise<{ denied: Response | null; caller: VerifiedCaller }> {
   const { denied, caller } = await resolveVerifiedCaller(request);
@@ -165,20 +168,37 @@ async function sendTo(
   campaignId: string,
   input: NewsletterInput,
   people: Array<{ id: string | null; name: string | null; email: string }>,
+  now: () => number = Date.now,
 ) {
-  let sent = 0, failed = 0;
-  for (let i = 0; i < people.length; i++) {
-    const p = people[i];
-    const built = newsletterEmail({ ...input, name: p.name });
-    const r = await sendEmail({
-      template: 'newsletter', to: p.email, subject: built.subject, html: built.html,
-      athleteId: p.id, campaignId, headers: UNSUBSCRIBE,
-    });
-    if (r.ok) sent++; else failed++;
-    if (i < people.length - 1) await new Promise(res => setTimeout(res, SPACING_MS));
+  const started = now();
+  let sent = 0, failed = 0, attempted = 0;
+  try {
+    for (let i = 0; i < people.length; i++) {
+      if (now() - started > SEND_BUDGET_MS) break;
+      const p = people[i];
+      const built = newsletterEmail({ ...input, name: p.name });
+      const r = await sendEmail({
+        template: 'newsletter', to: p.email, subject: built.subject, html: built.html,
+        athleteId: p.id, campaignId, headers: UNSUBSCRIBE,
+      });
+      attempted++;
+      if (r.ok) sent++; else failed++;
+      if (i < people.length - 1) await new Promise(res => setTimeout(res, SPACING_MS));
+    }
+  } finally {
+    // Always close the row out — 'sending' is a lock, and a stuck lock blocks nothing
+    // visibly but lies on the screen. recipient_count is who was actually attempted.
+    await db.from('email_campaigns').update({ status: 'sent', sent_at: new Date().toISOString(), recipient_count: attempted }).eq('id', campaignId);
   }
-  await db.from('email_campaigns').update({ status: 'sent', sent_at: new Date().toISOString(), recipient_count: people.length }).eq('id', campaignId);
-  return { sent, failed };
+  return { sent, failed, notAttempted: people.length - attempted };
+}
+
+/** Complained / hard-bounced addresses, from the webhook events. Read failure → empty
+ *  set (the send still happens; the screen shows the bounces afterwards). */
+async function suppressionList(db: ReturnType<typeof createServerClient>): Promise<Set<string>> {
+  const { data, error } = await db.from('email_events').select('type, recipient, detail').in('type', ['complained', 'bounced']).limit(5000);
+  if (error) return new Set();
+  return suppressedAddresses((data || []) as never);
 }
 
 export async function POST(request: Request) {
@@ -252,7 +272,8 @@ export async function POST(request: Request) {
           await db.from('email_campaigns').update({ status: 'tested' }).eq('id', campaignId);
           return NextResponse.json({ error: 'roster read failed' }, { status: 500 });
         }
-        const seen = new Set<string>();
+        const suppressed = await suppressionList(db);
+        const seen = new Set<string>(suppressed);
         const people = (roster || [])
           .map(a => ({ id: a.id as string, name: (a.name as string) || null, email: String(a.email || '').trim().toLowerCase() }))
           .filter(a => a.email.includes('@') && !a.email.endsWith('.local') && !seen.has(a.email) && seen.add(a.email))
@@ -262,9 +283,18 @@ export async function POST(request: Request) {
       }
 
       // resend_unopened: a child campaign to exactly who hasn't opened the parent.
+      // Only once per campaign, only after the parent finished sending — a double click
+      // (or a second admin) must not nudge the same people twice.
+      if (campaign.status !== 'sent' || campaign.kind !== 'newsletter') {
+        return NextResponse.json({ error: 'only a sent newsletter can be resent' }, { status: 409 });
+      }
+      const prior = await db.from('email_campaigns').select('id').eq('parent_id', campaignId).limit(1);
+      if (prior.error) return NextResponse.json({ error: 'read failed' }, { status: 500 });
+      if ((prior.data || []).length) return NextResponse.json({ error: 'already resent once' }, { status: 409 });
       const parent = await campaignRecipients(db, campaignId);
       if ('error' in parent && parent.error) return NextResponse.json({ error: 'read failed' }, { status: 500 });
-      const targets = unopened(parent.rows || []);
+      const suppressed = await suppressionList(db);
+      const targets = unopened(parent.rows || []).filter(t => !suppressed.has(t.email));
       if (!targets.length) return NextResponse.json({ ok: true, recipients: 0, sent: 0, failed: 0 });
       const { data: child, error: cErr } = await db.from('email_campaigns').insert({
         created_by_email: caller.email, kind: 'resend_unopened', subject: campaign.subject, input: campaign.input,
