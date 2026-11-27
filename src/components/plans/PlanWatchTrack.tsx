@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
 import { cn, GROUP_HEX } from '@/lib/utils';
 import { reasonText } from '@/lib/day-session/watch-status';
@@ -11,15 +12,17 @@ import type { DayCell, PlanWatchStatus, RunnerWeekState } from '@/lib/plans/watc
 // week, filters, and per runner a square per day — green on the watch, red not, blue on the
 // way. Polls while anyone is still on the way (or while the send itself is running).
 
-const DAY = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
+/** Numbers inside a Hebrew sentence stay LTR. */
+const n = (chunks: ReactNode) => <bdi dir="ltr">{chunks}</bdi>;
+
 const CELL: Record<DayCell, string> = {
   ok: 'bg-[#12A150]', failed: 'bg-[#E5383B]', sending: 'bg-brand-600', waiting: 'bg-[#C27803]', none: 'border-[1.5px] border-dashed border-[#E5E5EB]',
 };
-const TAG: Record<RunnerWeekState, { text: string; cls: string }> = {
-  ok: { text: '✓', cls: 'bg-[#E3F6EA] text-[#12A150]' },
-  sending: { text: 'שולח…', cls: 'bg-brand-600/10 text-brand-600' },
-  waiting: { text: 'ממתין לאייפון', cls: 'bg-[#FFF4DB] text-[#C27803]' },
-  failed: { text: '✕ לא הגיע', cls: 'bg-[#FDEBEB] text-[#E5383B]' },
+const TAG: Record<RunnerWeekState, { text: 'sending' | 'waiting' | 'failed' | null; cls: string }> = {
+  ok: { text: null, cls: 'bg-[#E3F6EA] text-[#12A150]' },
+  sending: { text: 'sending', cls: 'bg-brand-600/10 text-brand-600' },
+  waiting: { text: 'waiting', cls: 'bg-[#FFF4DB] text-[#C27803]' },
+  failed: { text: 'failed', cls: 'bg-[#FDEBEB] text-[#E5383B]' },
 };
 
 type Filter = 'all' | 'ok' | 'failed' | 'way';
@@ -33,6 +36,8 @@ export function usePlanWatch(planId: string | null, weekStart: string, pushing: 
 }
 
 export function PlanWatchTrack({ data, pushing, busy, onRetry }: { data: PlanWatchStatus; pushing: boolean; busy: boolean; onRetry: (ids: string[]) => void }) {
+  const t = useTranslations('planWatch');
+  const DAY = t.raw('dayLetters') as string[];
   const [filter, setFilter] = useState<Filter>('all');
   const r = data.runners;
   const full = r.filter((x) => x.state === 'ok' && x.total > 0 && x.ok === x.total).length;
@@ -47,27 +52,27 @@ export function PlanWatchTrack({ data, pushing, busy, onRetry }: { data: PlanWat
     <div className="space-y-3" dir="rtl">
       <div className="rounded-2xl bg-page px-4 py-3.5">
         <div className="flex items-baseline justify-between gap-2">
-          <b className="text-[18px] text-ink-900">שבוע שלם אצל <bdi dir="ltr">{full}</bdi> מתוך <bdi dir="ltr">{r.length}</bdi></b>
-          {(pushing || way > 0) && <span className="text-13 text-ink-400">שולח…</span>}
+          <b className="text-[18px] text-ink-900">{t.rich('fullWeek', { full, total: r.length, n })}</b>
+          {(pushing || way > 0) && <span className="text-13 text-ink-400">{t('sending')}</span>}
         </div>
         <div className="mt-2.5 flex h-2.5 overflow-hidden rounded-full bg-[#E7E7EE]" aria-hidden>
           <span style={{ width: pct(full), background: '#12A150' }} />
           <span style={{ width: pct(failed.length), background: '#E5383B' }} />
         </div>
-        <p className="mt-2 text-13 text-ink-500"><bdi dir="ltr">{sessionsOk}</bdi> מתוך <bdi dir="ltr">{sessionsAll}</bdi> אימונים כבר בשעונים</p>
+        <p className="mt-2 text-13 text-ink-500">{t.rich('sessionsOnWatches', { ok: sessionsOk, all: sessionsAll, n })}</p>
       </div>
 
       <div className="flex gap-1.5 overflow-x-auto" role="tablist">
-        {([['all', 'הכל', r.length], ['ok', '✓ הצליחו', r.filter((x) => x.state === 'ok').length], ['failed', '✕ נכשלו', failed.length], ['way', 'בדרך', way]] as const).map(([f, t, n]) => (
+        {([['all', t('filterAll'), r.length], ['ok', t('filterOk'), r.filter((x) => x.state === 'ok').length], ['failed', t('filterFailed'), failed.length], ['way', t('filterWay'), way]] as const).map(([f, label, count]) => (
           <button key={f} type="button" role="tab" aria-selected={filter === f} onClick={() => setFilter(f)}
             className={cn('inline-flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-bold', filter === f ? 'bg-ink-900 text-white' : 'bg-page text-ink-500')}>
-            {t}<span className="text-xs opacity-75"><bdi dir="ltr">{n}</bdi></span>
+            {label}<span className="text-xs opacity-75"><bdi dir="ltr">{count}</bdi></span>
           </button>
         ))}
       </div>
 
       <div className="overflow-hidden rounded-2xl bg-page">
-        {rows.length === 0 && <p className="px-4 py-4 text-center text-sm text-ink-400">{pushing ? 'שולח…' : 'אין כאן אף אחד'}</p>}
+        {rows.length === 0 && <p className="px-4 py-4 text-center text-sm text-ink-400">{pushing ? t('sending') : t('nobody')}</p>}
         {rows.map((x) => (
           <div key={x.athleteId} className="flex min-h-[66px] items-center gap-3 border-b border-card px-3.5 py-2 last:border-0">
             <Avatar name={x.name} pack={x.pack} />
@@ -82,21 +87,21 @@ export function PlanWatchTrack({ data, pushing, busy, onRetry }: { data: PlanWat
             </span>
             {x.state === 'ok' && x.total > 0
               ? <span className={cn('whitespace-nowrap rounded-lg px-2 py-1 text-xs font-bold', TAG.ok.cls)}>✓ <bdi dir="ltr">{x.ok}/{x.total}</bdi></span>
-              : <span className={cn('whitespace-nowrap rounded-lg px-2 py-1 text-xs font-bold', TAG[x.state].cls)}>{TAG[x.state].text}</span>}
+              : <span className={cn('whitespace-nowrap rounded-lg px-2 py-1 text-xs font-bold', TAG[x.state].cls)}>{TAG[x.state].text ? t(TAG[x.state].text!) : '✓'}</span>}
             {x.state === 'failed' && (
-              <button type="button" disabled={busy} onClick={() => onRetry([x.athleteId])} className="min-h-[44px] px-1 text-sm font-bold text-brand-600">שוב</button>
+              <button type="button" disabled={busy} onClick={() => onRetry([x.athleteId])} className="min-h-[44px] px-1 text-sm font-bold text-brand-600">{t('retryOne')}</button>
             )}
           </div>
         ))}
       </div>
 
       {data.noWatch.length > 0 && (
-        <p className="px-1 text-13 leading-normal text-ink-400">בלי שעון מחובר: {data.noWatch.map((p) => p.name).join(', ')}</p>
+        <p className="px-1 text-13 leading-normal text-ink-400">{t('noWatch', { names: data.noWatch.map((p) => p.name).join(', ') })}</p>
       )}
       {failed.length > 0 && !pushing && (
         <button type="button" disabled={busy} onClick={() => onRetry(failed.map((x) => x.athleteId))}
           className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-page text-base font-extrabold text-ink-900">
-          ⌚ לשלוח שוב רק למי שלא קיבל · <bdi dir="ltr">{failed.length}</bdi>
+          {t.rich('retryFailed', { count: failed.length, n })}
         </button>
       )}
     </div>

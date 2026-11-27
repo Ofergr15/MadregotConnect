@@ -6803,5 +6803,29 @@
   "emptyPlan": {
     "line": "Your plan will appear here as soon as your coach prepares it.",
     "button": "Message your coach"
+  },
+  "planWatch": {
+    "dayLetters": [
+      "S",
+      "M",
+      "T",
+      "W",
+      "T",
+      "F",
+      "S"
+    ],
+    "sending": "Sending…",
+    "waiting": "Waiting for the iPhone",
+    "failed": "✕ Didn't arrive",
+    "fullWeek": "Full week for <n>{full}</n> of <n>{total}</n>",
+    "sessionsOnWatches": "<n>{ok}</n> of <n>{all}</n> workouts already on watches",
+    "filterAll": "All",
+    "filterOk": "✓ Succeeded",
+    "filterFailed": "✕ Failed",
+    "filterWay": "On the way",
+    "nobody": "Nobody here",
+    "retryOne": "Retry",
+    "noWatch": "No watch connected: {names}",
+    "retryFailed": "⌚ Resend only to those who didn't get it · <n>{count}</n>"
   }
 }
