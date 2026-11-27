@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { loadClubMonthly, loadClubNumbers } from '@/lib/club-numbers/server';
 import { parseWindow } from '@/lib/club-numbers/monthly';
+import { isFeatureEnabled } from '@/lib/features/server';
 import { FRESH_MS, clubManagers, isClubAdmin, mayViewNumbers, readSnapshot, snapshotKey, writeSnapshot } from '@/lib/club-numbers/access';
 
 export const dynamic = 'force-dynamic';
@@ -20,9 +21,12 @@ export async function GET(request: Request) {
   const rawWindow = params.get('window');
   const window = parseWindow(rawWindow);
   if (rawWindow != null && !window) return NextResponse.json({ error: 'window must be one of 3m, 12m, ytd, all' }, { status: 400 });
-  const key = snapshotKey(window);
-  const load = (s: ReturnType<typeof createServerClient>) => (window ? loadClubMonthly(s, window) : loadClubNumbers(s));
   const supabase = createServerClient();
+  // Task 81: the weekly figures follow the activity week (Mon–Sun) when the club-scope flag is
+  // on. Its own snapshot key, so flipping the flag never serves the other anchor's numbers.
+  const monday = !window && (await isFeatureEnabled('club_numbers_activity_week', null).catch(() => false));
+  const key = monday ? `${snapshotKey(window)}:monday` : snapshotKey(window);
+  const load = (s: ReturnType<typeof createServerClient>) => (window ? loadClubMonthly(s, window) : loadClubNumbers(s, undefined, monday ? 'monday' : 'sunday'));
   const [allowed, snap] = await Promise.all([mayViewNumbers(supabase, caller), readSnapshot(supabase, key)]);
   if (!allowed) return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
   const admin = isClubAdmin(caller);

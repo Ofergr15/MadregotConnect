@@ -33,7 +33,9 @@ const STEP_LABEL: Record<(typeof ENTRY_STEPS)[number], string> = { inApp: 'נכ�
 const WAITING: Record<(typeof ENTRY_STEPS)[number], string> = { inApp: 'ממתין שייכנס לאפליקציה', watch: 'ממתין לחיבור שעון', test: 'ממתין למבחן 30 דק׳', form: 'ממתין לטופס התאמה', plan: 'ממתין לתוכנית ראשונה' };
 const STEP_OWNER: Record<(typeof ENTRY_STEPS)[number], string> = { inApp: 'מתאמן', watch: 'מתאמן', test: 'מתאמן', form: 'מתאמן', plan: 'מאמן' };
 const FUNNEL_LABEL: Record<string, string> = { contact: 'פנו', form: 'מילאו טופס', intro_call: 'שיחת היכרות', characterization: 'אפיון', test: 'מבחן', first_plan: 'תוכנית ראשונה' };
-const DAYS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
+const SUN_DAYS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
+/** Day letters in the week's own order: Mon–Sun under the activity-week flag (task 81). */
+const daysOf = (d: { weekStartsOn?: string }) => (d.weekStartsOn === 'monday' ? [...SUN_DAYS.slice(1), SUN_DAYS[0]] : SUN_DAYS);
 
 const n = (v: number) => Math.round(v).toLocaleString('en-US');
 const B = ({ children }: { children: React.ReactNode }) => <bdi dir="ltr">{children}</bdi>;
@@ -175,7 +177,7 @@ function Overview({ d, go }: { d: Data; go: (t: Tab) => void }) {
         <CardHead title="שבוע מול שבוע" side="ק״מ · מאז ההשקה" />
         <WeekColumns weeks={fullWeeks} km={c.weeklyKm.map((w) => w.km)} soFar={c.soFar} lastSame={c.lastSame} projected={c.projected} nowLabel="השבוע" />
         <Legend items={[{ label: 'השבוע עד היום', color: BLUE }, { label: 'צפי לסוף השבוע', color: BLUE, dashed: true }, { label: 'שבוע שעבר באותה נקודה', color: '#16171F', line: true }]} />
-        <Tri items={[[<B key="a">{n(c.soFar)}</B>, `השבוע עד היום (${DAYS.slice(0, d.dayIndex + 1).length > 1 ? `א׳–${DAYS[d.dayIndex]}׳` : 'א׳'})`], [<B key="b">{n(c.lastSame)}</B>, `שבוע שעבר עד ${DAYS[d.dayIndex]}׳`], [c.projected != null ? <B key="c">{n(c.projected)}</B> : '—', 'צפי לסוף השבוע']]} />
+        <Tri items={[[<B key="a">{n(c.soFar)}</B>, `השבוע עד היום (${d.dayIndex > 0 ? `${daysOf(d)[0]}׳–${daysOf(d)[d.dayIndex]}׳` : `${daysOf(d)[0]}׳`})`], [<B key="b">{n(c.lastSame)}</B>, `שבוע שעבר עד ${daysOf(d)[d.dayIndex]}׳`], [c.projected != null ? <B key="c">{n(c.projected)}</B> : '—', 'צפי לסוף השבוע']]} />
       </Card>
       <Card>
         <button type="button" onClick={() => go('growth')} className="block w-full text-start">
@@ -274,11 +276,11 @@ function Core({ d, onSaved }: { d: Data; onSaved: () => void }) {
           <div className="mt-2.5 flex gap-1">
             {r.days.map((v, i) => (
               <div key={i} className="flex flex-1 flex-col items-center gap-0.5">
-                <span className={cn('text-[9.5px] font-bold', d.insights.teamDays.includes(i) ? 'text-[#15803d]' : 'text-ink-400')}>{DAYS[i]}{d.insights.teamDays.includes(i) ? ' · קבוצה' : ''}</span>
+                <span className={cn('text-[9.5px] font-bold', (d.insights.teamOffsets ?? d.insights.teamDays).includes(i) ? 'text-[#15803d]' : 'text-ink-400')}>{daysOf(d)[i]}{(d.insights.teamOffsets ?? d.insights.teamDays).includes(i) ? ' · קבוצה' : ''}</span>
                 <i className={cn('grid h-6 w-full place-items-center rounded-[7px] text-[10.5px] font-extrabold not-italic text-white',
                   // A team day that was run is green, so the team sessions read at a glance.
-                  v > 0 ? (d.insights.teamDays.includes(i) ? 'bg-[#15803d]' : 'bg-brand-600') : i > d.dayIndex ? 'bg-[repeating-linear-gradient(45deg,#F2F3F6_0_4px,#fff_4px_8px)]' : 'bg-[#F2F3F6]',
-                  d.insights.teamDays.includes(i) && v === 0 && 'shadow-[inset_0_0_0_1.5px_#15803d66]')}>{v > 0 ? <B>{Math.round(v)}</B> : ''}</i>
+                  v > 0 ? ((d.insights.teamOffsets ?? d.insights.teamDays).includes(i) ? 'bg-[#15803d]' : 'bg-brand-600') : i > d.dayIndex ? 'bg-[repeating-linear-gradient(45deg,#F2F3F6_0_4px,#fff_4px_8px)]' : 'bg-[#F2F3F6]',
+                  (d.insights.teamOffsets ?? d.insights.teamDays).includes(i) && v === 0 && 'shadow-[inset_0_0_0_1.5px_#15803d66]')}>{v > 0 ? <B>{Math.round(v)}</B> : ''}</i>
               </div>
             ))}
           </div>
@@ -598,7 +600,7 @@ function Insights({ d }: { d: Data }) {
         <Insight><B>{morning}%</B> מהריצות יוצאות בין 4:00 ל-8:00. השעה העמוסה: <B>{peakH}:00</B>.</Insight>
       </Card>
       <Card>
-        <Columns values={s.dow} labels={DAYS} hi={s.teamDays} showValues={s.teamDays} height={96} />
+        <Columns values={s.dow} labels={SUN_DAYS} hi={s.teamDays} showValues={s.teamDays} height={96} />
         <Insight>ימי הקבוצה עמוסים ב-<B>{pct(Math.round((team / otherAvg - 1) * 100))}</B> מיום רגיל.</Insight>
       </Card>
       <Sub>איך רצים</Sub>

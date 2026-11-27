@@ -13,7 +13,7 @@ type Db = ReturnType<typeof createServerClient>;
 const nextMonth = (iso: string) => { const y = Number(iso.slice(0, 4)), m = Number(iso.slice(5, 7)); return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`; };
 
 /** Every table "מדרגות במספרים" reads, in one round of queries. A table that is not there yet reads as empty. */
-export async function loadClubNumbers(supabase: Db, today = israelToday()) {
+export async function loadClubNumbers(supabase: Db, today = israelToday(), weekStartsOn: 'sunday' | 'monday' = 'sunday') {
   const from = addDays(`${today.slice(0, 4)}-01-01`, -7);
   const safe = async <T,>(p: PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> => { try { const r = await p; return r.error ? [] : (r.data ?? []); } catch { return []; } };
   const [ath, groups, bands, cands, events, tests, chars, plans, settings] = await Promise.all([
@@ -64,6 +64,7 @@ export async function loadClubNumbers(supabase: Db, today = israelToday()) {
     tested: new Set((tests as Array<{ athlete_id: string; status: string }>).filter((t) => ['approved', 'ok', 'done', 'analysed', 'analyzed'].includes(t.status)).map((t) => t.athlete_id)),
     formed, planned: new Set((plans as Array<{ athlete_id: string }>).map((p) => p.athlete_id)),
     teamDays,
+    weekStartsOn,
   });
 }
 
