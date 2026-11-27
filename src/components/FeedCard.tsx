@@ -1,7 +1,7 @@
 'use client';
 
 import { SurveyVote, type SurveyDraft } from '@/components/feed/SurveyVote';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { hintActivityAthlete } from '@/lib/activity/open-hint';
@@ -13,6 +13,7 @@ import { FeedLikesSheet } from '@/components/FeedLikesSheet';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { ShareSheet } from '@/components/ShareSheet';
 import { RouteMinimap } from '@/components/RouteMinimap';
+import { useFeature } from '@/lib/features/use-feature';
 import { FeedBodyText } from '@/components/FeedBodyText';
 import { ExecutionBadge } from '@/components/activity/ExecutionBadge';
 import { toAchievementPayload } from '@/lib/feed/project';
@@ -609,6 +610,25 @@ function ActivityCard({
   // elevation charts. It used to be a dead end — the only tap target was the
   // run-chat button in the action row.
   const openDetail = () => { hintActivityAthlete(act.id, act.athleteId); router.push(`/dashboard/activities/${act.id}`); };
+  // Flag `web_feed_quiet` (default off): the native app's approved "quiet" density.
+  const quiet = useFeature('web_feed_quiet');
+
+  if (quiet) {
+    return (
+      <QuietActivityCard
+        item={item}
+        commentCount={commentCount}
+        myAthleteId={myAthleteId}
+        isStaff={isStaff}
+        onComment={onComment}
+        onDelete={onDelete}
+        openDetail={openDetail}
+        title={displayRunName(act.activityName, act.startTime, locale, act.qualityName)}
+        viewDetailsLabel={t('viewDetails')}
+        prBadge={prBuckets ? <PrBadge buckets={prBuckets} /> : null}
+      />
+    );
+  }
 
   return (
     <div className="bg-card rounded-[20px] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
@@ -664,6 +684,82 @@ function ActivityCard({
           <p className="text-sm text-ink-500 mb-2 leading-relaxed"><FeedBodyText body={item.body} /></p>
         )}
 
+        <ActionRow
+          item={item}
+          commentCount={commentCount}
+          myAthleteId={myAthleteId}
+          isStaff={isStaff}
+          onCommentPress={onComment}
+          onDelete={onDelete}
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The "quiet" activity card (flag `web_feed_quiet`): one row per run — title and
+ * the three numbers on the start side, a small square route map on the end side —
+ * the density the native feed shipped with. Same content and tap targets as the
+ * full card; only the layout is tighter. Masking is unchanged: everything here
+ * reads the same projected `act` fields.
+ */
+function QuietActivityCard({
+  item,
+  commentCount,
+  myAthleteId,
+  isStaff,
+  onComment,
+  onDelete,
+  openDetail,
+  title,
+  viewDetailsLabel,
+  prBadge,
+}: {
+  item: FeedItem;
+  commentCount: number;
+  myAthleteId: string | null;
+  isStaff: boolean;
+  onComment: () => void;
+  onDelete?: () => void;
+  openDetail: () => void;
+  title: string;
+  viewDetailsLabel: string;
+  prBadge: ReactNode;
+}) {
+  const act = item.activity!;
+  const hasRoute = !!act.routePreview && act.routePreview.length > 2;
+  return (
+    <div className="bg-card rounded-[20px] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]" data-density="quiet">
+      <div className="px-3.5 pt-2.5">
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0"><AuthorRow item={item} /></div>
+          {prBadge && <div className="mt-1">{prBadge}</div>}
+        </div>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={openDetail}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openDetail(); }
+          }}
+          aria-label={viewDetailsLabel}
+          className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-1 cursor-pointer transition-colors hover:bg-page/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-extrabold leading-snug text-ink-900" dir="auto">{title}</p>
+            <CardStats act={act} />
+            <ExecutionBadge summary={act.planVerdict} showChevron compact />
+          </div>
+          {hasRoute && (
+            <div className="h-[72px] w-[72px] shrink-0 overflow-hidden rounded-tile">
+              <RouteMinimap points={act.routePreview!} paces={act.paceBands} width={72} height={72} flush />
+            </div>
+          )}
+        </div>
+        {item.body && (
+          <p className="text-sm text-ink-500 mb-1 leading-relaxed line-clamp-2"><FeedBodyText body={item.body} /></p>
+        )}
         <ActionRow
           item={item}
           commentCount={commentCount}
