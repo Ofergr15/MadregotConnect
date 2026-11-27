@@ -11,6 +11,8 @@ import { historyImportStatus, readHistoryCursors, type HistoryImportStatus } fro
 import { weekStartDayOf } from '@/lib/utils';
 import { cleanHiddenList, readDefaultHidden, writeDefaultHidden } from '@/lib/athletes/default-hidden';
 
+export const dynamic = 'force-dynamic';
+
 const GENDERS = ['male', 'female'] as const;
 type Gender = (typeof GENDERS)[number];
 

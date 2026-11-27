@@ -8,6 +8,8 @@ import { notifyStaff } from '@/lib/notifications/staff';
 import { shouldNotifyReporter, type ResolutionStatus } from '@/lib/feedback-resolution';
 import { notifyReportResolved } from '@/lib/feedback-notify';
 
+export const dynamic = 'force-dynamic';
+
 // App feedback ("ביקורת"): athletes file it from /dashboard/review, staff
 // triage it from the admin settings page. Submitting is self-only, reading and
 // triaging are staff-only — the whole route used to be unauthenticated, so a

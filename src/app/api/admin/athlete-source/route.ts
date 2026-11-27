@@ -3,6 +3,8 @@ import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
 import { requireStaffCaller } from '@/lib/auth/self-or-staff';
 
+export const dynamic = 'force-dynamic';
+
 // Self-or-staff, like PUT /api/athletes: the coach switches any athlete's data
 // source from the athletes screen, and an athlete with both watches connected
 // switches their own from /dashboard/profile.

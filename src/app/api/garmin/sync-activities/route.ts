@@ -26,6 +26,8 @@ import { requireCallerForAthlete, resolveVerifiedCaller } from '@/lib/auth/self-
 import { looksLikeAuthFailure, markProviderAuthFailed, markProviderSynced } from '@/lib/providers/health';
 import { fillMissingProfileFields, garminProfileFields } from '@/lib/providers/profile';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Both handlers here walk rows making SERIAL Garmin requests, so neither fits the
  * platform default — and having no ceiling declared is not the same as having a

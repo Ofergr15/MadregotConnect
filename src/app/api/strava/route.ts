@@ -5,6 +5,8 @@ import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { reserveLinkState, signLinkState } from '@/lib/strava/link-state';
 import { createServerClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/strava?mode=login[&challenge=<base64url sha256>]
  * GET /api/strava?athleteId=<uuid>       (link Strava onto an existing athlete)

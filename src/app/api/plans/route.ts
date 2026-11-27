@@ -8,6 +8,8 @@ import { academyTraineesNotYours } from '@/lib/academy/pairing-server';
 import { COACH_ID } from '@/lib/constants';
 import { recordLegacyPlanWrite } from '@/lib/plan-builder/server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/plans - Create a new weekly plan
  * Body: { coach_id, week_start_date, original_input, parsed_workouts, status, athlete_id? }
