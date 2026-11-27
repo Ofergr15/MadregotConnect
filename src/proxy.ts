@@ -1,16 +1,27 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { isDevApiRequestAllowed, isDevSurface } from '@/lib/dev-api-allowlist';
+import { REQUEST_ID_HEADER, requestIdOf } from '@/lib/observability/request-id';
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (pathname === '/api' || pathname.startsWith('/api/')) {
     // Fail closed on the dev deployment only (see lib/dev-api-allowlist.ts); everywhere
     // else — production included — API requests pass straight through, untouched.
-    if (!isDevSurface()) return NextResponse.next();
+    // Every API request carries one id from here on (lib/observability/request-id.ts):
+    // forwarded to the route on the request headers, echoed on the response.
+    const requestId = requestIdOf(request);
+    const headers = new Headers(request.headers);
+    headers.set(REQUEST_ID_HEADER, requestId);
+    const pass = () => {
+      const res = NextResponse.next({ request: { headers } });
+      res.headers.set(REQUEST_ID_HEADER, requestId);
+      return res;
+    };
+    if (!isDevSurface()) return pass();
     return isDevApiRequestAllowed(request.method, pathname)
-      ? NextResponse.next()
-      : new NextResponse(null, { status: 404 });
+      ? pass()
+      : new NextResponse(null, { status: 404, headers: { [REQUEST_ID_HEADER]: requestId } });
   }
 
   const response = NextResponse.next();
