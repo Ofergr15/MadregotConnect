@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { ParsedWeeklyPlan, ParsedWorkout, WorkoutStep } from './types';
 import { WORKOUT_PARSER_SYSTEM_PROMPT } from './prompt';
 import { normalizeWorkoutParts } from '@/lib/plans/normalize-plan';
+import { israelNow } from '@/lib/utils';
 
 // Re-exported from its old home: the normalizer moved to lib/plans so the READ
 // paths (matching, adherence) can use it without pulling the Anthropic client in.
@@ -430,7 +431,7 @@ function parseDayWorkout(dayText: string, dayOfWeek: number): ParsedWorkout {
   return { dayOfWeek, name: detectWorkoutType(dayText), steps };
 }
 
-function splitIntoDays(text: string): { day: number; content: string }[] {
+export function splitIntoDays(text: string, now: Date = new Date()): { day: number; content: string }[] {
   const results: { day: number; content: string }[] = [];
   // The separator after a day name is either an explicit dash/colon ("יום
   // שני:", "יום שני -") OR just a line break — a coach writing the day name
@@ -450,8 +451,9 @@ function splitIntoDays(text: string): { day: number; content: string }[] {
   }
 
   if (results.length === 0 && text.trim()) {
-    // Default to today's day (0=Sunday, 1=Monday, etc.)
-    const dayOfWeek = new Date().getDay();
+    // Default to today's day (0=Sunday, 1=Monday, etc.) — ISRAEL's today. The server
+    // clock is UTC, so a raw getDay() put a plan typed 00:00–03:00 Israel on yesterday.
+    const dayOfWeek = israelNow(now).weekday;
     results.push({ day: dayOfWeek, content: text.trim() });
   }
 
