@@ -7,6 +7,7 @@ import { notifyAthlete } from '@/lib/push';
 import { painReportCopy } from '@/lib/notifications/copy';
 import type { VerifiedCaller } from '@/lib/auth/self-or-staff';
 import { PAIN_AREA_HE, isSevere, resolvePainRecipients, staffMaySeePain, type PainArea } from './pain';
+import { swallowAs } from '@/lib/errors/swallowed';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any, any, any>;
@@ -80,7 +81,7 @@ export async function sendPainAlert(db: Db, row: Pick<PainRow, 'athlete_id' | 'a
       actorAthleteId: row.athlete_id,
       icon: athlete?.avatar_url?.trim() || undefined,
       copy: (locale) => painReportCopy(locale, { athleteName: athlete?.name || 'רץ/ה', area, severity: row.severity, severe: isSevere(row) }),
-    }).catch(() => null)));
+    }).catch(swallowAs('feedback.pain.notify', null))));
     return ids.length;
   } catch {
     return 0;

@@ -15,6 +15,7 @@ import { lockView, mayTakeLock, type LockRow } from './lock';
 import { classifyPushError, nextRetryAt } from './push-status';
 import { CHANGE_NOTICE_SCOPE, COPY_LAST_WEEK_PACE_SHIFT_SEC, DEFAULT_OVERWRITE_WATCH } from './constants';
 import { shiftPaces } from './schedule';
+import { noteSwallowed, swallow } from '@/lib/errors/swallowed';
 
 type Db = ReturnType<typeof createServerClient>;
 
@@ -61,7 +62,7 @@ export async function runParseJob(db: Db, id: string, input: ParseInput, notifyI
       await notifyAthlete({
         athleteId: notifyId, kind: 'plan_parse_done', category: 'management', url: `/coach/plan?job=${id}`,
         title: 'התוכנית נקראה', body: result.flagCount ? `${result.flagCount} פריטים לבדיקה` : 'מוכנה לבדיקה',
-      }).catch(() => {});
+      }).catch(swallow('plan-builder.parseDoneNotify'));
     }
   } catch (err: any) {
     if (await cancelled().catch(() => false)) return;
@@ -437,7 +438,12 @@ export async function runScheduledPlanPublishes(db: Db, now = new Date()): Promi
       }
       await retryPush(db, vid, ids);
       fired.push(`planPushRetry ${ids.length}`);
-    } catch {}
+    } catch (err) {
+      // One version failing must not stop the others; but say so, in the log and in
+      // the tick's `fired` list, instead of leaving it to retry silently forever.
+      noteSwallowed('plan-builder.retryPushes', err);
+      fired.push(`planPushRetryFailed ${vid}`);
+    }
   }
   return fired;
 }

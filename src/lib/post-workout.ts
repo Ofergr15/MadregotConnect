@@ -10,6 +10,7 @@ import { pickPlan, planRowsFilter } from '@/lib/plans/scope';
 import { ownPlanRowsCount, withoutOwnRows } from '@/lib/plans/scope-server';
 import { isFeatureEnabled } from '@/lib/features/server';
 import { evaluateFeedbackPrompt } from '@/lib/feedback/prompts-server';
+import { noteSwallowed } from '@/lib/errors/swallowed';
 
 // Activities recorded within this many ms of each other are treated as one
 // session (e.g. a watch auto-splitting a long run around a pause, or a
@@ -208,5 +209,5 @@ export async function notifyMainWorkoutFeedback(opts: { athleteId: string; dateS
       last_sent_at: new Date().toISOString(), sent_count: 1,
       url: `#ledger:${tag}`,
     });
-  } catch { /* best-effort — never break the sync call that triggered this */ }
+  } catch (err) { noteSwallowed('post-workout', err); /* best-effort — never break the sync call that triggered this */ }
 }

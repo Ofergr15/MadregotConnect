@@ -5,6 +5,7 @@ import { painFollowupCopy, painNoCheckinCopy } from '@/lib/notifications/copy';
 import { isFeatureEnabled } from '@/lib/features/server';
 import { PAIN_AREA_HE, followupDue, pickOneFollowupPerRunner, type PainArea, type Trend } from './pain';
 import { painRecipientIds } from './pain-server';
+import { swallowAs } from '@/lib/errors/swallowed';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any, any, any>;
@@ -47,7 +48,7 @@ export async function runPainFollowups(db: Db, now: Date = new Date()): Promise<
     await notifyAthlete({
       athleteId: r.athleteId, kind: 'pain_followup', url: `/me/pain/${r.id}/checkin`, tag: `pain-followup-${r.id}`,
       category: 'workouts', copy: (locale) => painFollowupCopy(locale, { area }),
-    }).catch(() => null);
+    }).catch(swallowAs('feedback.followups', null));
     // Every due report of this runner is marked asked today, so a second one doesn't ask tomorrow instead.
     await db.from('pain_reports').update({ last_followup_on: today }).in('id', ask.filter((a) => a.athleteId === r.athleteId).map((a) => a.id));
     asked++;
@@ -68,7 +69,7 @@ export async function runPainFollowups(db: Db, now: Date = new Date()): Promise<
       athleteId: id, kind: 'pain_no_checkin', url: `/coach/pain/${r.id}`, tag: `pain-nocheckin-${r.id}`,
       category: 'management', actorAthleteId: r.athleteId,
       copy: (locale) => painNoCheckinCopy(locale, { athleteName: a?.name || 'רץ/ה', area }),
-    }).catch(() => null)));
+    }).catch(swallowAs('feedback.followups', null))));
     await db.from('pain_reports').update({ escalated_at: now.toISOString() }).eq('id', r.id);
     escalated++;
   }

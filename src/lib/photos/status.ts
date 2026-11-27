@@ -13,6 +13,7 @@ import { COACH_ID } from '@/lib/constants';
 import { planWeekStartOf } from '@/lib/utils';
 import { extractWorkouts } from '@/lib/plans/workout-parsing';
 import { photosRoot } from './drive-browse';
+import { noteSwallowed } from '@/lib/errors/swallowed';
 
 type Db = any;
 
@@ -37,7 +38,7 @@ export async function recordMirrorRun(db: Db, run: MirrorRun): Promise<void> {
       { key: MIRROR_LAST_RUN_KEY, value: JSON.stringify(run), updated_at: run.at },
       { onConflict: 'key' },
     );
-  } catch { /* telemetry: never fails the run */ }
+  } catch (err) { noteSwallowed('photos.status', err); /* telemetry: never fails the run */ }
 }
 
 export function parseMirrorRun(raw: unknown): MirrorRun | null {

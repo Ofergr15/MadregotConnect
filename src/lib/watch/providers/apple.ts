@@ -7,6 +7,7 @@ import type { StoredPaceProfile } from '@/lib/garmin/types';
 import { serializeWatchWorkout, type WatchWorkoutV1 } from '../serialize';
 import { hasWatchSchema, WATCH_TABLES } from '../schema';
 import type { Db, DeliverWeekInput, DeliverWeekResult, WatchProviderAdapter, WatchTargetAthlete } from '../types';
+import { noteSwallowed } from '@/lib/errors/swallowed';
 
 /**
  * Apple Watch delivery: write the week for the athlete's iPhone to collect.
@@ -174,7 +175,7 @@ export const appleProvider: WatchProviderAdapter = {
             tag: `plan-push-${input.planId || input.weekStartDate}`,
             category: 'program',
           });
-        } catch { /* best-effort — never let a push failure affect the delivery */ }
+        } catch (err) { noteSwallowed('watch.apple.push', err); /* best-effort — never let a push failure affect the delivery */ }
       }
       return { ...base, status: 'success', queued: true };
     } catch (error: unknown) {

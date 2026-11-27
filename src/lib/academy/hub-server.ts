@@ -14,6 +14,7 @@ import {
 } from './service-promises';
 import { capacityOf, loadState, type LoadState } from './capacity';
 import { pipeline, roundBuckets, type HubView, type PipelineCounts } from './hub';
+import { noteSwallowed } from '@/lib/errors/swallowed';
 
 type Db = ReturnType<typeof createServerClient>;
 
@@ -186,7 +187,7 @@ async function readSelf(
   try {
     const v = await fetchWeeklyVolume(supabase, { athleteIds: [id], weeks: 12, currentWeekStart: getActivityWeekStart(now) });
     weeklyKm = (v.byAthlete.get(id) || []).map((w) => ({ weekStart: w.weekStart, km: Math.round(w.meters / 100) / 10 }));
-  } catch { /* volume is decoration on this screen */ }
+  } catch (err) { noteSwallowed('academy.hub.volume', err); /* volume is decoration on this screen */ }
   return {
     coach: coach ? { id: coach.id, name: coach.name, medianReplyHours: medianReplyHours(pairs), lastWroteAt: coachFb.map((f) => f.sent_at || f.created_at).sort().at(-1) ?? null } : null,
     reportOpenFor: null,

@@ -19,6 +19,7 @@ import { KUDOS_ACTION_LABEL, teammateActivityCopy } from '@/lib/notifications/co
 import { apnsConfig, buildApnsPayload, sendApns } from '@/lib/apns';
 import { duplicateInstalls, siblingGhosts, type SubDevice, type SubHealth } from '@/lib/push-ghosts';
 import { isDevSurface } from '@/lib/dev-api-allowlist';
+import { noteSwallowed } from '@/lib/errors/swallowed';
 
 /**
  * Given the maintenance allowlist (lowercased emails) and the athlete rows for
@@ -156,7 +157,7 @@ export async function recordDeliveries(rows: DeliveryRow[]): Promise<void> {
   if (!rows.length) return;
   try {
     await createServerClient().from('push_deliveries').insert(rows);
-  } catch { /* the delivery log is evidence, never a reason to fail a push */ }
+  } catch (err) { noteSwallowed('push.recordDeliveries', err); /* the delivery log is evidence, never a reason to fail a push */ }
 }
 
 type PrefsRow = { id: string; role?: string | null; notification_prefs?: Record<string, boolean> | null };
@@ -303,11 +304,11 @@ async function prefsByAthlete(athleteIds: string[]): Promise<Map<string, Record<
     const supabase = createServerClient();
     const { data, error } = await supabase
       .from('athletes').select('id, notification_prefs').in('id', athleteIds);
-    if (error) return byId;
+    if (error) { noteSwallowed('push.prefsByAthlete', error); return byId; }
     for (const a of (data || []) as Array<{ id: string; notification_prefs?: Record<string, boolean> | null }>) {
       if (a.notification_prefs) byId.set(a.id, a.notification_prefs);
     }
-  } catch { /* fail open */ }
+  } catch (err) { noteSwallowed('push.prefsByAthlete', err); /* fail open */ }
   return byId;
 }
 
@@ -327,11 +328,11 @@ export async function localesForAthletes(athleteIds: string[]): Promise<Map<stri
     const supabase = createServerClient();
     const { data, error } = await supabase
       .from('athletes').select('id, notification_prefs').in('id', athleteIds);
-    if (error) return byId;
+    if (error) { noteSwallowed('push.localesForAthletes', error); return byId; }
     for (const a of (data || []) as Array<{ id: string; notification_prefs?: Record<string, unknown> | null }>) {
       byId.set(a.id, localeFromPrefs(a.notification_prefs));
     }
-  } catch { /* fail open — callers treat a missing entry as the default */ }
+  } catch (err) { noteSwallowed('push.localesForAthletes', err); /* fail open — callers treat a missing entry as the default */ }
   return byId;
 }
 
@@ -617,7 +618,7 @@ export async function sendPushDetailed(
         subs = kept;
         if (subs.length === 0) { await recordDeliveries(deliveries); return empty; }
       }
-    } catch { /* fail open */ }
+    } catch (err) { noteSwallowed('push.sendPush', err); /* fail open */ }
   }
 
   // Ghosts a working sibling exposes (lib/push-ghosts.ts): deleted, and not sent to.
@@ -716,7 +717,7 @@ export async function sendPushDetailed(
   if (deadApns.length > 0) {
     // 410 Unregistered: the app was deleted. Clear the token, keep the device row
     // (its watch-delivery credentials are a separate thing); the app sends a fresh one if reinstalled.
-    try { await supabase.from('athlete_devices').update({ apns_token: null }).in('id', deadApns); } catch { /* best effort */ }
+    try { await supabase.from('athlete_devices').update({ apns_token: null }).in('id', deadApns); } catch (err) { noteSwallowed('push.clearDeadApns', err); /* best effort */ }
   }
   await recordDeliveries(deliveries);
 
@@ -1122,7 +1123,7 @@ export async function persistNotifications(
         sent_count: sentByAthlete ? (sentByAthlete[r.athleteId] ?? 0) : 1,
       })),
     );
-  } catch { /* best-effort */ }
+  } catch (err) { noteSwallowed('push.persistNotifications', err); /* best-effort */ }
 }
 
 /**
@@ -1208,7 +1209,7 @@ export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<NotifyR
       byAthlete = {};
       await recordDeliveries([{ nid: randomUUID(), athlete_id: opts.athleteId, subscription_id: null, kind: opts.kind ?? null, title: title.slice(0, 120), accepted: false, error: 'no-device' }]);
     }
-  } catch { /* push is best-effort — leave byAthlete undefined (unknown) */ }
+  } catch (err) { noteSwallowed('push.notifyAthlete', err); /* push is best-effort — leave byAthlete undefined (unknown) */ }
 
   await persistNotifications([{
     athleteId: opts.athleteId,

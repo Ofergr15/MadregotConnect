@@ -14,6 +14,7 @@ import { shouldTellAthlete } from '@/lib/garmin/delivery-failure';
 import { EVENING_KIND } from '@/lib/watch/evening-reminder';
 import type { DaySession } from './model';
 import { countsOf, statusOf, type DeliveryLike, type RunnerStatus } from './watch-status';
+import { noteSwallowed } from '@/lib/errors/swallowed';
 
 // "לשלוח לשעונים" for a one-day session (mockup watch-send-v3) — the planner's delivery
 // (lib/garmin/push-week.ts, Apple through lib/watch), so it reaches the watch exactly the way
@@ -162,7 +163,7 @@ export async function startDaySessionSend(s: DaySession, athleteIds: string[], s
             body: 'פתחו את Garmin Connect לרגע כדי שיסונכרן לשעון',
             url: '/feed', tag: `watch-sync-${s.date}`, category: 'workouts',
           });
-        } catch { /* best-effort */ }
+        } catch (err) { noteSwallowed('day-session.watch', err); /* best-effort */ }
       }
     }
     // One push to the coach with how it went.
@@ -176,7 +177,7 @@ export async function startDaySessionSend(s: DaySession, athleteIds: string[], s
           body: ok === results.length ? 'האימון נשלח ל־Garmin של כולם. הוא יופיע בשעון אחרי סנכרון' : `${results.length - ok} לא קיבלו. נגיעה כדי לראות מי ולשלוח שוב`,
           url: `/dashboard/day-session?date=${s.date}&track=1`, tag: `day-session-watch-${s.date}`, category: 'management',
         });
-      } catch { /* best-effort */ }
+      } catch (err) { noteSwallowed('day-session.watch', err); /* best-effort */ }
     }
   })();
   return { queued: athletes.length, skipped, work };

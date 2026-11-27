@@ -3,6 +3,7 @@ import { notifyStaff } from '@/lib/notifications/staff';
 import { pendingReminderCopy } from '@/lib/notifications/copy';
 import { israelToday } from '@/lib/utils';
 import { notifyAdminPendingDigest } from '@/lib/email';
+import { swallowAs } from '@/lib/errors/swallowed';
 
 type Db = ReturnType<typeof createServerClient>;
 
@@ -60,7 +61,7 @@ export async function runPendingReminders(
     copy: (locale) => pendingReminderCopy(locale, { names, count: rows.length, oldestDays }),
   });
   if (slot === 'evening') {
-    await notifyAdminPendingDigest({ names: names.map((n) => n ?? null), count: rows.length, oldestDays }).catch(() => undefined);
+    await notifyAdminPendingDigest({ names: names.map((n) => n ?? null), count: rows.length, oldestDays }).catch(swallowAs('onboarding.pending-digest', undefined));
   }
   await ledger.markFired(tag, sent);
   return rows.length;

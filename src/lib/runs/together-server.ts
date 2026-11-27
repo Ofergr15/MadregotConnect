@@ -5,6 +5,7 @@ import { meetupCancelledCopy } from '@/lib/notifications/copy';
 import { CLUB_SPOTS, addDaysIso } from './meetups';
 import { rosterFull, type MeetupRow, type RequestRow } from './meetups-server';
 import { changeFanout, jitterArea } from './together';
+import { noteSwallowed, swallow } from '@/lib/errors/swallowed';
 
 // Server helpers for Run together v3 shared by the meetups routes.
 
@@ -43,7 +44,7 @@ export async function cancelRun(db: ReturnType<typeof createServerClient>, id: s
     await Promise.all(to.map((athleteId) => notifyAthlete({
       athleteId, kind: 'meetup_cancelled', actorAthleteId: hostId, url: `/dashboard/run-together/${id}`, tag: `meetup-${id}`, category: 'teammates',
       copy: (locale) => meetupCancelledCopy(locale, { hostName: ros.people.get(hostId)?.name, startTime: row.start_time, note }),
-    }).catch(() => {})));
-  } catch { /* best-effort */ }
+    }).catch(swallow('runs.together.notify'))));
+  } catch (err) { noteSwallowed('runs.together', err); /* best-effort */ }
   return NextResponse.json({ cancelled: true });
 }

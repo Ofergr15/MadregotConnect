@@ -3,6 +3,7 @@ import { resolveGroup } from '@/lib/utils';
 import type { Lane } from '@/lib/academy/group-lane';
 import { COACH_ID } from '@/lib/constants';
 import { paceGroupMap, type PaceGroupKey } from '@/lib/plans/pace-group';
+import { noteSwallowed } from '@/lib/errors/swallowed';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
@@ -141,5 +142,5 @@ export async function recordPackChange(
     }
     rows.push({ athlete_id: p.athleteId, group_id: p.toGroupId, from_date: p.fromDate, changed_by: p.by });
     await supabase.from('athlete_pack_history').insert(rows);
-  } catch { /* best effort — see above */ }
+  } catch (err) { noteSwallowed('pack-history', err); /* best effort — see above */ }
 }

@@ -36,6 +36,7 @@ import {
   type ActivityBreakdown, type LoadActivity, type LoadSource, type TestPoint,
 } from './load';
 import { PRICING_PROTOCOLS, pricingRows } from './coach-baseline';
+import { noteSwallowed } from '@/lib/errors/swallowed';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any, any, any>;
@@ -214,7 +215,7 @@ async function readNights(supabase: Db, athleteIds: string[], since: string): Pr
       arr.push({ date: String(r.date).slice(0, 10), resting_hr: r.resting_hr ?? null });
       out.set(r.athlete_id, arr);
     }
-  } catch { /* no wellness → no HR fallback */ }
+  } catch (err) { noteSwallowed('academy.load.wellness', err); /* no wellness → no HR fallback */ }
   return out;
 }
 
