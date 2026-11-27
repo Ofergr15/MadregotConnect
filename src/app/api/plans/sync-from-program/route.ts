@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { EmptyParseError, parseWorkoutPlan } from '@/lib/ai/parser';
+import { EmptyParseError, ParseTimeoutError, parseWorkoutPlan } from '@/lib/ai/parser';
 import * as fs from 'fs';
 import * as path from 'path';
 import { authError, requireSession } from '@/lib/auth-session';
@@ -100,6 +100,10 @@ export async function POST(req: NextRequest) {
 
     // Same as /api/parse-workout: a structurally valid but empty read is a
     // 422 the coach can act on, not a 500.
+    if (error instanceof ParseTimeoutError) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: 504 });
+    }
+
     if (error instanceof EmptyParseError) {
       return NextResponse.json(
         {

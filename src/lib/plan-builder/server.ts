@@ -1,5 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { parseWorkoutPlan, EmptyParseError } from '@/lib/ai/parser';
+import { parseWorkoutPlan, EmptyParseError, ParseTimeoutError } from '@/lib/ai/parser';
 import type { ParsedWeeklyPlan } from '@/lib/ai/types';
 import { normalizeParsedWorkouts, normalizeWorkoutParts } from '@/lib/plans/normalize-plan';
 import { revalidateWeeklyPlans } from '@/lib/plans/cache';
@@ -66,6 +66,7 @@ export async function runParseJob(db: Db, id: string, input: ParseInput, notifyI
   } catch (err: any) {
     if (await cancelled().catch(() => false)) return;
     const code = err instanceof EmptyParseError ? 'empty_parse'
+      : err instanceof ParseTimeoutError ? 'parse_timeout'
       : /credit balance/i.test(err?.message || '') ? 'insufficient_credits'
       : err?.status === 429 || err?.status === 529 ? 'rate_limited' : 'parse_failed';
     await db.from('plan_parse_jobs').update({ status: 'failed', error_code: code, error: String(err?.message || err).slice(0, 500), finished_at: new Date().toISOString() }).eq('id', id);
