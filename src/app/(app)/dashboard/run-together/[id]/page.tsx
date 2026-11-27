@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { Spinner } from '@/components/ui';
 import { dayHeading, KIND_LABEL, paceToSeconds, type MeetupPerson, type RunMeetup } from '@/lib/runs/meetups';
 import { Face, KindChip, MatchChip, PackChip, StaticMap, firstName, packHex } from '@/components/run-together/parts';
+import { useConfirm } from '@/components/ui/ConfirmStrip';
 
 // One run (mockup screen 4): where on a map, the host and what they said, who is
 // coming in their packs' colours, "אני מצטרף" in one tap, WhatsApp, the calendar,
@@ -55,6 +56,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
   const [busy, setBusy] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const { ask, confirmUi } = useConfirm();
 
   if (!data) return <div className="flex justify-center py-16"><Spinner /></div>;
   const m = data.meetup;
@@ -75,8 +77,8 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
       await Promise.all([mutate(), mutateBoard()]);
     } finally { setBusy(false); }
   };
-  const cancel = async () => {
-    if (!window.confirm('לבטל את הריצה? מי שהצטרף יראה שהיא בוטלה.')) return;
+  const cancel = () => ask('לבטל את הריצה? מי שהצטרף יראה שהיא בוטלה.', () => void doCancel(), 'כן, לבטל');
+  const doCancel = async () => {
     setBusy(true);
     await fetch(`/api/runs/meetups?id=${encodeURIComponent(m.id)}`, { method: 'DELETE', headers: await apiHeaders(true) }).catch(() => {});
     await mutateBoard();
@@ -101,6 +103,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
 
   return (
     <div dir="rtl" className="-mx-4 -mt-4 pb-32">
+      {confirmUi}
       <div className="relative h-[230px]">
         {m.lat != null && m.lng != null
           ? <StaticMap lat={m.lat} lng={m.lng} zoom={16} color={color} pinSize={30} className="absolute inset-0" />

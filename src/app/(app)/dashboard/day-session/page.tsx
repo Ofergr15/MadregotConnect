@@ -24,6 +24,7 @@ import { WatchChoose, WatchTrack, useRoster, useWatchTrack } from '@/components/
 import { countsOf } from '@/lib/day-session/watch-status';
 import { SessionList } from '@/components/day-session/SessionList';
 import { packPace, paceRangeText } from '@/lib/plans/session-profile';
+import { useConfirm } from '@/components/ui/ConfirmStrip';
 
 // ── "אימון ליום אחד" — the coach's form (mockup manual-day-workout, phones 1 and 2) ──────
 //
@@ -63,6 +64,7 @@ export default function DaySessionPage() {
   const today = israelToday();
   const [chip, setChip] = useState<Chip>(() => (israelNow().hour < EARLY_HOURS ? 'today' : 'tomorrow'));
   const [otherDate, setOtherDate] = useState(addDaysToDateStr(today, 2));
+  const { ask, confirmUi } = useConfirm();
   const date = chip === 'today' ? today : chip === 'tomorrow' ? addDaysToDateStr(today, 1) : chip === 'dayAfter' ? addDaysToDateStr(today, 2) : otherDate;
   const whenText = (d: string) => (d === today ? t('today') : d === addDaysToDateStr(today, 1) ? t('tomorrow') : dateLabel(d));
 
@@ -155,7 +157,10 @@ export default function DaySessionPage() {
     setEditing({ dayOfWeek: new Date(`${date}T12:00:00`).getDay(), name: shownTitle, steps: from });
   const pickMode = (next: Mode) => {
     if (next === mode) return;
-    if (steps.length && !window.confirm(t('restartConfirm'))) return;
+    if (steps.length) { ask(t('restartConfirm'), () => applyMode(next)); return; }
+    applyMode(next);
+  };
+  const applyMode = (next: Mode) => {
     setMode(next);
     if (next === 'manual') {
       setEdited([]);
@@ -327,6 +332,7 @@ export default function DaySessionPage() {
   if (forbidden) {
     return (
       <FlowOverlay label={t('formTitle')}>
+      {confirmUi}
         <FlowScreen title={t('formTitle')} leading={<BarButton onClick={close}>{t('cancel')}</BarButton>} trailing={exitButton}>
           <p className={cn(CARD, 'p-4 text-sm font-bold text-ink-700')}>{t('noAccess')}</p>
         </FlowScreen>

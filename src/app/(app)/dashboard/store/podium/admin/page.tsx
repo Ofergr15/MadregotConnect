@@ -16,6 +16,7 @@ import { ProductImage, ProductLine, shekelRound, whenIL } from '@/components/pod
 import { DistributePanel, ReceivePanel } from '@/components/podium/ReceivePanels';
 import { CsvDownload } from '@/components/podium/CsvDownload';
 import { usableAvatarUrl } from '@/lib/avatar-url';
+import { useConfirm } from '@/components/ui/ConfirmStrip';
 
 type Round = PodiumRound & { state: RoundState };
 /** athleteId null = a group order ("אקסטרות", migration 175), named by its label. */
@@ -39,6 +40,7 @@ function PodiumAdmin() {
   const [roundId, setRoundId] = useState<string | null>(null);
   const key = `/api/admin/podium${roundId ? `?round=${roundId}` : ''}`;
   const { data, mutate, isLoading } = useApi<Resp>(key);
+  const { ask, confirmUi } = useConfirm();
   const [tab, setTab] = useState<'people' | 'products' | 'catalog' | 'receive' | 'split' | null>(() => (params?.get('tab') === 'catalog' ? 'catalog' : null));
   const [edit, setEdit] = useState<string | null>(params?.get('order') ?? null);
   const [roundForm, setRoundForm] = useState<Partial<Round> | null>(null);
@@ -85,6 +87,7 @@ function PodiumAdmin() {
 
   return (
     <div className="space-y-3 pb-16">
+      {confirmUi}
       <div className="pt-1">
         <Link href="/dashboard/manage/store" className="mb-1 inline-flex items-center gap-0.5 text-13 font-bold text-brand-600"><ChevronRight className="h-4 w-4" />חנות</Link>
         <div className="flex items-end justify-between gap-2">
@@ -135,7 +138,7 @@ function PodiumAdmin() {
               <CsvDownload url={`/api/admin/podium/csv?round=${round.id}&format=xlsx`} className="flex items-center justify-center gap-1.5 rounded-2xl bg-ink-900 py-3 text-sm font-extrabold text-white"><Download className="h-4 w-4" />קובץ לפודיום</CsvDownload>
               {round.state === 'sent'
                 ? <button type="button" disabled={!!busy} onClick={() => void act('unsent', () => post('/api/admin/podium', { action: 'unsent', id: round.id }))} className="rounded-2xl bg-page py-3 text-sm font-extrabold text-ink-700">ביטול &quot;נשלח&quot;</button>
-                : <button type="button" disabled={!!busy || round.state !== 'locked'} onClick={() => { if (confirm('לסמן שההזמנה נשלחה לפודיום? אחרי זה אי אפשר לערוך.')) void act('sent', () => post('/api/admin/podium', { action: 'sent', id: round.id })); }} className="rounded-2xl bg-page py-3 text-sm font-extrabold text-ink-700 disabled:opacity-40">📦 נשלח לפודיום</button>}
+                : <button type="button" disabled={!!busy || round.state !== 'locked'} onClick={() => ask('לסמן שההזמנה נשלחה לפודיום? אחרי זה אי אפשר לערוך.', () => void act('sent', () => post('/api/admin/podium', { action: 'sent', id: round.id })), 'כן, נשלח')} className="rounded-2xl bg-page py-3 text-sm font-extrabold text-ink-700 disabled:opacity-40">📦 נשלח לפודיום</button>}
             </div>
             {/* 🔔 the "it's open" notification: automatic or by hand, how many had it, send now (Ofer 10-26). */}
             <div className="mt-3 rounded-2xl bg-page p-3">
@@ -150,7 +153,7 @@ function PodiumAdmin() {
                     onClick={() => void act('notify', async () => { const j = await post('/api/admin/podium', { action: 'notify', id: round.id }); setNote(j.sent ? `נשלחה ל-${j.sent}` : 'כולם כבר קיבלו'); })}
                     className="rounded-xl bg-brand-600 py-2.5 text-xs font-extrabold text-white disabled:opacity-40">לשלוח עכשיו{(data?.core.length ?? 0) - (round.notifiedCount ?? 0) > 0 ? ` · ${(data?.core.length ?? 0) - (round.notifiedCount ?? 0)} שלא קיבלו` : ''}</button>
                   <button type="button" disabled={!!busy}
-                    onClick={() => { if (confirm('לשלוח את ההתראה שוב לכל מי שההזמנה פתוחה לו?')) void act('notify', async () => { const j = await post('/api/admin/podium', { action: 'notify', id: round.id, again: true }); setNote(`נשלחה שוב ל-${j.sent}`); }); }}
+                    onClick={() => ask('לשלוח את ההתראה שוב לכל מי שההזמנה פתוחה לו?', () => void act('notify', async () => { const j = await post('/api/admin/podium', { action: 'notify', id: round.id, again: true }); setNote(`נשלחה שוב ל-${j.sent}`); }), 'כן, לשלוח')}
                     className="rounded-xl bg-card py-2.5 text-xs font-extrabold text-ink-700 ring-1 ring-black/5">שוב לכולם</button>
                 </div>
               )}
@@ -245,7 +248,7 @@ function PodiumAdmin() {
         {edit && round && orders.find((o) => o.id === edit) && (
           <OrderEditor key={edit} order={orders.find((o) => o.id === edit)!} round={round} budget={budgetFor(orders.find((o) => o.id === edit)!)} products={products}
             onSave={(items) => act('save', () => post(`/api/admin/podium/orders/${edit}`, { items }, 'PATCH')).then(() => setEdit(null))}
-            onDelete={() => { if (confirm('למחוק את ההזמנה?')) void act('del', () => post(`/api/admin/podium/orders/${edit}`, {}, 'DELETE')).then(() => setEdit(null)); }}
+            onDelete={() => ask('למחוק את ההזמנה?', () => void act('del', () => post(`/api/admin/podium/orders/${edit}`, {}, 'DELETE')).then(() => setEdit(null)), 'כן, למחוק')}
             busy={!!busy} />
         )}
       </Sheet>
@@ -274,7 +277,7 @@ function PodiumAdmin() {
               </button>
               {groupForm.id && (
                 <button type="button" disabled={!!busy} className="rounded-2xl bg-page px-4 font-extrabold text-red-600"
-                  onClick={() => { if (confirm('למחוק את הזמנת הקבוצה?')) void act('delg', () => post(`/api/admin/podium/orders/${groupForm.id}`, {}, 'DELETE')).then(() => setGroupForm(null)); }}>מחיקה</button>
+                  onClick={() => ask('למחוק את הזמנת הקבוצה?', () => void act('delg', () => post(`/api/admin/podium/orders/${groupForm.id}`, {}, 'DELETE')).then(() => setGroupForm(null)), 'כן, למחוק')}>מחיקה</button>
               )}
             </div>
           </div>
@@ -284,7 +287,7 @@ function PodiumAdmin() {
       <Sheet open={!!roundForm} onOpenChange={(o) => { if (!o) setRoundForm(null); }} title={roundForm?.id ? 'עריכת הסבב' : 'סבב חדש'}>
         {roundForm && <RoundForm init={roundForm} busy={!!busy} people={data?.people ?? {}} onCancel={() => setRoundForm(null)}
           onSave={(r) => act('round', async () => { const j = await post('/api/admin/podium', { action: roundForm.id ? 'update' : 'create', id: roundForm.id, ...r }); if (j.id) setRoundId(j.id); }).then(() => setRoundForm(null))}
-          onDelete={roundForm.id ? () => { if (confirm('למחוק את הסבב וכל ההזמנות שבו?')) void act('delr', () => post('/api/admin/podium', { action: 'delete', id: roundForm.id })).then(() => { setRoundForm(null); setRoundId(null); }); } : undefined} />}
+          onDelete={roundForm.id ? () => ask('למחוק את הסבב וכל ההזמנות שבו?', () => void act('delr', () => post('/api/admin/podium', { action: 'delete', id: roundForm.id })).then(() => { setRoundForm(null); setRoundId(null); }), 'כן, למחוק') : undefined} />}
       </Sheet>
     </div>
   );
