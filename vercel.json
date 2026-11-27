@@ -1,6 +1,9 @@
 {
   "framework": "nextjs",
   "regions": ["fra1"],
+  "functions": {
+    "src/app/api/cron/**/route.ts": { "regions": ["fra1"] }
+  },
   "buildCommand": "npm run build",
   "installCommand": "npm ci",
   "crons": [
