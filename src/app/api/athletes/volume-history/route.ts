@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { fetchWeekTargets } from '@/lib/plans/week-target-history';
-import { fetchWeeklyVolume } from '@/lib/athletes/weekly-volume';
+import { cachedAthleteWeeks } from '@/lib/athletes/weekly-volume-cache';
 import { israelDateAnchor, SUNDAY_WEEK, weekStartOn } from '@/lib/utils';
 import { readWeekStartDay } from '@/lib/athletes/week-pref';
 import { COACH_ID } from '@/lib/constants';
@@ -62,15 +62,17 @@ export async function GET(request: Request) {
     const startDay = await readWeekStartDay(supabase, athleteId);
 
     const fetchWeeks = granularity === 'week' ? weeks : granularity === 'month' ? periods * 5 + 8 : periods * 53 + 8;
-    const { byAthlete } = await fetchWeeklyVolume(supabase, {
-      athleteIds: [athleteId],
+    // Per-(athlete, week) cache behind WEEKLY_VOLUME_CACHE (lib/athletes/weekly-volume-cache.ts);
+    // off, or before migration 270, it is exactly the fetchWeeklyVolume read it replaced.
+    const buckets = await cachedAthleteWeeks(supabase, {
+      athleteId,
       weeks: fetchWeeks,
       currentWeekStart: weekStartOn(israelDateAnchor(), startDay),
       startDay,
     });
 
     const round1 = (n: number) => Math.round(n * 10) / 10;
-    const weekRows = (byAthlete.get(athleteId) || []).map((b) => ({
+    const weekRows = buckets.map((b) => ({
       weekStart: b.weekStart,
       km: round1(b.meters / 1000),
       runs: b.runs,
