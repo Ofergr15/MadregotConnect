@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Archive, BookOpen, Copy, Download, Heart, Layers, Pencil, Plus, Search } from 'lucide-react';
+import { BookOpen, Copy, Download, Heart, Layers, Pencil, Plus, Search } from 'lucide-react';
 import { apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { KIND_LABEL, ZONE_LABEL } from './libraryText';
@@ -585,6 +585,3 @@ export function WorkoutBook() {
     </>
   );
 }
-
-/** The icon the tab uses, exported so the page does not import lucide twice. */
-export const BookIcon = BookOpen;

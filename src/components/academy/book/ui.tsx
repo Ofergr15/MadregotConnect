@@ -38,7 +38,6 @@ const TONE_COLOR = { e: '#8FD3AA', t: '#F4B556', f: '#EF5B4C', r: '#E1E2E9' } as
  */
 const TONE_TRAINEE = { e: '#C9CDF6', t: '#8C94FF', f: '#1525FF', r: '#E6E7EE' } as const;
 const TONE_HEIGHT = { e: 0.42, t: 0.7, f: 1, r: 0.2 } as const;
-export const TONE_STRIPE = TONE_COLOR;
 export type BarPalette = 'book' | 'trainee';
 const paletteOf = (p: BarPalette | undefined) => (p === 'trainee' ? TONE_TRAINEE : TONE_COLOR);
 

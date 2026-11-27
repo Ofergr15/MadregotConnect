@@ -1,10 +1,7 @@
 'use client';
-
-import { useEffect, useState } from 'react';
 import { TrendingUp } from 'lucide-react';
 import { formatPace } from '@/components/activity/format';
 import { useChartWidth } from '@/components/charts/useChartWidth';
-import { apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { Direction, TrendPoint, TrendSeries } from '@/lib/academy/tests';
 
@@ -297,58 +294,4 @@ export function ImprovementChart({
 function isoToShort(date: string): string {
   const [year, month, day] = date.split('-');
   return `${day}.${month}.${year.slice(2)}`;
-}
-
-/** The fetching wrapper. `athleteId` may be the caller's own — the route allows that. */
-export function AthleteImprovement({
-  athleteId,
-  protocol = '30min',
-  heading,
-  subtitle,
-}: {
-  athleteId: string;
-  protocol?: string;
-  heading?: string;
-  subtitle?: string;
-}) {
-  const [trend, setTrend] = useState<TrendSeries | null>(null);
-  const [state, setState] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
-
-  useEffect(() => {
-    let cancelled = false;
-    setState('loading');
-    (async () => {
-      try {
-        const res = await fetch(
-          `/api/academy/tests?athleteId=${encodeURIComponent(athleteId)}&protocol=${encodeURIComponent(protocol)}`,
-          { headers: await apiHeaders() },
-        );
-        const data = await res.json();
-        if (cancelled) return;
-        if (!res.ok) { setState('error'); return; }
-        // Migration 105 not applied yet. Said out loud rather than shown as "no tests" —
-        // the club HAS tests, they are in a spreadsheet, and telling Ofer he has none
-        // would send him looking for a bug in the wrong place.
-        if (data?.tableMissing) { setState('missing'); return; }
-        setTrend(data.trend as TrendSeries);
-        setState('ready');
-      } catch {
-        if (!cancelled) setState('error');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [athleteId, protocol]);
-
-  if (state === 'loading') return <p className="py-6 text-center text-xs text-ink-400">טוען…</p>;
-  if (state === 'missing') {
-    return (
-      <p className="py-6 text-center text-xs text-ink-400">
-        מרשם הטסטים עוד לא הוקם במסד הנתונים.
-      </p>
-    );
-  }
-  if (state === 'error' || !trend) {
-    return <p className="py-6 text-center text-xs text-accent-red-ink">לא הצלחנו לטעון את גרף השיפור</p>;
-  }
-  return <ImprovementChart trend={trend} heading={heading} subtitle={subtitle} />;
 }

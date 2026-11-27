@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clock, EyeOff, Send, Watch } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, EyeOff, Watch } from 'lucide-react';
 import { apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { initialsOf } from './types';
@@ -410,6 +410,3 @@ export function WatchDispatch({
   if (!report) return <p className="py-6 text-center text-xs text-ink-400">טוען…</p>;
   return <DispatchList report={report} weekStart={weekStart} onBuild={onBuild} onChanged={() => setReload(n => n + 1)} />;
 }
-
-/** The icon the tab uses, exported so the page does not import lucide twice. */
-export const DispatchIcon = Send;
