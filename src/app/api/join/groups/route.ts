@@ -5,6 +5,8 @@ import { placeholderNameFromEmail } from '@/lib/signup';
 import { nameProblem, normalizeDisplayName } from '@/lib/names/latin';
 import { quoteFilterValue } from '@/lib/db/like';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/join/groups?token=… — everything /join/{token} needs to render.
  *

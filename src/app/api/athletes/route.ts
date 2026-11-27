@@ -13,6 +13,8 @@ import { applyAcademyMembership } from '@/lib/academy/membership-server';
 import { mayDeleteAthlete } from '@/lib/auth/delete-athlete-policy';
 import { syncApprovedJoiner } from '@/lib/onboarding/approval-sync';
 
+export const dynamic = 'force-dynamic';
+
 const DEMO_COACH_ID = COACH_ID;
 
 function latestSync(...stamps: Array<string | null | undefined>): string | null {

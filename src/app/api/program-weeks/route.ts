@@ -5,6 +5,8 @@ import { logWeek } from '@/lib/week-setup/server';
 import { requireSession, authError } from '@/lib/auth-session';
 import { nativePdfUrl } from '@/lib/native/supabase-proxy';
 
+export const dynamic = 'force-dynamic';
+
 // The club's season program — the same rows for everyone (lib/cache/shared.ts).
 // A failed read throws, so an error is never what gets cached.
 const readProgramWeeks = sharedCache(async () => {

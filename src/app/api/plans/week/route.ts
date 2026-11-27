@@ -12,6 +12,8 @@ import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
 import { daySessionWorkouts, mergeDaySessions } from '@/lib/day-session/week-merge';
 import { requireTraineeAccess } from '@/lib/academy/pairing-server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Structured breakdown for ONE arbitrary week — the Program page's native
  * training view (replacing the raw PDF iframe). Unlike `/api/dashboard/weekly`

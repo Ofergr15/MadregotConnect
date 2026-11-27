@@ -3,6 +3,8 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
 
+export const dynamic = 'force-dynamic';
+
 /** Staff-only: this is coach-authored content for the whole club. */
 async function requireStaff(request: Request) {
   const auth = await requireSession(request);

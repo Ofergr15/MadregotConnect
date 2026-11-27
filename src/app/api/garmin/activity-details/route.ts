@@ -4,6 +4,8 @@ import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { GarminClient } from '@/lib/garmin/client';
 import { lapsWorthStoring, narrowLaps, type StoredLap } from '@/lib/garmin/laps';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);

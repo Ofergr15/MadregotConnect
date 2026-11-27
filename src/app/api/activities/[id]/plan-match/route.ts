@@ -3,6 +3,8 @@ import { createServerClient } from '@/lib/supabase/server';
 import { planTargetForDate } from '@/lib/post-workout';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/activities/[id]/plan-match — how this one activity's distance compares
 // to that day's planned target, for the ActivitySyncEditor's "plan match" card.
 //

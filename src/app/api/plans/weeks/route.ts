@@ -4,6 +4,8 @@ import { WEEKLY_PLANS_TAG } from '@/lib/plans/cache';
 import { COACH_ID } from '@/lib/constants';
 import { requireMember } from '@/lib/auth/self-or-staff';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Distinct week_start_dates that have an AI-parsed `weekly_plans` row — used
  * by the Program page to add weeks to its picker that have structured plan
