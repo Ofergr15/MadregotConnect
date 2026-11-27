@@ -1,0 +1,12 @@
+{
+  "feed": 26000,
+  "dashboard/weekly": 1500,
+  "athletes": 32500,
+  "activities": 366000,
+  "club/records": 75000,
+  "events": 2500,
+  "academy/members": 7500,
+  "groups": 1000,
+  "athletes/[id]/stats": 7000,
+  "club-updates": 500
+}
