@@ -27,20 +27,38 @@ export function longestPerDay(runs: NamedRun[]): Map<string, string> {
   return new Map([...best.values()].map((r) => [r.id, dayOf(r.start_time)]));
 }
 
-/** The quality session's name for a day, or null when the day has none. Never throws. */
-async function nameOfDay(db: Db, date: string): Promise<string | null> {
+type DaySessionRow = { session_date?: string | null; title?: string | null; quality?: boolean | null; published_at?: string | null };
+
+/** A published one-day session the coach marked quality, by its name. */
+function daySessionName(ds: DaySessionRow | undefined): string | null {
+  return ds?.published_at && ds.quality === true && ds.title?.trim() ? ds.title.trim() : null;
+}
+
+/**
+ * The quality session's name for each day, or null when the day has none. Never throws.
+ *
+ * One `day_sessions` read for every day (it used to be one per day — up to 14 round trips on a
+ * feed page); only the days without a quality day session fall through to the plan's workout.
+ */
+async function namesOfDays(db: Db, days: string[]): Promise<Map<string, string | null>> {
+  const byDay = new Map<string, DaySessionRow>();
   try {
-    const { data } = await db.from('day_sessions').select('title, quality, published_at')
-      .eq('session_date', date).maybeSingle();
-    const ds = data as { title?: string | null; quality?: boolean | null; published_at?: string | null } | null;
-    if (ds?.published_at && ds.quality === true && ds.title?.trim()) return ds.title.trim();
+    const { data } = await db.from('day_sessions').select('session_date, title, quality, published_at')
+      .in('session_date', days);
+    for (const r of (Array.isArray(data) ? data : []) as DaySessionRow[]) {
+      if (r.session_date && !byDay.has(r.session_date)) byDay.set(r.session_date, r);
+    }
   } catch { /* no day session table: the plan answers */ }
-  try {
-    const q = await loadQualityWorkout(db, date);
-    return q?.name?.trim() || null;
-  } catch {
-    return null;
-  }
+  return new Map(await Promise.all(days.map(async (d) => {
+    const fromSession = daySessionName(byDay.get(d));
+    if (fromSession) return [d, fromSession] as const;
+    try {
+      const q = await loadQualityWorkout(db, d);
+      return [d, q?.name?.trim() || null] as const;
+    } catch {
+      return [d, null] as const;
+    }
+  })));
 }
 
 /** activity id -> the quality session's name, for the runs that take one. */
@@ -48,7 +66,8 @@ export async function qualityNames(db: Db, runs: NamedRun[], maxDays = 14): Prom
   const out = new Map<string, string>();
   const pick = longestPerDay(runs);
   const days = [...new Set(pick.values())].sort().reverse().slice(0, maxDays);
-  const names = new Map<string, string | null>(await Promise.all(days.map(async (d) => [d, await nameOfDay(db, d)] as const)));
+  if (days.length === 0) return out;
+  const names = await namesOfDays(db, days);
   for (const [id, day] of pick) {
     const n = names.get(day);
     if (n) out.set(id, n);
