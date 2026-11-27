@@ -4,6 +4,7 @@ import { mayActFor, requireCallerForAthlete, resolveVerifiedCaller } from '@/lib
 import { filterQualifyingRuns, computeDistanceBests, type RunActivityRow } from '@/lib/prs/pr-buckets';
 import { attachLapsForPrs } from '@/lib/prs/attach-laps';
 import { applyPrOverrides, parsePrSeconds, prBucket, prSecondsProblem } from '@/lib/prs/overrides';
+import { checkAchievedOn, cleanNote, normaliseTimeInput, overrideAuditRow } from '@/lib/prs/manual-entry';
 import { readPrOverrides, UNDEFINED_TABLE } from '@/lib/prs/overrides-store';
 import { readPrExclusions } from '@/lib/prs/exclusions-store';
 import { fetchAllRows } from '@/lib/supabase/paginate';
@@ -179,7 +180,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'athleteId and bucketKey required' }, { status: 400 });
     }
 
-    const { denied } = await requireCallerForAthlete(request, athleteId);
+    const { denied, caller } = await requireCallerForAthlete(request, athleteId);
     if (denied) return denied;
 
     const bucket = prBucket(bucketKey);
@@ -190,7 +191,8 @@ export async function PUT(request: Request) {
     // or a future caller doesn't have to format a number back into a string.
     let seconds: number | null = null;
     if (!hidden) {
-      seconds = typeof body.seconds === 'number' ? Math.round(body.seconds) : parsePrSeconds(String(body.time ?? ''));
+      // normaliseTimeInput: a Hebrew keyboard wraps digits in invisible bidi marks (lib/prs/manual-entry).
+      seconds = typeof body.seconds === 'number' ? Math.round(body.seconds) : parsePrSeconds(normaliseTimeInput(String(body.time ?? '')));
       if (seconds == null) {
         return NextResponse.json({ error: 'time must look like 41:58 or 3:12:40', code: 'unparseable' }, { status: 400 });
       }
@@ -200,14 +202,19 @@ export async function PUT(request: Request) {
       if (problem) return NextResponse.json({ error: `time is ${problem}`, code: problem }, { status: 400 });
     }
 
+    const date = checkAchievedOn(body.achievedOn, israelToday());
+    if (!date.ok) return NextResponse.json({ error: `achievedOn is ${date.code}`, code: date.code }, { status: 400 });
+
     const supabase = createServerClient();
+    const { data: prev } = await supabase.from('athlete_pr_overrides').select('seconds')
+      .eq('athlete_id', athleteId).eq('bucket_key', bucketKey).maybeSingle();
     const { error } = await supabase.from('athlete_pr_overrides').upsert(
       {
         athlete_id: athleteId,
         bucket_key: bucketKey,
         seconds,
-        achieved_on: (body.achievedOn && String(body.achievedOn)) || null,
-        note: (body.note && String(body.note).trim().slice(0, 200)) || null,
+        achieved_on: date.value,
+        note: cleanNote(body.note),
         hidden,
         updated_at: new Date().toISOString(),
       },
@@ -221,6 +228,11 @@ export async function PUT(request: Request) {
     }
     if (error) throw error;
 
+    await audit(supabase, overrideAuditRow({
+      athleteId, bucketKey, action: hidden ? 'hide' : 'set', seconds,
+      previousSeconds: (prev as { seconds?: number | null } | null)?.seconds ?? null,
+      achievedOn: date.value, changedBy: caller?.athleteId ?? null,
+    }));
     return NextResponse.json({ success: true, bucketKey, seconds, hidden });
   } catch (err: any) {
     console.error('PR override save error:', err);
@@ -237,10 +249,12 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'athleteId and bucketKey required' }, { status: 400 });
     }
 
-    const { denied } = await requireCallerForAthlete(request, athleteId);
+    const { denied, caller } = await requireCallerForAthlete(request, athleteId);
     if (denied) return denied;
 
     const supabase = createServerClient();
+    const { data: prev } = await supabase.from('athlete_pr_overrides').select('seconds')
+      .eq('athlete_id', athleteId).eq('bucket_key', bucketKey).maybeSingle();
     const { error } = await supabase
       .from('athlete_pr_overrides')
       .delete()
@@ -249,10 +263,23 @@ export async function DELETE(request: Request) {
     // Nothing to undo when the table isn't there — the bucket is already showing
     // the derived best, which is what deleting asks for.
     if (error && (error as { code?: string }).code !== UNDEFINED_TABLE) throw error;
+    if (prev) {
+      await audit(supabase, overrideAuditRow({
+        athleteId, bucketKey, action: 'clear', seconds: null,
+        previousSeconds: (prev as { seconds?: number | null }).seconds ?? null, achievedOn: null, changedBy: caller?.athleteId ?? null,
+      }));
+    }
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('PR override delete error:', err);
     return NextResponse.json({ error: err.message || 'Failed to delete' }, { status: 500 });
   }
+}
+
+/** Best-effort audit write (migration 232): the edit already saved, so a missing table or a failure only logs. */
+async function audit(supabase: ReturnType<typeof createServerClient>, row: ReturnType<typeof overrideAuditRow>) {
+  const { error } = await supabase.from('athlete_pr_override_events').insert(row);
+  const code = (error as { code?: string } | null)?.code;
+  if (error && code !== UNDEFINED_TABLE && code !== 'PGRST205') console.error('PR override audit write failed:', error);
 }
