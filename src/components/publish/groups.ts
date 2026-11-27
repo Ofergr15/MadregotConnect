@@ -13,7 +13,6 @@ export const GROUP_MARKS = ['❶', '❷', '❸'];
 
 export const GROUP_TEXT = ['text-ink-900', 'text-band-2-ink', 'text-band-3-ink'];
 export const GROUP_CELL = ['bg-ink-900/[0.045]', 'bg-band-2/10', 'bg-band-3/10'];
-export const GROUP_DOT = ['bg-ink-900', 'bg-band-2', 'bg-band-3'];
 
 export function roundKm(meters: number): number {
   return Math.round(meters / 100) / 10;
