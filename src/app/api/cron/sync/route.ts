@@ -10,6 +10,7 @@ import { refreshStaleStravaAvatars } from '@/lib/strava/avatar-refresh';
 import { createServerClient } from '@/lib/supabase/server';
 import { israelNow } from '@/lib/utils';
 import { cronPaused } from '@/lib/cron-pause';
+import { refreshStaleRollups } from '@/lib/athletes/stat-rollups';
 
 // Give the sync enough time to walk every athlete (Pro plan allows up to 300s).
 export const maxDuration = 300;
@@ -198,6 +199,10 @@ async function runSync(request: Request) {
     snapshot = { error: String(e?.message || e) };
   }
 
+  // Profile totals for every athlete whose runs changed (PROFILE_STAT_ROLLUPS, default off —
+  // returns null without a query). One RPC; see lib/athletes/stat-rollups.ts.
+  const statRollups = await refreshStaleRollups(createServerClient());
+
   // Once a day, members' Strava photos whose stored URL stopped loading (a photo
   // changed on Strava). Here, ahead of the history passes: last in line it never ran —
   // they spend the tick and the bonus budget was always gone. A few HEADs, once a day.
@@ -264,9 +269,9 @@ async function runSync(request: Request) {
   }
 
   const skipped = bonusSkipped.length ? bonusSkipped : undefined;
-  console.log('[cron/sync] done', { totalSynced, garmin, stravaPoll, stravaRoutes, stravaLaps, garminHistory, stravaAvatars, snapshot, skipped });
+  console.log('[cron/sync] done', { totalSynced, garmin, stravaPoll, stravaRoutes, stravaLaps, garminHistory, stravaAvatars, snapshot, statRollups, skipped });
 
-  return NextResponse.json({ ok: true, totalSynced, garmin, stravaPoll, stravaRoutes, stravaLaps, garminHistory, stravaAvatars, snapshot, skipped });
+  return NextResponse.json({ ok: true, totalSynced, garmin, stravaPoll, stravaRoutes, stravaLaps, garminHistory, stravaAvatars, snapshot, statRollups, skipped });
 }
 
 export async function GET(request: Request) {
