@@ -5,7 +5,7 @@ import { useEffect, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
-import { Calendar, ArrowRight, TrendingUp, TrendingDown, Flame } from 'lucide-react';
+import { Calendar, ArrowRight, Flame } from 'lucide-react';
 import {
   cn, getActivityWeekStart, getPlanWeekStart, isRecentlyPublished, israelDateAnchor,
   activityWeekStart, activityLocalDateStr, activityDayRelation, israelToday, israelNow, toISODate,
@@ -15,16 +15,13 @@ import { apiHeaders, useApi } from '@/lib/api';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { getActiveViewRole } from '@/lib/role-views';
 import { AttendanceRSVP, type AttendanceStatus } from '@/components/AttendanceRSVP';
-import { NextWorkoutCard } from '@/components/NextWorkoutCard';
 import { WatchStatus } from '@/components/WatchStatus';
 import { HomeToday, ClubToday, CoachPinned, LastNight } from '@/components/home/HomeToday';
 import { TodayCards } from '@/components/home/TodayHome';
-import { LastWeek } from '@/components/home/LastWeekCard';
-import { WeeklyLeaderboardCard } from '@/components/WeeklyLeaderboardCard';
 import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_TEXT_COLORS as typeTextColors, planDayKey } from '@/lib/plans/workout-parsing';
 import { useWorkoutTypeLabel } from '@/lib/plans/use-workout-type-label';
 import { teamDayTarget } from '@/lib/plans/team-day';
-import { Spinner, Card, BigStat, EmptyState, Button } from '@/components/ui';
+import { Spinner, Card, EmptyState, Button } from '@/components/ui';
 import { useNavIdentity } from '@/lib/nav-items';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { shouldSyncOnOpen, stravaOpenSyncKey } from '@/lib/providers/open-sync';
@@ -68,6 +65,13 @@ const TraineeToday = dynamic(() => import('@/components/trainee/TraineeToday').t
 const AdminAttention = dynamic(() => import('@/components/admin/AdminAttention').then(m => m.AdminAttention), { ssr: false });
 // The one exception to "no fallback needed": this replaces the WHOLE screen for an
 // admin, so without a spinner the control room opens on a blank page.
+// Coach-only stat strip (the club has one coach), and the cards that sit below the fold
+// for a runner: none of them is on the first paint, so none is in the first download.
+const CoachStatStrip = dynamic(() => import('@/components/home/CoachStatStrip').then(m => m.CoachStatStrip), { ssr: false });
+const LastWeek = dynamic(() => import('@/components/home/LastWeekCard').then(m => m.LastWeek), { ssr: false });
+const WeeklyLeaderboardCard = dynamic(() => import('@/components/WeeklyLeaderboardCard').then(m => m.WeeklyLeaderboardCard), { ssr: false });
+// Only the coach-who-also-runs path renders this (a runner gets TodayCards).
+const NextWorkoutCard = dynamic(() => import('@/components/NextWorkoutCard').then(m => m.NextWorkoutCard), { ssr: false });
 const NewsHome = dynamic(() => import('@/components/home/NewsHome').then(m => m.NewsHome), { ssr: false });
 
 interface DashboardStats {
@@ -532,7 +536,6 @@ export default function DashboardPage() {
   const todayKey = israelToday();
   const tomorrowDate = (() => { const d = israelDateAnchor(); d.setDate(d.getDate() + 1); return d; })();
   const tomorrowKey = toISODate(tomorrowDate);
-  const hasData = weekly && weekly.weekTotalMax > 0;
 
   // Which workout does the RSVP target? RSVP is a DAY-BEFORE flow (matching the
   // Mon 08:00 + Mon 18:00 pushes for a Tue workout): the evening before a team
@@ -710,42 +713,7 @@ export default function DashboardPage() {
           A coach shouldn't be locked out of RSVPing for themselves just
           because they're staff. Pure athlete: today's/tomorrow's workout +
           embedded RSVP only. ═══ */}
-      {isCoach && (
-        <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-          <Card variant="muted">
-            <BigStat
-              value={hasData ? <>{Math.round(weekly!.weekTotalMin)}–{Math.round(weekly!.weekTotalMax)}<span className="text-sm font-medium text-ink-400"> {tc('km')}</span></> : '—'}
-              label={t('weeklyVolume')}
-            />
-            {weekly?.weekDelta !== 0 && weekly?.weekDelta !== undefined && (
-              <div className="flex items-center justify-center gap-1 mt-2">
-                {weekly.weekDelta > 0 ? <TrendingUp className="h-3.5 w-3.5 text-accent-600" /> : <TrendingDown className="h-3.5 w-3.5 text-band-3" />}
-                <span className={cn('text-sm font-semibold', weekly.weekDelta > 0 ? 'text-accent-900' : 'text-band-3-ink')}>
-                  {weekly.weekDelta > 0 ? '+' : ''}{weekly.weekDelta}%
-                </span>
-              </div>
-            )}
-          </Card>
-          <Card variant="muted">
-            <BigStat value={stats?.athleteCount || 0} label="Athletes" />
-            <p className="text-sm text-ink-400 mt-1 text-center">{stats?.groupCount || 0} groups</p>
-          </Card>
-          <Card variant="muted">
-            <BigStat
-              value={<>{stats?.deliverySuccessRate || 0}<span className="text-sm font-medium text-ink-400">%</span></>}
-              label={t('delivery')}
-            />
-            <p className="text-sm text-ink-400 mt-1 text-center">{t('successRate')}</p>
-          </Card>
-          <Card variant="muted">
-            <BigStat
-              value={<>{weekly?.trainingDays || 0}<span className="text-sm font-medium text-ink-400">/7</span></>}
-              label={t('trainingDays')}
-            />
-            <p className="text-sm text-ink-400 mt-1 text-center">{t('thisWeek')}</p>
-          </Card>
-        </section>
-      )}
+      {isCoach && <CoachStatStrip weekly={weekly} stats={stats} />}
 
       {/* The coach's pinned word and last night's sleep lead the briefing when there are any. */}
       {athleteId && !showTraineeHome && <CoachPinned />}
