@@ -3,7 +3,8 @@ import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { hasRole } from '@/lib/auth/roles';
 import { israelNow, israelToday } from '@/lib/utils';
-import { loadWeekStory } from '@/lib/week-story/server';
+import { loadWeekStory, loadWeekSummary } from '@/lib/week-story/server';
+import { lastClosedWindow, summaryWindow } from '@/lib/week-story/summary';
 import { storyWindow } from '@/lib/week-story/model';
 import { storyGate } from '@/lib/stories/gate';
 import { addDays } from '@/lib/notifications/approval';
@@ -25,6 +26,7 @@ export async function GET(request: Request) {
   const q = new URL(request.url).searchParams;
   const athleteId = (admin && q.get('athleteId')) || caller.athleteId;
   if (!athleteId) return NextResponse.json({ story: null });
+  if (q.get('mode') === 'summary') return summary(athleteId, admin, q.get('at'), caller.athleteId === athleteId ? caller.athleteId : null);
   let at = admin ? q.get('at') : null;
   // Testers see it any time (Ofer 10-24: "we said we'd open it to him so he can look"): outside
   // the Saturday 12:00 – Sunday 20:00 window, the week up to the latest Saturday, as it will read.
@@ -43,6 +45,32 @@ export async function GET(request: Request) {
     return NextResponse.json({ story });
   } catch (err) {
     console.error('week-story read failed:', err);
+    return NextResponse.json({ error: 'Failed to read the week' }, { status: 500 });
+  }
+}
+
+/**
+ * GET /api/week-story?mode=summary[&athleteId=&at=YYYY-MM-DD]  → { summary } | { summary: null }
+ *
+ * The weekly summary card (lib/week-story/summary.ts): the activity week (Monday–Sunday),
+ * shown from Sunday 19:00 through Monday, Israel time. Self only, like the story; the admin may
+ * read anybody's and any week (`at` = a day in or after it). A story tester sees the last closed
+ * week at any hour, as the story does, so the card can be checked before it opens.
+ */
+async function summary(athleteId: string, admin: boolean, atRaw: string | null, self: string | null) {
+  const at = admin && atRaw && /^\d{4}-\d{2}-\d{2}$/.test(atRaw) ? atRaw : null;
+  const today = israelToday();
+  const hour = israelNow().hour;
+  let w = at ? lastClosedWindow(at, 23) : summaryWindow(today, hour);
+  if (!w && self) {
+    const gate = await storyGate('weekly', self, { isAdmin: admin }).catch(() => null);
+    if (gate?.tester || admin) w = lastClosedWindow(today, hour);
+  }
+  if (!w) return NextResponse.json({ summary: null });
+  try {
+    return NextResponse.json({ summary: await loadWeekSummary(createServerClient(), athleteId, w) });
+  } catch (err) {
+    console.error('week-summary read failed:', err);
     return NextResponse.json({ error: 'Failed to read the week' }, { status: 500 });
   }
 }
