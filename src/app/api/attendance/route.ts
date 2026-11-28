@@ -4,6 +4,21 @@ import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { ACTION_TOKEN_HEADER, rsvpScope, verifyActionToken } from '@/lib/auth/action-token';
 
+interface RsvpDbRow {
+  athlete_id: string;
+  attending: boolean | null;
+  group_label?: string | null;
+}
+
+interface RosterAthleteDbRow {
+  id: string;
+  name?: string | null;
+  avatar_url?: string | null;
+  groups?: { name?: string | null } | null;
+  onboarding_status?: string | null;
+  approved?: boolean | null;
+}
+
 export const dynamic = 'force-dynamic';
 
 // GET /api/attendance?weekStart=YYYY-MM-DD&day=N
@@ -25,7 +40,7 @@ export async function GET(request: Request) {
 
     // Verified session. The roster and calendar views below list every
     // athlete's name, avatar and attendance, and used to be reachable with a
-    // forged `x-user-email: <any coach>` header.
+    // forged `x-user-email: <some coach>` header.
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
     const callerIsStaff = caller.isSuperUser || caller.isStaff;
@@ -65,14 +80,14 @@ export async function GET(request: Request) {
 
       // Fold into a map keyed by the practice's real ISO date.
       const days: Record<string, { going: number; notGoing: number; total: number }> = {};
-      for (const r of data || []) {
-        const d = new Date((r as any).week_start_date + 'T12:00:00');
-        d.setDate(d.getDate() + Number((r as any).day_of_week));
+      for (const r of (data || []) as Array<{ week_start_date: string; day_of_week: number; attending: boolean | null }>) {
+        const d = new Date(r.week_start_date + 'T12:00:00');
+        d.setDate(d.getDate() + Number(r.day_of_week));
         const iso = d.toISOString().split('T')[0];
         if (iso < from || iso > to) continue; // trim the widened lower bound
         const bucket = (days[iso] ||= { going: 0, notGoing: 0, total: 0 });
         bucket.total += 1;
-        if ((r as any).attending) bucket.going += 1;
+        if (r.attending) bucket.going += 1;
         else bucket.notGoing += 1;
       }
       return NextResponse.json({ days });
@@ -99,7 +114,7 @@ export async function GET(request: Request) {
       if (aErr) throw aErr;
       if (rErr) throw rErr;
       const byAthlete = new Map(
-        (rsvps || []).map((r: any) => [r.athlete_id, r]),
+        ((rsvps || []) as RsvpDbRow[]).map(r => [r.athlete_id, r] as const),
       );
 
       // Attendance verification (roadmap #14) — an athlete who RSVP'd
@@ -110,9 +125,9 @@ export async function GET(request: Request) {
       // window, just require the activity to actually be a run), no separate
       // no-show/walk-in state — just this boolean, computed at read time
       // (never persisted).
-      const goingIds = (rsvps || [])
-        .filter((r: any) => r.attending)
-        .map((r: any) => r.athlete_id);
+      const goingIds = ((rsvps || []) as RsvpDbRow[])
+        .filter(r => r.attending)
+        .map(r => r.athlete_id);
       const confirmedIds = new Set<string>();
       if (goingIds.length > 0) {
         const practiceDate = new Date(`${weekStart}T12:00:00`);
@@ -130,14 +145,14 @@ export async function GET(request: Request) {
           .gte('start_time', `${dateStr}T00:00:00`)
           .lt('start_time', `${nextDateStr}T00:00:00`);
         if (actErr) throw actErr;
-        for (const a of acts || []) confirmedIds.add((a as any).athlete_id);
+        for (const a of (acts || []) as Array<{ athlete_id: string }>) confirmedIds.add(a.athlete_id);
       }
 
-      const rows = (athletes || [])
+      const rows = ((athletes || []) as unknown as RosterAthleteDbRow[])
         // active members only (skip pending invites / unapproved)
-        .filter((a: any) => a.approved !== false && a.onboarding_status !== 'pending')
-        .map((a: any) => {
-          const r: any = byAthlete.get(a.id);
+        .filter(a => a.approved !== false && a.onboarding_status !== 'pending')
+        .map(a => {
+          const r = byAthlete.get(a.id);
           return {
             athleteId: a.id,
             name: a.name || '',
@@ -168,7 +183,7 @@ export async function GET(request: Request) {
         .eq('week_start_date', weekStart)
         .eq('day_of_week', Number(day));
       if (error) throw error;
-      const rows = (data || []).map((r: any) => ({
+      const rows = ((data || []) as unknown as Array<RsvpDbRow & { athletes?: { name?: string | null; avatar_url?: string | null } | null }>).map(r => ({
         athleteId: r.athlete_id,
         attending: r.attending,
         groupLabel: r.group_label,
