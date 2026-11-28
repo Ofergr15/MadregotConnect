@@ -1,3 +1,4 @@
+import { syncGroupChats } from '@/lib/group-chat/server';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaffCaller } from '@/lib/auth/self-or-staff';
@@ -45,12 +46,14 @@ export async function POST(request: Request) {
     .from('group_change_requests')
     .update({ status, decided_at: new Date().toISOString(), decided_by: gate.caller.athleteId })
     .eq('id', id).eq('status', 'pending')
-    .select('athlete_id, to_group_id');
+    .select('athlete_id, from_group_id, to_group_id');
   if (error) { console.error('[api/admin/group-change-requests]', error); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
   if (!claimed || claimed.length === 0) return NextResponse.json({ ok: true, alreadyHandled: true });
   if (status === 'approved') {
     const { error: moveError } = await supabase.from('athletes').update({ group_id: claimed[0].to_group_id }).eq('id', claimed[0].athlete_id);
     if (moveError) { console.error('[api/admin/group-change-requests]', moveError); return NextResponse.json({ error: 'failed' }, { status: 500 }); }
+    // The member leaves the old group's chat and joins the new one now, not on someone's next open.
+    await syncGroupChats(supabase, [claimed[0].from_group_id, claimed[0].to_group_id]);
   }
   return NextResponse.json({ ok: true, status });
 }

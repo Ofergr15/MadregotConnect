@@ -65,7 +65,8 @@ export async function GET(request: Request) {
           });
         }
       } catch (err) {
-        streamError = String(err);
+        // Never the raw error: Stream's messages can carry member ids. The detail is in the log.
+        streamError = 'chat service unavailable';
         console.error('GET /api/group-chat — Stream unavailable:', err);
       }
     }
