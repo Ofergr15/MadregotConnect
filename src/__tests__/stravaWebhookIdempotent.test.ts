@@ -15,6 +15,7 @@ vi.mock('@/lib/supabase/server', () => ({
     },
   }),
 }));
+const T0 = Math.floor(Date.now() / 1000) - 60;
 const { POST } = await import('@/app/api/strava/webhook/route');
 const post = (b: object) => POST(new Request('http://x', { method: 'POST', body: JSON.stringify({ object_type: 'activity', owner_id: 42, ...b }) }));
 const drain = async () => { while (h.kept.length) await h.kept.shift()!(); };
@@ -42,31 +43,31 @@ describe('pure', () => {
 
 describe('POST /api/strava/webhook', () => {
   it('a Strava retry of the same event syncs once', async () => {
-    await post({ aspect_type: 'create', object_id: 1001, event_time: 1 });
+    await post({ aspect_type: 'create', object_id: 1001, event_time: T0 + 1 });
     await drain();
-    const again = await post({ aspect_type: 'create', object_id: 1001, event_time: 1 });
+    const again = await post({ aspect_type: 'create', object_id: 1001, event_time: T0 + 1 });
     expect(await again.json()).toEqual({ skipped: 'skip_retry' });
     await drain();
     expect(h.synced).toBe(1);
   });
   it('create for an activity already stored is skipped (always 200)', async () => {
     h.stored.add(2002);
-    const res = await post({ aspect_type: 'create', object_id: 2002, event_time: 2 });
+    const res = await post({ aspect_type: 'create', object_id: 2002, event_time: T0 + 2 });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ skipped: 'skip_stored' });
     expect(h.kept).toHaveLength(0);
   });
   it('create + update while the sync is still running → one sync', async () => {
-    await post({ aspect_type: 'create', object_id: 3003, event_time: 3 });
-    const upd = await post({ aspect_type: 'update', object_id: 3003, event_time: 4 });
+    await post({ aspect_type: 'create', object_id: 3003, event_time: T0 + 3 });
+    const upd = await post({ aspect_type: 'update', object_id: 3003, event_time: T0 + 4 });
     expect(await upd.json()).toEqual({ skipped: 'skip_inflight' });
     await drain();
     expect(h.synced).toBe(1);
   });
   it('a later update (after the sync finished) syncs again', async () => {
-    await post({ aspect_type: 'create', object_id: 4004, event_time: 5 });
+    await post({ aspect_type: 'create', object_id: 4004, event_time: T0 + 5 });
     await drain();
-    await post({ aspect_type: 'update', object_id: 4004, event_time: 6 });
+    await post({ aspect_type: 'update', object_id: 4004, event_time: T0 + 6 });
     await drain();
     expect(h.synced).toBe(2);
   });
