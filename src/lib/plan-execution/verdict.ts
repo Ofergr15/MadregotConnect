@@ -207,7 +207,7 @@ export interface ExecutionVerdict {
    * see `plan-execution/ran-lane.ts`. Absent from callers that don't resolve it.
    */
   matchedLane?: 1 | 2 | 3;
-  laneSource?: 'manual' | 'watch' | 'pace' | 'assigned';
+  laneSource?: 'manual' | 'attendance' | 'watch' | 'assigned';
   metrics: ExecutionMetric[];
   reps: ExecutionRep[];
   repsAligned: boolean;

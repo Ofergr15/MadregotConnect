@@ -4,9 +4,9 @@ import { activityLocalDateStr, planWeekStartOf } from '@/lib/utils';
 import { assessWorkout, buildPlannedWorkout } from '@/lib/academy/adherence';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
-import { loadPackLanes } from '@/lib/groups/pack-history';
+import { loadAttendedLanes, loadPackLanes } from '@/lib/groups/pack-history';
 import { pickPlanned, resolveRanLane, retargetToLane } from '@/lib/plan-execution/ran-lane';
-import { readRunMatches } from '@/lib/plan-execution/run-match';
+import { readRunMatches, saveResolvedLane } from '@/lib/plan-execution/run-match';
 import { buildVerdict, toExecutionSummary, type ExecutionSummary } from '@/lib/plan-execution/verdict';
 import { resolveDominantPace } from '@/lib/plan-execution/dominant-pace';
 import { satelliteIds } from '@/lib/plan-execution/satellite';
@@ -200,6 +200,10 @@ export async function loadFeedPlanVerdicts(
       return cached;
     };
 
+    const attendedOn = await loadAttendedLanes(
+      supabase, runs.map(r => r.athlete_id), runs.map(r => activityLocalDateStr(r.start_time)),
+    ).catch(() => () => null);
+    const laneWrites: Promise<void>[] = [];
     // Warm-ups and cool-downs saved on their own are part of a session, never a try at it.
     const satellites = await satelliteIds(supabase, runs).catch(() => new Set<string>());
     for (const row of runs) {
@@ -219,16 +223,21 @@ export async function loadFeedPlanVerdicts(
       const workout = executed.get(row.id);
       // The pack this run was run with (ran-lane.ts) — the same resolution the run
       // detail makes, so the ring and the detail grade one lane.
+      // The pack this run was run with (ran-lane.ts): moved off the assigned pack only
+      // on evidence, never on pace, and read back from the match row (227) when another
+      // surface already resolved it — so the ring and the detail grade ONE lane (Q27-3).
       const ran = resolveRanLane({
         assigned,
         override: match?.ranLane ?? null,
+        stored: match ? { lane: match.resolvedLane, source: match.laneSource } : null,
+        attended: attendedOn(row.athlete_id, date),
         executed: workout,
-        trace: traceFromLaps(laps),
+        pushedLane: laneOn(row.athlete_id, weekStart),
         plannedFor,
-        paceSec: tolerances.paceSec,
       });
       const lane = plannedFor(ran.lane) ? ran.lane : assigned;
       const laneSource = lane === ran.lane ? ran.source : 'assigned';
+      laneWrites.push(saveResolvedLane(supabase, row.id, { lane, source: laneSource }, match));
       const planned = plannedFor(lane);
       if (!planned) continue;
 
@@ -302,6 +311,7 @@ export async function loadFeedPlanVerdicts(
       if (verdict.status !== 'graded') continue;
       out.set(row.id, toExecutionSummary(verdict));
     }
+    await Promise.allSettled(laneWrites);
   } catch (err) {
     console.error('Feed plan verdicts failed (badge omitted):', err);
   }

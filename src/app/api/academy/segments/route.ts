@@ -26,12 +26,12 @@ import { gradeWatchSteps } from '@/lib/academy/watch-steps';
 import { loadActivityStream } from '@/lib/garmin/stream-store';
 import { lapsWorthStoring, narrowLaps, normalizeStoredLaps, type StoredLap } from '@/lib/garmin/laps';
 import { narrowExecutedWorkout, type ExecutedWorkout } from '@/lib/garmin/executed-workout';
-import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
+import { loadAttendedLanes, loadPackLanes } from '@/lib/groups/pack-history';
 import { PLAN_STATUSES } from '@/lib/plans/plan-status';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 import { pickPlanned, resolveRanLane, retargetToLane, type RanLane } from '@/lib/plan-execution/ran-lane';
-import { readRunMatch } from '@/lib/plan-execution/run-match';
+import { readRunMatch, saveResolvedLane } from '@/lib/plan-execution/run-match';
 
 export const dynamic = 'force-dynamic';
 
@@ -131,7 +131,8 @@ async function handleGET(request: Request) {
     // Started here and awaited after the plan read below, so its two round trips
     // overlap that one instead of adding to the response time.
     // The pack on THAT day — a member who moved since is graded as they ran (145).
-    const lanePromise = groupNumberForAthlete(supabase, athleteId, date.slice(0, 10));
+    // Also the pack at the plan week's start: what the watch was pushed for (ran-lane.ts).
+    const lanePromise = loadPackLanes(supabase, [athleteId]);
     // The run's stored plan match, when the page names the run: which plan slot it was
     // attributed to (a run that did tomorrow's session today is graded against
     // tomorrow's), and the pack the runner said they ran with. Null before 221.
@@ -176,10 +177,14 @@ async function handleGET(request: Request) {
     // actually asked to run. An individual plan goes through it too — it's
     // single-lane, so a plain plan comes back untouched, and one that does carry
     // bracket notation resolves to this athlete's lane rather than the fastest.
-    const assignedLane = (await lanePromise) as Lane;
+    const laneOn = await lanePromise;
+    const assignedLane = laneOn(athleteId, date.slice(0, 10)) as Lane;
+    const pushedLane = laneOn(athleteId, weekStart) as Lane;
     const runMatch = await matchRead.catch(() => null);
-    // Until the run itself is read, the lane is the runner's say-so or their pack.
-    let lane: Lane = (runMatch?.ranLane as Lane | null) ?? assignedLane;
+    // Until the run itself is read, the lane is the runner's say-so, else the lane this
+    // run was already graded on (227) — which is what keeps a bands-only chart (a
+    // teammate's view) on the same lane as the owner's verdict (Q27-3) — else their pack.
+    let lane: Lane = (runMatch?.ranLane as Lane | null) ?? (runMatch?.resolvedLane as Lane | null) ?? assignedLane;
     let planBlob: unknown = null;
     if (!indiv.error && indiv.data && indiv.data.length) {
       planBlob = indiv.data[0].parsed_workouts;
@@ -362,13 +367,17 @@ async function handleGET(request: Request) {
       if (!laneCache.has(l)) laneCache.set(l, planBlob ? pickPlanned(laneWorkouts(planBlob, l), dayOfWeek, workoutKey) : undefined);
       return laneCache.get(l);
     };
+    // The stored match belongs to this run only when the page named it.
+    const ownMatch = byActivity === activity.id ? runMatch : null;
+    const attendedOn = await loadAttendedLanes(supabase, [athleteId], [date.slice(0, 10)]);
     const ranLane: RanLane = resolveRanLane({
       assigned: assignedLane,
-      override: runMatch?.ranLane ?? null,
+      override: ownMatch?.ranLane ?? null,
+      stored: ownMatch ? { lane: ownMatch.resolvedLane, source: ownMatch.laneSource } : null,
+      attended: attendedOn(athleteId, date.slice(0, 10)),
       executed: executedWorkout,
-      trace,
+      pushedLane,
       plannedFor,
-      paceSec,
     });
     if (ranLane.lane !== lane) {
       const relaned = plannedFor(ranLane.lane);
@@ -380,6 +389,8 @@ async function handleGET(request: Request) {
     }
     const matchedLane = lane;
     const laneSource = lane === ranLane.lane ? ranLane.source : 'assigned';
+    // Saved for the feed ring and the bands-only chart to read back (227, one verdict).
+    if (!caller.viewingAsBy) await saveResolvedLane(supabase, activity.id, { lane, source: laneSource }, ownMatch);
 
     // 4) Flatten + match + grade.
     const flat = flattenPlannedSteps(planned);

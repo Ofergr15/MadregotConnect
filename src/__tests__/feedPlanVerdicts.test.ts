@@ -183,9 +183,10 @@ describe('loadFeedPlanVerdicts', () => {
     await load(page);
 
     // athletes + groups + pack history + individual plans + shared plans + the
-    // executed workouts + the plan matches (slot and ran-with pack). Not 12 of anything.
+    // executed workouts + the plan matches (slot and ran-with pack) + the leaders'
+    // attendance marks and their packs (Q27-2). Not 12 of anything.
     expect(ops.map(o => o.table).sort()).toEqual(
-      ['activity_plan_matches', 'athlete_activities', 'athlete_pack_history', 'athletes', 'groups', 'weekly_plans', 'weekly_plans'],
+      ['activity_plan_matches', 'athlete_activities', 'athlete_pack_history', 'athletes', 'groups', 'groups', 'pack_attendance', 'weekly_plans', 'weekly_plans'],
     );
     // And that fifth one asks for the whole page at once, not a row at a time.
     const executed = ops.find(o => o.table === 'athlete_activities')!;

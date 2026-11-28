@@ -42,12 +42,12 @@ describe('ran-with-pack override', () => {
     as({ athleteId: 'owner' });
     const res = await call({ lane: 3 });
     expect(res.status).toBe(200);
-    expect(updates).toEqual([{ ran_lane: 3 }]);
+    expect(updates).toEqual([{ ran_lane: 3, resolved_lane: 3, lane_source: 'manual' }]);
   });
   it('staff may set it; null clears it', async () => {
     as({ athleteId: 'coach', isStaff: true });
     expect((await call({ lane: null })).status).toBe(200);
-    expect(updates).toEqual([{ ran_lane: null }]);
+    expect(updates).toEqual([{ ran_lane: null, resolved_lane: null, lane_source: null }]);
   });
   it('a bad lane is a 400', async () => {
     as({ athleteId: 'owner' });
