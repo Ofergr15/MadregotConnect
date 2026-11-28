@@ -7,6 +7,7 @@ import type { StoredPaceProfile } from '@/lib/garmin/types';
 import { serializeWatchWorkout, type WatchWorkoutV1 } from '../serialize';
 import { hasWatchSchema, WATCH_TABLES } from '../schema';
 import type { Db, DeliverWeekInput, DeliverWeekResult, WatchProviderAdapter, WatchTargetAthlete } from '../types';
+import { planDayKey } from '@/lib/plans/workout-parsing';
 
 /**
  * Apple Watch delivery: write the week for the athlete's iPhone to collect.
@@ -37,11 +38,9 @@ interface LiveRow {
   workout_data: Partial<WatchWorkoutV1> | null;
 }
 
-/** Same calendar math as lib/garmin/push-week.ts, so both providers land on the same date. */
+/** Same calendar math as lib/garmin/push-week.ts (planDayKey), so both providers land on the same date. */
 export function workoutDate(weekStartDate: string, dayOfWeek: number): string {
-  const startDate = new Date(weekStartDate);
-  startDate.setDate(startDate.getDate() + dayOfWeek);
-  return startDate.toISOString().split('T')[0];
+  return planDayKey(weekStartDate, dayOfWeek);
 }
 
 /**
