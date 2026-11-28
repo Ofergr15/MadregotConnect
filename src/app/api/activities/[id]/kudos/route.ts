@@ -5,6 +5,8 @@ import { notifyFeedInteraction } from '@/lib/feed/notify';
 import { LIKER_SELECT, projectLike } from '@/lib/feed/project';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { ACTION_TOKEN_HEADER, kudosScope, verifyActionToken } from '@/lib/auth/action-token';
+import { hiddenInteractorsFor, hiddenCountsByItem, visibleCount, withoutHiddenInteractors } from '@/lib/feed/test-account-filter';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,18 +40,33 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const item = await feedItemForActivity(supabase, id);
     if (!item) return NextResponse.json(EMPTY);
 
-    const [{ data: counter }, { data, error }] = await Promise.all([
+    // The same numbers the feed card shows for this run (lib/feed/context.ts): a test
+    // account's kudos is hidden from other members and the total drops it too, so the
+    // run detail never says "4" where the card says "3". This route has no verified
+    // viewer (the service worker calls it), so the viewer is the athleteId asked
+    // about, as a non-staff member — the feed's own view for every member.
+    const viewer = { athleteId: athleteId || null, isStaff: false };
+    const hidden = await hiddenInteractorsFor(supabase as never, viewer);
+    const [{ data: counter }, { data, error }, hiddenCounts, mine] = await Promise.all([
       supabase.from('feed_items').select('like_count').eq('id', item.id).maybeSingle(),
       supabase
         .from('feed_likes')
         .select(LIKER_SELECT)
         .eq('feed_item_id', item.id)
         .order('created_at', { ascending: false })
-        .limit(GIVER_PREVIEW),
+        .limit(GIVER_PREVIEW + hidden.size),
+      hiddenCountsByItem(supabase as never, 'feed_likes', [item.id], hidden),
+      // "Did I already give it" is its own lookup, not a search of the capped giver
+      // list: on a run with more than GIVER_PREVIEW kudos an early giver fell off the
+      // list and their 👍 rendered un-given — the next tap was a DELETE.
+      athleteId
+        ? supabase.from('feed_likes').select('id').eq('feed_item_id', item.id).eq('athlete_id', athleteId).maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
     if (error) throw error;
 
-    const likers = (data || [])
+    const likers = withoutHiddenInteractors(data || [], hidden)
+      .slice(0, GIVER_PREVIEW)
       .map(projectLike)
       .filter((projected) => projected !== null)
       .map((projected) => projected.liker);
@@ -57,13 +74,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({
       // The true total, from the counter the trigger maintains — not the length
       // of the capped preview, which is what this used to report and which
-      // undercounted any run with more than 20 kudos.
-      count: counter?.like_count ?? likers.length,
-      givenByMe: !!athleteId && likers.some((liker) => liker.athleteId === athleteId),
+      // undercounted any run with more than 20 kudos — minus the hidden rows.
+      count: counter ? visibleCount(counter.like_count, hiddenCounts.get(item.id)) : likers.length,
+      givenByMe: !!athleteId && (!!mine?.data || likers.some((liker) => liker.athleteId === athleteId)),
       givers: likers.map((liker) => ({ name: liker.name, avatarUrl: liker.avatarUrl })),
     });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message, ...EMPTY }, { status: 500 });
+    console.error('GET kudos error:', err);
+    return NextResponse.json({ ...internalErrorBody(), ...EMPTY }, { status: 500 });
   }
 }
 
@@ -128,7 +146,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     return NextResponse.json({ given: true });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('kudos error:', err);
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }
 
@@ -162,6 +181,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
     return NextResponse.json({ given: false });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('kudos error:', err);
+    return NextResponse.json(internalErrorBody(), { status: 500 });
   }
 }
