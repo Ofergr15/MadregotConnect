@@ -58,6 +58,81 @@ const dowOf = (weekStart: string, date: string) =>
   Math.round((Date.parse(`${date}T12:00:00Z`) - Date.parse(`${weekStart}T12:00:00Z`)) / 86_400_000);
 
 /**
+ * What a move would do on the watch, read-only (task 152's effect summary, and the first
+ * half of the watch check below). `reason` says why nothing is re-sent when nothing is.
+ */
+export interface WatchEffect {
+  weekStart: string;
+  /** The plan variant (group1..3) the watch's paces came from, before and after. */
+  fromKey: PaceGroupKey | null;
+  toKey: PaceGroupKey | null;
+  /** Days still ahead this plan week (0 = Sunday) already on the watch. */
+  onWatchDays: number[];
+  /** Of those, the days whose workout is a different workout in the new pack — re-sent. */
+  resendDays: number[];
+  reason: 'no_plan' | 'flat_plan' | 'nothing_on_watch' | 'same_variant' | 'same_workouts' | 'resend';
+}
+
+type Loaded = {
+  effect: WatchEffect;
+  plan?: { id: string };
+  stored?: Record<PaceGroupKey, { workouts?: ParsedWorkout[] }>;
+  athlete?: { id: string; name: string | null; email?: string | null; garmin_auth?: unknown };
+};
+
+async function loadWatchEffect(
+  supabase: SupabaseServer,
+  p: { athleteId: string; fromGroupId: string | null; toGroupId: string | null; fromDate: string },
+): Promise<Loaded> {
+  const weekStart = planWeekStartOf(p.fromDate);
+  const fromDow = dowOf(weekStart, p.fromDate);
+  const base: WatchEffect = { weekStart, fromKey: null, toKey: null, onWatchDays: [], resendDays: [], reason: 'no_plan' };
+  const [{ data: plan }, { data: groups }, { data: athlete }, { data: delivered }] = await Promise.all([
+    supabase.from('weekly_plans').select('id, parsed_workouts')
+      .eq('coach_id', COACH_ID).eq('week_start_date', weekStart).is('athlete_id', null)
+      .in('status', ['pushed', 'partial']).order('status', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('groups').select('id, pace_profile').eq('coach_id', COACH_ID),
+    supabase.from('athletes').select('id, name, email, garmin_auth').eq('id', p.athleteId).maybeSingle(),
+    supabase.from('workout_deliveries').select('workout_date')
+      .eq('athlete_id', p.athleteId).eq('status', 'success')
+      .gte('workout_date', p.fromDate).lte('workout_date', addDaysToDateStr(weekStart, 6)),
+  ]);
+  const stored = plan?.parsed_workouts as Record<PaceGroupKey, { workouts?: ParsedWorkout[] }> | null;
+  if (!plan) return { effect: base };
+  if (!stored || !('group1' in stored)) return { effect: { ...base, reason: 'flat_plan' } };
+  const onWatchDays = [...new Set((delivered || []).map((d: { workout_date: string }) => dowOf(weekStart, d.workout_date)))].sort((a, b) => a - b);
+  const sources = (groups || []).map((g: { id: string; pace_profile: { marathonGoal?: number | null } | null }) => ({
+    id: g.id, marathonGoal: g.pace_profile?.marathonGoal ?? null,
+  }));
+  const fromKey = paceGroupKeyFor(sources, p.fromGroupId);
+  const toKey = paceGroupKeyFor(sources, p.toGroupId);
+  const effect: WatchEffect = { ...base, fromKey, toKey, onWatchDays, reason: 'nothing_on_watch' };
+  // Not sent to this runner this week: nothing on the watch to fix.
+  if (!athlete || onWatchDays.length === 0) return { effect };
+  if (fromKey === toKey) return { effect: { ...effect, reason: 'same_variant' } };
+  const days = daysWithDifferentShape(stored[fromKey]?.workouts || [], stored[toKey]?.workouts || [], fromDow);
+  // Only days that are on the watch now; a day never sent is the coach's to send.
+  const resendDays = days.filter((d) => onWatchDays.includes(d));
+  return {
+    effect: { ...effect, resendDays, reason: resendDays.length ? 'resend' : 'same_workouts' },
+    plan, stored, athlete,
+  };
+}
+
+/** The effect summary alone: nothing is written and nothing is sent. Never throws (null on a failed read). */
+export async function previewWatchEffect(
+  supabase: SupabaseServer,
+  p: { athleteId: string; fromGroupId: string | null; toGroupId: string | null; fromDate: string },
+): Promise<WatchEffect | null> {
+  try {
+    return (await loadWatchEffect(supabase, p)).effect;
+  } catch (err) {
+    console.error('pack-move: watch preview failed', err);
+    return null;
+  }
+}
+
+/**
  * The watch check. Returns the days re-sent (usually none). Never throws.
  */
 export async function resendIfShapeChanged(
@@ -65,45 +140,22 @@ export async function resendIfShapeChanged(
   p: { athleteId: string; fromGroupId: string | null; toGroupId: string | null; fromDate: string },
 ): Promise<number[]> {
   try {
-    const weekStart = planWeekStartOf(p.fromDate);
-    const fromDow = dowOf(weekStart, p.fromDate);
-    const [{ data: plan }, { data: groups }, { data: athlete }, { data: delivered }] = await Promise.all([
-      supabase.from('weekly_plans').select('id, parsed_workouts')
-        .eq('coach_id', COACH_ID).eq('week_start_date', weekStart).is('athlete_id', null)
-        .in('status', ['pushed', 'partial']).order('status', { ascending: false }).limit(1).maybeSingle(),
-      supabase.from('groups').select('id, pace_profile').eq('coach_id', COACH_ID),
-      supabase.from('athletes').select('id, name, email, garmin_auth').eq('id', p.athleteId).maybeSingle(),
-      supabase.from('workout_deliveries').select('workout_date')
-        .eq('athlete_id', p.athleteId).eq('status', 'success')
-        .gte('workout_date', p.fromDate).lte('workout_date', addDaysToDateStr(weekStart, 6)),
-    ]);
-    const stored = plan?.parsed_workouts as Record<PaceGroupKey, { workouts?: ParsedWorkout[] }> | null;
-    // Not sent to this runner this week, or a flat plan: nothing on the watch to fix.
-    if (!plan || !stored || !('group1' in stored) || !athlete || !(delivered || []).length) return [];
-    const sources = (groups || []).map((g: { id: string; pace_profile: { marathonGoal?: number | null } | null }) => ({
-      id: g.id, marathonGoal: g.pace_profile?.marathonGoal ?? null,
-    }));
-    const oldKey = paceGroupKeyFor(sources, p.fromGroupId);
-    const newKey = paceGroupKeyFor(sources, p.toGroupId);
-    if (oldKey === newKey) return [];
-    const newCopy = stored[newKey]?.workouts || [];
-    const days = daysWithDifferentShape(stored[oldKey]?.workouts || [], newCopy, fromDow);
-    // Only days that are on the watch now; a day never sent is the coach's to send.
-    const onWatch = new Set((delivered || []).map((d: { workout_date: string }) => dowOf(weekStart, d.workout_date)));
-    const resend = days.filter((d) => onWatch.has(d));
-    if (resend.length === 0) return [];
+    const { effect, plan, stored, athlete } = await loadWatchEffect(supabase, p);
+    const resend = effect.resendDays;
+    if (resend.length === 0 || !plan || !stored || !athlete || !effect.toKey) return [];
+    const newCopy = stored[effect.toKey]?.workouts || [];
 
     const plannedWorkouts = withGroupPaces(
       normalizeWorkoutParts({ workouts: newCopy.filter((w) => resend.includes(w.dayOfWeek)) }).workouts,
       stored,
     );
     const target = { id: athlete.id, name: athlete.name || '', garmin_auth: athlete.garmin_auth };
-    const provider = resolveWatchProvider(target, await appleCandidates(supabase, [target]));
+    const provider = resolveWatchProvider(target as never, await appleCandidates(supabase, [target as never]));
     await deliverWeek(provider, {
       supabase,
       athlete: athlete as never,
       plannedWorkouts,
-      weekStartDate: weekStart,
+      weekStartDate: effect.weekStart,
       planId: plan.id,
       // A club week never carries pace alarms (see /api/my-watch).
       paceTarget: false,
@@ -132,10 +184,12 @@ export async function afterPackMove(
     fromDate: string;
     by: 'coach' | 'self';
     byAthleteId?: string | null;
+    /** The history row is already written (the atomic move, migration 326). */
+    historyWritten?: boolean;
   },
 ): Promise<void> {
   if (p.fromGroupId === p.toGroupId) return;
-  await recordPackChange(supabase, p);
+  if (!p.historyWritten) await recordPackChange(supabase, p);
   const resent = await resendIfShapeChanged(supabase, p);
   if (p.by !== 'coach' || !p.toGroupId) return;
   try {
