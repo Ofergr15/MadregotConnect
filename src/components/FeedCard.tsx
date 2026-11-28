@@ -26,12 +26,9 @@ import type { FeedComment } from '@/lib/feed/comments';
 import { AthleteLink } from '@/components/AthleteLink';
 import { PrBadge, usePrRuns } from '@/components/PrBadge';
 import { displayRunName } from '@/lib/activities/run-name';
+import { formatPace } from '@/lib/pace/format';
 
-export function formatPace(secPerKm: number): string {
-  const min = Math.floor(secPerKm / 60);
-  const sec = Math.round(secPerKm % 60);
-  return `${min}:${String(sec).padStart(2, '0')}`;
-}
+export { formatPace };
 
 export function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);

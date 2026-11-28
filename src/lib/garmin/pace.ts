@@ -1,4 +1,5 @@
 import { PaceProfile, StoredPaceProfile } from './types';
+import { formatPace } from '@/lib/pace/format';
 
 export function paceToMetersPerSecond(secondsPerKm: number): number {
   return 1000 / secondsPerKm;
@@ -17,11 +18,7 @@ export function parsePaceString(pace: string): number {
   return parseInt(pace);
 }
 
-export function formatPace(secondsPerKm: number): string {
-  const minutes = Math.floor(secondsPerKm / 60);
-  const seconds = Math.round(secondsPerKm % 60);
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-}
+export { formatPace };
 
 export interface GroupPace {
   min: number;

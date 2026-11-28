@@ -1,4 +1,5 @@
 import type { StravaLap } from '@/lib/strava/client';
+import { formatPace as formatMmSs } from '@/lib/pace/format';
 
 export type RunActivity = {
   id: string;
@@ -25,8 +26,7 @@ export function paceSeconds(distanceM: number, durationS: number): number | null
 
 export function formatPace(secondsPerKm: number | null | undefined): string | null {
   if (!secondsPerKm || !Number.isFinite(secondsPerKm)) return null;
-  const rounded = Math.round(secondsPerKm);
-  return `${Math.floor(rounded / 60)}:${String(rounded % 60).padStart(2, '0')}/km`;
+  return `${formatMmSs(secondsPerKm)}/km`;
 }
 
 export function normalizedLaps(laps: StravaLap[] | null | undefined) {

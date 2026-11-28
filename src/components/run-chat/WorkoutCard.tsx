@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { formatPace } from '@/lib/pace/format';
 
 interface Segment {
   kind: 'warmup' | 'interval' | 'recovery' | 'cooldown' | 'easy' | 'rest' | 'repeat';
@@ -34,12 +35,6 @@ interface Props {
   plannedText: string | null;
   plannedWorkout: PlannedWorkout | null;
   laps?: ActualLap[] | null;
-}
-
-function formatPace(secPerKm: number): string {
-  const m = Math.floor(secPerKm / 60);
-  const s = Math.round(secPerKm % 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 function formatDist(m: number): string {

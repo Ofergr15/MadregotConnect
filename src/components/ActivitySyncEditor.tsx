@@ -18,6 +18,7 @@ import { Sheet, Spinner } from '@/components/ui';
 import { RouteMinimap } from '@/components/RouteMinimap';
 import { ShareSheet } from '@/components/ShareSheet';
 import type { FeedItem, FeedMedia } from '@/lib/feed/project';
+import { formatPace } from '@/lib/pace/format';
 
 interface PlanMatch { pct: number; actualKm: number; targetKm: number; type: string }
 
@@ -51,12 +52,6 @@ export interface SyncedActivity {
   average_hr?: number | null;
   calories?: number | null;
   elevation_gain?: number | null;
-}
-
-function formatPace(secPerKm: number): string {
-  const min = Math.floor(secPerKm / 60);
-  const sec = Math.round(secPerKm % 60);
-  return `${min}:${String(sec).padStart(2, '0')}`;
 }
 
 function formatDuration(seconds: number): string {

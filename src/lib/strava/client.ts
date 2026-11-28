@@ -2,6 +2,7 @@
  * Strava API client — ported/adapted from RunGPT `lib/strava.ts`,
  * plus streams → GPX / gps_points for run-chat actuals.
  */
+import { formatPace as formatMmSs } from '@/lib/pace/format';
 
 const STRAVA_API_BASE = 'https://www.strava.com/api/v3';
 
@@ -321,10 +322,7 @@ export function stravaAuthEmail(stravaAthleteId: number): string {
 
 export function formatPace(metersPerSecond: number): string {
   if (!metersPerSecond) return '—';
-  // Round the total first; rounding the remainder alone can yield "3:60".
-  const secondsPerKm = Math.round(1000 / metersPerSecond);
-  const minutes = Math.floor(secondsPerKm / 60);
-  return `${minutes}:${(secondsPerKm % 60).toString().padStart(2, '0')}`;
+  return formatMmSs(1000 / metersPerSecond);
 }
 
 export function formatDistance(meters: number): string {
