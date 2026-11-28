@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server';
 import { isStravaStrength } from '@/lib/activities/kinds';
 import { syncStravaStrength } from '@/lib/activities/strength-sync';
 import { createServerClient } from '@/lib/supabase/server';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 import { decrypt } from '@/lib/encryption';
 import { COACH_ID } from '@/lib/constants';
 import { StravaClient, type StravaTokens } from '@/lib/strava/client';
@@ -223,22 +224,26 @@ export async function runStravaSyncRequest(request: Request) {
 
         type ExistingRow = { id: string; strava_activity_id: number | null; source: string | null; laps: unknown; strava_gpx_url?: string | null };
         let hasGpxColumn = true;
-        let { data: existing, error: existingError } = await supabase
+        // Every stored row, paged (task 194): past PostgREST's silent 1000-row cap
+        // the older runs were missing from existingByStrava, so each sync treated
+        // them as new and re-ran their enrichment.
+        const readExisting = (cols: string) => fetchAllRows<ExistingRow>((from, to) => supabase
           .from('athlete_activities')
-          .select('id, strava_activity_id, source, start_time, laps, strava_gpx_url')
+          .select(cols)
           .eq('athlete_id', athlete.id)
-          .returns<ExistingRow[]>();
-        if (existingError && isMissingColumnError(existingError)) {
+          .order('id')
+          .range(from, to)
+          .returns<ExistingRow[]>());
+        let existing: ExistingRow[];
+        try {
+          existing = await readExisting('id, strava_activity_id, source, start_time, laps, strava_gpx_url');
+        } catch (existingError) {
+          if (!isMissingColumnError(existingError as { code?: string; message?: string })) throw existingError;
           // Pre-migration-051 database. Without this fallback the lookup came
           // back empty, every run looked new, and enrichment never ran.
           hasGpxColumn = false;
-          ({ data: existing, error: existingError } = await supabase
-            .from('athlete_activities')
-            .select('id, strava_activity_id, source, start_time, laps')
-            .eq('athlete_id', athlete.id)
-            .returns<ExistingRow[]>());
+          existing = await readExisting('id, strava_activity_id, source, start_time, laps');
         }
-        if (existingError) throw existingError;
 
         const existingByStrava = new Map<number, { id: string; needsEnrich: boolean }>();
         for (const e of existing || []) {

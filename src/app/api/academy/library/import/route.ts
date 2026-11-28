@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { missingKinds, type KindChoice } from '@/lib/academy/kind-choice';
 import type { LibraryKind } from '@/lib/academy/library';
 import { createServerClient } from '@/lib/supabase/server';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 import { COACH_ID } from '@/lib/constants';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isMissingColumn, isMissingTable, withoutColumns } from '@/lib/supabase/schema-drift';
@@ -38,12 +39,15 @@ export const maxDuration = 60;
  */
 
 async function build(supabase: ReturnType<typeof createServerClient>) {
-  const { data: plans, error } = await supabase
+  // Paged (task 194): ascending, so past the 1000-row cap it was the NEWEST weeks
+  // that silently never reached the import.
+  const plans = await fetchAllRows<Record<string, unknown>>((from, to) => supabase
     .from('weekly_plans')
     .select('id, athlete_id, week_start_date, parsed_workouts')
     .eq('coach_id', COACH_ID)
-    .order('week_start_date', { ascending: true });
-  if (error) throw error;
+    .order('week_start_date', { ascending: true })
+    .order('id')
+    .range(from, to));
 
   const rows: ImportPlanRow[] = (plans || []).map((p: any) => ({
     id: String(p.id),

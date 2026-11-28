@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 import { WEEKLY_PLANS_TAG } from '@/lib/plans/cache';
 import { COACH_ID } from '@/lib/constants';
 import { requireMember } from '@/lib/auth/self-or-staff';
@@ -18,12 +19,18 @@ export async function GET(request: Request) {
     if (denied) return denied;
 
     const supabase = createServerClient({ revalidateSeconds: 300, cacheTags: [WEEKLY_PLANS_TAG] });
-    const { data } = await supabase
+    // Paged (task 194): one row per club week AND per academy trainee week, so the
+    // coach's rows pass 1000 — and past the cap the OLDEST weeks vanished from the picker.
+    const data = await fetchAllRows<{ week_start_date: string }>((from, to) => supabase
       .from('weekly_plans')
       .select('week_start_date')
       .eq('coach_id', COACH_ID)
-      .order('week_start_date', { ascending: false });
-    const weekStarts = [...new Set((data || []).map((r: { week_start_date: string }) => r.week_start_date))];
+      .order('week_start_date', { ascending: false })
+      .order('id')
+      .range(from, to))
+      // As before: a failed read is an empty picker, not a 500.
+      .catch((err) => { console.error('Plan weeks read failed:', err); return [] as Array<{ week_start_date: string }>; });
+    const weekStarts = [...new Set(data.map((r) => r.week_start_date))];
     return NextResponse.json({ weekStarts });
   } catch (error) {
     console.error('Plan weeks error:', error);

@@ -40,10 +40,12 @@ function builder(table: string) {
     if (order) hit = [...hit].sort((a, b) => (a[order[1]] < b[order[1]] ? -1 : 1) * (order[2]?.ascending === false ? -1 : 1));
     const limit = ops.find(([m]) => m === 'limit') as [string, number] | undefined;
     if (limit) hit = hit.slice(0, limit[1]);
+    const range = ops.find(([m]) => m === 'range') as [string, number, number] | undefined;
+    if (range) hit = hit.slice(range[1], range[2] + 1);
     return { data: hit, error: null };
   };
   const b: any = {};
-  for (const m of ['select', 'eq', 'in', 'is', 'not', 'or', 'gte', 'lte', 'order', 'limit']) {
+  for (const m of ['select', 'eq', 'in', 'is', 'not', 'or', 'gte', 'lte', 'order', 'limit', 'range']) {
     b[m] = (...args: unknown[]) => { ops.push([m, ...args]); return b; };
   }
   b.maybeSingle = async () => ({ data: run().data[0] ?? null, error: null });

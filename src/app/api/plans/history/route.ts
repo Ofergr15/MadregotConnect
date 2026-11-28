@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { fetchAllRows } from '@/lib/supabase/paginate';
+
+/** Plan ids per `.in()` read, to keep the request URL short. */
+const PLAN_ID_CHUNK = 150;
 import { requireStaff } from '@/lib/auth/self-or-staff';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
 
@@ -141,11 +145,20 @@ export async function GET(req: NextRequest) {
     // is no longer in the response at all, so fetching it from Postgres too was
     // pure waste. `parsed_workouts` IS still selected — `workout_count` below is
     // derived from it — but it stays server-side.
-    const { data: plans, error: plansError } = await supabase
-      .from('weekly_plans')
-      .select('id, week_start_date, status, created_at, parsed_workouts')
-      .eq('coach_id', COACH_ID)
-      .order('week_start_date', { ascending: false });
+    // Paged (task 194): past 1000 rows the cap silently dropped the oldest weeks.
+    let plans: Array<{ id: string; week_start_date: string; status: string | null; created_at: string; parsed_workouts: unknown }> | null = null;
+    let plansError: unknown = null;
+    try {
+      plans = await fetchAllRows((from, to) => supabase
+        .from('weekly_plans')
+        .select('id, week_start_date, status, created_at, parsed_workouts')
+        .eq('coach_id', COACH_ID)
+        .order('week_start_date', { ascending: false })
+        .order('id')
+        .range(from, to));
+    } catch (err) {
+      plansError = err;
+    }
 
     if (plansError) {
       return NextResponse.json(
@@ -159,11 +172,25 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch delivery stats for all plans
+    // One row per athlete per workout day per plan, so this passes 1000 within a
+    // couple of months — and the cap silently zeroed the stats of whichever plans
+    // fell outside it (task 194). Chunked ids (URL length) and paged rows.
     const planIds = plans.map((p) => p.id);
-    const { data: deliveries, error: deliveriesError } = await supabase
-      .from('workout_deliveries')
-      .select('plan_id, status')
-      .in('plan_id', planIds);
+    let deliveries: Array<{ plan_id: string; status: string | null }> = [];
+    let deliveriesError: unknown = null;
+    try {
+      for (let i = 0; i < planIds.length; i += PLAN_ID_CHUNK) {
+        const chunk = planIds.slice(i, i + PLAN_ID_CHUNK);
+        deliveries = deliveries.concat(await fetchAllRows<{ plan_id: string; status: string | null }>((from, to) => supabase
+          .from('workout_deliveries')
+          .select('plan_id, status')
+          .in('plan_id', chunk)
+          .order('id')
+          .range(from, to)));
+      }
+    } catch (err) {
+      deliveriesError = err;
+    }
 
     if (deliveriesError) {
       return NextResponse.json(

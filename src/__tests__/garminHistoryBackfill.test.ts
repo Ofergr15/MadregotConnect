@@ -101,11 +101,15 @@ function fakeSupabase() {
         return { data: inserted.map((r) => ({ id: `row-${r.garmin_activity_id}` })), error: null };
       }
       // `select('start_time')…limit(1)` — the oldest-stored read at the end.
-      return { data: storedIds.map((garmin_activity_id) => ({ garmin_activity_id })), error: null };
+      // Like PostgREST: a read without `.range()` gets at most 1000 rows (task 194).
+      const all = storedIds.map((garmin_activity_id) => ({ garmin_activity_id }));
+      return { data: rng ? all.slice(rng[0], rng[1] + 1) : all.slice(0, 1000), error: null };
     };
+    let rng: [number, number] | null = null;
     for (const method of ['select', 'eq', 'not', 'order', 'limit', 'gt', 'is']) {
       self[method] = () => self;
     }
+    self.range = (from: number, to: number) => { rng = [from, to]; return self; };
     self.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result()).then(resolve);
     return self;
   };
@@ -186,6 +190,16 @@ describe('backfillGarminHistory', () => {
     // Short page = Garmin has nothing older. Nothing left to resume.
     expect(result.athletes[0].nextPage).toBeNull();
     expect(result.more).toBe(false);
+  });
+
+  // Task 194: the dedupe set is the athlete's WHOLE table. A heavy athlete has
+  // 3,000+ rows; read without paging, only the first 1000 came back and a run
+  // stored beyond them looked new on every walk.
+  it('a run stored beyond the first 1000 rows is not re-imported', async () => {
+    storedIds = Array.from({ length: 1500 }, (_, i) => 10_000 + i);
+    pages.set(90, [listRow(11_400), listRow(11_499), listRow(20_000)]);
+    await run({ maxPages: 1 });
+    expect(upserted.flat().map((r) => r.garmin_activity_id)).toEqual([20_000]);
   });
 
   // Importing a March run is a correction to the record, not news. An athlete

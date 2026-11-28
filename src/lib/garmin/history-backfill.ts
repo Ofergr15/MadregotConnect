@@ -5,6 +5,7 @@ import { matchesStoredActivity, type StoredActivity } from '@/lib/activity-dedup
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
 import { isMissingColumn, withoutColumns } from '@/lib/supabase/schema-drift';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 import type { GarminActivity } from './types';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
@@ -195,11 +196,23 @@ async function backfillAthlete(
   // saw only a dead request with no error in it. An athlete's whole activity
   // table is a few hundred narrow rows; reading it once costs one round trip and
   // removes all of them.
-  const { data: existingRows, error: existingError } = await supabase
-    .from('athlete_activities')
-    .select('garmin_activity_id, start_time, distance, duration')
-    .eq('athlete_id', athlete.id);
-  if (existingError) return { ...base, error: existingError.message };
+  //
+  // Paged (task 194): "a few hundred" stopped being true — the heaviest athletes
+  // hold 3,000+ rows, and PostgREST's silent 1000-row cap dropped the rest from both
+  // dedupe sets, so a history walk re-offered runs it already had and missed
+  // cross-source twins older than the first thousand.
+  type ExistingRow = { garmin_activity_id: number | null; start_time: string | null; distance: number | null; duration: number | null };
+  let existingRows: ExistingRow[];
+  try {
+    existingRows = await fetchAllRows<ExistingRow>((from, to) => supabase
+      .from('athlete_activities')
+      .select('garmin_activity_id, start_time, distance, duration')
+      .eq('athlete_id', athlete.id)
+      .order('id')
+      .range(from, to));
+  } catch (existingError) {
+    return { ...base, error: (existingError as { message?: string })?.message ?? String(existingError) };
+  }
   const existingIds = new Set(
     (existingRows || []).map((r: { garmin_activity_id: number | null }) => r.garmin_activity_id),
   );
