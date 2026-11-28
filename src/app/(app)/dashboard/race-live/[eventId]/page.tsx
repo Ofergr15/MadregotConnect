@@ -10,7 +10,7 @@ import { ageLabel, boardPhase, resultsOrder, viewerLine, type ViewerRunnerInput 
 
 // Live tracking viewer (web, night task 61). Reads the same board as the native app
 // (GET /api/race-live/[eventId] — member-gated, race_live flag, opted-out runners absent)
-// and degrades row by row: no GPS → last split; a position older than 2 min is shown
+// and degrades row by row: no GPS → last split; a position older than 3 min is shown
 // as stale with its age instead of pretending to be live (lib/race-live/viewer.ts).
 
 interface BoardRunner extends ViewerRunnerInput {
