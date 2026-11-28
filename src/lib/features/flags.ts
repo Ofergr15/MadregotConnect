@@ -24,6 +24,8 @@ export const FEATURES = {
   feedback_pain: { label: 'משוב ודיווח כאב', defaultEnabled: false },
   /** שיאים tab: weekly board, champions, squad comparison (design/records-prototype). */
   records_tab: { label: 'לשונית שיאים', defaultEnabled: false },
+  /** A feed card ("🏆 שיא אישי חדש ב־5 ק״מ") when a sync breaks a PR — no time on it (lib/prs/new-record-alert.ts). */
+  personal_record_feed: { label: 'כרטיס שיא אישי בפיד', defaultEnabled: false },
   /** Native השבוע in the בריאות grammar: structure bar, squad switch, week chart (design/week-health). */
   week_health: { label: 'השבוע — עיצוב בריאות', defaultEnabled: false },
   /** Race-day live tracking + milestone pushes (lib/race-live, migration 196). */
