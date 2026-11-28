@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { testAccountIds, hiddenTestAccountsFor } from '@/lib/athletes/test-accounts';
+import { surveyAudienceAllows } from '@/lib/survey-audience';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,13 +50,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       myResponses = ((resp || []) as Array<{ option_index: number }>).map((r) => r.option_index);
       myResponse = myResponses[0] ?? null;
 
+      // Outside the poll's audience (another group's "who is coming"), a member gets the
+      // question but not who answered what — they can't vote in it either (respond route).
+      const staffView = caller.isStaff || caller.isSuperUser;
+      const { data: viewer } = staffView ? { data: null } : await supabase.from('athletes').select('id, group_id, is_academy').eq('id', athleteId).maybeSingle();
+      const inAudience = staffView || (!!viewer && surveyAudienceAllows(survey, viewer as { id: string; group_id: string | null; is_academy: boolean | null }));
       // WHO PICKED WHAT (feedback #91: "who is coming tomorrow and in which pack —
       // it'd be nice to see the results and who voted for which pack"). A signed-in
       // caller only, never the no-session path above — any signed-in member since
       // 2026-10-16 (the super user only before): the survey goes to the whole club
       // and asks who is coming, so the answer is the club's. Active athletes only, so
       // a runner the club hasn't approved yet isn't listed (#77).
-      {
+      if (inAudience) {
         const { data: rows } = await supabase
           .from('survey_responses')
           .select('option_index, created_at, athletes!inner(id, name, status)')
