@@ -4,6 +4,7 @@ import { subscriptionsForAthletes, sendPushLocalized } from '@/lib/push';
 import { workoutDetectedCopy } from '@/lib/notifications/copy';
 import { israelNow, israelToday, getPlanWeekStart } from '@/lib/utils';
 import { cronPaused } from '@/lib/cron-pause';
+import { withCronRun } from '@/lib/cron/runs';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -160,5 +161,5 @@ async function run(request: Request) {
   return NextResponse.json({ ok: true, israel: { weekday, hour, minute }, weekStart, synced, fired });
 }
 
-export async function GET(request: Request) { return run(request); }
-export async function POST(request: Request) { return run(request); }
+export const GET = withCronRun('workout-watch', (request: Request) => run(request));
+export const POST = withCronRun('workout-watch', (request: Request) => run(request));

@@ -60,6 +60,7 @@ import { overrideFor, withOverrideCopy, type OverrideStore } from '@/lib/week-se
 import { loadOverrides } from '@/lib/week-setup/server';
 import { sendDuePolls } from '@/lib/week-setup/planned-polls-server';
 import { isSummaryTick, writePackWeekSummaries } from '@/lib/packs/week-summary-server';
+import { withCronRun } from '@/lib/cron/runs';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -1279,5 +1280,5 @@ async function runSetupSnapshots(
   return { mode, candidates: outcomes.length, sent, outcomes };
 }
 
-export async function GET(request: Request) { return run(request); }
-export async function POST(request: Request) { return run(request); }
+export const GET = withCronRun('tick', (request: Request) => run(request));
+export const POST = withCronRun('tick', (request: Request) => run(request));

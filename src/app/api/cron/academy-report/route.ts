@@ -7,6 +7,7 @@ import { cronPaused } from '@/lib/cron-pause';
 import { createServerClient } from '@/lib/supabase/server';
 import { allAcademyTraineeIds } from '@/lib/academy/book-server';
 import { sweepActivityLoads, type SweepResult } from '@/lib/academy/load-server';
+import { withCronRun } from '@/lib/cron/runs';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -125,9 +126,12 @@ async function weeklyReport(request: Request): Promise<Record<string, unknown>> 
   };
 }
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   return run(request);
 }
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   return run(request);
 }
+
+export const GET = withCronRun('academy-report', handleGET);
+export const POST = withCronRun('academy-report', handlePOST);

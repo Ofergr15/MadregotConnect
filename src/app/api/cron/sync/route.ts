@@ -10,6 +10,7 @@ import { refreshStaleStravaAvatars } from '@/lib/strava/avatar-refresh';
 import { createServerClient } from '@/lib/supabase/server';
 import { israelNow } from '@/lib/utils';
 import { cronPaused } from '@/lib/cron-pause';
+import { withCronRun } from '@/lib/cron/runs';
 
 // Give the sync enough time to walk every athlete (Pro plan allows up to 300s).
 export const maxDuration = 300;
@@ -269,10 +270,13 @@ async function runSync(request: Request) {
   return NextResponse.json({ ok: true, totalSynced, garmin, stravaPoll, stravaRoutes, stravaLaps, garminHistory, stravaAvatars, snapshot, skipped });
 }
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   return runSync(request);
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   return runSync(request);
 }
+
+export const GET = withCronRun('sync', handleGET);
+export const POST = withCronRun('sync', handlePOST);

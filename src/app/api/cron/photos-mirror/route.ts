@@ -10,6 +10,7 @@ import { videoBudgetCopy } from '@/lib/notifications/copy';
 import { revalidateTag } from 'next/cache';
 import { listFolderPhotos, listPhotoFolders } from '@/lib/photos/drive-browse';
 import { recordMirrorRun } from '@/lib/photos/status';
+import { withCronRun } from '@/lib/cron/runs';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -88,4 +89,4 @@ async function run(request: Request) {
   }
 }
 
-export const GET = run;
+export const GET = withCronRun('photos-mirror', run);

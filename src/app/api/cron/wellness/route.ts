@@ -6,6 +6,7 @@ import { emptyWellnessShapes } from '@/lib/garmin/client';
 import { saveLastSweep, sweepSummary } from '@/lib/wellness/last-sweep';
 import { deadlineFrom, readCursor, saveCursor } from '@/lib/cron/budget';
 import { israelToday } from '@/lib/utils';
+import { withCronRun } from '@/lib/cron/runs';
 
 const WELLNESS_CURSOR_KEY = 'wellness_sweep_cursor';
 
@@ -60,5 +61,5 @@ async function run(request: Request) {
   }
 }
 
-export const GET = run;
-export const POST = run;
+export const GET = withCronRun('wellness', run);
+export const POST = withCronRun('wellness', run);

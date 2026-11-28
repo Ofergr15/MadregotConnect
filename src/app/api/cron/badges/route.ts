@@ -6,6 +6,7 @@ import { reconcileClubFollows } from '@/lib/follows/club-sync';
 import { cronPaused } from '@/lib/cron-pause';
 import { inBatches } from '@/lib/badges/batches';
 import { deadlineFrom, readCursor, rotateAfter, saveCursor } from '@/lib/cron/budget';
+import { withCronRun } from '@/lib/cron/runs';
 
 export const dynamic = 'force-dynamic';
 // Was 60, and the serial roster pass hit it two days running (QA 24.11 Q24-4).
@@ -88,5 +89,5 @@ async function run(request: Request) {
   return NextResponse.json({ ok: true, checked, total: roster.length, partial, awarded, follows });
 }
 
-export async function GET(request: Request) { return run(request); }
-export async function POST(request: Request) { return run(request); }
+export const GET = withCronRun('badges', (request: Request) => run(request));
+export const POST = withCronRun('badges', (request: Request) => run(request));
