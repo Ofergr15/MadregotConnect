@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { cronPaused } from '@/lib/cron-pause';
 import { syncPartnerOrders } from '@/lib/partner-orders/sync';
+import { withCronRun } from '@/lib/cron/runs';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -28,5 +29,5 @@ async function run(request: Request) {
   }
 }
 
-export const GET = run;
-export const POST = run;
+export const GET = withCronRun('partner-orders', run);
+export const POST = withCronRun('partner-orders', run);

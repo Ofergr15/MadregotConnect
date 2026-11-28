@@ -10,6 +10,7 @@ import { cronPaused } from '@/lib/cron-pause';
 import { nextRecurrence } from '@/lib/notifications/scheduling';
 import { REMINDER_KIND } from '@/lib/survey-reminders';
 import { notifySurveyNonResponders } from '@/lib/surveys';
+import { withCronRun } from '@/lib/cron/runs';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -154,9 +155,12 @@ async function surveyReminder(supabase: ReturnType<typeof createServerClient>, n
   });
 }
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   return run(request);
 }
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   return run(request);
 }
+
+export const GET = withCronRun('notifications', handleGET);
+export const POST = withCronRun('notifications', handlePOST);
