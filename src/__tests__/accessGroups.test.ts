@@ -25,7 +25,7 @@ describe('access_group scope in resolveFeature', () => {
     expect(resolveFeature('history', [on, off], ofer).enabled).toBe(false);
     expect(resolveFeature('history', [off, on], ofer).enabled).toBe(false);
   });
-  it('no memberships field (pre-222) behaves as before', () => {
+  it('no memberships field (pre-226) behaves as before', () => {
     expect(resolveFeature('history', [row('access_group', 'g-core', true)], { id: 'a1', role: 'admin' }).enabled).toBe(false);
   });
   it('only an admin may write the scope', () => {
@@ -50,7 +50,7 @@ describe('input cleaning', () => {
   });
 });
 
-// ── Routes: admin-only, JWT identity, 503 before 222 ──
+// ── Routes: admin-only, JWT identity, 503 before 226 ──
 type Caller = { athleteId: string | null; email: string; role: string; roles?: string[]; isSuperUser: boolean; isStaff: boolean; viewingAsBy?: string };
 let caller: Caller;
 let deniedResp: Response | null = null;
@@ -127,7 +127,7 @@ describe('access-group routes', () => {
     expect((await groupsRoute.POST(req('POST', { name: ' ' }))).status).toBe(400);
     expect((await groupsRoute.POST(req('POST', { name: 'x', color: 'blue' }))).status).toBe(400);
   });
-  it('503 while 222 is unapplied', async () => {
+  it('503 while 226 is unapplied', async () => {
     tableError = { access_groups: { code: '42P01', message: 'relation "access_groups" does not exist' } };
     expect((await groupsRoute.GET(req('GET'))).status).toBe(503);
   });

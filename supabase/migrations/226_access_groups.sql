@@ -1,4 +1,4 @@
--- 222 — Access groups: owner-made groups of people with a screen set each.
+-- 226 — Access groups: owner-made groups of people with a screen set each.
 -- Design: review-2026-11-20/access-groups-design.md. Paste by hand in the Supabase SQL editor.
 -- Idempotent. Service-role only (RLS on, no policies), like every table here.
 

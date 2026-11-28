@@ -17,7 +17,7 @@ the owner creates in the app, with members and a screen set.
 
 ## Server
 
-### Migration 222 (file only — the owner pastes it)
+### Migration 226 (file only — the owner pastes it)
 
 - `access_groups (id uuid, name text unique, color text '#RRGGBB', created_by, created_at, updated_at)`
 - `access_group_members (group_id → access_groups ON DELETE CASCADE, athlete_id → athletes ON DELETE CASCADE, added_by, added_at, PK(group_id, athlete_id))`
@@ -39,7 +39,7 @@ the same level — this matters now, because a person in two groups can get two 
 one screen (ON from "גרעין", OFF from "ולנסיה" → off). That rule already exists in
 `resolveFeature` for multi-role; it now covers groups too.
 
-`AthleteFacts.accessGroupIds` is read with the athlete. Table missing (222 not pasted) →
+`AthleteFacts.accessGroupIds` is read with the athlete. Table missing (226 not pasted) →
 `[]`, i.e. behaviour identical to today; it never fails a resolution.
 
 ### Endpoints — all admin-only
@@ -47,7 +47,7 @@ one screen (ON from "גרעין", OFF from "ולנסיה" → off). That rule al
 Gate: `resolveVerifiedCaller` → `isSuperUser || hasRole(admin)`; anything else 403. Same
 reasoning as `/api/admin/notifications`: the club has a `Test Coach` fixture account, and a
 group decides who sees management screens. Writes refused while `viewingAsBy`. Identity of the
-actor is the JWT, never the body. 503 `migration_pending` while 222 is unapplied.
+actor is the JWT, never the body. 503 `migration_pending` while 226 is unapplied.
 
 | Method | Path | Body | |
 |---|---|---|---|
