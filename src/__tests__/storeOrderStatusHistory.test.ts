@@ -59,8 +59,8 @@ describe('PATCH /api/admin/store/orders/[id] records who changed what', () => {
   });
   it('still updates the status before migration 231', async () => {
     seed(false);
-    expect((await patch({ status: 'fulfilled' })).status).toBe(200);
-    expect(db.tables.store_orders[0].status).toBe('fulfilled');
+    expect((await patch({ status: 'paid' })).status).toBe(200);
+    expect(db.tables.store_orders[0].status).toBe('paid');
   });
   it('rejects a non-staff caller and a bad status', async () => {
     expect((await patch({ status: 'shipped' })).status).toBe(400);

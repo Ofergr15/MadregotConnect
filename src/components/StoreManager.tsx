@@ -170,11 +170,18 @@ export function StoreManager() {
     setUpdatingOrder(order.id);
     setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, status } : o)));
     try {
-      await authedFetch(`/api/admin/store/orders/${order.id}`, {
+      const send = (reason?: string) => authedFetch(`/api/admin/store/orders/${order.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(reason ? { status, reason } : { status }),
       });
+      let res = await send();
+      // A skip or back-step needs a written reason (server rule, task 84).
+      if (res.status === 409 && (await res.clone().json().catch(() => ({}))).error === 'reason_required') {
+        const reason = window.prompt('שינוי סטטוס שלא לפי הסדר — מה הסיבה?')?.trim();
+        if (reason) res = await send(reason);
+      }
+      if (!res.ok) throw new Error('status not changed');
     } catch {
       setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, status: order.status } : o)));
     } finally {
