@@ -17,16 +17,7 @@ import { InstallGuide } from '@/components/install/InstallGuide';
 import { usePreviewOnboardingV2 } from '@/lib/install/v2';
 import { detectInstallPlatform } from '@/lib/install/platform';
 import { PrimaryButton, SecondaryButton } from '@/components/onboarding/journey-ui';
-
-interface PublicStats {
-  since?: string;
-  athletes: number;
-  totalKm: number;
-  workouts: number;
-  totalHours: number;
-  topResults: { name: string; timeSeconds: number; test: string }[];
-  testDate?: string | null;
-}
+import { normalizePublicStats, type PublicStats } from '@/lib/public-stats';
 
 function fmtMonthYear(dateStr: string | undefined, locale: string): string {
   if (!dateStr) return '';
@@ -212,7 +203,7 @@ export default function HomePage() {
   useEffect(() => {
     fetch('/api/public/stats')
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setStats(d); })
+      .then(d => { const s = normalizePublicStats(d); if (s) setStats(s); })
       .catch(() => {});
   }, []);
 
@@ -382,7 +373,8 @@ export default function HomePage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-20 items-center w-full max-w-7xl mx-auto">
             {/* Text */}
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full bg-brand-600/10 text-brand-600 px-3.5 py-1.5 mb-4 sm:mb-8">
+              {/* brand-700 text: brand-600 on this wash over the hero measured 4.44:1 (< 4.5, axe, task 111). */}
+              <div className="inline-flex items-center gap-2 rounded-full bg-brand-600/10 text-brand-700 px-3.5 py-1.5 mb-4 sm:mb-8">
                 <span className="h-1.5 w-1.5 rounded-full bg-brand-600"></span>
                 <span className="text-[13px] sm:text-sm font-black uppercase tracking-[0.18em] rtl:tracking-normal">{t('after2km')}</span>
               </div>

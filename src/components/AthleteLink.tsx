@@ -1,5 +1,6 @@
 'use client';
 
+import { isValidElement, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
@@ -67,6 +68,15 @@ interface Props {
   tapHalo?: boolean;
 }
 
+/** Does this subtree carry any text node (a string or number), at any depth? */
+export function hasVisibleText(node: ReactNode): boolean {
+  if (typeof node === 'string') return node.trim().length > 0;
+  if (typeof node === 'number') return true;
+  if (Array.isArray(node)) return node.some(hasVisibleText);
+  if (isValidElement<{ children?: ReactNode }>(node)) return hasVisibleText(node.props.children);
+  return false;
+}
+
 export function AthleteLink({ athleteId, name, className, children, stopPropagation, onNavigate, tapHalo }: Props) {
   const tc = useTranslations('common');
   const href = teammateHref(athleteId);
@@ -85,7 +95,12 @@ export function AthleteLink({ athleteId, name, className, children, stopPropagat
         tapHalo && "relative after:absolute after:-inset-y-1.5 after:-inset-x-1.5 after:content-['']",
         className,
       )}
-      aria-label={name ? tc('viewProfileOf', { name }) : undefined}
+      // Only when the link shows no text of its own (an avatar, an icon). A link that
+      // SHOWS the name keeps it as its accessible name: an aria-label that replaced
+      // visible text failed WCAG 2.5.3 "label in name" on the feed, the profile and
+      // the records board (axe on seeded data, task 111) — voice control users say
+      // what they see.
+      aria-label={name && !hasVisibleText(children) ? tc('viewProfileOf', { name }) : undefined}
       onClick={
         stopPropagation || onNavigate
           ? (e) => {
