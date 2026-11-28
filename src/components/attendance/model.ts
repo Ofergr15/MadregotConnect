@@ -1,3 +1,4 @@
+import { GROUP_HEX } from '@/lib/utils';
 import type { Person, SessionDay } from '@/lib/attendance/real-server';
 
 // The numbers the attendance screens show, from the sessions the API returns
@@ -29,7 +30,7 @@ export function counts(days: SessionDay[]): Map<string, number> {
 /** A person's row in the screens: a pack 1–3, or the academy. */
 export type Lane = 1 | 2 | 3 | 'academy';
 export const laneOf = (p: Person | undefined): Lane | null => (!p ? null : p.academy ? 'academy' : (p.pack as Lane | null));
-export const LANE_HEX: Record<string, string> = { 1: '#16a34a', 2: '#159AFF', 3: '#FF5315', academy: '#8E7CFF' };
+export const LANE_HEX: Record<string, string> = { 1: GROUP_HEX[0], 2: GROUP_HEX[1], 3: GROUP_HEX[2], academy: '#8E7CFF' };
 export const laneLabel = (l: Lane) => (l === 'academy' ? 'אקדמיה' : `דבוקה ${l}`);
 
 /** Average per session of one lane's people. */

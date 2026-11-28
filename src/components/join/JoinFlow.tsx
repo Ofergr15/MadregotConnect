@@ -4,7 +4,7 @@ import { nameProblem } from '@/lib/names/latin';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronRight } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, GROUP_HEX } from '@/lib/utils';
 import { JOURNEY, JourneyCard, JourneyHero, JourneyScreen, PrimaryButton } from '@/components/onboarding/journey-ui';
 import { RegisterReceived } from '@/app/register/RegisterReceived';
 import { U21RegisterEntry } from '@/app/register/U21RegisterEntry';
@@ -22,7 +22,6 @@ type Step = 'path' | 'details' | 'marathon' | 'fallback' | 'pack';
 import { JOIN_HANDOFF_KEY } from '@/lib/join/flag';
 import { typeClock } from '@/lib/time-entry';
 import { suggestEmail } from '@/lib/join/email-typo';
-const PACK_HEX = ['#16a34a', '#159AFF', '#FF5315'];
 
 function Back({ onClick }: { onClick: () => void }) {
   return (
@@ -242,7 +241,7 @@ export function JoinFlow({ initialPath }: { initialPath?: 'club' | 'academy' | n
       {packs.map((p) => (
         <button key={p.id} type="button" onClick={() => setGroupId(p.id)} aria-pressed={groupId === p.id}
           className={cn('flex items-center gap-3 rounded-[18px] border-2 bg-white p-3 text-start', groupId === p.id ? 'border-brand-600 bg-[#F4F5FF]' : 'border-transparent')}>
-          <i className="h-[54px] w-2.5 shrink-0 rounded-md" style={{ background: PACK_HEX[p.index] ?? '#9A9BA5' }} />
+          <i className="h-[54px] w-2.5 shrink-0 rounded-md" style={{ background: (GROUP_HEX as readonly string[])[p.index] ?? '#9A9BA5' }} />
           <span className="min-w-0 flex-1">
             <b className="block text-[15.5px] font-black text-ink-900">דבוקה {p.index + 1}{rec?.id === p.id ? ' · מומלץ' : ''}</b>
             <small className="block text-[12.5px] font-bold text-ink-700">מרתון מתחת ל־<bdi dir="ltr">{clock(p.goal).replace(/:00$/, '')}</bdi></small>
