@@ -56,13 +56,13 @@ describe('isOwnedMediaPath', () => {
 describe('sanitizeMediaDescriptor', () => {
   it('accepts a valid owned descriptor and preserves numeric dimensions', () => {
     expect(sanitizeMediaDescriptor({ path: 'athlete-1/a.jpg', w: 800, h: 600 }, 'athlete-1')).toEqual({
-      path: 'athlete-1/a.jpg', w: 800, h: 600,
+      path: 'athlete-1/a.jpg', w: 800, h: 600, sizes: [],
     });
   });
 
   it('nulls out non-numeric or missing dimensions rather than passing them through', () => {
     expect(sanitizeMediaDescriptor({ path: 'athlete-1/a.jpg', w: '800' }, 'athlete-1')).toEqual({
-      path: 'athlete-1/a.jpg', w: null, h: null,
+      path: 'athlete-1/a.jpg', w: null, h: null, sizes: [],
     });
   });
 

@@ -1,3 +1,5 @@
+import { cleanSizes, markedSizes, withVariantMarker } from '@/lib/images/variants';
+
 // The client downscales to a long edge of ~1600px before uploading, so anything much
 // larger than this is either a client that skipped the resize or an abuse attempt.
 export const MAX_MEDIA_BYTES = 8 * 1024 * 1024;
@@ -30,7 +32,10 @@ interface RawMediaDescriptor {
   url?: unknown;
   w?: unknown;
   h?: unknown;
+  sizes?: unknown;
 }
+
+export type SanitizedMedia = { path: string; w: number | null; h: number | null; sizes: number[] };
 
 /**
  * Validates one client-supplied media descriptor's ownership and shape —
@@ -41,19 +46,28 @@ interface RawMediaDescriptor {
 export function sanitizeMediaDescriptor(
   value: unknown,
   athleteId: string,
-): { path: string; w: number | null; h: number | null } | null {
+): SanitizedMedia | null {
   const rec = value as RawMediaDescriptor;
   if (typeof rec?.path !== 'string' || !isOwnedMediaPath(rec.path, athleteId)) return null;
+  // Which sized variants exist (lib/images/variants.ts): from the upload response's
+  // `sizes`, or — an edit re-sending a stored item — from the `sz` marker on its url.
+  const sizes = cleanSizes(rec.sizes);
   return {
     path: rec.path,
     w: typeof rec.w === 'number' ? rec.w : null,
     h: typeof rec.h === 'number' ? rec.h : null,
+    sizes: sizes.length > 0 ? sizes : typeof rec.url === 'string' ? markedSizes(rec.url) : [],
   };
 }
 
+/** The stored media entry: the server-built URL, with the variant marker when there are variants. */
+export function storedMediaEntry(m: SanitizedMedia, publicUrl: string): { path: string; url: string; w: number | null; h: number | null } {
+  return { path: m.path, url: withVariantMarker(publicUrl, m.sizes), w: m.w, h: m.h };
+}
+
 /** Applies sanitizeMediaDescriptor across a raw array, dropping invalid entries. */
-export function sanitizeMediaList(rawMedia: unknown[], athleteId: string): Array<{ path: string; w: number | null; h: number | null }> {
+export function sanitizeMediaList(rawMedia: unknown[], athleteId: string): SanitizedMedia[] {
   return rawMedia
     .map((m) => sanitizeMediaDescriptor(m, athleteId))
-    .filter((m): m is { path: string; w: number | null; h: number | null } => m !== null);
+    .filter((m): m is SanitizedMedia => m !== null);
 }
