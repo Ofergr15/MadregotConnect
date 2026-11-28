@@ -4,13 +4,16 @@
 // (components/club-numbers/charts). Weekly km by pack and runners per week come from
 // /api/coach/volume; group-practice confirmations from /api/attendance?calendar=1.
 
-import { addDaysToDateStr, israelToday } from '@/lib/utils';
+import { addDaysToDateStr, israelToday, GROUP_HEX } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { Columns, CountColumns, Legend, WeekLines } from '@/components/club-numbers/charts';
 import { HE_DAY_NAMES, packSeries, shortDay } from '@/lib/coach-space/model';
 import { B, Card, CardHead, Loading, ScreenHeader, usePeople, useVolume } from './shared';
 
-const PACK_COLORS = { A: '#C2410C', B: '#1525FF', C: '#0B6E4F' };
+// Pack A/B/C are groups 1/2/3, so they take the club's group colours (resolveGroup's
+// GROUP_HEX). This used to be its own palette with A orange and C green, the reverse
+// of every other screen.
+export const PACK_COLORS = { A: GROUP_HEX[0], B: GROUP_HEX[1], C: GROUP_HEX[2] };
 const PRACTICES_SHOWN = 12;
 
 export function CoachInsights() {

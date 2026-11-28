@@ -1,3 +1,4 @@
+import { memberPackName, resolveGroup } from '@/lib/utils';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 /**
  * "מדרגות במספרים" — the club's numbers in one place (mockup
@@ -56,11 +57,7 @@ const median = (xs: number[]) => { if (!xs.length) return null; const s = [...xs
 /** The pack a member trains with: "דבוקה 1–3" for the club, the band for a trainee. */
 export function packOf(a: Pick<NAthlete, 'isAcademy' | 'bandNumber' | 'groupName'>): string {
   if (a.isAcademy) return a.bandNumber ? `דבוקה ${a.bandNumber}` : 'אקדמיה';
-  const n = (a.groupName || '').toLowerCase();
-  if (n.includes('group a') || n.includes('group 1') || n.includes('sub 2:30')) return 'דבוקה 1';
-  if (n.includes('group b') || n.includes('group 2') || n.includes('sub 2:35')) return 'דבוקה 2';
-  if (n.includes('group c') || n.includes('group 3') || n.includes('sub 2:45')) return 'דבוקה 3';
-  return 'בלי דבוקה';
+  return resolveGroup(a.groupName).index >= 0 ? memberPackName(a.groupName) : 'בלי דבוקה';
 }
 export const CLUB_PACKS = ['דבוקה 1', 'דבוקה 2', 'דבוקה 3', 'בלי דבוקה'] as const;
 
