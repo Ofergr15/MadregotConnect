@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isFeatureEnabled } from '@/lib/features/server';
+import { runnerPositionLimiter } from '@/lib/race-live/load-guard';
 import { mergePhonePosition, parsePhonePosition, phoneWriteAllowed } from '@/lib/race-live/phone';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +21,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { denied, caller } = await resolveVerifiedCaller(request);
   if (denied) return denied;
   if (!caller.athleteId) return NextResponse.json({ error: 'no athlete' }, { status: 403 });
+  // Per-runner brake (task 176), before any DB read: a retry storm costs nothing downstream.
+  const limitKey = `${eventId}:${caller.athleteId}`;
+  if (!runnerPositionLimiter.allow(limitKey)) {
+    return NextResponse.json({ error: 'rate-limited' }, { status: 429, headers: { 'retry-after': String(runnerPositionLimiter.retryAfterSec(limitKey)) } });
+  }
   const db = createServerClient();
   if (!(await isFeatureEnabled('race_live_phone', caller.athleteId, db))) return NextResponse.json({ error: 'off' }, { status: 403 });
   const nowMs = Date.now();
