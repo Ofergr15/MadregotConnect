@@ -6,6 +6,7 @@
  * as the aicoach bot user.
  */
 import { NextResponse } from 'next/server';
+import { israelToday } from '@/lib/utils';
 import { z } from 'zod';
 import { completeCoachTurn, type CoachTool } from '@/lib/run-chat/ai-complete';
 import { claimAiTurn, releaseAiTurn } from '@/lib/run-chat/ai-lock';
@@ -273,8 +274,9 @@ export async function POST(
         const now = new Date();
         return JSON.stringify({
           iso: now.toISOString(),
-          date: now.toISOString().slice(0, 10),
-          day_of_week: now.toLocaleDateString('en-US', { weekday: 'long' }),
+          // Israel's calendar day, not the server's UTC one (still yesterday 00:00-03:00 Israel).
+          date: israelToday(now),
+          day_of_week: now.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Jerusalem' }),
         });
       }),
     };
