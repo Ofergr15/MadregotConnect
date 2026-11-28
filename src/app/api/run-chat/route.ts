@@ -25,6 +25,7 @@ import type { PlannedWorkout } from '@/lib/run-chat/mock-workout';
 import { ensureChatSeeded } from '@/lib/run-chat/seed-chat';
 import { ensureMatchedWorkout } from '@/lib/plans/matched-workout';
 import { internalErrorBody } from '@/lib/api-error';
+import { insertRunChatOnce } from '@/lib/run-chat/insert-once';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -284,19 +285,12 @@ export async function POST(request: Request) {
     let chat = existingChat;
 
     if (!chat) {
-      const { data: created, error: insertErr } = await supabase
-        .from('run_chats')
-        .insert({
-          activity_id: activityId,
-          athlete_id: activity.athlete_id,
-          coach_id: coachAthleteId,
-          stream_channel_id: `${CHANNEL_TYPE}:${chId}`,
-        })
-        .select('*')
-        .single();
-
-      if (insertErr) throw insertErr;
-      chat = created;
+      chat = await insertRunChatOnce<NonNullable<typeof existingChat>>(supabase, {
+        activity_id: activityId,
+        athlete_id: activity.athlete_id,
+        coach_id: coachAthleteId,
+        stream_channel_id: `${CHANNEL_TYPE}:${chId}`,
+      });
     } else if (coachAthleteId && chat.coach_id !== coachAthleteId) {
       const { data: updated } = await supabase
         .from('run_chats')

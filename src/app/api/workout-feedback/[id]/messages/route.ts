@@ -5,20 +5,25 @@ import { notifyAthlete } from '@/lib/push';
 import { coachReplyCopy } from '@/lib/notifications/copy';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { feedbackReplyUrl } from '@/lib/academy/member-links';
+import { requireTraineeAccess } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
 /** Resolves whether `email` may act on this feedback thread, and as which
- * side — the owning athlete, or any staff member (never both, an athlete
- * can't reply to their own feedback as "staff" even if they're also a coach
- * elsewhere in the club). */
+ * side — the owning athlete, or staff (never both, an athlete can't reply to
+ * their own feedback as "staff" even if they're also a coach elsewhere in the
+ * club). Club coaches and admins see every thread; an academy coach only their
+ * own trainees' (requireTraineeAccess — any of a trainee's coaches), and any
+ * other thread is 'not_found' so its existence doesn't leak (decision 28.11:
+ * feedback carries pain and how the runner felt). */
 async function resolveSide(
+  request: Request,
   supabase: SupabaseServer,
   email: string,
   ownerAthleteId: string,
-): Promise<{ side: 'athlete' | 'coach'; senderAthleteId: string } | null> {
+): Promise<{ side: 'athlete' | 'coach'; senderAthleteId: string } | 'not_found' | null> {
   if (!email) return null;
   if (isSuperUser(email)) {
     const { data } = await supabase.from('athletes').select('id').eq('email', email).maybeSingle();
@@ -28,7 +33,11 @@ async function resolveSide(
   if (!caller) return null;
   const row = caller as { id: string; role?: string };
   if (row.id === ownerAthleteId) return { side: 'athlete', senderAthleteId: row.id };
-  if (['coach', 'admin', 'academy_coach'].includes(row.role || '')) return { side: 'coach', senderAthleteId: row.id };
+  if (['coach', 'admin'].includes(row.role || '')) return { side: 'coach', senderAthleteId: row.id };
+  if (row.role === 'academy_coach') {
+    const { denied } = await requireTraineeAccess(request, ownerAthleteId);
+    return denied ? 'not_found' : { side: 'coach', senderAthleteId: row.id };
+  }
   return null;
 }
 
@@ -55,7 +64,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       .maybeSingle();
     if (fbError || !fb) return NextResponse.json({ error: 'feedback not found' }, { status: 404 });
 
-    const side = await resolveSide(supabase, viewerEmail, fb.athlete_id);
+    const side = await resolveSide(request, supabase, viewerEmail, fb.athlete_id);
+    if (side === 'not_found') return NextResponse.json({ error: 'feedback not found' }, { status: 404 });
     if (!side) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
     const { data: rows, error } = await supabase
@@ -104,7 +114,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 }
 
 // POST /api/workout-feedback/[id]/messages { body }
-// Either side may post — the owning athlete, or any staff member. Pushes the
+// Either side may post — the owning athlete, or staff (an academy coach only
+// on their own trainee's thread, see resolveSide). Pushes the
 // OTHER side (category 'coach' either direction, matching the existing
 // single-reply push's category so notification prefs already cover it).
 //
@@ -115,6 +126,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id } = await params;
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
+    // Read-only while viewing as someone, like the GET's seen-stamp and the pain-report
+    // writes: otherwise staff "viewing as" a runner would post AS that runner.
+    if (caller.viewingAsBy) return NextResponse.json({ error: 'read-only while viewing as' }, { status: 403 });
     const { body } = await request.json();
     const trimmed = typeof body === 'string' ? body.trim().slice(0, 2000) : '';
     if (!trimmed) return NextResponse.json({ error: 'body is required' }, { status: 400 });
@@ -128,7 +142,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (fbError || !fb) return NextResponse.json({ error: 'feedback not found' }, { status: 404 });
 
     const email = caller.email.toLowerCase().trim();
-    const side = await resolveSide(supabase, email, fb.athlete_id);
+    const side = await resolveSide(request, supabase, email, fb.athlete_id);
+    if (side === 'not_found') return NextResponse.json({ error: 'feedback not found' }, { status: 404 });
     if (!side) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
     const { data: message, error } = await supabase

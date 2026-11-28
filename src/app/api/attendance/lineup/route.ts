@@ -18,7 +18,9 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const weekStart = searchParams.get('weekStart') || '';
-    const day = Number(searchParams.get('day'));
+    // Number(null) is 0 — a missing `day` used to pass as Sunday.
+    const dayRaw = searchParams.get('day');
+    const day = dayRaw == null || dayRaw === '' ? NaN : Number(dayRaw);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart) || !Number.isInteger(day) || day < 0 || day > 6) {
       return NextResponse.json({ error: 'weekStart and day required' }, { status: 400 });
     }
