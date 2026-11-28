@@ -161,14 +161,21 @@ export function createMemoryDb(opts: MemoryDbOptions) {
       if (op !== 'is') throw new Error(`memory-db: not.${op} unsupported`);
       return this.add(`${c}=not.is.${v}`, (r) => (v === null ? r[c] != null : r[c] !== v));
     }
+    /** `.filter(col, 'eq', v)` — PostgREST's raw filter; an array column compares against a `{a,b}` literal. */
+    filter(c: string, op: string, v: unknown) {
+      if (op !== 'eq') throw new Error(`memory-db: filter ${op} unsupported`);
+      return this.add(`${c}=eq.${v}`, (r) => (Array.isArray(r[c]) ? `{${(r[c] as unknown[]).join(',')}}` : String(r[c])) === String(v));
+    }
     or(expr: string) {
-      const parts = expr.split(',').map((p) => {
+      // Commas inside `in.(a,b)` are not separators: protect them before splitting.
+      const parts = expr.replace(/\(([^)]*)\)/g, (_m, inner: string) => `(${inner.replace(/,/g, '|')})`).split(',').map((p) => {
         const [c, op, ...rest] = p.split('.');
         const v = rest.join('.');
         if (op === 'eq') return (r: Row) => String(r[c]) === v;
         // SQL semantics: NULL <> 'x' is NULL (excluded) — callers pair it with `is.null` (lib/activities/kinds.ts RUNS_ONLY_OR).
         if (op === 'neq') return (r: Row) => r[c] != null && String(r[c]) !== v;
         if (op === 'is' && v === 'null') return (r: Row) => r[c] == null;
+        if (op === 'in') { const vs = v.replace(/^\(|\)$/g, '').split('|'); return (r: Row) => vs.includes(String(r[c])); }
         throw new Error(`memory-db: or ${p} unsupported`);
       });
       return this.add(`or=(${expr})`, (r) => parts.some((f) => f(r)));
