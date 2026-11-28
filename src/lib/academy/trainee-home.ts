@@ -133,6 +133,8 @@ export interface TraineeHome {
   paceUpdate?: PaceUpdateCard | null;
   /** The band's "מה זה אומר" (bands.ts bandMeaning), the line under its name. */
   bandMeaning?: string | null;
+  /** The trainee's own band (academy-pack §1). Always set on a member payload; null = no band. */
+  band?: { id: string; bandNumber: number; name: string; goal: string | null } | null;
 }
 
 // ── A week row ──────────────────────────────────────────────────────────────

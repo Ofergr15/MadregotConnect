@@ -365,6 +365,8 @@ export async function GET(request: Request) {
       }), paceUpdate.adjust),
       paceUpdate: paceUpdate.card,
       bandMeaning: bandMeaning(band),
+      // academy-pack §1: always present on a member payload; null = in no band.
+      band: band ? { id: band.id, bandNumber: band.bandNumber, name: band.name, goal: band.goal } : null,
       km: { weeks: chartWeeks, plannedKm, avgKm: kmAverage(chartWeeks) },
       week: {
         // The engine's counts, as the board's: an optional session is not planned.

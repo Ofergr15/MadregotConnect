@@ -107,6 +107,19 @@ describe('who gets a home', () => {
   });
 });
 
+describe('band (academy-pack §1)', () => {
+  it('is null — present, not missing — for a trainee in no band', async () => {
+    const body = await (await get()).json();
+    expect(body).toHaveProperty('band', null);
+  });
+  it('carries id, number, name and goal, and nothing else', async () => {
+    (tables.athletes[0] as any).academy_band_id = 'b7';
+    tables.academy_bands = [{ id: 'b7', band_number: 7, name: 'דבוקה 7', goal: 'מרתון 3:30', pace_profile: { offsetSeconds: 10 } }];
+    const body = await (await get()).json();
+    expect(body.band).toEqual({ id: 'b7', bandNumber: 7, name: 'דבוקה 7', goal: 'מרתון 3:30' });
+  });
+});
+
 describe('the home', () => {
   it('has the coach, the red dot and the week — and nobody else\'s numbers', async () => {
     const body = await (await get()).json();
