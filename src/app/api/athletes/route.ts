@@ -13,6 +13,25 @@ import { applyAcademyMembership } from '@/lib/academy/membership-server';
 import { mayDeleteAthlete } from '@/lib/auth/delete-athlete-policy';
 import { syncApprovedJoiner } from '@/lib/onboarding/approval-sync';
 
+/** One roster row, as whichever of the three selects below succeeded read it. */
+interface RosterDbRow {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  garmin_auth?: boolean | null;
+  strava_auth?: boolean | null;
+  data_source?: string | null;
+  strava_enabled?: boolean | null;
+  onboarding_status?: string | null;
+  is_academy?: boolean | null;
+  group_id?: string | null;
+  groups?: { name?: string | null } | null;
+  garmin_last_sync_at?: string | null;
+  strava_last_sync_at?: string | null;
+}
+
 export const dynamic = 'force-dynamic';
 
 const DEMO_COACH_ID = COACH_ID;
@@ -52,8 +71,8 @@ export async function GET(request: Request) {
 
     const supabase = createServerClient();
 
-    let athletes: any[] | null = null;
-    let error: any = null;
+    let athletes: RosterDbRow[] | null = null;
+    let error: unknown = null;
 
     const ROSTER = `id, name, email, status, created_at, garmin_auth:has_garmin, strava_auth:has_strava, data_source, strava_enabled, onboarding_status, is_academy, group_id,
         groups!group_id(name)`;
@@ -80,10 +99,10 @@ export async function GET(request: Request) {
         .select(`id, name, email, status, created_at, garmin_auth:has_garmin, group_id, groups!group_id(name)`)
         .eq('coach_id', coachId)
         .order('created_at', { ascending: false });
-      athletes = fallback.data;
+      athletes = fallback.data as unknown as RosterDbRow[] | null;
       error = fallback.error;
     } else {
-      athletes = result.data;
+      athletes = result.data as unknown as RosterDbRow[] | null;
       error = null;
     }
 
@@ -101,25 +120,25 @@ export async function GET(request: Request) {
       // of this route (academy, profile) use the id and the name.
       email: auth.user.isStaff ? athlete.email : null,
       status: athlete.status,
-      groupName: (athlete.groups as any)?.name ? groupDisplayName((athlete.groups as any).name) : null,
+      groupName: athlete.groups?.name ? groupDisplayName(athlete.groups.name) : null,
       groupId: athlete.group_id,
       group_id: athlete.group_id,
       // On the core fallback the Strava columns were not read, so the source is
       // only known when Garmin is the one connected; otherwise it is unknown (null),
       // not a confident 'garmin'.
       dataSource: providerKnown
-        ? ((athlete as any).data_source || 'garmin')
+        ? (athlete.data_source || 'garmin')
         : (athlete.garmin_auth ? 'garmin' : null),
-      isAcademy: !!(athlete as any).is_academy,
+      isAcademy: !!athlete.is_academy,
       hasGarmin: !!athlete.garmin_auth,
-      hasStrava: providerKnown ? !!(athlete as any).strava_auth : null,
-      stravaEnabled: providerKnown ? !!(athlete as any).strava_enabled : null,
-      onboardingStatus: (athlete as any).onboarding_status || null,
+      hasStrava: providerKnown ? !!athlete.strava_auth : null,
+      stravaEnabled: providerKnown ? !!athlete.strava_enabled : null,
+      onboardingStatus: athlete.onboarding_status || null,
       // The latest REAL sync stamp of a connected provider, or null when none is
       // recorded. It used to be `new Date()` for anyone connected: "synced just now".
       lastSynced: latestSync(
-        athlete.garmin_auth ? (athlete as any).garmin_last_sync_at : null,
-        (athlete as any).strava_auth ? (athlete as any).strava_last_sync_at : null,
+        athlete.garmin_auth ? athlete.garmin_last_sync_at : null,
+        athlete.strava_auth ? athlete.strava_last_sync_at : null,
       ),
       createdAt: athlete.created_at,
     }));
@@ -288,7 +307,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error }, { status: code });
     }
 
-    const updates: Record<string, any> = {};
+    const updates: Record<string, unknown> = {};
     if (groupId !== undefined) {
       updates.group_id = groupId;
       // A move made here is final: it cancels a change the member scheduled for
@@ -377,11 +396,11 @@ export async function DELETE(request: Request) {
       .maybeSingle();
     if (targetError) {
       // A schema without onboarding_status: the target reads as an ordinary member.
-      ({ data: target } = await supabase.from('athletes').select('email, approved').eq('id', id).eq('coach_id', DEMO_COACH_ID).maybeSingle() as any);
+      ({ data: target } = (await supabase.from('athletes').select('email, approved').eq('id', id).eq('coach_id', DEMO_COACH_ID).maybeSingle()) as unknown as { data: typeof target });
     }
 
     // Deleting a person is a club decision, not any staff session's (launch BL9 / N8a).
-    if (!user || !mayDeleteAthlete(user, (target as any) ?? null)) {
+    if (!user || !mayDeleteAthlete(user, target ?? null)) {
       return NextResponse.json({ error: 'Not allowed to delete this athlete' }, { status: 403 });
     }
 

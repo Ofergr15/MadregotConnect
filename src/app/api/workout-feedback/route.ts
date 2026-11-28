@@ -11,6 +11,40 @@ import { requireCallerForAthlete, requireStaffCaller } from '@/lib/auth/self-or-
 import { parseFeedbackInput } from '@/lib/feedback-scales';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 
+/** A `workout_feedback` row as baseCols() reads it, with the athlete embed. */
+interface FeedbackDbRow {
+  id: string;
+  athlete_id: string;
+  garmin_activity_id: number | null;
+  difficulty?: unknown;
+  feel?: unknown;
+  pain?: boolean | null;
+  pain_detail?: unknown;
+  wants_feedback?: boolean | null;
+  comment?: string | null;
+  coach_reply?: string | null;
+  coach_reply_at?: string | null;
+  created_at?: string | null;
+  athletes?: { name?: string | null; avatar_url?: string | null; groups?: { name?: string | null } | null } | null;
+}
+
+interface ActiveAthleteDbRow {
+  id: string;
+  name?: string | null;
+  avatar_url?: string | null;
+  groups?: { name?: string | null } | null;
+}
+
+interface FeedbackActivityDbRow {
+  /** Only on the recent-runs read. */
+  athlete_id: string;
+  garmin_activity_id: number;
+  activity_name?: string | null;
+  activity_type?: string | null;
+  distance?: number | null;
+  start_time?: string | null;
+}
+
 export const dynamic = 'force-dynamic';
 
 const VS_PLAN: unknown[] = ['easier', 'as_planned', 'harder', 'unfinished'];
@@ -191,12 +225,12 @@ export async function GET(request: Request) {
       if (feedbackRes.error) throw feedbackRes.error;
       // An academy coach reads their own trainees' feedback, not the club's (launch BL9 / N8c).
       const scope = await staffAthleteScope(supabase, caller);
-      const data = inScope(feedbackRes.data as any[] | null, scope, (r: any) => r.athlete_id);
-      const activeAthletes = inScope(activeRes.data as any[] | null, scope, (a: any) => a.id);
+      const data = inScope(feedbackRes.data as unknown as FeedbackDbRow[] | null, scope, r => r.athlete_id);
+      const activeAthletes = inScope(activeRes.data as unknown as ActiveAthleteDbRow[] | null, scope, a => a.id);
 
       // Attach the activity each feedback is about (name/type/distance/time).
       const actIds = Array.from(
-        new Set((data || []).map((r: any) => r.garmin_activity_id).filter(Boolean)),
+        new Set((data || []).map(r => r.garmin_activity_id).filter(Boolean)),
       );
       const feedbackRows = (data || []) as unknown as Array<{ id: string; athlete_id: string }>;
 
@@ -209,28 +243,28 @@ export async function GET(request: Request) {
             .from('athlete_activities')
             .select('garmin_activity_id, activity_name, activity_type, distance, start_time')
             .in('garmin_activity_id', actIds)
-          : Promise.resolve({ data: [] as any[] }),
+          : Promise.resolve({ data: [] as FeedbackActivityDbRow[] }),
         // Every card's reply thread, in two queries rather than one request per
         // card. `threadsForFeedback` explains what this replaces.
         threadsForFeedback(supabase, feedbackRows.map((r) => r.id), caller.athleteId, new Map(feedbackRows.map((r) => [r.id, r.athlete_id]))),
         // Paged: up to 180 days of the whole club is far past the 1000-row cap, and the
         // newest-first cut dropped the OLDER runs — exactly the ones a "missing feedback"
         // list is about. Same { data } shape as before; a read error is an empty list.
-        fetchAllRows<any>((from, to) => supabase
+        fetchAllRows<FeedbackActivityDbRow>((from, to) => supabase
           .from('athlete_activities')
           .select('id, athlete_id, garmin_activity_id, activity_name, activity_type, distance, start_time')
-          .in('athlete_id', (activeAthletes || []).map((a: any) => a.id))
+          .in('athlete_id', (activeAthletes || []).map(a => a.id))
           .gt('distance', 0)
           .gte('start_time', since)
           .order('start_time', { ascending: false })
           .order('id')
-          .range(from, to) as never).then((data) => ({ data }), () => ({ data: [] as any[] })),
+          .range(from, to) as never).then((data) => ({ data }), () => ({ data: [] as FeedbackActivityDbRow[] })),
       ]);
 
-      const actMap = new Map<number, any>();
-      (actsRes.data || []).forEach((a: any) => actMap.set(a.garmin_activity_id, a));
+      const actMap = new Map<number, FeedbackActivityDbRow>();
+      ((actsRes.data || []) as FeedbackActivityDbRow[]).forEach(a => actMap.set(a.garmin_activity_id, a));
 
-      const items = (data || []).map((r: any) => {
+      const items = (data || []).map(r => {
         const act = r.garmin_activity_id ? actMap.get(r.garmin_activity_id) : null;
         return {
           id: r.id,
@@ -262,15 +296,15 @@ export async function GET(request: Request) {
       // rows; the coach only needs to know who to nudge *right now*.)
       const feedbackKey = (athleteId: string, activityId: number | null) => `${athleteId}:${activityId}`;
       const coveredKeys = new Set(
-        (data || []).map((r: any) => feedbackKey(r.athlete_id, r.garmin_activity_id)),
+        (data || []).map(r => feedbackKey(r.athlete_id, r.garmin_activity_id)),
       );
       const recentActs = recentRes.data;
-      const latestByAthlete = new Map<string, any>();
+      const latestByAthlete = new Map<string, FeedbackActivityDbRow>();
       for (const act of (recentActs || [])) {
         if (!latestByAthlete.has(act.athlete_id)) latestByAthlete.set(act.athlete_id, act);
       }
       const missing = (activeAthletes || [])
-        .map((a: any) => {
+        .map(a => {
           const act = latestByAthlete.get(a.id);
           if (!act || coveredKeys.has(feedbackKey(a.id, act.garmin_activity_id))) return null;
           return {

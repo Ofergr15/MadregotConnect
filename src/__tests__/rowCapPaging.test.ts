@@ -9,7 +9,7 @@ import { fetchAllRows, PAGE_SIZE } from '@/lib/supabase/paginate';
 const PAGED: Array<[file: string, marker: string]> = [
   ['src/lib/challenges/engine.ts', "fetchAllRows<ActivityForMetric>"],
   ['src/lib/weekly-snapshots.ts', 'const activities = await fetchAllRows'],
-  ['src/app/api/workout-feedback/route.ts', 'fetchAllRows<any>((from, to) => supabase'],
+  ['src/app/api/workout-feedback/route.ts', 'fetchAllRows<FeedbackActivityDbRow>((from, to) => supabase'],
   ['src/app/api/admin/onboarding-funnel/route.ts', "const pushes = (await readAll"],
 ];
 

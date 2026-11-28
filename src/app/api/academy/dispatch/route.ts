@@ -69,10 +69,17 @@ export async function GET(request: Request) {
     // as `healthUnknown` so the UI can say which of the two it is showing.
     const ROSTER = 'id, name, is_academy, academy_coach_id, garmin_auth:has_garmin';
     let healthUnknown = false;
-    // Typed loosely, exactly as `push-workouts` does for the same reason: the
-    // fallback select is a different shape, and narrowing it is not worth naming
-    // two row types for a payload every field of which is checked below.
-    let rosterRows: any[] | null = null;
+    // The fallback select is a narrower shape: the health stamps are simply absent.
+    type RosterRow = {
+      id: string;
+      name?: string | null;
+      is_academy?: boolean | null;
+      academy_coach_id?: string | null;
+      garmin_auth?: boolean | null;
+      garmin_last_sync_at?: string | null;
+      garmin_auth_failed_at?: string | null;
+    };
+    let rosterRows: RosterRow[] | null = null;
     const withHealth = await supabase
       .from('athletes')
       .select(`${ROSTER}, ${PROVIDER_HEALTH_COLUMNS_101}`)
@@ -83,17 +90,17 @@ export async function GET(request: Request) {
       if (fallback.error) {
         return NextResponse.json({ error: 'Failed to read the roster' }, { status: 500 });
       }
-      rosterRows = fallback.data;
+      rosterRows = fallback.data as unknown as RosterRow[] | null;
     } else {
-      rosterRows = withHealth.data;
+      rosterRows = withHealth.data as unknown as RosterRow[] | null;
     }
 
     // Any coach of a shared trainee sees them (lib/academy/trainee-coaches.ts).
-    const academyRoster = (rosterRows || []).filter((a: any) => a.is_academy);
+    const academyRoster = (rosterRows || []).filter(a => a.is_academy);
     const coachMap = isManager ? null : await coachIdsByTrainee(supabase, undefined, academyRoster);
     const athletes: DispatchAthlete[] = academyRoster
-      .filter((a: any) => !coachMap || coachesTrainee(coachMap, a.id, caller.athleteId))
-      .map((a: any) => ({
+      .filter(a => !coachMap || coachesTrainee(coachMap, a.id, caller.athleteId))
+      .map(a => ({
         id: a.id,
         name: a.name || a.id,
         // Garmin only. Strava never carries a workout id, so a Strava-only athlete
@@ -112,7 +119,7 @@ export async function GET(request: Request) {
     // screen exists to list, so the roster says, per trainee, whether Garmin is linked and
     // how many workouts their OWN plan for this week holds. Never the credential itself.
     const hasGarminById = new Map<string, boolean>(
-      (rosterRows || []).map((a: any) => [a.id, !!a.garmin_auth]),
+      (rosterRows || []).map(a => [a.id, !!a.garmin_auth]),
     );
 
     if (athletes.length === 0) {
@@ -142,18 +149,18 @@ export async function GET(request: Request) {
       .gte('workout_date', weekStart)
       .lte('workout_date', end);
 
-    let deliveryRows: any[] | null = null;
+    let deliveryRows: unknown[] | null = null;
     const confirmed = await week(`${DELIVERY}, device_confirmed_at`);
     if (isMissingColumn(confirmed.error, 'device_confirmed_at')) {
       const withoutConfirmation = await week(DELIVERY);
       if (withoutConfirmation.error) {
         return NextResponse.json({ error: 'Failed to read the deliveries' }, { status: 500 });
       }
-      deliveryRows = withoutConfirmation.data as any[];
+      deliveryRows = withoutConfirmation.data as unknown[];
     } else if (confirmed.error) {
       return NextResponse.json({ error: 'Failed to read the deliveries' }, { status: 500 });
     } else {
-      deliveryRows = confirmed.data as any[];
+      deliveryRows = confirmed.data as unknown[];
     }
 
     // Which days a run was recorded at all — the ONLY thing separating "ran it
@@ -172,7 +179,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Failed to read the activities' }, { status: 500 });
     }
     const activityDays = new Set(
-      (activityRows || []).map((a: any) => slotKey(a.athlete_id, String(a.start_time || '').slice(0, 10))),
+      ((activityRows || []) as Array<{ athlete_id: string; start_time: string | null }>).map(a => slotKey(a.athlete_id, String(a.start_time || '').slice(0, 10))),
     );
 
     // Individual plans only (athlete_id set): an academy week is built per trainee, and the
@@ -187,7 +194,7 @@ export async function GET(request: Request) {
       .order('created_at', { ascending: false });
     const planWorkouts = new Map<string, number>();
     if (!plansRes.error) {
-      for (const p of (plansRes.data || []) as any[]) {
+      for (const p of (plansRes.data || []) as Array<{ athlete_id: string; parsed_workouts: unknown }>) {
         if (!planWorkouts.has(p.athlete_id)) planWorkouts.set(p.athlete_id, countPlanWorkouts(p.parsed_workouts));
       }
     }

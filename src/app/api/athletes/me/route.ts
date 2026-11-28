@@ -11,6 +11,21 @@ import { historyImportStatus, readHistoryCursors, type HistoryImportStatus } fro
 import { weekStartDayOf } from '@/lib/utils';
 import { cleanHiddenList, readDefaultHidden, writeDefaultHidden } from '@/lib/athletes/default-hidden';
 
+/** Columns the select string pulls that the client's inferred row type doesn't carry. */
+interface AthleteMeExtras {
+  garmin_last_sync_at?: string | null;
+  garmin_auth_failed_at?: string | null;
+  strava_last_sync_at?: string | null;
+  strava_auth_failed_at?: string | null;
+  strava_enabled?: boolean | null;
+  birth_date?: string | null;
+  gender?: string | null;
+  shoe_size?: string | null;
+  phone?: string | null;
+  discoverable?: boolean | null;
+  week_start_day?: unknown;
+}
+
 export const dynamic = 'force-dynamic';
 
 const GENDERS = ['male', 'female'] as const;
@@ -157,7 +172,7 @@ async function handleGET(req: NextRequest) {
       name: data.name,
       email: data.email,
       // perf S1: the caller's own group, so no screen downloads the feed to learn it.
-      group: ownGroup(data as any),
+      group: ownGroup(data as Parameters<typeof ownGroup>[0]),
       hasGarmin: !!data.garmin_auth,
       hasStrava: !!data.strava_auth,
       // hasGarmin/hasStrava only say a credential is STORED. These say whether it
@@ -166,34 +181,34 @@ async function handleGET(req: NextRequest) {
       // source switch and the setup checklist all key off "is one stored".
       garminState: connectionState({
         hasAuth: !!data.garmin_auth,
-        lastSyncAt: (data as any).garmin_last_sync_at,
-        authFailedAt: (data as any).garmin_auth_failed_at,
+        lastSyncAt: (data as unknown as AthleteMeExtras).garmin_last_sync_at,
+        authFailedAt: (data as unknown as AthleteMeExtras).garmin_auth_failed_at,
       }),
-      garminLastSyncAt: (data as any).garmin_last_sync_at || null,
+      garminLastSyncAt: (data as unknown as AthleteMeExtras).garmin_last_sync_at || null,
       stravaState: connectionState({
         hasAuth: !!data.strava_auth,
-        lastSyncAt: (data as any).strava_last_sync_at,
-        authFailedAt: (data as any).strava_auth_failed_at,
+        lastSyncAt: (data as unknown as AthleteMeExtras).strava_last_sync_at,
+        authFailedAt: (data as unknown as AthleteMeExtras).strava_auth_failed_at,
       }),
-      stravaLastSyncAt: (data as any).strava_last_sync_at || null,
+      stravaLastSyncAt: (data as unknown as AthleteMeExtras).strava_last_sync_at || null,
       historyImport,
       // Same OR as /api/admin/athlete-source: a connected Strava account counts as
       // enabled even on a row that predates the flag.
-      stravaEnabled: !!(data as any).strava_enabled || !!data.strava_auth,
+      stravaEnabled: !!(data as unknown as AthleteMeExtras).strava_enabled || !!data.strava_auth,
       data_source: data.data_source || null,
       onboardingStatus: data.onboarding_status,
       avatarUrl: data.avatar_url || null,
       memberSince: data.created_at || null,
-      birthDate: (data as any).birth_date || null,
-      gender: (data as any).gender || null,
-      shoeSize: (data as any).shoe_size || null,
+      birthDate: (data as unknown as AthleteMeExtras).birth_date || null,
+      gender: (data as unknown as AthleteMeExtras).gender || null,
+      shoeSize: (data as unknown as AthleteMeExtras).shoe_size || null,
       ...kitSizesOf(data as unknown as Record<string, unknown>),
-      phone: (data as any).phone || null,
-      discoverable: (data as any).discoverable ?? true,
+      phone: (data as unknown as AthleteMeExtras).phone || null,
+      discoverable: (data as unknown as AthleteMeExtras).discoverable ?? true,
       // Which day this member's own week starts on (migration 119). Always one of
       // 0/1 on the way out, never null, so the screens can switch on it without
       // each one deciding what an absent value means.
-      weekStartDay: weekStartDayOf((data as any).week_start_day),
+      weekStartDay: weekStartDayOf((data as unknown as AthleteMeExtras).week_start_day),
       pendingGroup,
       hrTracePublic,
       // Migration 193; null while unapplied (the Privacy screen then hides the switches).
@@ -352,12 +367,12 @@ export async function PUT(req: NextRequest) {
       athlete: {
         id: data.id,
         name: data.name,
-        birthDate: (data as any).birth_date || null,
-        gender: (data as any).gender || null,
-        shoeSize: (data as any).shoe_size || null,
+        birthDate: (data as unknown as AthleteMeExtras).birth_date || null,
+        gender: (data as unknown as AthleteMeExtras).gender || null,
+        shoeSize: (data as unknown as AthleteMeExtras).shoe_size || null,
         ...kitSizesOf(data as unknown as Record<string, unknown>),
-        phone: (data as any).phone || null,
-        discoverable: (data as any).discoverable ?? true,
+        phone: (data as unknown as AthleteMeExtras).phone || null,
+        discoverable: (data as unknown as AthleteMeExtras).discoverable ?? true,
         ...(hrTraceSaved !== undefined ? { hrTracePublic: !!hrTracePublic, hrTraceSaved } : {}),
         ...(await readBody(supabase, id)),
         ...(bodySaved !== undefined ? { bodySaved } : {}),

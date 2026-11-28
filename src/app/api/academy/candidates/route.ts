@@ -41,12 +41,57 @@ export const dynamic = 'force-dynamic';
 const CANDIDATE_COLUMNS =
   'id, name, email, phone, source, goal, athlete_id, archived_at, archived_reason, created_at';
 
+type Db = ReturnType<typeof createServerClient>;
+
+/** One `academy_candidates` row as CANDIDATE_COLUMNS (+ INVITE_COLUMNS when 126 is in) reads it. */
+interface CandidateDbRow {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  source?: string | null;
+  goal?: string | null;
+  athlete_id?: string | null;
+  archived_at?: string | null;
+  archived_reason?: string | null;
+  created_at?: string | null;
+  invited_at?: string | null;
+  accepted_at?: string | null;
+}
+
+interface CandidateEventDbRow {
+  candidate_id: string;
+  stage?: string | null;
+  occurred_at?: string | null;
+  recorded_by?: string | null;
+  note?: string | null;
+}
+
+interface EmailLogDbRow {
+  id: string;
+  template?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  error_message?: string | null;
+  candidate_id?: string | null;
+  athlete_id?: string | null;
+}
+
+interface StaffDbRow {
+  id: string;
+  name?: string | null;
+  role?: string | null;
+  extra_roles?: string[] | null;
+  is_academy?: boolean | null;
+  academy_coach_id?: string | null;
+}
+
 const STAGE_KEYS = new Set<string>(STAGES.map(s => s.key));
 
 /** Migration 110 is pasted in by hand, so every handler has to survive its absence. */
 const NOT_SET_UP = { candidates: [], events: [], tableMissing: true };
 
-function toCandidate(row: any): CandidateRow {
+function toCandidate(row: CandidateDbRow): CandidateRow {
   return {
     id: String(row.id),
     name: String(row.name || ''),
@@ -61,7 +106,7 @@ function toCandidate(row: any): CandidateRow {
   };
 }
 
-function toEvent(row: any): CandidateEvent {
+function toEvent(row: CandidateEventDbRow): CandidateEvent {
   return {
     candidateId: String(row.candidate_id),
     stage: String(row.stage || ''),
@@ -78,7 +123,7 @@ function toEvent(row: any): CandidateEvent {
  * carried them would invite them onto the board, where a column of strangers' phone numbers
  * is exactly the screenshot nobody should be able to take. The card asks for them explicitly.
  */
-function contactOf(row: any) {
+function contactOf(row: CandidateDbRow) {
   return {
     email: row.email ?? null,
     phone: row.phone ?? null,
@@ -95,7 +140,7 @@ const INVITE_COLUMNS = ', invited_at, accepted_at';
  * (invite, form received, accepted), plus those to its linked athlete (an approval
  * from the approvals list). Empty, never an error, before 096 or 126.
  */
-async function emailsByCandidate(supabase: any, rows: any[]) {
+async function emailsByCandidate(supabase: Db, rows: CandidateDbRow[]) {
   const out: Record<string, Array<{ id: string; template: string; status: string; createdAt: string; error: string | null }>> = {};
   const ids = rows.map(r => String(r.id));
   if (!ids.length) return out;
@@ -104,7 +149,7 @@ async function emailsByCandidate(supabase: any, rows: any[]) {
 
   const cols = 'id, template, status, created_at, error_message, candidate_id, athlete_id';
   const seen = new Set<string>();
-  const push = (row: any, candidateId: string | undefined) => {
+  const push = (row: EmailLogDbRow, candidateId: string | undefined) => {
     if (!candidateId || seen.has(row.id)) return;
     seen.add(row.id);
     (out[candidateId] ||= []).push({
@@ -116,7 +161,7 @@ async function emailsByCandidate(supabase: any, rows: any[]) {
     });
   };
   const tagged = await supabase.from('email_log').select(cols).in('candidate_id', ids).order('created_at', { ascending: false }).limit(500);
-  if (!tagged.error) for (const row of tagged.data || []) push(row, String(row.candidate_id));
+  if (!tagged.error) for (const row of (tagged.data || []) as EmailLogDbRow[]) push(row, String(row.candidate_id));
   if (byAthlete.size) {
     const linked = await supabase
       .from('email_log')
@@ -124,7 +169,7 @@ async function emailsByCandidate(supabase: any, rows: any[]) {
       .in('athlete_id', [...byAthlete.keys()])
       .order('created_at', { ascending: false })
       .limit(500);
-    if (!linked.error) for (const row of linked.data || []) push(row, byAthlete.get(String(row.athlete_id)));
+    if (!linked.error) for (const row of (linked.data || []) as unknown as EmailLogDbRow[]) push(row, byAthlete.get(String(row.athlete_id)));
   }
   for (const list of Object.values(out)) list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   return out;
@@ -138,7 +183,7 @@ async function emailsByCandidate(supabase: any, rows: any[]) {
  * opened by hand and linked later carries none of its own. Every read here is best effort:
  * before 128 or 077 the card simply has no answers or no coach, never an error.
  */
-async function cardDetails(supabase: any, rows: any[]) {
+async function cardDetails(supabase: Db, rows: CandidateDbRow[]) {
   const out: Record<string, { intake: Record<string, unknown> | null; coachName: string | null; coachIds: string[] }> = {};
   const ids = rows.map(r => String(r.id));
   if (!ids.length) return out;
@@ -152,8 +197,8 @@ async function cardDetails(supabase: any, rows: any[]) {
   try {
     const athleteIds = linked.map(l => l.athlete);
     const { data } = await supabase.from('athletes').select('id, academy_intake').in('id', athleteIds);
-    const intakeOf = new Map<string, any>((data || []).map((a: any) => [String(a.id), a.academy_intake]));
-    const coachSets = await coachIdsByTrainee(supabase as any, athleteIds);
+    const intakeOf = new Map<string, unknown>(((data || []) as Array<{ id: string; academy_intake?: unknown }>).map(a => [String(a.id), a.academy_intake]));
+    const coachSets = await coachIdsByTrainee(supabase, athleteIds);
     const coachIds = [...new Set([...coachSets.values()].flat())];
     const names = new Map<string, string>();
     if (coachIds.length) {
@@ -162,7 +207,7 @@ async function cardDetails(supabase: any, rows: any[]) {
     }
     for (const { card, athlete } of linked) {
       const fromAthlete = intakeOf.get(athlete);
-      if (!out[card].intake && fromAthlete && typeof fromAthlete === 'object') out[card].intake = fromAthlete;
+      if (!out[card].intake && fromAthlete && typeof fromAthlete === 'object') out[card].intake = fromAthlete as Record<string, unknown>;
       const coachNames = (coachSets.get(athlete) ?? []).map(id => names.get(id)).filter(Boolean);
       out[card].coachName = coachNames.length ? coachNames.join(', ') : null;
       // Picked when the card was opened (an existing trainee): the accept sheet starts there.
@@ -189,15 +234,15 @@ export async function GET(request: Request) {
     if (gate.denied) return gate.denied;
 
     const supabase = createServerClient();
-    let { data: rows, error }: { data: any[] | null; error: any } = await supabase
+    let { data: rows, error } = (await supabase
       .from('academy_candidates')
       .select(CANDIDATE_COLUMNS + INVITE_COLUMNS)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })) as unknown as { data: CandidateDbRow[] | null; error: { code?: string; message?: string } | null };
     if (error && isMissingColumn(error)) {
-      ({ data: rows, error } = await supabase
+      ({ data: rows, error } = (await supabase
         .from('academy_candidates')
         .select(CANDIDATE_COLUMNS)
-        .order('created_at', { ascending: true }));
+        .order('created_at', { ascending: true })) as unknown as { data: CandidateDbRow[] | null; error: { code?: string; message?: string } | null });
     }
 
     if (error) {
@@ -224,8 +269,8 @@ export async function GET(request: Request) {
     const details = await cardDetails(supabase, rows || []).catch(() => ({} as Awaited<ReturnType<typeof cardDetails>>));
     // A runner already in the club who came through the form: most often a Strava signup,
     // whose placeholder address the form could never recognise. Only a suggestion.
-    const matches = await readRosterForMatching(supabase as any)
-      .then(roster => clubMatchesFor((rows || []) as any[], roster))
+    const matches = await readRosterForMatching(supabase)
+      .then(roster => clubMatchesFor((rows || []) as Array<CandidateDbRow & { name: string }>, roster))
       .catch(() => ({} as ReturnType<typeof clubMatchesFor>));
     // The accept sheet's coach picker ("שיבוץ מאמנים"). Only the manager picks; a
     // coach accepts for themselves, so they get just their own entry. The academy's
@@ -236,34 +281,34 @@ export async function GET(request: Request) {
     let coaches: Array<{ id: string; name: string; trainees?: number }> = [];
     let multiCoach: boolean | undefined;
     if (canAdmit) {
-      let staffRes: any = await supabase.from('athletes').select('id, name, role, extra_roles, is_academy, academy_coach_id').eq('coach_id', COACH_ID);
+      let staffRes: { data: StaffDbRow[] | null; error: { code?: string; message?: string } | null } = await supabase.from('athletes').select('id, name, role, extra_roles, is_academy, academy_coach_id').eq('coach_id', COACH_ID);
       const hasExtra = !(staffRes.error && isMissingColumn(staffRes.error));
       if (!hasExtra) staffRes = await supabase.from('athletes').select('id, name, role').eq('coach_id', COACH_ID);
-      const staff: any[] = staffRes.data || [];
-      const isCoach = (a: any) => (hasExtra ? holdsAcademyCoachRole(a) : isStaffRole(a.role));
+      const staff: StaffDbRow[] = staffRes.data || [];
+      const isCoach = (a: StaffDbRow) => (hasExtra ? holdsAcademyCoachRole(a) : isStaffRole(a.role));
       const load = new Map<string, number>();
       try {
-        const sets = await coachIdsByTrainee(supabase as any, undefined, staff.filter(a => a.is_academy).map(a => ({ id: a.id, academy_coach_id: a.academy_coach_id ?? null })));
+        const sets = await coachIdsByTrainee(supabase, undefined, staff.filter(a => a.is_academy).map(a => ({ id: a.id, academy_coach_id: a.academy_coach_id ?? null })));
         for (const ids of sets.values()) for (const c of ids) load.set(c, (load.get(c) ?? 0) + 1);
       } catch { /* the load is a hint */ }
       coaches = staff
         .filter(isCoach)
-        .filter((a: any) => isAcademyManager(caller) || a.id === caller.athleteId)
-        .map((a: any) => ({ id: String(a.id), name: String(a.name || ''), trainees: load.get(String(a.id)) ?? 0 }))
+        .filter(a => isAcademyManager(caller) || a.id === caller.athleteId)
+        .map(a => ({ id: String(a.id), name: String(a.name || ''), trainees: load.get(String(a.id)) ?? 0 }))
         .sort((a, b) => a.name.localeCompare(b.name));
-      multiCoach = await hasTraineeCoachesTable(supabase as any);
+      multiCoach = await hasTraineeCoachesTable(supabase);
     }
 
     return NextResponse.json({
       candidates: (rows || []).map(r => ({
         ...toCandidate(r),
         ...contactOf(r),
-        emails: (emails as any)[String((r as any).id)] || [],
-        intake: details[String((r as any).id)]?.intake ?? null,
-        coachName: details[String((r as any).id)]?.coachName ?? null,
-        coachIds: details[String((r as any).id)]?.coachIds ?? [],
-        linkedFromForm: matches[String((r as any).id)]?.linkedFromForm ?? false,
-        clubMatch: matches[String((r as any).id)]?.clubMatch ?? null,
+        emails: (emails as Record<string, unknown[]>)[String(r.id)] || [],
+        intake: details[String(r.id)]?.intake ?? null,
+        coachName: details[String(r.id)]?.coachName ?? null,
+        coachIds: details[String(r.id)]?.coachIds ?? [],
+        linkedFromForm: matches[String(r.id)]?.linkedFromForm ?? false,
+        clubMatch: matches[String(r.id)]?.clubMatch ?? null,
       })),
       events: await withRecorderNames(supabase, (eventRows || []).map(toEvent)),
       me: { canAdmit, isManager: isAcademyManager(caller), athleteId: caller.athleteId ?? null },
@@ -516,7 +561,7 @@ export async function PATCH(request: Request) {
 
       // What the card points at now. A form applicant's card points at the account the form
       // opened; when staff move it to the runner's real account, that one is the duplicate.
-      let { data: card, error: cardError }: { data: any; error: any } = await supabase
+      let { data: card, error: cardError }: { data: { id: string; athlete_id?: string | null; intake?: unknown } | null; error: { code?: string; message?: string } | null } = await supabase
         .from('academy_candidates')
         .select('id, athlete_id, intake')
         .eq('id', id)
@@ -525,7 +570,7 @@ export async function PATCH(request: Request) {
         ({ data: card } = await supabase.from('academy_candidates').select('id, athlete_id').eq('id', id).maybeSingle());
       }
       const previousId = card?.athlete_id ? String(card.athlete_id) : null;
-      let previous: any = null;
+      let previous: Record<string, unknown> | null = null;
       if (previousId && previousId !== athleteId) {
         const { data } = await supabase
           .from('athletes')
@@ -542,7 +587,7 @@ export async function PATCH(request: Request) {
       if (error) {
         // The partial unique index on `athlete_id`: this athlete already has a candidate row,
         // and forking somebody's history in two is worse than refusing the link.
-        if (String((error as any).code) === '23505') {
+        if (String(error.code) === '23505') {
           return NextResponse.json({ error: 'That athlete is already linked to a candidate' }, { status: 409 });
         }
         return NextResponse.json({ error: 'Failed to link the candidate' }, { status: 500 });
