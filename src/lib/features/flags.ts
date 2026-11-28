@@ -14,7 +14,10 @@
 // Precedence is MOST SPECIFIC WINS, and an explicit `enabled: false` is an answer,
 // not an absence: a coach can switch one runner off inside a squad an admin turned on.
 //
-//   athlete > squad > academy > role > club > default (off)
+//   athlete > access_group > squad > academy > role > club > default (off)
+//
+// access_group (migration 222) = an owner-made group of people ("בעלים", "גרעין",
+// "ולנסיה"…). A person can be in several; an explicit OFF wins at the same rank.
 //
 // Everything in this file is pure; the DB reads live in ./server.ts.
 // ═════════════════════════════════════════════════════════════════════════════
@@ -222,6 +225,8 @@ export const FEATURES = {
   /** Native משתמשים (role picker, GET/PUT/DELETE /api/admin/users). Off by default: the users manager is a pending
    *  product decision, so it ships only when an admin turns it on. */
   native_mgmt_users: { label: 'משתמשים (אפליקציה)', defaultEnabled: false },
+  /** Native ניהול → משתמשים וקבוצות: access groups + per-user screen sets (/api/admin/access-groups, migration 222). Admin-only. */
+  native_mgmt_access_groups: { label: 'קבוצות גישה ומסכים למשתמשים (אפליקציה)', defaultEnabled: false },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
@@ -244,11 +249,11 @@ export function resolveClubScope(feature: FeatureKey, rows: EnablementRow[]): bo
   return club ? !!club.enabled : FEATURES[feature].defaultEnabled;
 }
 
-export const SCOPE_TYPES = ['athlete', 'squad', 'academy', 'role', 'club'] as const;
+export const SCOPE_TYPES = ['athlete', 'access_group', 'squad', 'academy', 'role', 'club'] as const;
 export type ScopeType = (typeof SCOPE_TYPES)[number];
 
 /** Lower = more specific = wins. */
-export const SCOPE_RANK: Record<ScopeType, number> = { athlete: 0, squad: 1, academy: 2, role: 3, club: 4 };
+export const SCOPE_RANK: Record<ScopeType, number> = { athlete: 0, access_group: 1, squad: 2, academy: 3, role: 4, club: 5 };
 
 /** The fixed `scope_id` of the two scopes that name no row. */
 export const ACADEMY_SCOPE_ID = 'academy';
@@ -274,6 +279,8 @@ export interface AthleteFacts {
   role?: string | null;
   extraRoles?: string[] | null;
   isAcademy?: boolean;
+  /** access_groups.id the athlete belongs to (migration 222; [] before it). */
+  accessGroupIds?: string[] | null;
 }
 
 export interface Resolution {
@@ -286,6 +293,7 @@ export interface Resolution {
 export function rowApplies(row: EnablementRow, a: AthleteFacts): boolean {
   switch (row.scope_type) {
     case 'athlete': return row.scope_id === a.id;
+    case 'access_group': return !!a.accessGroupIds?.includes(row.scope_id);
     case 'squad': return !!a.groupId && row.scope_id === String(a.groupId);
     case 'academy': return !!a.isAcademy && row.scope_id === ACADEMY_SCOPE_ID;
     case 'role': return row.scope_id === a.role || !!a.extraRoles?.includes(row.scope_id);
@@ -295,9 +303,9 @@ export function rowApplies(row: EnablementRow, a: AthleteFacts): boolean {
 }
 
 /**
- * Most-specific-wins. Two rows at the same rank can only both apply for `role`
- * (an athlete holding two roles): there an explicit OFF beats ON, the cautious
- * reading of a contradiction.
+ * Most-specific-wins. Two rows at the same rank can both apply for `role` (an
+ * athlete holding two roles) and `access_group` (a member of two groups): there an
+ * explicit OFF beats ON, the cautious reading of a contradiction.
  */
 export function resolveFeature(feature: FeatureKey, rows: EnablementRow[], a: AthleteFacts): Resolution {
   let best: EnablementRow | null = null;

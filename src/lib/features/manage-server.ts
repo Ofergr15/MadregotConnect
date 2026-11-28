@@ -1,3 +1,4 @@
+import { accessGroupMap } from '@/lib/access-groups/store';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { coachIdsByTrainee } from '@/lib/academy/trainee-coaches';
 import type { VerifiedCaller } from '@/lib/auth/self-or-staff';
@@ -24,7 +25,7 @@ export async function managedAthletes(db: Db, caller: VerifiedCaller, feature: F
   const rows = ((data || []) as AthleteRow[]).filter((a) => (a.status ?? 'active') === 'active');
   const coachMap = await coachIdsByTrainee(db, rows.filter((r) => r.is_academy).map((r) => r.id), rows).catch(() => new Map<string, string[]>());
   const enablements: EnablementRow[] = (await enablementRows(feature, db)) ?? [];
-  const { data: groups } = await db.from('groups').select('id, name');
+  const [{ data: groups }, memberships] = await Promise.all([db.from('groups').select('id, name'), accessGroupMap(db)]);
   const groupName = new Map(((groups || []) as Array<{ id: string; name: string }>).map((g) => [String(g.id), g.name]));
   const out = [];
   for (const a of rows) {
@@ -32,6 +33,7 @@ export async function managedAthletes(db: Db, caller: VerifiedCaller, feature: F
     if (!visibleToManager(tc, facts)) continue;
     const res = resolveFeature(feature, enablements, {
       id: a.id, groupId: a.group_id ? String(a.group_id) : null, role: a.role, extraRoles: a.extra_roles ?? [], isAcademy: !!a.is_academy,
+      accessGroupIds: memberships.get(a.id) ?? [],
     });
     out.push({
       id: a.id, name: a.name, avatarUrl: a.avatar_url, isAcademy: !!a.is_academy,
