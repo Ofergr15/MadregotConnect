@@ -23,6 +23,8 @@ Both paths are a few thousand rows a day against Supabase, far under any limit. 
 3. **Window.** Race morning:
    `PUT /api/race-live/{eventId}/config {"active":true,"pollFrom":"2026-12-06T07:45:00+01:00","pollTo":"2026-12-06T14:30:00+01:00"}`.
    Positions are accepted, and shown on the board, **only inside this window**.
+   Or set the gun time and the window together, validated (`pollTo ≥ start + 6:30`, zoned times only):
+   `PUT /api/race-live/{eventId}/settings {"startAt":"2026-12-06T08:15:00+01:00","pollFrom":"2026-12-06T07:45:00+01:00","pollTo":"2026-12-06T14:45:00+01:00"}` (admin; needs migration 320). The reply echoes the times in Israel and Spain.
 4. **Viewers opt in to the map** on their own (`PUT …/map {on:true}`). Without that a member sees the board but no positions.
 
 ## During the race: what a 4xx means
