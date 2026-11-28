@@ -10,6 +10,10 @@ Every call needs `Authorization: Bearer <supabase jwt>`.
   as opaque. `nextCursor: null` means you are on the last page. A page can come back **shorter than `limit`, or
   even empty, while `nextCursor` is still set**, because unapproved runners are filtered out after the page is
   cut. Keep paging. A short page does not mean you reached the end.
+- The cursor is stable: keyset on `(occurredAt DESC, id DESC)`, so new items arriving while you scroll never repeat
+  or skip a row (`feedStableCursor.test.ts`). UTC times come back as `…Z`, microseconds kept. Still dedupe by `id`
+  when appending a page (`appendFeedPage` on the web): a refreshed first page swapped in under an older cursor can
+  overlap. A cursor that isn't `<ISO instant>,<uuid>` (or a bare ISO instant) is a 400.
 - Optional filters: `types=announcement,post` (unknown values are ignored), `squad=<groupId|academy|favorites|mine>`,
   `athlete=<uuid>` (a bad uuid gets 400 `{ error: "Invalid athlete" }`).
 - Errors: 401/403 `{ error }` come from the session gate (403 means pending, inactive or no membership).

@@ -11,6 +11,7 @@ import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
 import { FeedCard } from '@/components/FeedCard';
 import { FeedCommentSheet } from '@/components/FeedCommentSheet';
+import { appendFeedPage } from '@/lib/feed/pagination';
 
 // The profile's Activity tab: the feed, filtered to one athlete.
 //
@@ -104,7 +105,7 @@ export function ProfileActivityFeed({ athleteId, runsOnly = false, max, moreHref
     try {
       const page = await fetchFeed(cursor, PAGE_SIZE, types, null, athleteId);
       if (mine !== seq.current) return;
-      setItems((prev) => [...prev, ...page.items]);
+      setItems((prev) => appendFeedPage(prev, page.items));
       setCursor(page.nextCursor);
     } catch { /* silent — scrolling again retries */ }
     finally { setLoadingMore(false); }

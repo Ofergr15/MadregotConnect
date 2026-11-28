@@ -4,7 +4,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
 import { FEED_SELECT, projectFeedItem, type FeedItem } from '@/lib/feed/project';
 import { strengthForFeed } from '@/lib/activities/strength-feed';
-import { clampFeedLimit, parseFeedCursor } from '@/lib/feed/pagination';
+import { clampFeedLimit, encodeFeedCursor, feedCursorOrFilter, parseFeedCursor } from '@/lib/feed/pagination';
 import { pendingAthleteIds, withoutPendingAuthors } from '@/lib/auth/pending-athletes';
 import { testAccountIds, hiddenTestAccountsFor } from '@/lib/athletes/test-accounts';
 import { loadFeedContext } from '@/lib/feed/context';
@@ -128,12 +128,10 @@ async function handleGET(request: Request) {
     if (squadAuthorIds) query = query.in('author_athlete_id', squadAuthorIds);
 
     // Cursor is "<iso timestamp>,<uuid>": strictly-after in the composite sort order.
+    // Both parts are validated by parseFeedCursor before they reach this filter string.
     if (parsedCursor) {
-      query = parsedCursor.id
-        ? query.or(
-            `occurred_at.lt.${parsedCursor.time},and(occurred_at.eq.${parsedCursor.time},id.lt.${parsedCursor.id})`,
-          )
-        : query.lt('occurred_at', parsedCursor.time);
+      const orFilter = feedCursorOrFilter(parsedCursor);
+      query = orFilter ? query.or(orFilter) : query.lt('occurred_at', parsedCursor.time);
     }
 
     // Who is still waiting for approval doesn't depend on the page, so it is asked
@@ -171,7 +169,7 @@ async function handleGET(request: Request) {
     const items: FeedItem[] = await strengthForFeed(supabase, page.map((row) => projectFeedItem(row, ctx)), auth.user.athleteId ?? null);
 
     const last = raw[raw.length - 1] as { occurred_at: string; id: string } | undefined;
-    const nextCursor = hasMore && last ? `${last.occurred_at},${last.id}` : null;
+    const nextCursor = hasMore && last ? encodeFeedCursor(last) : null;
 
     return NextResponse.json({ items, nextCursor });
   } catch (err: unknown) {
