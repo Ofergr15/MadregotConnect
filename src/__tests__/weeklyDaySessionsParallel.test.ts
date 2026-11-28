@@ -67,7 +67,10 @@ describe('weekly: day sessions read in the first round trip', () => {
       const ds = p.log.find((l) => l.what === 'daySessions')!;
       expect(ds.t0).toBeLessThan(D / 2);           // started with the first Promise.all
       const rows = [];
-      for (let i = 0; i < 10; i++) { const bb = await run(baseline), pp = await run(patched); rows.push({ i, baselineMs: +bb.ms.toFixed(1), patchedMs: +pp.ms.toFixed(1), equal: JSON.stringify(bb.body) === JSON.stringify(pp.body) }); }
+      // Ten timed rounds only when someone is collecting the numbers; the equality
+      // check needs one (task 109: this file was the suite's slowest, 5.6 s).
+      const rounds = process.env.WEEKLY_TIMINGS_OUT ? 10 : 1;
+      for (let i = 0; i < rounds; i++) { const bb = await run(baseline), pp = await run(patched); rows.push({ i, baselineMs: +bb.ms.toFixed(1), patchedMs: +pp.ms.toFixed(1), equal: JSON.stringify(bb.body) === JSON.stringify(pp.body) }); }
       if (process.env.WEEKLY_TIMINGS_OUT) (await import('node:fs')).appendFileSync(process.env.WEEKLY_TIMINGS_OUT, JSON.stringify({ academyOnly, delayMsPerRead: D, rows, firstRunLog: { baseline: b.log, patched: p.log } }) + '\n');
       expect(rows.every((r) => r.equal)).toBe(true);
     });
