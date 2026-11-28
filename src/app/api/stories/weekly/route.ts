@@ -15,6 +15,6 @@ export async function GET(request: Request) {
   if (denied) return denied;
   const isAdmin = caller.isSuperUser || hasRole(caller, 'admin');
   const gate = await storyGate('weekly', caller.athleteId, { isAdmin });
-  if (!gate.allowed) return NextResponse.json({ allowed: false }, { status: 404 });
+  if (!gate.allowed) return NextResponse.json({ allowed: false, error: 'not found' }, { status: 404 });
   return NextResponse.json({ allowed: true, tester: gate.tester, preview: gate.preview, state: gate.state, viewingAs: !!caller.viewingAsBy });
 }

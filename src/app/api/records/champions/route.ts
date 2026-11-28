@@ -8,6 +8,7 @@ import { getActivityWeekStart, israelDateAnchor, israelToday } from '@/lib/utils
 import { clubRecordHistory, monthlyChampions } from '@/lib/records/board';
 import { readRoster } from '@/lib/records/server';
 import { recordsGate } from '@/lib/records/gate';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,6 +72,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ enabled: true, month, ...champions });
   } catch (err: any) {
     console.error('records/champions error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to compute champions' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to compute champions'), { status: 500 });
   }
 }

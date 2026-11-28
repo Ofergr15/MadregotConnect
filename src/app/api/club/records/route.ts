@@ -5,6 +5,7 @@ import { getClubRecords } from '@/lib/prs/club-records-store';
 import { israelToday } from '@/lib/utils';
 import { clubRecordHistory, filterRecordTable, isOnTimeTable, paceHiddenRows, type SexFilter } from '@/lib/records/board';
 import { readRoster, officialActivityIds, benchmarkBests } from '@/lib/records/server';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 // The cold path is the full-history walk in computeClubRecordsSnapshot — thirty
@@ -86,6 +87,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ ...rest, buckets, tables, b2000, history, ageBands, filters: { sex, age, racesOnly }, recomputed });
   } catch (err: any) {
     console.error('Club records error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to compute club records' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to compute club records'), { status: 500 });
   }
 }

@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   const { denied, caller } = await resolveVerifiedCaller(request);
   if (denied) return denied;
-  if (!caller.athleteId) return NextResponse.json({ ok: false }, { status: 403 });
+  if (!caller.athleteId) return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
   const b = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const id = typeof b.momentId === 'string' && /^[0-9a-f-]{36}$/i.test(b.momentId) ? b.momentId : null;
   if (!id) return NextResponse.json({ error: 'momentId is required' }, { status: 400 });

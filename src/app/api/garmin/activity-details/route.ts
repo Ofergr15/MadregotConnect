@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { GarminClient } from '@/lib/garmin/client';
 import { lapsWorthStoring, narrowLaps, type StoredLap } from '@/lib/garmin/laps';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -267,6 +268,6 @@ export async function GET(request: Request) {
     });
   } catch (error: any) {
     console.error('Activity details error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch details' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to fetch details'), { status: 500 });
   }
 }

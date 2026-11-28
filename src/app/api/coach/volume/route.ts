@@ -4,6 +4,7 @@ import { COACH_ID } from '@/lib/constants';
 import { getActivityWeekStart, israelDateAnchor, resolveGroup } from '@/lib/utils';
 import { requireStaff } from '@/lib/auth/self-or-staff';
 import { fetchWeeklyVolume } from '@/lib/athletes/weekly-volume';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,6 +84,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ weeks: weekAxis, athletes: out });
   } catch (err: any) {
     console.error('coach volume error:', err);
-    return NextResponse.json({ error: err.message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }

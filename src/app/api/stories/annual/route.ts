@@ -18,19 +18,19 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   const { denied, caller } = await resolveVerifiedCaller(request);
   if (denied) return denied;
-  if (!caller.athleteId) return NextResponse.json({ allowed: false }, { status: 404 });
+  if (!caller.athleteId) return NextResponse.json({ allowed: false, error: 'not found' }, { status: 404 });
   const db = createServerClient();
   const isAdmin = caller.isSuperUser || hasRole(caller, 'admin');
   const now = new Date();
   const today = israelToday(now);
   const period = annualPeriod(today);
   const access = await storyAccess('annual', { viewerId: caller.athleteId, ownerId: caller.athleteId, isAdmin, period, now }, defaultAccessDeps(db));
-  if (!access.allowed) return NextResponse.json({ allowed: false }, { status: 404 });
+  if (!access.allowed) return NextResponse.json({ allowed: false, error: 'not found' }, { status: 404 });
   const year = Number((period || `${Number(today.slice(0, 4)) - 1}-12-31`).slice(0, 4));
   const story = await loadAnnualStory(db, caller.athleteId, year, today).catch(() => null);
   const min = access.settings?.min_runs ?? 10;
   if (!story || (!access.preview && story.stats.runs < min && access.instance?.enabled !== true)) {
-    return NextResponse.json({ allowed: false }, { status: 404 });
+    return NextResponse.json({ allowed: false, error: 'not found' }, { status: 404 });
   }
   return NextResponse.json({ allowed: true, preview: access.preview, tester: access.tester, viewingAs: !!caller.viewingAsBy, period, story });
 }

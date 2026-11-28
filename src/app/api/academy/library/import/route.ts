@@ -151,7 +151,7 @@ export async function POST(request: Request) {
 
     const supabase = createServerClient();
     const result = await build(supabase);
-    if (result.notSetUp) return NextResponse.json({ tableMissing: true }, { status: 503 });
+    if (result.notSetUp) return NextResponse.json({ error: 'library not set up', tableMissing: true }, { status: 503 });
 
     const chosen = result.candidates.filter(c => keys.has(c.key) && c.saveable && c.steps && !hasAbsolutePaces(c.steps));
     if (!chosen.length) return NextResponse.json({ written: 0, skipped: keys.size });
@@ -192,7 +192,7 @@ export async function POST(request: Request) {
 async function fill(ownerId: string) {
   const supabase = createServerClient();
   const result = await build(supabase);
-  if (result.notSetUp) return NextResponse.json({ tableMissing: true }, { status: 503 });
+  if (result.notSetUp) return NextResponse.json({ error: 'library not set up', tableMissing: true }, { status: 503 });
   if (!result.fillReady) return NextResponse.json({ error: 'migration 159 needed', needsMigration: 159 }, { status: 409 });
 
   const rows = fillRows(result.candidates).map(r => ({

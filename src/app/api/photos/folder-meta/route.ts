@@ -3,6 +3,7 @@ import { authError, requireSession } from '@/lib/auth-session';
 import { hasRole } from '@/lib/auth/roles';
 import { setFolderMeta } from '@/lib/photos/folder-meta';
 import type { FolderKind } from '@/lib/photos/folder-kind';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,6 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[photos/folder-meta] failed:', err);
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Internal error'), { status: 500 });
   }
 }

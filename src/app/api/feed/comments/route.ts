@@ -5,6 +5,7 @@ import { notifyFeedInteraction, notifyMentions, loadFeedItemMeta } from '@/lib/f
 import { COMMENT_SELECT, projectComment, validateCommentBody } from '@/lib/feed/comments';
 import { blockedAuthorIds } from '@/lib/moderation/blocks';
 import { hiddenInteractorsFor, visibleItemCount, withoutHiddenInteractors } from '@/lib/feed/test-account-filter';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ comments });
   } catch (err: unknown) {
     console.error('Feed comments fetch error:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }
 
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
     });
   } catch (err: unknown) {
     console.error('Feed comment create error:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }
 
@@ -146,6 +147,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true, commentCount: await visibleItemCount(supabase as never, 'feed_comments', comment.feed_item_id, item?.comment_count, auth.user) });
   } catch (err: unknown) {
     console.error('Feed comment delete error:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }

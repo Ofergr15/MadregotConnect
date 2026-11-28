@@ -7,6 +7,7 @@ import { notifyAthlete } from '@/lib/push';
 import { israelToday } from '@/lib/utils';
 import { packMembers, planPublishedAt } from '@/lib/packs/server';
 import { eligibleFromPack, eligibleFromReceipts, nudgeCopy, parseNudgeBody } from '@/lib/academy/read-nudge';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,6 +95,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ sent, already, skipped });
   } catch (err: any) {
     console.error('POST /api/academy/read-nudge error:', err);
-    return NextResponse.json({ error: err?.message || 'failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('failed'), { status: 500 });
   }
 }

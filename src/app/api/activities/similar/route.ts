@@ -25,6 +25,7 @@ import { COACH_ID } from '@/lib/constants';
 import { paceGroupKeyFor } from '@/lib/plans/pace-group';
 import { readWorkout, type Workout, type WStep } from '@/lib/run-analysis/workout';
 import { matchesScope, paceAtHrOf, type SimilarScope, type SimilarSession } from '@/lib/run-analysis/similar';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -129,6 +130,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ kind, scope, sessions, masked: false });
   } catch (error: any) {
     console.error('[activities/similar] failed:', error);
-    return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }

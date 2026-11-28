@@ -5,6 +5,7 @@ import { forLeader } from '@/lib/packs/leader-safe';
 import { toMoment } from '@/lib/packs/moments';
 import { packChannelId } from '@/lib/packs/server';
 import { CHANNEL_TYPE, getStreamServerClient } from '@/lib/stream/server';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +46,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json(forLeader({ moment: toMoment(claimed), posted }));
   } catch (err: any) {
     console.error('POST /api/packs/[id]/moments/[mid]/send error:', err);
-    return NextResponse.json({ error: err?.message || 'failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('failed'), { status: 500 });
   }
 }

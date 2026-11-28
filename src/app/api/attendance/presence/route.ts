@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireStaffCaller } from '@/lib/auth/self-or-staff';
 import { isMissingTable } from '@/lib/supabase/schema-drift';
 import { planWeekStartOf } from '@/lib/utils';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,6 +83,6 @@ export async function PUT(request: Request) {
     return NextResponse.json({ ok: true, saved: rows.length, cleared: unmark.length });
   } catch (err: any) {
     console.error('attendance/presence failed:', err);
-    return NextResponse.json({ error: err?.message || 'Failed to save presence' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to save presence'), { status: 500 });
   }
 }

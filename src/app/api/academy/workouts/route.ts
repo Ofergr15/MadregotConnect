@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ workout: data }, { status: 201 });
   } catch (error: any) {
     console.error('Academy workouts POST error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to save workout' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to save workout'), { status: 500 });
   }
 }
 
@@ -91,6 +92,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Academy workouts DELETE error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to delete workout' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to delete workout'), { status: 500 });
   }
 }

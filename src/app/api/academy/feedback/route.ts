@@ -25,6 +25,7 @@ import { mayCoach } from '@/lib/academy/pairing-server';
 import { academyThreadUrl } from '@/lib/academy/deep-links';
 
 import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
+import { internalErrorBody } from '@/lib/api-error';
 export const dynamic = 'force-dynamic';
 
 /**
@@ -125,7 +126,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ feedback: rows[0] ?? null, traineeReport });
   } catch (error: any) {
     console.error('Academy feedback GET error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to read feedback' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to read feedback'), { status: 500 });
   }
 }
 
@@ -307,7 +308,7 @@ export async function POST(request: Request) {
     });
   } catch (error: any) {
     console.error('Academy feedback POST error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to save feedback' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to save feedback'), { status: 500 });
   }
 }
 

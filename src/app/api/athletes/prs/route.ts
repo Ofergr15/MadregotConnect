@@ -12,6 +12,7 @@ import { computeRecordHistory } from '@/lib/prs/record-history';
 import { readClubRecords } from '@/lib/prs/club-records-store';
 import { readRoster } from '@/lib/records/server';
 import { clubRankFor, improvedBySec } from '@/lib/records/board';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -153,7 +154,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ distanceBests, longestRun, bestMonth, totalRuns: runs.length });
   } catch (err: any) {
     console.error('PRs error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to compute PRs' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to compute PRs'), { status: 500 });
   }
 }
 
@@ -224,7 +225,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ success: true, bucketKey, seconds, hidden });
   } catch (err: any) {
     console.error('PR override save error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to save' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to save'), { status: 500 });
   }
 }
 
@@ -253,6 +254,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('PR override delete error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to delete' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to delete'), { status: 500 });
   }
 }

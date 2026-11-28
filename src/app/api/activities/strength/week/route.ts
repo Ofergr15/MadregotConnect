@@ -4,6 +4,7 @@ import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isFeatureEnabled } from '@/lib/features/server';
 import { STRENGTH_TYPE } from '@/lib/activities/kinds';
 import { activityLocalDateStr } from '@/lib/utils';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +48,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ sessions });
   } catch (err: unknown) {
     console.error('GET /api/activities/strength/week error:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }

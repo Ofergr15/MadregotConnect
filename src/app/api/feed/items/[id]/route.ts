@@ -7,6 +7,7 @@ import { FEED_SELECT, projectFeedItem } from '@/lib/feed/project';
 import { hiddenFromCaller } from '@/lib/athletes/test-accounts';
 import { loadFeedContext } from '@/lib/feed/context';
 import { sanitizeMediaList } from '@/lib/feed/media';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,7 +93,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ item });
   } catch (err: unknown) {
     console.error('Feed item fetch error:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }
 
@@ -249,6 +250,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ item });
   } catch (err: unknown) {
     console.error('Feed item update error:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }

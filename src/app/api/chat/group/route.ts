@@ -4,6 +4,7 @@ import { isFeatureEnabled } from '@/lib/features/server';
 import { getStreamServerClient } from '@/lib/stream/server';
 import { CHANNEL_TYPE } from '@/lib/stream/constants';
 import { isGroupChannelId, parseGroupEdit } from '@/lib/stream/group-edit';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +49,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: true, channelId, ...parsed.patch });
   } catch (error: any) {
     console.error('chat/group PATCH failed', error);
-    return NextResponse.json({ error: error.message || 'update failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('update failed'), { status: 500 });
   }
 }

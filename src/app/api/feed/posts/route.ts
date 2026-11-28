@@ -6,6 +6,7 @@ import { sanitizeMediaList } from '@/lib/feed/media';
 import { notifyMentions } from '@/lib/feed/notify';
 import { resolveAudience, sendPushLocalized } from '@/lib/push';
 import { feedPostCopy } from '@/lib/notifications/copy';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,7 +99,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ item });
   } catch (err: unknown) {
     console.error('Feed post create error:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }
 
@@ -150,6 +151,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
     console.error('Feed post delete error:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }

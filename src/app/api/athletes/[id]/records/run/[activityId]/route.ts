@@ -10,6 +10,7 @@ import { realBreaks, recordBreaks } from '@/lib/prs/record-history';
 import { ALL_BUCKETS, readPrExclusions, type PrExclusions } from '@/lib/prs/exclusions-store';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 import { athleteHidesPace } from '@/lib/records/pace-privacy';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,6 +96,6 @@ export async function GET(
     return NextResponse.json({ unmeasured, records, excludedFrom });
   } catch (error: any) {
     console.error('Run records error:', error);
-    return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }

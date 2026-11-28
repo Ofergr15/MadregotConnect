@@ -32,6 +32,7 @@ import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 import { pickPlanned, resolveRanLane, retargetToLane, type RanLane } from '@/lib/plan-execution/ran-lane';
 import { readRunMatch } from '@/lib/plan-execution/run-match';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -499,7 +500,7 @@ async function handleGET(request: Request) {
     return NextResponse.json({ ...report, activityId: activity.id, efforts, blocks });
   } catch (error: any) {
     console.error('Academy segments error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to compute segments' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to compute segments'), { status: 500 });
   }
 }
 

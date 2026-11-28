@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { raceLiveTick } from '@/lib/race-live/server';
 import { cronPaused } from '@/lib/cron-pause';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -17,7 +18,7 @@ async function run(request: NextRequest) {
     return NextResponse.json(await raceLiveTick());
   } catch (error: any) {
     console.error('race-live tick failed', error);
-    return NextResponse.json({ error: error.message || 'tick failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('tick failed'), { status: 500 });
   }
 }
 export const POST = run;

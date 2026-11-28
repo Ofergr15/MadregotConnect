@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaff } from '@/lib/auth/self-or-staff';
 import { computeRoster } from '@/lib/coach/roster-server';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -42,6 +43,6 @@ export async function GET(request: Request) {
     return NextResponse.json(await roster(week));
   } catch (error: any) {
     console.error('[coach/roster] failed:', error);
-    return NextResponse.json({ error: error?.message || 'Failed to load roster' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to load roster'), { status: 500 });
   }
 }

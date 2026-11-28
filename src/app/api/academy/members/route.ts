@@ -19,6 +19,7 @@ import { academyCoachIds } from '@/lib/academy/coaches';
 import { coachIdsByTrainee, coachesOf, coachesTrainee, hasTraineeCoachesTable } from '@/lib/academy/trainee-coaches';
 
 import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
+import { internalErrorBody } from '@/lib/api-error';
 export const dynamic = 'force-dynamic';
 
 /**
@@ -357,6 +358,6 @@ export async function GET(request: Request) {
     });
   } catch (error: any) {
     console.error('Academy members error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to load members' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to load members'), { status: 500 });
   }
 }

@@ -7,6 +7,7 @@ import { parsePainInput } from '@/lib/feedback/pain';
 import { PAIN_SELECT, callerMaySeePain, sendPainAlert, shapePain, type PainRow } from '@/lib/feedback/pain-server';
 import { notifyStaff } from '@/lib/notifications/staff';
 import { availabilityChangeCopy } from '@/lib/notifications/copy';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,7 +57,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ enabled: true, items: ((data || []) as PainRow[]).map(shapePain) });
   } catch (error: any) {
     console.error('[pain-reports] GET failed', error);
-    return NextResponse.json({ error: error?.message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }
 
@@ -104,6 +105,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ report: shapePain(row), recipients, availability });
   } catch (error: any) {
     console.error('[pain-reports] POST failed', error);
-    return NextResponse.json({ error: error?.message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }

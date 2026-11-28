@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireStaffCaller } from '@/lib/auth/self-or-staff';
 import { notifyAthlete } from '@/lib/push';
 import { coachMessageCopy } from '@/lib/notifications/copy';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +49,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ sent: true, result });
   } catch (error: any) {
     console.error('[coach/message] failed:', error);
-    return NextResponse.json({ error: error?.message || 'Failed to send' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to send'), { status: 500 });
   }
 }

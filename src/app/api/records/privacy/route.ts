@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,6 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error('records/privacy error:', err);
-    return NextResponse.json({ error: err.message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }

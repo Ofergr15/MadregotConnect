@@ -7,6 +7,7 @@ import {
 } from '@/lib/features/flags';
 import { ENABLEMENTS_TABLE, ENABLEMENT_AUDIT_TABLE } from '@/lib/features/server';
 import { athleteToggleFacts, managedAthletes, toggleCaller } from '@/lib/features/manage-server';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +46,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ feat
     });
   } catch (error: any) {
     console.error('[features] GET failed', error);
-    return NextResponse.json({ error: error?.message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }
 
@@ -95,6 +96,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ feat
     return NextResponse.json({ ok: true, scopeType, scopeId, enabled, setBy, setAt: now });
   } catch (error: any) {
     console.error('[features] PUT failed', error);
-    return NextResponse.json({ error: error?.message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }

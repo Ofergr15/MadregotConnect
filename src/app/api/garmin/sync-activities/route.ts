@@ -25,6 +25,7 @@ import { backfillGarminHistory } from '@/lib/garmin/history-backfill';
 import { requireCallerForAthlete, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { looksLikeAuthFailure, markProviderAuthFailed, markProviderSynced } from '@/lib/providers/health';
 import { fillMissingProfileFields, garminProfileFields } from '@/lib/providers/profile';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -664,7 +665,7 @@ export async function runSyncRequest(request: Request) {
     return NextResponse.json({ synced: totalSynced, results, ...(skipped.length ? { skipped } : {}) });
   } catch (error: any) {
     console.error('Activity sync error:', error);
-    return NextResponse.json({ error: error.message || 'Sync failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Sync failed'), { status: 500 });
   }
 }
 
@@ -1036,6 +1037,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ activities: enriched });
   } catch (error: any) {
     console.error('Fetch activities error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to fetch'), { status: 500 });
   }
 }

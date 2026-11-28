@@ -6,6 +6,7 @@ import { computeAcademyWeekAdherence, sundayOf, addDaysStr } from '@/lib/academy
 import { isMissingFeedbackTable } from '@/lib/academy/feedback';
 import { buildQueue } from '@/lib/academy/queue';
 import { activityLocalDateStr, israelToday } from '@/lib/utils';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,7 +63,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ ...buildQueue(report, reviewed, { today: israelToday(), flagged }), unmigrated });
   } catch (error: any) {
     console.error('Academy queue error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to build the queue' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to build the queue'), { status: 500 });
   }
 }
 

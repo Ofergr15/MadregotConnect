@@ -4,6 +4,7 @@ import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isFeatureEnabled } from '@/lib/features/server';
 import { isStrengthType } from '@/lib/activities/kinds';
 import { activeSets, exerciseCount, isMissingExerciseSetsColumn, type StrengthHr, type StrengthSet } from '@/lib/activities/strength';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,6 +89,6 @@ export async function GET(request: Request) {
     });
   } catch (err: unknown) {
     console.error('GET /api/activities/strength error:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }

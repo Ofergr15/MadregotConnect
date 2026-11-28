@@ -11,6 +11,7 @@ import { fetchWeeklyVolume } from '@/lib/athletes/weekly-volume';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 import { paceAtHr, type PaceRunInput } from '@/lib/fitness/pace-at-hr';
 import { addDaysToDateStr } from '@/lib/utils';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -115,6 +116,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     });
   } catch (error: any) {
     console.error('[coach/athlete] failed:', error);
-    return NextResponse.json({ error: error?.message || 'Failed to load' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to load'), { status: 500 });
   }
 }

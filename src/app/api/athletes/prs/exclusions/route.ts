@@ -4,6 +4,7 @@ import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { PR_BUCKETS } from '@/lib/prs/pr-buckets';
 import { ALL_BUCKETS, tableMissing } from '@/lib/prs/exclusions-store';
 import { markClubRecordsStale } from '@/lib/prs/club-records-store';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,7 +68,7 @@ async function write(request: Request, remove: boolean) {
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     console.error('PR exclusion error:', error);
-    return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }
 

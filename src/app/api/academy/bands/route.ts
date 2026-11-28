@@ -5,6 +5,7 @@ import { isValidPaceOffset, MAX_PACE_OFFSET_SEC, MIN_PACE_OFFSET_SEC } from '@/l
 import {
   isAcademyManager, pairLookupError, requireAcademyManager, requireTraineeAccess,
 } from '@/lib/academy/pairing-server';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -152,7 +153,7 @@ export async function PUT(request: Request) {
     });
   } catch (error: any) {
     console.error('Academy band assign error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to save' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to save'), { status: 500 });
   }
 }
 
@@ -234,6 +235,6 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ bandId, name: band.name, offsetSeconds: (profile.offsetSeconds as number | undefined) ?? null, description: (profile.description as string | undefined) ?? null });
   } catch (error: any) {
     console.error('Academy band pace update error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to save' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to save'), { status: 500 });
   }
 }

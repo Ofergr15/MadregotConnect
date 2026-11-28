@@ -7,6 +7,7 @@ import { requireStaffCaller } from '@/lib/auth/self-or-staff';
 import { visibleTraineeIds } from '@/lib/academy/pairing-server';
 
 import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
+import { internalErrorBody } from '@/lib/api-error';
 export const dynamic = 'force-dynamic';
 
 interface AthleteStat {
@@ -117,6 +118,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ athletes: result, team, weekStart });
   } catch (error: any) {
     console.error('Academy stats error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to compute stats' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to compute stats'), { status: 500 });
   }
 }

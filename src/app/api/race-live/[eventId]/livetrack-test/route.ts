@@ -13,10 +13,10 @@ export async function POST(request: NextRequest) {
   if (denied) return denied;
   const key = caller.athleteId || caller.email;
   const now = Date.now();
-  if (now - (last.get(key) ?? 0) < 10_000) return NextResponse.json({ ok: false, code: 'slow_down' }, { status: 429 });
+  if (now - (last.get(key) ?? 0) < 10_000) return NextResponse.json({ ok: false, error: 'slow down', code: 'slow_down' }, { status: 429 });
   last.set(key, now);
   const body = await request.json().catch(() => ({}));
   const link = parseLiveTrackUrl(body.url);
-  if (!link) return NextResponse.json({ ok: false, code: 'not_livetrack' }, { status: 400 });
+  if (!link) return NextResponse.json({ ok: false, error: 'not a LiveTrack link', code: 'not_livetrack' }, { status: 400 });
   return NextResponse.json(await testLiveTrack(link));
 }

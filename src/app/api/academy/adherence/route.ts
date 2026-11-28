@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { computeAcademyWeekAdherence } from '@/lib/academy/report';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { mayCoach, visibleTraineeIds } from '@/lib/academy/pairing-server';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,6 @@ export async function GET(request: Request) {
     return NextResponse.json(visible ? { ...report, athletes: report.athletes.filter(a => visible.has(a.athleteId)) } : report);
   } catch (error: any) {
     console.error('Academy adherence error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to compute adherence' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to compute adherence'), { status: 500 });
   }
 }
