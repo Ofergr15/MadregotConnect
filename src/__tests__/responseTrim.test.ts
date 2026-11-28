@@ -51,7 +51,7 @@ describe('GET /api/activities?shape=list', () => {
     for (const r of rows) {
       expect(r).not.toHaveProperty('splits');
       expect(r).not.toHaveProperty('laps');
-      for (const k of ['id', 'athlete_id', 'activity_name', 'activity_type', 'start_time', 'distance', 'duration', 'average_pace', 'elevation_gain', 'calories', 'athlete_name']) {
+      for (const k of ['id', 'athlete_id', 'activity_name', 'activity_type', 'start_time', 'distance', 'duration', 'average_pace', 'elevation_gain', 'calories', 'max_hr', 'location_name', 'athlete_name']) {
         expect(r, k).toHaveProperty(k);
       }
     }
@@ -95,10 +95,18 @@ describe('web callers ask for the narrow shapes', () => {
     ['src/app/(app)/dashboard/profile/page.tsx', 1],
     ['src/app/(app)/dashboard/share/page.tsx', 2],
     ['src/components/feed/WeekSummaryCard.tsx', 1],
+    // The week screen (decision 28.11) — imports it as fetchActivitiesScoped.
+    ['src/app/(app)/dashboard/activities/page.tsx', 2],
   ])('%s uses listOnly on every fetchActivities call', (p, n) => {
     const s = src(p);
-    const calls = s.match(/fetchActivities\(\{[^}]*\}\)/g) ?? [];
+    const calls = s.match(/fetchActivities(?:Scoped)?\(\{[^}]*\}\)/g) ?? [];
     expect(calls.length).toBe(n);
     for (const c of calls) expect(c).toContain('listOnly: true');
+  });
+
+  it('the expanded card holds a splits skeleton while a list-shape row waits for details', () => {
+    const s = src('src/components/activity/ActivityDetailBody.tsx');
+    expect(s).toContain('data-testid="splits-skeleton"');
+    expect(s).toMatch(/loading && !details && splits\.length === 0/);
   });
 });
