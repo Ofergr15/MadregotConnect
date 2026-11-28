@@ -85,3 +85,29 @@ export function sortRows(rows: ChatRow[]): ChatRow[] {
 export const groupChatTag = (groupId: string) => `group-chat-${groupId}`;
 /** Where the push lands: the native app and the PWA both route /chat/<groupId>. */
 export const groupChatUrl = (groupId: string) => `/chat/${encodeURIComponent(groupId)}`;
+
+/** What Stream returns per channel that the unread count needs (task 87). */
+export interface UnreadChannel {
+  id?: string;
+  state: { read?: Record<string, { unread_messages?: number } | undefined> };
+  countUnread?: () => number;
+}
+
+/**
+ * Unread per group for one member, from ONE Stream query's channels. Prefers the server's own
+ * per-user counter (`read[uid].unread_messages`, present even with message_limit 0) and falls
+ * back to counting loaded messages. Groups Stream didn't return (no channel yet) are 0.
+ */
+export function unreadByGroup(
+  channels: UnreadChannel[], groupOfChannel: Map<string, string>, userId: string,
+): { byGroup: Record<string, number>; total: number } {
+  const byGroup: Record<string, number> = Object.fromEntries([...groupOfChannel.values()].map((g) => [g, 0]));
+  for (const ch of channels) {
+    const gid = ch.id ? groupOfChannel.get(ch.id) : undefined;
+    if (!gid) continue;
+    let n = ch.state.read?.[userId]?.unread_messages;
+    if (typeof n !== 'number') { try { n = ch.countUnread?.() ?? 0; } catch { n = 0; } }
+    byGroup[gid] = Math.max(0, Math.floor(n || 0));
+  }
+  return { byGroup, total: Object.values(byGroup).reduce((s, v) => s + v, 0) };
+}
