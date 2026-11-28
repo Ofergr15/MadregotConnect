@@ -11,7 +11,7 @@ export async function requireContentStaff(request: Request): Promise<{ denied: R
   if (!auth.ok) return { denied: authError(auth), email: '', athleteId: null };
   const u = auth.user;
   if (!u.isSuperUser && !u.isStaff && !u.canApprove) {
-    return { denied: NextResponse.json({ error: 'Not authorized.' }, { status: 403 }), email: '', athleteId: null };
+    return { denied: NextResponse.json({ error: 'Not authorized.', code: 'forbidden' }, { status: 403 }), email: '', athleteId: null };
   }
   return { denied: null, email: u.email ?? '', athleteId: u.athleteId ?? null };
 }

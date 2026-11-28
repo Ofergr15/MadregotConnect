@@ -8,6 +8,7 @@ import { pickAthleteRow, stravaIdFromAuthEmail } from '@/lib/auth/athlete-identi
 import { hasRole, heldRoles, holdsStaffRole } from '@/lib/auth/roles';
 import { membershipFor, type Membership } from '@/lib/auth/membership';
 import { blockedFromApp, pathnameOf, requiresApproval } from '@/lib/auth/approval-gate';
+import { errorCodeForStatus, type ErrorCode } from '@/lib/api-error';
 import { looksLikeAthleteId, VIEW_AS_HEADER, viewAsApplies } from '@/lib/auth/view-as';
 import {
   entryExpiry,
@@ -498,8 +499,26 @@ export async function requireAthlete(
 }
 
 /** Standard error response for a failed auth check. */
+/** The stable `code` (lib/api-error.ts) for each `error` the session gates produce. */
+const AUTH_ERROR_CODES: Record<string, ErrorCode> = {
+  'Missing bearer token': 'unauthenticated',
+  'Invalid or expired session': 'session_invalid',
+  'Session has no email': 'session_invalid',
+  'Could not verify session, try again': 'auth_unavailable',
+  'Bad view-as id': 'bad_request',
+  view_as_read_only: 'view_as_read_only',
+  'Viewed athlete not found': 'not_found',
+  pending: 'pending',
+  inactive: 'inactive',
+  'Staff access required': 'staff_required',
+};
+
+export function authErrorCode(result: { status: number; error: string }): ErrorCode {
+  return AUTH_ERROR_CODES[result.error] ?? errorCodeForStatus(result.status);
+}
+
 export function authError(result: { status: number; error: string }): Response {
-  return new Response(JSON.stringify({ error: result.error }), {
+  return new Response(JSON.stringify({ error: result.error, code: authErrorCode(result) }), {
     status: result.status,
     headers: { 'Content-Type': 'application/json' },
   });

@@ -25,7 +25,7 @@ export async function requireApprover(
   // email and the app mints a synthetic one. See migration 084.
   if (!auth.user.canApprove) {
     return {
-      denied: NextResponse.json({ error: 'Not authorized.' }, { status: 403 }),
+      denied: NextResponse.json({ error: 'Not authorized.', code: 'forbidden' }, { status: 403 }),
       email: '',
     };
   }

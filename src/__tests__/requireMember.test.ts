@@ -63,7 +63,7 @@ describe('requireStaff', () => {
     requireSession.mockResolvedValue(session());
     const denied = await requireStaff(request);
     expect(denied?.status).toBe(403);
-    expect(await denied?.json()).toEqual({ error: 'Staff access required' });
+    expect(await denied?.json()).toEqual({ error: 'Staff access required', code: 'staff_required' });
   });
 
   it('accepts staff', async () => {

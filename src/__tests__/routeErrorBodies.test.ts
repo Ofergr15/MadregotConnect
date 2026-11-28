@@ -20,6 +20,6 @@ describe('API 500 bodies', () => {
     expect(bad).toEqual([]);
   });
   it('the fixed body keeps the standard shape', () => {
-    expect(internalErrorBody()).toEqual({ error: 'Internal error' });
+    expect(internalErrorBody()).toEqual({ error: 'Internal error', code: 'internal' });
   });
 });
