@@ -9,11 +9,15 @@
 //
 // "Stale" is about the position only: a split is a fact that doesn't age.
 
-import { formatClock, RACE_M, type Split } from './core';
+import { formatClock, type Split } from './core';
 
 export const STALE_MS = 2 * 60 * 1000;
-/** GPS within this of the finish line, with no official finish split yet → "finished per GPS". */
-export const GPS_FINISH_TOLERANCE_M = 150;
+/**
+ * GPS distance at or past this, with no official finish split yet → "finished per GPS".
+ * 42.3 km, not 42.195 − 150 m: watches/phones measure a marathon long, so an earlier
+ * threshold would announce "finished" a minute or two before the line (decision 28.11).
+ */
+export const GPS_FINISH_MIN_M = 42_300;
 /** After the race window closes, wait this long for late official splits, then freeze. */
 export const RESULTS_GRACE_MS = 30 * 60 * 1000;
 
@@ -65,7 +69,7 @@ export function ageLabel(ageSec: number): string {
 
 /** The GPS says the runner crossed the line (the official finish split may lag by minutes). */
 export function isGpsFinish(distanceM: number | null | undefined): boolean {
-  return typeof distanceM === 'number' && Number.isFinite(distanceM) && distanceM >= RACE_M - GPS_FINISH_TOLERANCE_M;
+  return typeof distanceM === 'number' && Number.isFinite(distanceM) && distanceM >= GPS_FINISH_MIN_M;
 }
 
 export type BoardPhase = 'live' | 'results';
