@@ -9,7 +9,9 @@ import {
   COMMENT_SELECT,
   COMMENT_PREVIEW_COUNT,
   buildCommentPreviewIndex,
+  buildFirstCommentIndex,
 } from '@/lib/feed/comments';
+import { blockedAuthorIds } from '@/lib/moderation/blocks';
 import { loadFeedPlanVerdicts, type VerdictActivityRow } from '@/lib/feed/plan-verdicts';
 import { qualityNamesForPage } from '@/lib/activities/quality-name';
 import { hiddenInteractorsFor, hiddenCountsByItem, withoutHiddenInteractors } from '@/lib/feed/test-account-filter';
@@ -75,6 +77,28 @@ export async function loadFeedContext(
   // Test accounts' likes/comments are hidden from other non-staff viewers, and the
   // counts drop them too (lib/feed/test-account-filter.ts). Fails open.
   const hiddenRead = hiddenInteractorsFor(supabase as never, viewer);
+  // A member the viewer blocked (migration 203) is dropped from the comment preview
+  // and its count, the same as GET /api/feed/comments drops them from the thread —
+  // otherwise the card showed a comment the opened thread then didn't. Fails open.
+  const blockedRead = blockedAuthorIds(supabase, viewer.athleteId);
+  // Threads longer than the preview also carry their opening comment. Only those
+  // items are asked for, so a page with short threads costs no extra query. The
+  // stored total is an upper bound on the visible one, so this never misses a
+  // thread that needs it.
+  const longThreadIds = (rows as Array<{ id?: string; comment_count?: number | null } | null>)
+    .filter((r): r is { id: string; comment_count?: number | null } => !!r?.id && (r.comment_count ?? 0) > COMMENT_PREVIEW_COUNT)
+    .map((r) => r.id);
+  const firstCommentsRead = longThreadIds.length === 0
+    ? Promise.resolve({ data: [] as unknown[], error: null })
+    : Promise.resolve(
+      supabase
+        .from('feed_comments')
+        .select(COMMENT_SELECT)
+        .in('feed_item_id', longThreadIds)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true })
+        .limit(longThreadIds.length * 10),
+    ).catch(() => ({ data: [] as unknown[], error: null }));
   const [likesRes, commentsRes, verdicts, qualityNameByActivity] = await Promise.all([
     // Newest-first so the preview names match what the like sheet shows at the top.
     supabase
@@ -114,22 +138,32 @@ export async function loadFeedContext(
   if (commentsRes.error) throw commentsRes.error;
 
   const hidden = await hiddenRead;
-  const [hiddenLikeCountByItem, hiddenCommentCountByItem] = await Promise.all([
+  const hiddenCommenters = new Set([...hidden, ...(await blockedRead)]);
+  const [hiddenLikeCountByItem, hiddenCommentCountByItem, firstRes] = await Promise.all([
     hiddenCountsByItem(supabase as never, 'feed_likes', itemIds, hidden),
-    hiddenCountsByItem(supabase as never, 'feed_comments', itemIds, hidden),
+    hiddenCountsByItem(supabase as never, 'feed_comments', itemIds, hiddenCommenters),
+    firstCommentsRead,
   ]);
 
+  const commentsByItem = buildCommentPreviewIndex(
+    withoutHiddenInteractors(commentsRes.data || [], hiddenCommenters),
+    viewer.athleteId,
+    viewer.isStaff,
+    COMMENT_PREVIEW_COUNT,
+  );
   const likes = buildLikeIndex(withoutHiddenInteractors(likesRes.data || [], hidden), viewer.athleteId, LIKE_PREVIEW_COUNT);
 
   return {
     ...base,
     likedItemIds: likes.likedItemIds,
     likersByItem: likes.likersByItem,
-    commentsByItem: buildCommentPreviewIndex(
-      withoutHiddenInteractors(commentsRes.data || [], hidden),
+    commentsByItem,
+    // A failed read is no opening comment, never a failed page.
+    firstCommentByItem: buildFirstCommentIndex(
+      firstRes.error ? [] : withoutHiddenInteractors((firstRes.data || []) as unknown[], hiddenCommenters),
       viewer.athleteId,
       viewer.isStaff,
-      COMMENT_PREVIEW_COUNT,
+      commentsByItem,
     ),
     planVerdictsByActivity: verdicts,
     qualityNameByActivity,
