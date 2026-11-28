@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { israelDateTime } from '@/lib/survey-reminders';
 import { useLocale, useTranslations } from 'next-intl';
@@ -13,6 +13,7 @@ import { cn, getPlanWeekStart, israelToday } from '@/lib/utils';
 import { Sheet, Switch, SkeletonList, EmptyState } from '@/components/ui';
 import { SECTIONS, addDays, canEdit, israelHourToIso, type Owner, type Owners, type Section, type TimelineRow } from '@/lib/week-setup/model';
 import type { WeekSnapshot } from '@/lib/week-setup/server';
+import { normalizeWeekData } from '@/lib/week-setup/normalize';
 import { Btn, Chips, DAY_LONG, DAY_SHORT, Field, OwnerChip, Pill, Trail, WeekCard, dm, dowOf, hh, inputCls, type Tone } from './parts';
 import { STEPS, lastByStep, mineOf, weekOfAction, type LogEntry, type Step } from '@/lib/week-setup/log';
 import { pendingOf, type PlannedPoll } from '@/lib/week-setup/planned-polls';
@@ -34,8 +35,6 @@ import { MessageSheet, PollSheet } from './editors';
  * is the last step, after everything else.
  */
 
-type Me = { id: string | null; admin: boolean; coach: boolean; approver: boolean };
-type Data = WeekSnapshot & { me: Me; mine: Step[] };
 
 const COLORS: Record<Step, string> = {
   workouts: '#1525FF', nutrition: '#B45309', quality: '#C2185B', notifications: '#6D28D9', polls: '#475569', message: '#15803d', watches: '#0B5285',
@@ -62,7 +61,9 @@ export function WeekSetup() {
     const w = new URLSearchParams(window.location.search).get('week');
     if (w && /^\d{4}-\d{2}-\d{2}$/.test(w)) setWeek(getPlanWeekStart(new Date(`${w}T12:00:00`)));
   }, []);
-  const { data, error, isLoading, mutate } = useApi<Data>(`/api/week-setup?week=${week}`);
+  const { data: raw, error, isLoading, mutate } = useApi<unknown>(`/api/week-setup?week=${week}`);
+  // A partial/empty body ({}) renders an empty week, not the crash screen (lib/week-setup/normalize).
+  const data = useMemo(() => (raw ? normalizeWeekData(raw, week) : null), [raw, week]);
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
   const [ownersOpen, setOwnersOpen] = useState(false);
   const [notif, setNotif] = useState<TimelineRow | 'new' | null>(null);

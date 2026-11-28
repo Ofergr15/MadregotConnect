@@ -17,16 +17,7 @@ import { InstallGuide } from '@/components/install/InstallGuide';
 import { usePreviewOnboardingV2 } from '@/lib/install/v2';
 import { detectInstallPlatform } from '@/lib/install/platform';
 import { PrimaryButton, SecondaryButton } from '@/components/onboarding/journey-ui';
-
-interface PublicStats {
-  since?: string;
-  athletes: number;
-  totalKm: number;
-  workouts: number;
-  totalHours: number;
-  topResults: { name: string; timeSeconds: number; test: string }[];
-  testDate?: string | null;
-}
+import { normalizePublicStats, type PublicStats } from '@/lib/public-stats';
 
 function fmtMonthYear(dateStr: string | undefined, locale: string): string {
   if (!dateStr) return '';
@@ -212,7 +203,7 @@ export default function HomePage() {
   useEffect(() => {
     fetch('/api/public/stats')
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setStats(d); })
+      .then(d => { const s = normalizePublicStats(d); if (s) setStats(s); })
       .catch(() => {});
   }, []);
 
