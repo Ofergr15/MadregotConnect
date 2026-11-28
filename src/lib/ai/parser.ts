@@ -335,14 +335,15 @@ function parseTime(str: string): number | null {
   return null;
 }
 
-function detectWorkoutType(text: string): string {
+export function detectWorkoutType(text: string): string {
   const lower = text.toLowerCase();
   if (/אינטרוול|interval|x\s*\(|פעמים/.test(lower)) return 'Interval Session';
   if (/ארוכה|long run/.test(lower)) return 'Long Run';
   if (/טמפו|tempo/.test(lower)) return 'Tempo Run';
   if (/שחרור|easy|קלה/.test(lower)) return 'Easy Run';
   if (/מתגברת|progressive/.test(lower)) return 'Progressive Run';
-  if (/fartlek|פרטלק/.test(lower)) return 'Fartlek';
+  // Both Hebrew spellings: פארטלק is canonical (docs/he-glossary.md), coaches also write פרטלק.
+  if (/fartlek|פא?רטלק/.test(lower)) return 'Fartlek';
   return 'Workout';
 }
 

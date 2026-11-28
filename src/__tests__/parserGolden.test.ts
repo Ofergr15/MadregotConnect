@@ -13,7 +13,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
   },
 }));
 
-const { paceFromNotes, validateAndFixStep, extractJson, parseWorkoutPlan, ParseTimeoutError, PARSE_DEADLINE_MS } =
+const { paceFromNotes, validateAndFixStep, extractJson, parseWorkoutPlan, ParseTimeoutError, PARSE_DEADLINE_MS, detectWorkoutType } =
   await import('@/lib/ai/parser');
 
 const sec = (m: number, s: number) => m * 60 + s;
@@ -79,6 +79,14 @@ describe('extractJson — Hebrew replies', () => {
   it('keeps bracket notation and Hebrew inside strings', () => {
     const reply = 'הנה התוכנית:\n```json\n{"workouts":[{"notes":"3:30 (3:40) ((3:50)) {קבוצה}"}]}\n```\nבהצלחה';
     expect(JSON.parse(extractJson(reply))).toEqual({ workouts: [{ notes: '3:30 (3:40) ((3:50)) {קבוצה}' }] });
+  });
+});
+
+describe('detectWorkoutType — fartlek, both spellings', () => {
+  it('accepts פארטלק (canonical) and פרטלק', () => {
+    expect(detectWorkoutType('יום שלישי - פארטלק 10x1')).toBe('Fartlek');
+    expect(detectWorkoutType('יום שלישי - פרטלק 10x1')).toBe('Fartlek');
+    expect(detectWorkoutType('Fartlek 20/40')).toBe('Fartlek');
   });
 });
 
