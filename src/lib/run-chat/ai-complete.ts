@@ -4,6 +4,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { OUTBOUND_TIMEOUT_MS } from '@/lib/http/timeout';
+import { sdkMaxRetries } from '@/lib/http/retry';
 import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod';
 import OpenAI from 'openai';
 import { z } from 'zod';
@@ -104,7 +105,7 @@ async function completeWithAnthropic(opts: {
 }): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not configured');
-  const anthropic = new Anthropic({ apiKey, timeout: OUTBOUND_TIMEOUT_MS.anthropic });
+  const anthropic = new Anthropic({ apiKey, timeout: OUTBOUND_TIMEOUT_MS.anthropic, maxRetries: sdkMaxRetries('anthropic') });
   const finalMsg = await anthropic.beta.messages.toolRunner({
     model: ANTHROPIC_MODEL,
     max_tokens: 2048,

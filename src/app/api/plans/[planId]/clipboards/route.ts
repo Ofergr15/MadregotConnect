@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { OUTBOUND_TIMEOUT_MS } from '@/lib/http/timeout';
+import { sdkMaxRetries } from '@/lib/http/retry';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireSession, authError } from '@/lib/auth-session';
 import { createServerClient } from '@/lib/supabase/server';
@@ -65,7 +66,7 @@ async function preview(workout: ParsedWorkout, siblings: ParsedWorkout[] = []) {
 async function refine(workout: ParsedWorkout, instruction: string) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not configured');
-  const client = new Anthropic({ apiKey, timeout: OUTBOUND_TIMEOUT_MS.anthropic });
+  const client = new Anthropic({ apiKey, timeout: OUTBOUND_TIMEOUT_MS.anthropic, maxRetries: sdkMaxRetries('anthropic') });
   const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 4096,

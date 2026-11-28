@@ -1,5 +1,18 @@
 import { Resend } from 'resend';
 import { isOutboundTimeoutError, withTimeout } from '@/lib/http/timeout';
+import { logRetry, withRetry, type Outcome } from '@/lib/http/retry';
+
+/**
+ * Resend answers errors in the body, not by throwing. Only a rate limit and Resend's own
+ * failures are worth repeating; a validation error or a spent daily quota is not.
+ */
+export function classifyResendResult(r: unknown): Outcome {
+  const name = (r as { error?: { name?: string } | null })?.error?.name;
+  if (!(r as { error?: unknown })?.error) return { kind: 'ok' };
+  if (name === 'rate_limit_exceeded') return { kind: 'status', status: 429 };
+  if (name === 'internal_server_error' || name === 'application_error') return { kind: 'status', status: 500 };
+  return { kind: 'status', status: 400 };
+}
 import { DEV_SUPABASE_REF, supabaseRef } from '@/lib/dev-api-allowlist';
 
 type Env = Record<string, string | undefined>;
@@ -44,13 +57,17 @@ const resend: EmailTransport = {
   async send(m) {
     let sent;
     try {
-      sent = await withTimeout('resend', new Resend(process.env.RESEND_API_KEY!).emails.send({
+      // One idempotency key per message, reused by every retry: Resend sends it once
+      // however many times the request arrives, so even a timeout is safe to repeat.
+      const idempotencyKey = crypto.randomUUID();
+      const client = new Resend(process.env.RESEND_API_KEY!);
+      sent = await withRetry('resend', () => withTimeout('resend', client.emails.send({
         from: m.from,
         to: m.to,
         subject: m.subject,
         html: m.html,
         ...(m.replyTo ? { replyTo: m.replyTo } : {}),
-      }));
+      }, { idempotencyKey })), { idempotent: true, classify: classifyResendResult, onRetry: logRetry });
     } catch (e) {
       // A timeout is reported like a refusal so the caller's not-sent bookkeeping runs.
       if (isOutboundTimeoutError(e)) return { ok: false, code: e.code, reason: e.message };
