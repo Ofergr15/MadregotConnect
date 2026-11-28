@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { israelToday } from '@/lib/utils';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isMissingTable } from '@/lib/supabase/schema-drift';
@@ -98,9 +99,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Failed to read the plan inputs' }, { status: 500 });
     }
 
-    // The server's day, because `weeksToRace` is a countdown and the pure module refuses to read
-    // a clock. The composer's own week already comes from the same place (`planWeekStartOf`).
-    const today = new Date().toISOString().slice(0, 10);
+    // Israel's day, because `weeksToRace` is a countdown and the pure module refuses to read a
+    // clock. Not the UTC date: between 00:00 and 03:00 Israel that is still yesterday. The
+    // composer's own week comes from the same calendar (`planWeekStartOf`).
+    const today = israelToday();
 
     const inputs: Record<string, PlanInputs> = {};
     for (const row of rows || []) {

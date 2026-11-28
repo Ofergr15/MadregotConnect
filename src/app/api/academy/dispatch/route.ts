@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { COACH_ID } from '@/lib/constants';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
-import { israelToday } from '@/lib/utils';
+import { addDaysToDateStr, israelToday } from '@/lib/utils';
 import { connectionState, PROVIDER_HEALTH_COLUMNS_101 } from '@/lib/providers/health';
 import {
   buildDispatchReport,
@@ -34,14 +34,8 @@ export const dynamic = 'force-dynamic';
  * assembles the three inputs that decision needs and hands them over.
  */
 
-function addDays(date: string, days: number): string {
-  const moved = new Date(`${date}T00:00:00Z`);
-  moved.setUTCDate(moved.getUTCDate() + days);
-  return moved.toISOString().slice(0, 10);
-}
-
 /** Sun→Sat, matching every other week in this app. */
-const weekEnd = (weekStart: string) => addDays(weekStart, 6);
+const weekEnd = (weekStart: string) => addDaysToDateStr(weekStart, 6);
 
 export async function GET(request: Request) {
   try {
@@ -167,7 +161,7 @@ export async function GET(request: Request) {
       .select('athlete_id, start_time').or(RUNS_ONLY_OR)
       .in('athlete_id', ids)
       .gte('start_time', `${weekStart}T00:00:00`)
-      .lt('start_time', `${addDays(end, 1)}T00:00:00`);
+      .lt('start_time', `${addDaysToDateStr(end, 1)}T00:00:00`);
     if (activityError) {
       return NextResponse.json({ error: 'Failed to read the activities' }, { status: 500 });
     }

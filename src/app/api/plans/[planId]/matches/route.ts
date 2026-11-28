@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireSession, authError } from '@/lib/auth-session';
 import { createServerClient } from '@/lib/supabase/server';
 import type { GroupedWeeklyPlans, ParsedWeeklyPlan, ParsedWorkout } from '@/lib/ai/types';
-import { activityLocalDateStr } from '@/lib/utils';
+import { activityLocalDateStr, shiftWeekStart } from '@/lib/utils';
 import { groupNumberForAthlete, isMissingMatchesTable } from '@/lib/plans/match-athlete-activities';
 import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
 
@@ -93,8 +93,7 @@ export async function GET(
   try {
     const { supabase, plan } = await loadPlan(planId);
     if (!plan) return NextResponse.json({ error: 'Plan not found' }, { status: 404 });
-    const nextWeek = new Date(`${plan.week_start_date}T00:00:00Z`);
-    nextWeek.setUTCDate(nextWeek.getUTCDate() + 7);
+    const nextWeek = shiftWeekStart(plan.week_start_date, 1);
 
     const [{ data: activities, error: activitiesError }, { data: matches, error: matchesError }] =
       await Promise.all([
@@ -102,7 +101,7 @@ export async function GET(
           .from('athlete_activities')
           .select('id, athlete_id, start_time, activity_name, distance, average_pace, average_hr').or(RUNS_ONLY_OR)
           .gte('start_time', `${plan.week_start_date}T00:00:00`)
-          .lt('start_time', `${nextWeek.toISOString().slice(0, 10)}T00:00:00`)
+          .lt('start_time', `${nextWeek}T00:00:00`)
           .order('start_time', { ascending: true }),
         supabase
           .from('activity_plan_matches')

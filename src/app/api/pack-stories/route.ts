@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { addDaysToDateStr } from '@/lib/utils';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
 import { buildSession, type ActivityRow, type AthleteRow, type AttendanceRow, type GroupRow } from '@/lib/pack-stories/build';
@@ -7,12 +8,6 @@ import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
 export const dynamic = 'force-dynamic';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-function addDays(date: string, n: number): string {
-  const d = new Date(`${date}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
 
 // GET /api/pack-stories?date=YYYY-MM-DD
 //   -> { date, label, runs } — every run of that day with its pack, laps and GPS trace.
@@ -32,13 +27,13 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
     // Attendance weeks start on Sunday; the day is an offset into the week.
     const dow = new Date(`${date}T12:00:00Z`).getUTCDay();
-    const weekStart = addDays(date, -dow);
+    const weekStart = addDaysToDateStr(date, -dow);
     // start_time is local wall-clock time stored as +00:00, so a naive day range is the local day.
     const [acts, att, aths, grps] = await Promise.all([
       supabase.from('athlete_activities')
         .select('id, athlete_id, start_time, distance, duration, average_pace, average_hr, laps, gps_points').or(RUNS_ONLY_OR)
         .gte('start_time', `${date}T00:00:00`)
-        .lt('start_time', `${addDays(date, 1)}T00:00:00`),
+        .lt('start_time', `${addDaysToDateStr(date, 1)}T00:00:00`),
       supabase.from('workout_attendance')
         .select('athlete_id, group_label')
         .eq('week_start_date', weekStart)
