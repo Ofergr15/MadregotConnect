@@ -58,7 +58,8 @@ function isWorkStep(step: WorkoutStep): boolean {
 export function classifyWorkout(workout: ParsedWorkout): WorkoutType {
   const text = `${workout.name} ${workout.description || ''}`.toLowerCase();
 
-  if (/fartlek|פרטלק/.test(text)) return 'fartlek';
+  // Both Hebrew spellings: פארטלק is canonical (docs/he-glossary.md), coaches also write פרטלק.
+  if (/fartlek|פא?רטלק/.test(text)) return 'fartlek';
   if (/long run|ארוכה/.test(text)) return 'long_run';
   if (/interval|אינטרוול|pyramid|פירמידה/.test(text)) return 'intervals';
   if (/tempo|טמפו|medio|מדיו/.test(text)) return 'tempo';

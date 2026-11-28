@@ -32,6 +32,8 @@ describe('classifyWorkout', () => {
   it('takes the coach\'s word for it', () => {
     expect(classifyWorkout(workout('יום שישי - ITALIAN MEDIO', [km(20)]))).toBe('tempo');
     expect(classifyWorkout(workout('Fartlek 20/40', [km(10)]))).toBe('fartlek');
+    expect(classifyWorkout(workout('פארטלק 20/40', [km(10)]))).toBe('fartlek');
+    expect(classifyWorkout(workout('פרטלק 20/40', [km(10)]))).toBe('fartlek');
     expect(classifyWorkout(workout('Pyramid session', [km(10)]))).toBe('intervals');
   });
 

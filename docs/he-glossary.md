@@ -23,7 +23,7 @@ Counts were measured on he.json on 2026-11-27, before alignment.
 | Cool-down | שחרור | קירור | cool-down | 12 vs 2; aligned |
 | Strides | האצות | סטריידים | strides | Only one use so far |
 | Quality session | אימון איכות / אימוני איכות | – | quality workout | |
-| Fartlek | פארטלק | פרטלק | fartlek | 1 vs 1, see owner questions; aligned to פארטלק |
+| Fartlek | פארטלק | פרטלק | fartlek | Decided 28.11: פארטלק in all UI copy. The plan parser and the workout classifier accept both spellings as input (`/פא?רטלק/`), because coaches write both |
 | Lap | הקפה / הקפות | לאפ, לאפים | lap | 27 vs 1; aligned |
 | Splits | פיצולים / פיצול | ספליטים | per-km splits | 4 vs 1; aligned |
 | Watch | שעון | – | GPS watch | |
@@ -34,13 +34,13 @@ Counts were measured on he.json on 2026-11-27, before alignment.
 | Personal record | שיא אישי / שיאים אישיים | PR | personal best | |
 | Weekly volume | נפח שבועי | – | weekly mileage | |
 | Race | מרוץ | מירוץ | race | |
-| Garmin | גרמין (Hebrew text) / Garmin (brand label) | גארמין | | |
-| Strava | סטרבה (Hebrew text) / Strava (brand label) | סטראבה | | 14 vs 3; aligned |
+| Garmin | גרמין inside Hebrew sentences | Garmin in a sentence, גארמין | | Latin only on connect/disconnect buttons and brand badges next to a logo. The app name **Garmin Connect** stays Latin (it is what the runner looks for on the phone) |
+| Strava | סטרבה inside Hebrew sentences | Strava in a sentence, סטראבה | | Latin only on connect/sign-in buttons, brand badges next to a logo, and legal attribution ("Powered by Strava" stays Latin, Strava brand rules) |
 
 ## Owner questions
 
-1. **Fartlek spelling.** It was split 1:1 (פרטלק / פארטלק). The default I picked is **פארטלק**, the common spelling in Israeli running.
-2. **Brand names, Hebrew or Latin?** he.json has Strava 41 / סטרבה 14 and Garmin 46 / גרמין 70. Default: both forms stay. I only removed the misspellings (סטראבה). Do you want a single rule, for example Latin for brand labels and buttons?
+1. **Fartlek spelling.** It was split 1:1 (פרטלק / פארטלק). **Decided (28.11): פארטלק** everywhere in UI copy; the parser accepts both as input.
+2. **Brand names, Hebrew or Latin?** he.json had Strava 41 / סטרבה 14 and Garmin 46 / גרמין 70. **Decided (28.11):** סטרבה / גרמין inside Hebrew sentences (a Latin word mid-sentence can scramble RTL word order); Strava / Garmin in Latin only on connect/disconnect buttons, brand badges next to logos, and legal attribution ("Powered by Strava"). Applied to he.json; keys left Latin: the sign-in/connect/disconnect/switch buttons and the bare brand labels (`planner.garmin`, `settings.garmin`, `profile.strava`, `profile.garminConnect`, `onbFunnel.source.strava-login`).
 3. **ספורטאים vs מתאמנים vs רצים.** Default: unchanged. מתאמנים = academy trainees, ספורטאים/רצים = club members. Is that distinction intended?
 4. **קבוצה used for a pace group** (e.g. "הקבוצה הזו" in the pace-offset preview, "לשלוש הקבוצות" in the audit). Default: **not yet aligned**. `קבוצה` appears 82 times, mostly in its own meaning (training group, group run), so this needs a string-by-string review.
 5. **סה"כ (ASCII gershayim, not a running term).** Default: left as is, out of scope.
