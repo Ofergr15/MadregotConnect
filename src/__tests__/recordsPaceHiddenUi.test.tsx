@@ -11,7 +11,7 @@ import { BestEfforts, type RunAnalysisData } from '@/components/activity/RunAnal
 const wrap = (node: React.ReactNode) => renderToStaticMarkup(
   <NextIntlClientProvider locale="he" messages={he} timeZone="Asia/Jerusalem">{node}</NextIntlClientProvider>,
 );
-const HIDDEN = 'מוסתר · בחר/ה להסתיר קצב';
+const HIDDEN = 'מוסתר · הקצב לא משותף';
 
 describe('record times of a pace-hider, as a teammate sees them', () => {
   it('has the key in both locales', () => {
