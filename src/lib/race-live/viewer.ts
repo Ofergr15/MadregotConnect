@@ -9,9 +9,13 @@
 //
 // "Stale" is about the position only: a split is a fact that doesn't age.
 
-import { formatClock, type Split } from './core';
+import { formatClock, RACE_M, type Split } from './core';
 
 export const STALE_MS = 2 * 60 * 1000;
+/** GPS within this of the finish line, with no official finish split yet → "finished per GPS". */
+export const GPS_FINISH_TOLERANCE_M = 150;
+/** After the race window closes, wait this long for late official splits, then freeze. */
+export const RESULTS_GRACE_MS = 30 * 60 * 1000;
 
 export interface ViewerRunnerInput {
   state: 'not_started' | 'running' | 'finished';
@@ -24,6 +28,7 @@ export interface ViewerRunnerInput {
 
 export type ViewerLine =
   | { kind: 'finished'; text: string; stale: false }
+  | { kind: 'gps_finished'; text: string; stale: false }
   | { kind: 'position'; text: string; stale: boolean; ageSec: number }
   | { kind: 'last_split'; text: string; stale: false }
   | { kind: 'not_started'; text: string; stale: false };
@@ -31,9 +36,15 @@ export type ViewerLine =
 const POINT_LABEL: Record<string, string> = { start: 'זינוק', half: 'חצי', finish: 'סיום' };
 export const pointLabel = (p: string) => POINT_LABEL[p] ?? p.toUpperCase();
 
-export function viewerLine(r: ViewerRunnerInput, nowMs: number): ViewerLine {
+export function viewerLine(r: ViewerRunnerInput, nowMs: number, opts: { frozen?: boolean } = {}): ViewerLine {
   if (r.state === 'finished' && r.lastSec != null) return { kind: 'finished', text: `סיום · ${formatClock(r.lastSec)}`, stale: false };
-  const pos = r.position;
+  // Frozen results: positions no longer mean anything (the phone may still be sharing from the
+  // hotel) — every unfinished runner shows the last official split, never a stale GPS line.
+  const pos = opts.frozen ? null : r.position;
+  if (pos && isGpsFinish(pos.distanceM)) {
+    const clock = pos.elapsedSec != null ? ` · ${formatClock(pos.elapsedSec)}` : '';
+    return { kind: 'gps_finished', text: `סיים/ה לפי GPS${clock} (ממתין לזמן רשמי)`, stale: false };
+  }
   const at = pos ? Date.parse(pos.at) : NaN;
   if (pos && Number.isFinite(at) && Number.isFinite(pos.distanceM) && pos.distanceM >= 0) {
     const ageSec = Math.max(0, Math.round((nowMs - at) / 1000));
@@ -50,4 +61,39 @@ export function ageLabel(ageSec: number): string {
   if (ageSec < 60) return `לפני ${ageSec} שנ׳`;
   if (ageSec < 3600) return `לפני ${Math.floor(ageSec / 60)} דק׳`;
   return `לפני ${Math.floor(ageSec / 3600)} שע׳`;
+}
+
+/** The GPS says the runner crossed the line (the official finish split may lag by minutes). */
+export function isGpsFinish(distanceM: number | null | undefined): boolean {
+  return typeof distanceM === 'number' && Number.isFinite(distanceM) && distanceM >= RACE_M - GPS_FINISH_TOLERANCE_M;
+}
+
+export type BoardPhase = 'live' | 'results';
+
+/**
+ * Live until the race window (race_live_config.poll_to) closes plus RESULTS_GRACE_MS, then
+ * results: the page stops polling and the board freezes. No window end → always live.
+ */
+export function boardPhase(nowMs: number, windowEnd: string | null | undefined): BoardPhase {
+  const end = windowEnd ? Date.parse(windowEnd) : NaN;
+  if (!Number.isFinite(end)) return 'live';
+  return nowMs > end + RESULTS_GRACE_MS ? 'results' : 'live';
+}
+
+/**
+ * Results order: official finishers by time (ties keep board order), then everyone else by how
+ * far they officially got (furthest first), then not started. Stable, so equal rows don't jump.
+ */
+export function resultsOrder<T extends ViewerRunnerInput>(runners: T[]): T[] {
+  const rank = (r: T) => (r.state === 'finished' && r.lastSec != null ? 0 : r.splits.length ? 1 : 2);
+  return runners
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => {
+      const ra = rank(a.r), rb = rank(b.r);
+      if (ra !== rb) return ra - rb;
+      if (ra === 0) return (a.r.lastSec! - b.r.lastSec!) || a.i - b.i;
+      if (ra === 1) return (b.r.splits.length - a.r.splits.length) || a.i - b.i;
+      return a.i - b.i;
+    })
+    .map(({ r }) => r);
 }

@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { Spinner } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { formatClock } from '@/lib/race-live/core';
-import { ageLabel, viewerLine, type ViewerRunnerInput } from '@/lib/race-live/viewer';
+import { ageLabel, boardPhase, resultsOrder, viewerLine, type ViewerRunnerInput } from '@/lib/race-live/viewer';
 
 // Live tracking viewer (web, night task 61). Reads the same board as the native app
 // (GET /api/race-live/[eventId] — member-gated, race_live flag, opted-out runners absent)
@@ -20,30 +20,33 @@ interface BoardRunner extends ViewerRunnerInput {
   bib: string | null;
   isSelf: boolean;
 }
-interface Board { enabled: boolean; runners?: BoardRunner[]; active?: boolean; updatedAt?: string | null }
+interface Board { enabled: boolean; runners?: BoardRunner[]; active?: boolean; updatedAt?: string | null; windowEnd?: string | null }
 
 export default function RaceLiveViewerPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
-  const { data, error } = useApi<Board>(`/api/race-live/${encodeURIComponent(eventId)}`, { refreshInterval: 30_000 });
   // Re-render every 15 s so "stale" flips on time even between polls.
   const [now, setNow] = useState(() => Date.now());
+  const [frozen, setFrozen] = useState(false);
+  // After the race window (+ grace) the results freeze: no more polling (task 82).
+  const { data, error } = useApi<Board>(`/api/race-live/${encodeURIComponent(eventId)}`, { refreshInterval: frozen ? 0 : 30_000 });
+  useEffect(() => { if (data?.windowEnd && boardPhase(now, data.windowEnd) === 'results') setFrozen(true); }, [data?.windowEnd, now]);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 15_000); return () => clearInterval(t); }, []);
 
   if (error) return <p className="p-6 text-center text-ink-500">לא הצלחנו לטעון את המעקב. ננסה שוב בעוד רגע.</p>;
   if (!data) return <div className="flex justify-center py-16"><Spinner /></div>;
   if (!data.enabled) return <p className="p-6 text-center text-ink-500">המעקב החי עוד לא פתוח.</p>;
 
-  const runners = data.runners ?? [];
+  const runners = frozen ? resultsOrder(data.runners ?? []) : (data.runners ?? []);
   return (
     <div dir="rtl" className="mx-auto max-w-lg space-y-3 px-4 pb-24 pt-2">
       <header className="flex items-end justify-between">
-        <h1 className="text-[26px] font-black text-ink-900">מעקב חי</h1>
-        {!data.active && <span className="rounded-pill bg-page px-3 py-1 text-13 font-bold text-ink-500">לא פעיל כרגע</span>}
+        <h1 className="text-[26px] font-black text-ink-900">{frozen ? 'תוצאות' : 'מעקב חי'}</h1>
+        {!data.active && !frozen && <span className="rounded-pill bg-page px-3 py-1 text-13 font-bold text-ink-500">לא פעיל כרגע</span>}
       </header>
       {runners.length === 0 && <p className="rounded-card bg-card px-4 py-6 text-center text-ink-500">אין רצים במעקב.</p>}
       <ul className="overflow-hidden rounded-card bg-card">
         {runners.map((r) => {
-          const line = viewerLine(r, now);
+          const line = viewerLine(r, now, { frozen });
           return (
             <li key={r.athleteId} className="flex min-h-[60px] items-center gap-3 border-b border-page px-4 py-2 last:border-0" data-kind={line.kind} data-stale={line.stale ? '1' : '0'}>
               <FeedAvatar name={r.name} url={r.avatarUrl} className="h-9 w-9 text-xs" />
@@ -54,7 +57,7 @@ export default function RaceLiveViewerPage({ params }: { params: Promise<{ event
                   {line.kind === 'position' && line.stale && <span className="ms-1 font-bold text-band-3-ink">· לא מעודכן ({ageLabel(line.ageSec)})</span>}
                 </p>
               </div>
-              {r.predictedSec != null && line.kind !== 'finished' && (
+              {!frozen && r.predictedSec != null && line.kind !== 'finished' && line.kind !== 'gps_finished' && (
                 <span className="text-13 font-bold text-brand tabular-nums" title="סיום צפוי"><bdi dir="ltr">{formatClock(r.predictedSec)}</bdi></span>
               )}
             </li>
