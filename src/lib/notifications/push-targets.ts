@@ -13,8 +13,22 @@
 // (ledger rows in the inbox, never opened) and are accepted separately.
 // ═════════════════════════════════════════════════════════════════════════════
 
+/**
+ * The native app's screen for a push (task 83). One kind per target, so the url → screen map
+ * has a single source: this file. The native router switches on `kind`; params are the
+ * pattern's `:name` segments, query is passed through.
+ */
+export const NATIVE_TARGET_KINDS = [
+  'feed', 'home', 'profile', 'teammate', 'recordHistory', 'meetup', 'runChat', 'event', 'survey',
+  'academy', 'program', 'inbox', 'pushApprovals', 'store', 'records', 'entryQueue', 'runnerFeedback',
+  'workoutFeedback', 'qualitySession', 'pushHealth', 'photos', 'weekSetup', 'settings', 'review',
+  'content', 'groupChat', 'coachPain', 'painReport', 'painCheckin',
+] as const;
+export type NativeTargetKind = (typeof NATIVE_TARGET_KINDS)[number];
+
 export interface PushTarget {
   pattern: string;
+  kind: NativeTargetKind;
   /** What the screen is — mirrored in docs/push-targets.md. */
   screen: string;
   /** Opened only by the native app; the web has no page at this path (the SW lands on home). */
@@ -22,35 +36,35 @@ export interface PushTarget {
 }
 
 export const PUSH_TARGETS: readonly PushTarget[] = [
-  { pattern: '/feed', screen: 'Feed (optionally ?item=, ?activity=, ?weekStory=1)' },
-  { pattern: '/dashboard', screen: 'Home' },
-  { pattern: '/dashboard/profile', screen: 'Own profile (optionally ?tab=badges)' },
-  { pattern: '/dashboard/teammate/:id', screen: "Teammate's profile" },
-  { pattern: '/dashboard/teammate/:id/records/:bucket', screen: "A runner's record history for one distance" },
-  { pattern: '/dashboard/run-together/:id', screen: 'One shared run (meetup)' },
-  { pattern: '/dashboard/run-chat/:id', screen: 'Run chat thread' },
-  { pattern: '/dashboard/calendar/:id', screen: 'Club calendar event' },
-  { pattern: '/dashboard/surveys/:id', screen: 'Survey' },
-  { pattern: '/dashboard/academy', screen: 'Academy home' },
-  { pattern: '/dashboard/program', screen: 'Season program' },
-  { pattern: '/dashboard/notifications', screen: 'Notification inbox' },
-  { pattern: '/dashboard/notifications/approve', screen: 'Staff: push approvals' },
-  { pattern: '/dashboard/store', screen: 'Store' },
-  { pattern: '/dashboard/records', screen: 'Records tab' },
-  { pattern: '/dashboard/entry-queue', screen: 'Staff: entry queue' },
-  { pattern: '/dashboard/feedback', screen: 'Staff: runner feedback' },
-  { pattern: '/dashboard/workout-feedback', screen: 'Post-workout feedback' },
-  { pattern: '/dashboard/quality-session', screen: 'Quality session' },
-  { pattern: '/dashboard/push-health', screen: 'Staff: push health' },
-  { pattern: '/dashboard/photos', screen: 'Photos gallery' },
-  { pattern: '/dashboard/week', screen: 'Staff: week setup' },
-  { pattern: '/dashboard/settings', screen: 'Settings' },
-  { pattern: '/dashboard/review', screen: 'Staff: review' },
-  { pattern: '/dashboard/content', screen: 'Staff: content' },
-  { pattern: '/chat/:id', screen: 'Group chat (groupChatUrl — no web page yet)', nativeOnly: true },
-  { pattern: '/coach/pain/:id', screen: 'Staff: one pain report', nativeOnly: true },
-  { pattern: '/me/pain/:id', screen: 'Own pain report', nativeOnly: true },
-  { pattern: '/me/pain/:id/checkin', screen: 'Pain report check-in', nativeOnly: true },
+  { pattern: '/feed', kind: 'feed', screen: 'Feed (optionally ?item=, ?activity=, ?weekStory=1)' },
+  { pattern: '/dashboard', kind: 'home', screen: 'Home' },
+  { pattern: '/dashboard/profile', kind: 'profile', screen: 'Own profile (optionally ?tab=badges)' },
+  { pattern: '/dashboard/teammate/:id', kind: 'teammate', screen: "Teammate's profile" },
+  { pattern: '/dashboard/teammate/:id/records/:bucket', kind: 'recordHistory', screen: "A runner's record history for one distance" },
+  { pattern: '/dashboard/run-together/:id', kind: 'meetup', screen: 'One shared run (meetup)' },
+  { pattern: '/dashboard/run-chat/:id', kind: 'runChat', screen: 'Run chat thread' },
+  { pattern: '/dashboard/calendar/:id', kind: 'event', screen: 'Club calendar event' },
+  { pattern: '/dashboard/surveys/:id', kind: 'survey', screen: 'Survey' },
+  { pattern: '/dashboard/academy', kind: 'academy', screen: 'Academy home' },
+  { pattern: '/dashboard/program', kind: 'program', screen: 'Season program' },
+  { pattern: '/dashboard/notifications', kind: 'inbox', screen: 'Notification inbox' },
+  { pattern: '/dashboard/notifications/approve', kind: 'pushApprovals', screen: 'Staff: push approvals' },
+  { pattern: '/dashboard/store', kind: 'store', screen: 'Store' },
+  { pattern: '/dashboard/records', kind: 'records', screen: 'Records tab' },
+  { pattern: '/dashboard/entry-queue', kind: 'entryQueue', screen: 'Staff: entry queue' },
+  { pattern: '/dashboard/feedback', kind: 'runnerFeedback', screen: 'Staff: runner feedback' },
+  { pattern: '/dashboard/workout-feedback', kind: 'workoutFeedback', screen: 'Post-workout feedback' },
+  { pattern: '/dashboard/quality-session', kind: 'qualitySession', screen: 'Quality session' },
+  { pattern: '/dashboard/push-health', kind: 'pushHealth', screen: 'Staff: push health' },
+  { pattern: '/dashboard/photos', kind: 'photos', screen: 'Photos gallery' },
+  { pattern: '/dashboard/week', kind: 'weekSetup', screen: 'Staff: week setup' },
+  { pattern: '/dashboard/settings', kind: 'settings', screen: 'Settings' },
+  { pattern: '/dashboard/review', kind: 'review', screen: 'Staff: review' },
+  { pattern: '/dashboard/content', kind: 'content', screen: 'Staff: content' },
+  { pattern: '/chat/:id', kind: 'groupChat', screen: 'Group chat (groupChatUrl — no web page yet)', nativeOnly: true },
+  { pattern: '/coach/pain/:id', kind: 'coachPain', screen: 'Staff: one pain report', nativeOnly: true },
+  { pattern: '/me/pain/:id', kind: 'painReport', screen: 'Own pain report', nativeOnly: true },
+  { pattern: '/me/pain/:id/checkin', kind: 'painCheckin', screen: 'Pain report check-in', nativeOnly: true },
 ] as const;
 
 function segmentsMatch(pattern: string, path: string): boolean {
@@ -70,4 +84,36 @@ export function matchPushTarget(url: string): PushTarget | null {
 /** True for a url that is fine to put on a push: a known target or an inbox ledger row. */
 export function isValidPushUrl(url: string): boolean {
   return url.startsWith('#ledger:') || matchPushTarget(url) !== null;
+}
+
+export interface NativeTarget {
+  kind: NativeTargetKind;
+  /** The pattern's `:name` segments, decoded. */
+  params: Record<string, string>;
+  /** The url's query string, decoded (e.g. { item: '…' } for /feed?item=…). */
+  query: Record<string, string>;
+}
+
+/**
+ * url → native screen. `#ledger:` rows and unknown urls → null (the native app then opens the
+ * inbox, which is where a ledger row lives anyway). Decoding never throws on a bad escape.
+ */
+export function toNativeTarget(url: string): NativeTarget | null {
+  const t = matchPushTarget(url);
+  if (!t) return null;
+  const dec = (v: string) => { try { return decodeURIComponent(v); } catch { return v; } };
+  const [pathPart, rest = ''] = url.split('?', 2);
+  const path = pathPart.split('#')[0].replace(/\/+$/, '');
+  const p = t.pattern.split('/').filter(Boolean);
+  const u = path.split('/').filter(Boolean);
+  const params: Record<string, string> = {};
+  p.forEach((seg, i) => { if (seg.startsWith(':')) params[seg.slice(1)] = dec(u[i]); });
+  const query: Record<string, string> = {};
+  for (const [k, v] of new URLSearchParams(rest.split('#')[0])) query[k] = v;
+  return { kind: t.kind, params, query };
+}
+
+/** The whole map, for GET /api/push/targets and docs/push-targets.md. */
+export function nativeRoutingMap(): Array<{ pattern: string; kind: NativeTargetKind; nativeOnly: boolean }> {
+  return PUSH_TARGETS.map((t) => ({ pattern: t.pattern, kind: t.kind, nativeOnly: !!t.nativeOnly }));
 }

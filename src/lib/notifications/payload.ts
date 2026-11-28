@@ -18,12 +18,15 @@ import {
   activitySyncedCopy, planPushedCopy, newRecordCopy,
 } from './copy';
 import { teammateHref } from '@/lib/athletes/profile-link';
+import { toNativeTarget, type NativeTarget } from './push-targets';
 
 export interface BuiltPush {
   kind: PushKind;
   title: string;
   body: string;
   url: string;
+  /** The native screen for `url` (task 83), from the same PUSH_TARGETS row — null if unknown. */
+  target: NativeTarget | null;
 }
 
 export type PushParams = {
@@ -79,5 +82,5 @@ export const PUSH_KINDS = Object.keys(BUILDERS) as PushKind[];
 
 export function buildPushPayload<K extends PushKind>(kind: K, locale: NotificationLocale, params: PushParams[K]): BuiltPush {
   const built = (BUILDERS[kind] as Builder<K>)(locale, params);
-  return { kind, ...built };
+  return { kind, ...built, target: toNativeTarget(built.url) };
 }
