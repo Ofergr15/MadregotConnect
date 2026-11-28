@@ -11,7 +11,7 @@ import { deliveryFailedCopy } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
 import { authError, requireSession } from '@/lib/auth-session';
 import { logWeek, readSetting, writeSetting } from '@/lib/week-setup/server';
-import { israelToday } from '@/lib/utils';
+import { addDaysToDateStr, israelToday } from '@/lib/utils';
 import { WATCH_RESULTS_KEY, statusOf, summarize, withResults, type PushOutcome, type WatchResultsStore } from '@/lib/week-setup/watch-results';
 import { pushWeekToAthlete, type PushResult } from '@/lib/garmin/push-week';
 import { appleCandidates, deliverWeek, resolveWatchProvider } from '@/lib/watch';
@@ -193,9 +193,7 @@ export async function POST(req: NextRequest) {
     if (notify && weekStartDate) {
       await Promise.all(sentDows.map(async (dow) => {
         try {
-          const d = new Date(`${weekStartDate}T12:00:00Z`);
-          d.setUTCDate(d.getUTCDate() + dow);
-          if (await loadQualityWorkout(supabase, d.toISOString().slice(0, 10))) qualityDows.push(dow);
+          if (await loadQualityWorkout(supabase, addDaysToDateStr(weekStartDate, dow))) qualityDows.push(dow);
         } catch { /* no ⭐ is the safe default */ }
       }));
     }

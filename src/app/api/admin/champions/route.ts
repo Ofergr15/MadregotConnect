@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireContentStaff } from '@/lib/auth/require-content-staff';
-import { israelToday } from '@/lib/utils';
+import { addDaysToDateStr, israelToday } from '@/lib/utils';
 import { mentionToken } from '@/lib/feed/mentions';
 import { publishClubPost } from '@/lib/publish/server';
 import { isMissing163, readResults, readSuggestions } from '@/lib/champions/server';
@@ -56,8 +56,8 @@ export async function POST(request: Request) {
   const today = israelToday();
   const place = mine ? placeOf(rows, mine, today) : null;
   let posted = false;
-  if (mine && place && place <= TOP && raceDate >= addDays(today, -30)) {
-    const until = addDays(today, 3);
+  if (mine && place && place <= TOP && raceDate >= addDaysToDateStr(today, -30)) {
+    const until = addDaysToDateStr(today, 3);
     await publishClubPost(db, {
       body: `🏅 ${mentionToken(mine.name, mine.athleteId)} ${enteredVerb(mine.gender)} למקום ${place} באלופי המדרגות · ${DISTANCE_LONG[distance]} · ${fmtRaceTime(seconds)}`,
       payload: { kind: 'celebration', celebrationType: 'achievement', honoreeIds: [mine.athleteId], honoreeId: mine.athleteId, date: today, until, champions: { distance, place, resultId: id } },
@@ -112,8 +112,4 @@ export async function PATCH(request: Request) {
   if (!Object.keys(patch).length) return NextResponse.json({ error: 'nothing to change' }, { status: 400 });
   const { error } = await createServerClient().from('race_results').update(patch).eq('id', b.id).is('deleted_at', null);
   return error ? NextResponse.json({ error: 'failed' }, { status: 500 }) : NextResponse.json({ ok: true });
-}
-
-function addDays(iso: string, n: number) {
-  const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10);
 }

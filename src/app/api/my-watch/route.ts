@@ -9,7 +9,7 @@ import { paceGroupKeyFor } from '@/lib/plans/pace-group';
 import { loadOwnWeek, providerFor, pushOwnWeek } from '@/lib/watch/own-week';
 import { missingForAthletes } from '@/lib/watch/missing';
 import { isAcademyOnly } from '@/lib/plans/scope';
-import { israelToday } from '@/lib/utils';
+import { israelToday, addDaysToDateStr } from '@/lib/utils';
 import { appleCandidates, deliverWeek, resolveWatchProvider, type WatchProvider } from '@/lib/watch';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import { watchDays, type WatchDay } from '@/lib/watch/day-status';
@@ -95,9 +95,7 @@ async function readDeliveries(
   athleteId: string,
   weekStartDate: string,
 ): Promise<DeliveryRow[]> {
-  const weekEnd = new Date(weekStartDate);
-  weekEnd.setDate(weekEnd.getDate() + 6);
-  const weekEndStr = weekEnd.toISOString().split('T')[0];
+  const weekEndStr = addDaysToDateStr(weekStartDate, 6);
 
   const { data } = await supabase
     .from('workout_deliveries')

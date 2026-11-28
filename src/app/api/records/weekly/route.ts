@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { fetchWeeklyVolume } from '@/lib/athletes/weekly-volume';
-import { getActivityWeekStart, israelDateAnchor, israelToday } from '@/lib/utils';
+import { addDaysToDateStr, getActivityWeekStart, israelDateAnchor, israelToday } from '@/lib/utils';
 import { weeklyBoard, squadStandings, SHOW_SQUAD_STANDINGS, type BoardMetric } from '@/lib/records/board';
 import { readRoster, myPrivacy } from '@/lib/records/server';
 import { recordsGate } from '@/lib/records/gate';
 import { dayKmOf, parseWeekOffset, type DayKmRow } from '@/lib/records/day-km';
 import { fetchAllRows } from '@/lib/supabase/paginate';
-import { addDaysToDateStr } from '@/lib/utils';
 import { fetchPeriodTotals, israelMonthRange, parseBoardGroup, parseBoardPeriod, rosterInGroup } from '@/lib/records/period';
 
 export const dynamic = 'force-dynamic';
@@ -78,9 +77,8 @@ export async function GET(request: Request) {
     const { byAthlete } = await fetchWeeklyVolume(db, { athleteIds: rosterIds, weeks: 1, currentWeekStart: weekStart });
     const totals = new Map([...byAthlete].map(([id, w]) => [id, w[0] ?? { meters: 0, seconds: 0, runs: 0 }]));
     const board = weeklyBoard(ranked, totals, caller.athleteId, metric);
-    const end = new Date(`${weekStart}T12:00:00Z`); end.setUTCDate(end.getUTCDate() + 6);
-    const daysLeft = Math.max(0, Math.round((end.getTime() - Date.parse(`${today}T12:00:00Z`)) / 86400000));
-    const weekEnd = end.toISOString().slice(0, 10);
+    const weekEnd = addDaysToDateStr(weekStart, 6);
+    const daysLeft = Math.max(0, Math.round((Date.parse(`${weekEnd}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / 86400000));
     const { dayKm, myDayKm } = dayKmOf(await dayRowsP, weekStart, caller.athleteId);
     return NextResponse.json({
       enabled: true,

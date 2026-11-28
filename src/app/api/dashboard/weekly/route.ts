@@ -1,4 +1,5 @@
 import { withoutDraftsFor } from '@/lib/plans/scope';
+import { shiftWeekStart } from '@/lib/utils';
 import { withServerTiming } from '@/lib/perf/server-timing';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
@@ -97,9 +98,7 @@ async function handleGET(request: Request) {
 
     // Previous week = 7 days before the DISPLAYED week (keeps the delta correct
     // after the Saturday-evening rollover).
-    const prevWeek = new Date(currentWeekStart);
-    prevWeek.setUTCDate(prevWeek.getUTCDate() - 7);
-    const previousWeekStartStr = prevWeek.toISOString().split('T')[0];
+    const previousWeekStartStr = shiftWeekStart(currentWeekStart, -1);
     // Same rule as the current week, for the same reason: a delta against an
     // arbitrary older week is not a week-over-week delta. No previous plan means
     // no comparison, which `weekDelta` already expresses as 0 (the pill hides).
