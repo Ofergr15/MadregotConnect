@@ -331,20 +331,25 @@ Notes:
 
 ### ⚠️ Security posture — know this before touching auth
 
-**Most API routes are not authenticated.** They run as service-role and trust
-caller-supplied identity from the request body or query string (`coach_id`, `email`,
-`approverEmail`). Supabase auth is otherwise used **client-side only**, and the
-dashboard layout gates on `localStorage` + a client session check.
+**API routes derive identity from the verified Supabase JWT** (updated 2026-11-28 from
+`docs/route-auth-inventory.md`, pinned by `src/__tests__/routeAuthInventory.test.ts`). No route
+still takes caller identity from a body/query `email`, `coach_id` or `approverEmail`; `coach_id`
+survives only as the club constant `COACH_ID` that scopes queries. Every member/staff/admin route
+goes through `src/lib/auth/self-or-staff.ts` (`resolveVerifiedCaller` and the gates over it) or a
+domain wrapper that funnels into it. Crons use `Bearer CRON_SECRET`, Watch routes a device token,
+photo media a server-signed URL. A new route must gate the same way or be added to the test's
+public allowlist with a reason — do not add one that trusts a body field for identity or role.
 
-Practically: **for those routes, any caller can hit any endpoint as anyone.** Role
-gates (`canApprove`, `canGrantAdmin` in `src/lib/constants.ts`) are enforced against
-an email the *client* supplied, so they're a UI guardrail, not a security boundary.
+The dashboard layout's `localStorage` check is still UI only; the server gate is the boundary.
 
-This is a known, deliberate state for a small private club app — don't silently
-"fix" it as a side effect of another task. But **do not add new endpoints that
-widen it** (e.g. deletion or role mutation driven purely by a body field), and flag
-it if the app's exposure changes. A real fix means verifying the Supabase JWT
-server-side and deriving identity from it.
+**Routes still reachable without a JWT that carry real risk** (the rest of the allowlist is
+public catalogue/form/login steps — see the inventory doc):
+
+| route | today | proposed fix |
+|---|---|---|
+| `POST /api/admin/login` | one shared `ADMIN_PASSWORD` for every staff email + in-memory throttle (resets on cold start) | staff sign in like members (email code / Strava) and the route checks the JWT + `role ∈ {admin, coach}`; keep the password path only behind an env flag, default off |
+| `POST /api/push/receipt` | endpoint URL is the credential; moves `last_success_at`/`shown_at` forward; always 204 | body size cap + per-IP rate limit; require a well-formed push-service URL; accept the signed `nid` only for its own subscription (already) |
+| `POST /api/client-log` | zero-auth log sink; logs any JSON body | size cap (e.g. 4 KB) + per-IP rate limit; attach the verified caller id when a bearer is present, never trust a body identity; strip keys that look like tokens |
 
 **The personal-data read routes are the exception, and they're already fixed.** The
 ten routes listed in `src/__tests__/verifiedRouteIdentity.test.ts` (athlete PRs,
