@@ -11,6 +11,7 @@ import {
   activityLocalDateStr, activityWeekStart, addDaysToDateStr, computeWeekStreak,
   getActivityWeekStart, israelDateAnchor, israelToday,
 } from '@/lib/utils';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -109,6 +110,6 @@ export async function GET(request: Request) {
     });
   } catch (err: any) {
     console.error('[me/progress-summary] failed:', err);
-    return NextResponse.json({ error: err?.message || 'Failed to load' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to load'), { status: 500 });
   }
 }

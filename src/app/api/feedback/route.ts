@@ -7,6 +7,7 @@ import { problemReportCopy } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
 import { shouldNotifyReporter, type ResolutionStatus } from '@/lib/feedback-resolution';
 import { notifyReportResolved } from '@/lib/feedback-notify';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -109,7 +110,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, ticket_no: ticketNo });
   } catch (error: any) {
     console.error('Feedback submit error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to submit' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to submit'), { status: 500 });
   }
 }
 
@@ -204,7 +205,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ feedback });
   } catch (error: any) {
     console.error('Feedback fetch error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Internal error'), { status: 500 });
   }
 }
 
@@ -229,7 +230,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Feedback delete error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to delete' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to delete'), { status: 500 });
   }
 }
 
@@ -386,7 +387,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ success: true, lifecycleSaved });
   } catch (error: any) {
     console.error('Feedback update error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to update'), { status: 500 });
   }
 }
 
@@ -431,6 +432,6 @@ export async function PUT(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Feedback verify error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to verify' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to verify'), { status: 500 });
   }
 }

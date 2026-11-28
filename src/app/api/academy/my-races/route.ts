@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { resolveRaceSeat } from '@/lib/packs/race-access-server';
 import { parseRaceBody, toRace, type RaceRow } from '@/lib/packs/races';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,7 +53,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ races: rows.map((r) => toRace(r, withPlan.has(r.id))) });
   } catch (err: any) {
     console.error('GET /api/academy/my-races error:', err);
-    return NextResponse.json({ error: err?.message || 'failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('failed'), { status: 500 });
   }
 }
 
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ race: toRace(data as RaceRow, false) }, { status: 201 });
   } catch (err: any) {
     console.error('POST /api/academy/my-races error:', err);
-    return NextResponse.json({ error: err?.message || 'failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('failed'), { status: 500 });
   }
 }
 
@@ -98,7 +99,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ race: toRace(data as RaceRow, !!plan) });
   } catch (err: any) {
     console.error('PATCH /api/academy/my-races error:', err);
-    return NextResponse.json({ error: err?.message || 'failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('failed'), { status: 500 });
   }
 }
 
@@ -111,6 +112,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error('DELETE /api/academy/my-races error:', err);
-    return NextResponse.json({ error: err?.message || 'failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('failed'), { status: 500 });
   }
 }

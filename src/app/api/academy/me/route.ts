@@ -34,6 +34,7 @@ import {
 } from '@/lib/academy/trainee-home';
 
 import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
+import { internalErrorBody } from '@/lib/api-error';
 export const dynamic = 'force-dynamic';
 
 /**
@@ -384,6 +385,6 @@ export async function GET(request: Request) {
     return NextResponse.json(body);
   } catch (error: any) {
     console.error('Academy me error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to load academy view' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to load academy view'), { status: 500 });
   }
 }

@@ -6,6 +6,7 @@ import { fetchWeeklyVolume } from '@/lib/athletes/weekly-volume';
 import { israelDateAnchor, SUNDAY_WEEK, weekStartOn } from '@/lib/utils';
 import { readWeekStartDay } from '@/lib/athletes/week-pref';
 import { COACH_ID } from '@/lib/constants';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -123,6 +124,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ series, weeksReturned: series.length, peakKm, avgKm, granularity });
   } catch (err: any) {
     console.error('volume-history error:', err);
-    return NextResponse.json({ error: err.message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }

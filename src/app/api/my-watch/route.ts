@@ -13,6 +13,7 @@ import { israelToday } from '@/lib/utils';
 import { appleCandidates, deliverWeek, resolveWatchProvider, type WatchProvider } from '@/lib/watch';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import { watchDays, type WatchDay } from '@/lib/watch/day-status';
+import { internalErrorBody } from '@/lib/api-error';
 
 /**
  * "Is this week's training actually on my watch?" — and, if it isn't, the one tap
@@ -187,6 +188,6 @@ export async function POST(request: Request) {
     );
   } catch (error: any) {
     console.error('my-watch push error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to push to watch' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to push to watch'), { status: 500 });
   }
 }

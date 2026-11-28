@@ -5,6 +5,7 @@ import { loadFeedPlanVerdicts, type VerdictActivityRow } from '@/lib/feed/plan-v
 import { readHiddenFields } from '@/lib/feed/project';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 import { addDaysToDateStr, planWeekStartOf } from '@/lib/utils';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,7 +67,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ weekStart, scores });
   } catch (err: any) {
     console.error('[me/plan-scores] failed:', err);
-    return NextResponse.json({ error: err?.message || 'Failed to load' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to load'), { status: 500 });
   }
 }
 

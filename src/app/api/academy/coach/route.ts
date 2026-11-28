@@ -4,6 +4,7 @@ import { COACH_ID } from '@/lib/constants';
 import { isStaffRole } from '@/lib/auth/self-or-staff';
 import { loadPair, pairLookupError, requireAcademyManager, setPairCoaches } from '@/lib/academy/pairing-server';
 import { holdsAcademyCoachRole } from '@/lib/academy/coaches';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -129,6 +130,6 @@ export async function PUT(request: Request) {
     });
   } catch (error: any) {
     console.error('Academy coach assign error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to assign the coach' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to assign the coach'), { status: 500 });
   }
 }

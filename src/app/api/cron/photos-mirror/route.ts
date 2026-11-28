@@ -10,6 +10,7 @@ import { videoBudgetCopy } from '@/lib/notifications/copy';
 import { revalidateTag } from 'next/cache';
 import { listFolderPhotos, listPhotoFolders } from '@/lib/photos/drive-browse';
 import { recordMirrorRun } from '@/lib/photos/status';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -84,7 +85,7 @@ async function run(request: Request) {
   } catch (error) {
     console.error('[cron/photos-mirror] failed', error);
     await recordMirrorRun(createServerClient(), { at: new Date().toISOString(), ok: false, error: 'run failed' });
-    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Internal error'), { status: 500 });
   }
 }
 

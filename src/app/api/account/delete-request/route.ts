@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { notifyStaff } from '@/lib/notifications/staff';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ request: shape(data) });
   } catch (err: unknown) {
     console.error('[account/delete-request] failed:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }
 

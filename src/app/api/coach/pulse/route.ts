@@ -5,6 +5,7 @@ import { COACH_ID } from '@/lib/constants';
 import { resolveGroup } from '@/lib/utils';
 import { requireStaff } from '@/lib/auth/self-or-staff';
 import { fetchAllRowsParallel } from '@/lib/supabase/paginate';
+import { internalErrorBody } from '@/lib/api-error';
 
 /** The columns the PR + standout-week comparison needs. */
 interface PulseActivityRow {
@@ -169,6 +170,6 @@ export async function GET(request: Request) {
     return NextResponse.json(await cachedPulse(days));
   } catch (err: any) {
     console.error('pulse error:', err);
-    return NextResponse.json({ error: err.message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }

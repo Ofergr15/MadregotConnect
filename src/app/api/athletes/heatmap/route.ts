@@ -4,6 +4,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
+import { internalErrorBody } from '@/lib/api-error';
 export const dynamic = 'force-dynamic';
 
 // GET /api/athletes/heatmap?athleteId=…
@@ -51,6 +52,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ days });
   } catch (err: any) {
     console.error('Heatmap error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to compute heatmap' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to compute heatmap'), { status: 500 });
   }
 }

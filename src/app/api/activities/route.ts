@@ -26,6 +26,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -194,6 +195,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ activities: enriched });
   } catch (error: any) {
     console.error('Fetch activities error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to fetch'), { status: 500 });
   }
 }

@@ -5,6 +5,7 @@ import { israelToday } from '@/lib/utils';
 import { daysSinceRun, loadPack, packMembers, packSession, planPublishedAt } from '@/lib/packs/server';
 import { forLeader } from '@/lib/packs/leader-safe';
 import { toMoment } from '@/lib/packs/moments';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +48,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }));
   } catch (err: any) {
     console.error('GET /api/packs/[id]/home error:', err);
-    return NextResponse.json({ error: err?.message || 'failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('failed'), { status: 500 });
   }
 }

@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { resolveRaceSeat } from '@/lib/packs/race-access-server';
 import { mayWriteRacePlan, parseRacePlan } from '@/lib/packs/races';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ plan: await readPlan(g.db, g.raceId) });
   } catch (err: any) {
     console.error('GET /api/academy/race-plan error:', err);
-    return NextResponse.json({ error: err?.message || 'failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('failed'), { status: 500 });
   }
 }
 
@@ -67,6 +68,6 @@ export async function PUT(request: Request) {
     return NextResponse.json({ plan: await readPlan(g.db, g.raceId) });
   } catch (err: any) {
     console.error('PUT /api/academy/race-plan error:', err);
-    return NextResponse.json({ error: err?.message || 'failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('failed'), { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireMember } from '@/lib/auth/self-or-staff';
 import { israelToday } from '@/lib/utils';
 import { inRange, parseQuery, weatherAt } from '@/lib/weather/at';
+import { internalErrorBody } from '@/lib/api-error';
 
 /**
  * GET /api/weather/at?lat&lon&time=YYYY-MM-DDTHH:MM — weather at a session's start.
@@ -21,6 +22,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ weather: await weatherAt(q.lat, q.lon, q.date, q.hour) });
   } catch (error: any) {
     console.error('weather/at error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to read weather' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to read weather'), { status: 500 });
   }
 }

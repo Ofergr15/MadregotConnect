@@ -4,6 +4,7 @@ import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { notifyStaff } from '@/lib/notifications/staff';
 import { availabilityChangeCopy } from '@/lib/notifications/copy';
 import { setByForCaller, type Availability } from '@/lib/coach/attention';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,6 +64,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ availability: data.availability, setBy: data.availability_set_by ?? null });
   } catch (error: any) {
     console.error('[availability] failed:', error);
-    return NextResponse.json({ error: error?.message || 'Failed to update' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to update'), { status: 500 });
   }
 }

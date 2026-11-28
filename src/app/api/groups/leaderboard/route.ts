@@ -9,6 +9,7 @@ import { getActivityWeekStart, activityWeekStart, computeWeekStreak, israelDateA
 import { fetchAllRowsParallel } from '@/lib/supabase/paginate';
 
 import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
+import { internalErrorBody } from '@/lib/api-error';
 /** The columns the streak and monthly boards derive from. */
 interface HistoryRow {
   athlete_id: string;
@@ -251,6 +252,6 @@ export async function GET(request: Request) {
   } catch (error: any) {
     rethrowIfDynamicBailout(error);
     console.error('Leaderboard error:', error);
-    return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }

@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { recomputeRaceMatches } from '@/lib/races/match-athlete-races';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,7 +88,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ races, totalRaces: races.length });
   } catch (err: any) {
     console.error('Races error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to compute races' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to compute races'), { status: 500 });
   }
 }
 
@@ -152,6 +153,6 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ match });
   } catch (err: any) {
     console.error('Race match update error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to update race match' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to update race match'), { status: 500 });
   }
 }

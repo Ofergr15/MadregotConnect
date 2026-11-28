@@ -5,6 +5,7 @@ import { requireMember } from '@/lib/auth/self-or-staff';
 import { testAccountIds } from '@/lib/athletes/test-accounts';
 import { rethrowIfDynamicBailout } from '@/lib/dynamic-bailout';
 import { resolveGroup, getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
+import { internalErrorBody } from '@/lib/api-error';
 
 // Weekly squad rivalry, rolled up — a few minutes of staleness is invisible
 // against a week-long window, so this participates in Next's Data Cache
@@ -157,6 +158,6 @@ export async function GET(request: Request) {
   } catch (error: any) {
     rethrowIfDynamicBailout(error);
     console.error('Standings error:', error);
-    return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }

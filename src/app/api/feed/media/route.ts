@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, authError } from '@/lib/auth-session';
 import { MAX_MEDIA_BYTES, isAllowedMediaType, extensionForMimeType } from '@/lib/feed/media';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,6 +62,6 @@ export async function POST(request: Request) {
     });
   } catch (err: unknown) {
     console.error('Feed media upload error:', err);
-    return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed'), { status: 500 });
   }
 }

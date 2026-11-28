@@ -5,6 +5,7 @@ import { israelToday } from '@/lib/utils';
 import { editableUntil, isEditable, parseMarks } from '@/lib/packs/attendance';
 import { attendanceRows, loadPack, packMembers, packSession } from '@/lib/packs/server';
 import { forLeader } from '@/lib/packs/leader-safe';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,7 +38,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json(forLeader(await respond(db, id, date, pack.groupIndex)));
   } catch (err: any) {
     console.error('GET /api/packs/[id]/attendance error:', err);
-    return NextResponse.json({ error: err?.message || 'failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('failed'), { status: 500 });
   }
 }
 
@@ -79,6 +80,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json(forLeader(await respond(db, id, date, pack.groupIndex)));
   } catch (err: any) {
     console.error('POST /api/packs/[id]/attendance error:', err);
-    return NextResponse.json({ error: err?.message || 'failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('failed'), { status: 500 });
   }
 }

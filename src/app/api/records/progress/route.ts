@@ -7,6 +7,7 @@ import { bestByMonth, fasterThan, monthAxis, squadMedianSeries, isOnBoard } from
 import { readRoster, myPrivacy, benchmarkBests } from '@/lib/records/server';
 import { recordsGate } from '@/lib/records/gate';
 import { bestOf, withOverride, type OwnOverride } from '@/lib/records/mine-overrides';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,6 +88,6 @@ export async function GET(request: Request) {
     });
   } catch (err: any) {
     console.error('records/progress error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to build progress' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('Failed to build progress'), { status: 500 });
   }
 }

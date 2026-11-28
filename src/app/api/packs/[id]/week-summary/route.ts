@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaff } from '@/lib/auth/self-or-staff';
 import { planWeekStartOf, shiftWeekStart } from '@/lib/utils';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +31,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     });
   } catch (err: any) {
     console.error('GET /api/packs/[id]/week-summary error:', err);
-    return NextResponse.json({ error: err?.message || 'failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('failed'), { status: 500 });
   }
 }

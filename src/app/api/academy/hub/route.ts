@@ -4,6 +4,7 @@ import { isAcademyManager, visibleTraineeIds } from '@/lib/academy/pairing-serve
 import { createServerClient } from '@/lib/supabase/server';
 import { availableViews, resolveHubView } from '@/lib/academy/hub';
 import { readHub } from '@/lib/academy/hub-server';
+import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,6 @@ export async function GET(request: Request) {
     return NextResponse.json(payload);
   } catch (error: any) {
     console.error('academy hub failed', error);
-    return NextResponse.json({ error: error.message || 'academy hub failed' }, { status: 500 });
+    return NextResponse.json(internalErrorBody('academy hub failed'), { status: 500 });
   }
 }
