@@ -6,7 +6,8 @@ import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
  * Israel date.
  *
  * Conventions:
- *  - Weeks run Sunday → Saturday, the club's own week.
+ *  - Weeks run Sunday → Saturday, the club's own week — or Monday → Sunday (the activity week,
+ *    CLAUDE.md) when `weekStartsOn: 'monday'` (flag `club_numbers_activity_week`, task 81).
  *  - An activity's `start_time` is the runner's local wall clock stored as if it were UTC
  *    (see lib/utils activityLocalDateStr), so its date and hour are read off the string.
  *  - A "member" is an active, non-admin account that ran in the last 8 weeks. Academy
@@ -39,6 +40,8 @@ export interface NInput {
   /** Trainee ids with an approved 30-minute test, with an answered characterization form, with a personal week. */
   tested: Set<string>; formed: Set<string>; planned: Set<string>;
   teamDays?: number[];
+  /** Week anchor for every weekly figure. Default 'sunday' (unchanged behaviour). */
+  weekStartsOn?: 'sunday' | 'monday';
 }
 
 // ── dates ──────────────────────────────────────────────────────────────────────────
@@ -47,6 +50,10 @@ export function addDays(iso: string, n: number): string {
   const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10);
 }
 export const sundayOf = (iso: string) => addDays(iso, -new Date(`${iso}T12:00:00Z`).getUTCDay());
+/** The activity-week anchor (CLAUDE.md "Activity week = Monday"), on a bare Israel date. */
+export const mondayOf = (iso: string) => addDays(iso, -((new Date(`${iso}T12:00:00Z`).getUTCDay() + 6) % 7));
+/** A weekday (0 = Sunday, the reminder_config convention) as an offset into the week. */
+export const weekdayOffset = (weekday: number, startsOn: 'sunday' | 'monday') => (startsOn === 'monday' ? (weekday + 6) % 7 : weekday);
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000);
 const localDate = (start: string) => start.slice(0, 10);
 const localHour = (start: string) => Number(start.slice(11, 13));
@@ -78,9 +85,12 @@ export const CORE_WEEKS_OFF = 1;
 
 export function computeClubNumbers(x: NInput) {
   const today = x.today;
-  const thisWeek = sundayOf(today);
+  const startsOn = x.weekStartsOn ?? 'sunday';
+  const weekOf = startsOn === 'monday' ? mondayOf : sundayOf;
+  const thisWeek = weekOf(today);
   const dayIdx = daysBetween(thisWeek, today);
-  const teamDays = x.teamDays?.length ? x.teamDays : TEAM_DAYS_DEFAULT;
+  const teamWeekdays = x.teamDays?.length ? x.teamDays : TEAM_DAYS_DEFAULT;   // 0 = Sunday
+  const teamDays = teamWeekdays.map((d) => weekdayOffset(d, startsOn));          // offsets into this week
   const people = x.athletes.filter((a) => !/^test /i.test(a.name) && a.role !== 'admin');
   const byId = new Map(people.map((a) => [a.id, a]));
   const runs = x.runs.filter((r) => byId.has(r.athleteId) && RUN_TYPES.has(r.type) && r.meters > 0)
@@ -96,7 +106,7 @@ export function computeClubNumbers(x: NInput) {
   const trainees = active.filter((a) => a.isAcademy);
   const createdOn = (a: NAthlete) => a.createdAt.slice(0, 10);
   const launchDate = people.reduce((m, a) => (createdOn(a) < m ? createdOn(a) : m), today);
-  const launch = sundayOf(launchDate);
+  const launch = weekOf(launchDate);
   const weeks: string[] = [];
   for (let w = launch; w <= thisWeek; w = addDays(w, 7)) weeks.push(w);
   const fullWeeks = weeks.slice(0, -1);
@@ -172,7 +182,7 @@ export function computeClubNumbers(x: NInput) {
 
   // ── per runner: consistency, attention, core
   const last12 = fullWeeks.slice(-12); const last8 = fullWeeks.slice(-8);
-  const yearWeeks: string[] = []; for (let w = sundayOf(yearStart); w < thisWeek; w = addDays(w, 7)) yearWeeks.push(w);
+  const yearWeeks: string[] = []; for (let w = weekOf(yearStart); w < thisWeek; w = addDays(w, 7)) yearWeeks.push(w);
   const runnerRows = members.map((a) => {
     const counts12 = last12.map((w) => countIn(a.id, w, addDays(w, 6)));
     const km12 = last12.map((w) => r1(kmIn(a.id, w, addDays(w, 6))));
@@ -223,7 +233,7 @@ export function computeClubNumbers(x: NInput) {
   const gender = { female: members.filter((a) => a.gender === 'female').length, known: members.filter((a) => a.gender).length };
 
   return {
-    today, thisWeek, dayIndex: dayIdx, launch, launchDate, weeks,
+    today, thisWeek, weekStartsOn: startsOn, dayIndex: dayIdx, launch, launchDate, weeks,
     overview: {
       club: {
         members: club.length, newThisMonth: club.filter((a) => createdOn(a) >= monthAgo).length,
@@ -245,7 +255,7 @@ export function computeClubNumbers(x: NInput) {
     },
     packs: { months, packMonthKm, pace, share: shareRows, sizeNow: Object.fromEntries(CLUB_PACKS.map((p) => [p, packsByWeek[p].at(-1) ?? 0])), sizeAtLaunch: Object.fromEntries(CLUB_PACKS.map((p) => [p, packsByWeek[p][0] ?? 0])) },
     academy: { trainees: traineeRows, traineesByWeek, funnel, bands, coaches, monthKm: packMonthKm['אקדמיה'] },
-    insights: { hours, dow, dist, treadmill, longRuns, months, ages, gender, runs: yearRuns.length, teamDays },
+    insights: { hours, dow, dist, treadmill, longRuns, months, ages, gender, runs: yearRuns.length, teamDays: teamWeekdays, teamOffsets: teamDays },
     stability: {
       everyWeekSinceJan: runnerRows.filter((r) => r.streak >= yearWeeks.length && yearWeeks.length > 0).length, weeksSinceJan: yearWeeks.length,
       threePlusAll8: runnerRows.filter((r) => r.weeks3plus8 === last8.length).length,

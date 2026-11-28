@@ -221,6 +221,9 @@ export const FEATURES = {
   native_mgmt_rewards: { label: 'חנות והטבות (אפליקציה)', defaultEnabled: false },
   /** Native משתמשים (role picker, GET/PUT/DELETE /api/admin/users). Off by default: the users manager is a pending
    *  product decision, so it ships only when an admin turns it on. */
+  /** Task 81: מדרגות במספרים counts its weekly figures Mon–Sun (the activity week, CLAUDE.md)
+   *  instead of Sun–Sat. Club scope; off = unchanged. */
+  club_numbers_activity_week: { label: 'מדרגות במספרים: שבוע שני–ראשון', defaultEnabled: false },
   native_mgmt_users: { label: 'משתמשים (אפליקציה)', defaultEnabled: false },
 } as const;
 
