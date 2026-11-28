@@ -12,6 +12,7 @@ import { loadQualityWorkout } from './server';
 import { qualitySessionRecipientIds } from './access';
 import { pullAlbumPhotos, pullDrivePhotos, type PulledMedia } from './album-fetch';
 import { MAX_SESSION_PHOTOS, SESSION_PHOTOS_KIND, sessionDayLabel, toSessionPhotos, type SessionPhotosPayload } from './photos';
+import { noteSwallowed } from '@/lib/errors/swallowed';
 
 // The quality session's photos, server side (#106). The card itself (publish,
 // find) and the automatic folder: Ofer 2026-10-18 — "the days are picked on the
@@ -152,7 +153,7 @@ export async function publishSessionPhotos(
           tag: `session-photos-${p.date}`,
         });
         told += 1;
-      } catch { /* one phone must not stop the rest */ }
+      } catch (err) { noteSwallowed('quality-session.photos.notify', err); /* one phone must not stop the rest */ }
     }
   }
   return { id: created.id, told };
@@ -260,7 +261,7 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
             url: entry.link,
             tag: `session-folder-${date}`,
           });
-        } catch { /* best effort */ }
+        } catch (err) { noteSwallowed('quality-session.photos', err); /* best effort */ }
       }
       entry.toldAt = now.toISOString();
     }
@@ -305,7 +306,7 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
               url: '/feed',
               tag: `session-photos-found-${date}`,
             });
-          } catch { /* best effort */ }
+          } catch (err) { noteSwallowed('quality-session.photos', err); /* best effort */ }
         }
         fired.push(`sessionPhotosFound:${date}:${fresh}`);
       }
@@ -375,7 +376,7 @@ export async function createFolderNow(
           url: entry.link,
           tag: `session-folder-${p.date}`,
         });
-      } catch { /* best effort */ }
+      } catch (err) { noteSwallowed('quality-session.photos', err); /* best effort */ }
     }
     entry.toldAt = new Date().toISOString();
   }
@@ -510,7 +511,7 @@ export async function approveSessionPhotos(
             url: `/feed?item=${out.id}`, tag: `session-photos-${p.date}`,
           });
           told += 1;
-        } catch { /* one phone must not stop the rest */ }
+        } catch (err) { noteSwallowed('quality-session.photos.notify', err); /* one phone must not stop the rest */ }
       }
     } else {
       // In the app only: one row in everyone's inbox (api/notifications/inbox), no push.

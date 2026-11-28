@@ -16,6 +16,7 @@ import { pollsOfWeek, type WeekPoll } from '@/lib/surveys';
 import { LOG_KEY, skipped, withEntry, type LogAction, type LogEntry, type LogStore, type Step } from './log';
 import { WATCH_RESULTS_KEY, summarize, type WatchResultsStore } from './watch-results';
 import { PLANNED_POLLS_KEY, pendingOf, type PlannedPoll, type PlannedPollStore } from './planned-polls';
+import { swallowAs } from '@/lib/errors/swallowed';
 
 type Db = ReturnType<typeof createServerClient>;
 
@@ -249,7 +250,7 @@ export async function tellWeekAdmins(supabase: Db, weekStart: string, actorId: s
     const r = await notifyAthlete({
       athleteId: a.id, kind: 'week_setup_done', actorAthleteId: actorId, url: `/dashboard/week?week=${weekStart}`, category: 'management',
       title: copy.title, body: copy.body,
-    }).catch(() => null);
+    }).catch(swallowAs('week-setup', null));
     sent += r?.delivered ?? 0;
   }
   return sent;

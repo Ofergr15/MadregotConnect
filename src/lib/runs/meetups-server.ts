@@ -6,6 +6,7 @@ import {
   canSeeExact, canSeeRun, distanceM, jitterArea, parseVisibility, projectPlace,
   type ProjectedPlace, type RequestStatus, type Visibility,
 } from './together';
+import { swallow } from '@/lib/errors/swallowed';
 
 // The reads behind "לרוץ ביחד" shared by /api/runs/meetups and /api/runs/meetups/:id
 // (a route file may export only its handlers).
@@ -231,7 +232,7 @@ export async function sendMeetupReminders(db: Db, tomorrow: string): Promise<num
       category: 'teammates',
       // Only people going are told, so the exact place is theirs to read.
       copy: (locale) => meetupReminderCopy(locale, { hostName: people.get(m.host_athlete_id)?.name, startTime: m.start_time, place: m.location, going: going.length, isHost: athleteId === m.host_athlete_id }),
-    }).then(() => { told++; }).catch(() => {})));
+    }).then(() => { told++; }).catch(swallow('runs.meetups.notify'))));
   }
   return told;
 }

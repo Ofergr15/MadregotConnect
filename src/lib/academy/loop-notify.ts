@@ -19,6 +19,7 @@ import { notifyAthlete } from '@/lib/push';
 import type { NotificationLocale } from '@/lib/notifications/locale';
 import type { PushCopy } from '@/lib/notifications/copy';
 import { academyBoardUrl, academyTestUrl, academyThreadUrl, academySetupUrl } from './deep-links';
+import { swallow } from '@/lib/errors/swallowed';
 
 type Db = { from: (table: string) => any };
 
@@ -296,7 +297,7 @@ export function notifyTestConfirmed(supabase: Db, p: { athleteId: string; slot?:
       athleteId: id, kind: LOOP_KINDS.testConfirmed, actorAthleteId: p.athleteId,
       url: academyTestUrl({ recipientIsStaff: true }), tag: `academy-test-${p.athleteId}`, category: 'coach',
       copy: (l) => testConfirmedCopy(l, { trainee, slot: p.slot ?? null }),
-    }).catch(() => {})));
+    }).catch(swallow('academy.loop-notify'))));
   })(), 'test confirmed');
 }
 
@@ -308,7 +309,7 @@ export function notifyTestOtherTime(supabase: Db, p: { athleteId: string; note?:
       athleteId: id, kind: LOOP_KINDS.testOtherTime, actorAthleteId: p.athleteId,
       url: academyTestUrl({ recipientIsStaff: true }), tag: `academy-test-${p.athleteId}`, category: 'coach',
       copy: (l) => testOtherTimeCopy(l, { trainee, note: p.note ?? null }),
-    }).catch(() => {})));
+    }).catch(swallow('academy.loop-notify'))));
   })(), 'test other time');
 }
 
@@ -319,6 +320,6 @@ export function notifyTestSubmitted(supabase: Db, p: { athleteId: string }): Pro
       athleteId: id, kind: LOOP_KINDS.testSubmitted, actorAthleteId: p.athleteId,
       url: academyTestUrl({ recipientIsStaff: true }), tag: `academy-test-${p.athleteId}`, category: 'coach',
       copy: (l) => testSubmittedCopy(l, { trainee }),
-    }).catch(() => {})));
+    }).catch(swallow('academy.loop-notify'))));
   })(), 'test submitted');
 }

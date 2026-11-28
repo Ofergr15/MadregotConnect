@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { noteSwallowed } from '@/lib/errors/swallowed';
 
 // The OAuth `state` for "connect Strava to THIS athlete" (link mode).
 //
@@ -90,7 +91,7 @@ export async function reserveLinkState(db: Db, state: string, athleteId: string,
     await db.from('app_settings').delete().like('key', `${NONCE_KEY_PREFIX}%`).lt('updated_at', cutoff);
     // Hints outlive nothing: an abandoned one expires with the same cutoff.
     await db.from('app_settings').delete().like('key', `${RETURN_KEY_PREFIX}%`).lt('updated_at', cutoff);
-  } catch { /* the reservation below still decides */ }
+  } catch (err) { noteSwallowed('strava.link-state', err); /* the reservation below still decides */ }
   const { error } = await db.from('app_settings').insert({ key: `${NONCE_KEY_PREFIX}${nonce}`, value: athleteId, updated_at: new Date().toISOString() });
   if (error) return false;
   // Where the callback sends them back to. A redirect target only — it names no row and

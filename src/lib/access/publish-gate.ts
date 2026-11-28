@@ -5,6 +5,7 @@ import { levelsFor, readGrants, type ContentKind } from '@/lib/access/grants';
 import { addDraft, type DraftPath } from '@/lib/access/drafts';
 import { notifyAthlete } from '@/lib/push';
 import { SUPER_USER_EMAIL } from '@/lib/constants';
+import { noteSwallowed } from '@/lib/errors/swallowed';
 
 /**
  * The gate of a Content publish route (lib/access/grants + drafts). The route's own rule
@@ -36,6 +37,6 @@ export async function publishGate(request: Request, kind: ContentKind, path: Dra
       await notifyAthlete({ athleteId: ownerId, kind: 'content_draft', url: '/dashboard/content', tag: `draft:${draft.id}`,
         title: `📝 ${byName ?? 'מישהו'} מבקש לפרסם`, body: draft.title || 'בתוכן — מחכה לאישורך' });
     }
-  } catch { /* the draft is kept either way */ }
+  } catch (err) { noteSwallowed('access.publish-gate', err); /* the draft is kept either way */ }
   return { denied: NextResponse.json({ ok: true, draft: true, id: draft.id }, { status: 202 }) };
 }

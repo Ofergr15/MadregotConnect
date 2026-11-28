@@ -10,6 +10,7 @@ import {
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
 import { recipientsForKind } from '@/lib/notifications/routing';
 import { isTestAccount } from '@/lib/athletes/test-accounts';
+import { noteSwallowed } from '@/lib/errors/swallowed';
 
 type PushCopy = { title: string; body: string };
 
@@ -83,7 +84,7 @@ export async function staffRecipientIds(): Promise<string[]> {
     const supers = await supabase.from('athletes').select('id').eq('is_super_user', true);
     if (supers.error) return [];
     return dedupe(supers.data);
-  } catch { /* best-effort */ }
+  } catch (err) { noteSwallowed('notifications.staff', err); /* best-effort */ }
   return [];
 }
 

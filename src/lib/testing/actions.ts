@@ -7,6 +7,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { TEST_EMAILS, TEST_EMAIL_LIST, editDistance, isTestEmail } from './flows';
+import { noteSwallowed } from '@/lib/errors/swallowed';
 
 export async function cleanupTestAccounts(db: SupabaseClient): Promise<{ deleted: Record<string, number>; blocked: string | null }> {
   const counts: Record<string, number> = {};
@@ -36,7 +37,7 @@ export async function cleanupTestAccounts(db: SupabaseClient): Promise<{ deleted
   try {
     const { data } = await db.auth.admin.listUsers({ perPage: 1000 });
     for (const u of data?.users || []) if (isTestEmail(u.email)) { await db.auth.admin.deleteUser(u.id); counts['auth.users'] = (counts['auth.users'] ?? 0) + 1; }
-  } catch { /* the rest is gone; a stale login cannot reach a deleted athlete */ }
+  } catch (err) { noteSwallowed('testing.actions', err); /* the rest is gone; a stale login cannot reach a deleted athlete */ }
   return { deleted: counts, blocked };
 }
 

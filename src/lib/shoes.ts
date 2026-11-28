@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
 import { shoeLimitCopy } from '@/lib/notifications/copy';
+import { noteSwallowed } from '@/lib/errors/swallowed';
 
 /**
  * Checks one shoe's accumulated mileage against its limit/alert-before
@@ -52,5 +53,5 @@ export async function checkShoeAlert(shoeId: string): Promise<void> {
         category: 'workouts',
       });
     }
-  } catch { /* best-effort — never break the activity insert that triggered this */ }
+  } catch (err) { noteSwallowed('shoes.mileage', err); /* best-effort — never break the activity insert that triggered this */ }
 }

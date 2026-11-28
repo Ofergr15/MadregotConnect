@@ -4,6 +4,7 @@ import { createAndSendSurvey, dayBeforePushSoon } from '@/lib/surveys';
 import { publishClubPost } from '@/lib/publish/server';
 import { PLANNED_POLLS_KEY, duePolls, upsertPoll, type PlannedPoll, type PlannedPollStore } from './planned-polls';
 import { logWeek, readSetting, writeSetting } from './server';
+import { swallowAs } from '@/lib/errors/swallowed';
 
 type Db = ReturnType<typeof createServerClient>;
 
@@ -29,7 +30,7 @@ export async function publishPoll(supabase: Db, week: string, p: PlannedPoll): P
     anonymous: p.anonymous,
     joinAt,
   });
-  if (p.feed) await publishClubPost(supabase, { body: p.question.trim(), payload: { surveyId: survey.id } }).catch(() => null);
+  if (p.feed) await publishClubPost(supabase, { body: p.question.trim(), payload: { surveyId: survey.id } }).catch(swallowAs('week-setup.planned-poll.feed', null));
   await logWeek(supabase, week, { athleteId: p.byId, name: p.by }, 'polls', 'poll_created', p.question.slice(0, 60));
   return survey.id;
 }

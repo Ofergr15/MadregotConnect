@@ -3,6 +3,7 @@ import { notifyAthlete } from '@/lib/push';
 import { traineeIdsOfCoach } from './trainee-coaches';
 import { MOMENT_KINDS, type MomentKind, draftFor, momentState, onTime, windowOf } from './week-moments';
 import { isFeatureEnabled } from '@/lib/features/server';
+import { swallowAs } from '@/lib/errors/swallowed';
 
 type Db = ReturnType<typeof createServerClient>;
 
@@ -113,7 +114,7 @@ export async function sendMoment(db: Db, momentId: string, nowIso: string): Prom
     athleteId: a, kind: 'academy_week_moment', actorAthleteId: row.author_id,
     title, body: (row.notes?.[a] ? `${row.notes[a]} · ` : '') + row.body.slice(0, 140),
     url: `/dashboard/academy?moment=${row.id}`, tag: `academy-moment-${row.kind}`,
-  }).catch(() => null)));
+  }).catch(swallowAs('academy.week-moments.notify', null))));
   return { sent: trainees.length };
 }
 

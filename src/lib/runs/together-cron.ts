@@ -3,6 +3,7 @@ import type { Db, MeetupRow } from './meetups-server';
 import { chatExpired, inSoonWindow, matchGroupActivities } from './together';
 
 import { RUNS_ONLY_OR } from '@/lib/activities/kinds';
+import { swallow } from '@/lib/errors/swallowed';
 /**
  * The three Run-together jobs on cron/tick (every 5 min). Each is idempotent:
  *  - T−60 push (stamped soon_notified_at, so a re-run tick doesn't double-send)
@@ -27,7 +28,7 @@ export async function sendSoonReminders(db: Db, now: { date: string; minute: num
     await Promise.all(going.map((athleteId) => notifyAthlete({
       athleteId, kind: 'meetup_soon', url: `/dashboard/run-together/${m.id}`, tag: `meetup-soon-${m.id}`, category: 'teammates',
       copy: (locale) => meetupSoonCopy(locale, { startTime: m.start_time, place: m.location, going: going.length }),
-    }).then(() => { told++; }).catch(() => {})));
+    }).then(() => { told++; }).catch(swallow('runs.together-cron.notify'))));
   }
   return told;
 }
