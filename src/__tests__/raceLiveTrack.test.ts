@@ -192,14 +192,14 @@ describe('LiveTrack through the race pipeline', () => {
     const clock = { now: T0 + 3600e3 };
     await raceLiveTick({ db, nowMs: clock.now, fetcher: fakeGarmin(clock) });
     db.tables.race_positions.push({ event_id: EVENT, athlete_id: 'r2', lat: 1, lon: 1, distance_m: 1, elapsed_sec: 1, at: 'x' });
-    const fan1 = await liveBoard(db, EVENT, 'fan1');
+    const fan1 = await liveBoard(db, EVENT, 'fan1', clock.now);
     expect(fan1.runners.find((r) => r.athleteId === 'r1')?.position?.distanceM).toBeGreaterThan(14000);
     expect(fan1.runners.find((r) => r.athleteId === 'r1')?.lastSource).toBe('livetrack');
     expect(fan1.runners.map((r) => r.athleteId)).not.toContain('r2');
-    const fan2 = await liveBoard(db, EVENT, 'fan2');
+    const fan2 = await liveBoard(db, EVENT, 'fan2', clock.now);
     expect(fan2.runners.find((r) => r.athleteId === 'r1')?.position).toBeNull();
     // The link itself is never on the board, even for its owner.
-    const own = await liveBoard(db, EVENT, 'r1');
+    const own = await liveBoard(db, EVENT, 'r1', clock.now);
     expect(JSON.stringify(own)).not.toContain('dana-runs');
     expect(own.runners.find((r) => r.athleteId === 'r1')?.liveTrack?.set).toBe(true);
   });

@@ -29,7 +29,7 @@ describe('race live — phone position (b24)', () => {
 
   it('rate-limits and keeps distance growing', () => {
     const base = { nowMs: NOW, cfg, entry: { live_opt_out: false } };
-    expect(phoneWriteAllowed({ ...base, prev: { distance_m: 9000, at: at(10) }, next: pos(10000) })).toBe('too-soon');
+    expect(phoneWriteAllowed({ ...base, prev: { distance_m: 9000, at: at(5) }, next: pos(10000) })).toBe('too-soon');
     expect(phoneWriteAllowed({ ...base, prev: { distance_m: 9000, at: at(60) }, next: pos(10000) })).toBeNull();
     expect(phoneWriteAllowed({ ...base, prev: { distance_m: 15000, at: at(60) }, next: pos(10000) })).toBe('not-monotonic');
     expect(phoneWriteAllowed({ ...base, prev: { distance_m: 10100, at: at(60) }, next: pos(10000) })).toBeNull();   // jitter

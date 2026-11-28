@@ -13,7 +13,7 @@ import { replayFeedAt, replayRaceSec } from './replay';
 import {
   LIVETRACK_POLL_SEC, LiveTrackError, parseLiveTrackUrl, progressToSplits, readLiveTrack, sessionLooksEnded, trackProgress,
 } from './livetrack';
-import { phoneEtaSec } from './phone';
+import { phoneEtaSec, raceWindowOpen } from './phone';
 
 export type SplitSource = 'manual' | 'feed' | 'livetrack' | 'replay';
 /** Who wins the same point: staff's official chip time, then the organizer's feed, then the watch. */
@@ -334,9 +334,9 @@ export interface BoardRunner {
  * The board every member sees. Opted-out runners are left out entirely — not masked, absent —
  * except for themselves (so they can see their own state and the switch that hides it).
  */
-export async function liveBoard(db: Db, eventId: string, viewerId: string | null): Promise<{ runners: BoardRunner[]; source: string; updatedAt: string | null; active: boolean; mapOptIn: boolean }> {
+export async function liveBoard(db: Db, eventId: string, viewerId: string | null, nowMs = Date.now()): Promise<{ runners: BoardRunner[]; source: string; updatedAt: string | null; active: boolean; mapOptIn: boolean }> {
   const [{ data: cfg }, entries, splits, { data: groups }] = await Promise.all([
-    db.from('race_live_config').select('source, active, last_polled_at').eq('event_id', eventId).maybeSingle(),
+    db.from('race_live_config').select('source, active, last_polled_at, poll_from, poll_to').eq('event_id', eventId).maybeSingle(),
     loadEntries(db, eventId),
     loadSplits(db, eventId),
     db.from('event_group_assignments').select('athlete_id, event_pace_groups!group_id(label)').eq('event_id', eventId),
@@ -347,7 +347,10 @@ export async function liveBoard(db: Db, eventId: string, viewerId: string | null
   const { data: goals } = await db.from('race_entries').select('athlete_id, goal_sec, livetrack_url, livetrack_state').eq('event_id', eventId);
   const { data: srcRows } = await db.from('race_splits').select('athlete_id, point, source').eq('event_id', eventId);
   const mapOn = viewerId ? !!((await db.from('race_map_viewers').select('athlete_id').eq('event_id', eventId).eq('athlete_id', viewerId)).data || []).length : false;
-  const { data: posRows } = mapOn ? await db.from('race_positions').select('athlete_id, lat, lon, distance_m, elapsed_sec, at').eq('event_id', eventId) : { data: [] as any[] };
+  // Live location is a race-window thing only: outside it nobody's position is read at all,
+  // whatever the purge has or hasn't deleted yet.
+  const windowOpen = raceWindowOpen(cfg ? { active: !!cfg.active, poll_from: cfg.poll_from ?? null, poll_to: cfg.poll_to ?? null } : null, nowMs);
+  const { data: posRows } = mapOn && windowOpen ? await db.from('race_positions').select('athlete_id, lat, lon, distance_m, elapsed_sec, at').eq('event_id', eventId) : { data: [] as any[] };
   const ltOf = new Map((goals || []).map((g: any) => [String(g.athlete_id), g]));
   const groupOf = new Map((groups || []).map((g: any) => [String(g.athlete_id), g.event_pace_groups?.label ?? null]));
   const goalOf = new Map((goals || []).map((g: any) => [String(g.athlete_id), g.goal_sec ?? null]));

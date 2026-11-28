@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isFeatureEnabled } from '@/lib/features/server';
-import { parsePhonePosition, phoneWriteAllowed } from '@/lib/race-live/phone';
+import { mergePhonePosition, parsePhonePosition, phoneWriteAllowed } from '@/lib/race-live/phone';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,19 +28,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const [{ data: cfg }, { data: entry }, { data: prev }] = await Promise.all([
     db.from('race_live_config').select('active, poll_from, poll_to').eq('event_id', eventId).maybeSingle(),
     db.from('race_entries').select('live_opt_out').eq('event_id', eventId).eq('athlete_id', caller.athleteId).maybeSingle(),
-    db.from('race_positions').select('distance_m, at').eq('event_id', eventId).eq('athlete_id', caller.athleteId).maybeSingle(),
+    db.from('race_positions').select('distance_m, elapsed_sec, at').eq('event_id', eventId).eq('athlete_id', caller.athleteId).maybeSingle(),
   ]);
   const reject = phoneWriteAllowed({ nowMs, cfg: cfg ?? null, entry: entry ?? null, prev: prev ?? null, next });
   if (reject) {
     const status = reject === 'too-soon' ? 429 : reject === 'out-of-window' ? 409 : 403;
     return NextResponse.json({ error: reject }, { status });
   }
+  const row = mergePhonePosition(prev ?? null, next);
   const { error } = await db.from('race_positions').upsert({
     event_id: eventId, athlete_id: caller.athleteId, lat: next.lat, lon: next.lon,
-    distance_m: Math.max(next.distanceM, prev?.distance_m ?? 0), elapsed_sec: next.elapsedSec, at: next.at,
+    distance_m: row.distance_m, elapsed_sec: row.elapsed_sec, at: next.at,
   }, { onConflict: 'event_id,athlete_id' });
   if (error) return NextResponse.json({ error: 'save failed', details: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  // On a resumed session the phone adds these to its own counters from now on.
+  return NextResponse.json(row.baseDistanceM
+    ? { ok: true, resumed: true, distanceM: row.distance_m, baseDistanceM: row.baseDistanceM, baseElapsedSec: row.baseElapsedSec }
+    : { ok: true, distanceM: row.distance_m });
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
