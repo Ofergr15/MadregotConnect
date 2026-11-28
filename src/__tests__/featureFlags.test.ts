@@ -93,7 +93,7 @@ describe('mayToggle — who may toggle what', () => {
     expect(mayToggle(manager, { scopeType: 'academy', scopeId: 'other' })).toBe(false);
   });
   it('allowed scopes per role', () => {
-    expect(allowedScopeTypes(admin)).toHaveLength(5);
+    expect(allowedScopeTypes(admin)).toHaveLength(6);
     expect(allowedScopeTypes(manager)).toEqual(['athlete', 'academy']);
     expect(allowedScopeTypes(clubCoach)).toEqual(['athlete']);
   });

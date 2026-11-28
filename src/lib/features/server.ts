@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
 import { coachIdsOf } from '@/lib/academy/trainee-coaches';
 import { isMissingTable } from '@/lib/supabase/schema-drift';
+import { accessGroupIdsOf } from '@/lib/access-groups/store';
 import {
   resolveFeature, type AthleteFacts, type EnablementRow, type FeatureKey, type Resolution,
 } from './flags';
@@ -53,6 +54,11 @@ export async function readEnablementRows(
 }
 
 export async function athleteFacts(athleteId: string, db: Db = createServerClient()): Promise<AthleteFacts | null> {
+  const [base, accessGroupIds] = await Promise.all([baseFacts(athleteId, db), accessGroupIdsOf(db, athleteId)]);
+  return base ? { ...base, accessGroupIds } : null;
+}
+
+async function baseFacts(athleteId: string, db: Db): Promise<AthleteFacts | null> {
   const { data } = await db
     .from('athletes')
     .select('id, group_id, role, extra_roles, is_academy')

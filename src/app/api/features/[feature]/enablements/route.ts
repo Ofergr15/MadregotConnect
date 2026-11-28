@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireStaffCaller } from '@/lib/auth/self-or-staff';
 import { isMissingTable } from '@/lib/supabase/schema-drift';
 import {
-  ACADEMY_SCOPE_ID, CLUB_SCOPE_ID, allowedScopeTypes, isFeatureKey, isScopeType, mayToggle, type ScopeType,
+  ACADEMY_SCOPE_ID, CLUB_SCOPE_ID, SCOPE_TYPES, allowedScopeTypes, isFeatureKey, isScopeType, mayToggle, type ScopeType,
 } from '@/lib/features/flags';
 import { ENABLEMENTS_TABLE, ENABLEMENT_AUDIT_TABLE } from '@/lib/features/server';
 import { athleteToggleFacts, managedAthletes, toggleCaller } from '@/lib/features/manage-server';
@@ -33,12 +33,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ feat
       .eq('feature', feature).order('set_at', { ascending: false }).limit(200);
     const auditRows = ((audit || []) as Array<{ scope_type: ScopeType; scope_id: string }>)
       .filter((r) => r.scope_type !== 'athlete' || visible.has(r.scope_id))
-      .filter((r) => r.scope_type === 'athlete' || allowedScopes.includes(r.scope_type) || allowedScopes.length === 5)
+      .filter((r) => r.scope_type === 'athlete' || allowedScopes.includes(r.scope_type) || allowedScopes.length === SCOPE_TYPES.length)
       .slice(0, 50);
     return NextResponse.json({
       feature, ...m,
       // Non-admins see only the rows they could have written.
-      enablements: allowedScopes.length === 5 ? m.enablements : m.enablements.filter((e) =>
+      enablements: allowedScopes.length === SCOPE_TYPES.length ? m.enablements : m.enablements.filter((e) =>
         (e.scope_type === 'athlete' && visible.has(e.scope_id)) || (e.scope_type === 'academy' && allowedScopes.includes('academy'))),
       allowedScopes, audit: auditRows,
       migrationPending: auditErr ? isMissingTable(auditErr) : false,

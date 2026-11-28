@@ -587,6 +587,20 @@ athlete taken from the run row, 404 for a stranger, 503 while 221 is unapplied;
 also grade the plan slot the run was **matched** to (`pickPlanned`), so a session run a
 day or two early is graded on its own day; the matcher allows early-by-2 (late stays ≤1).
 
+Recorded exposure change, **2026-11-28** (migration 260, access groups): an **admin** can
+now read every member's role, access-group memberships and effective screen set in one
+place — `GET /api/admin/access-groups` (groups + member ids + screens) and
+`GET /api/admin/users/{id}/screens` (each `FEATURES` key with `enabled` and the row that
+decided it). Writes (create/rename/recolor/delete a group, add/remove members, a group's
+screens) are **admin-only** (`isSuperUser || hasRole(admin)`, `lib/access-groups/gate.ts`),
+refused while viewing-as, identity from the JWT only, audited in `access_group_audit` /
+`feature_enablement_audit`. Not staff-gated, for the same reason as `/api/admin/notifications`:
+a group decides who sees management screens. Feature resolution gains the `access_group`
+scope: `athlete > access_group > squad > academy > role > club > default`, explicit OFF
+wins at the same rank (a member of two groups). Memberships read fail safe to `[]`, so an
+unpasted 260 resolves exactly as before. Nothing reachable by a non-admin changes. Pinned by
+`src/__tests__/accessGroups.test.ts`. Design: `review-2026-11-20/access-groups-design.md`.
+
 ## The AI parser — the accuracy-critical path
 
 `src/lib/ai/parser.ts` + `prompt.ts`. Two tiers:
