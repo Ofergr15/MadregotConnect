@@ -121,30 +121,64 @@ const midKm = (p: PlannedWorkout) => (p.distanceMin + p.distanceMax) / 2000;
 
 const ATHLETE_COLS = 'id, name, avatar_url, group_id, is_academy, created_at, status, approved, role, groups!group_id(name)';
 
+// Row shapes of the reads below. The Supabase client here is untyped, so these are what
+// the select strings ask for, nothing more.
+interface AthleteRow {
+  id: string;
+  name: string | null;
+  avatar_url: string | null;
+  group_id: string | null;
+  is_academy: boolean | null;
+  created_at: string | null;
+  status: string | null;
+  approved: boolean | null;
+  role: string | null;
+  groups?: { name: string | null } | null;
+  availability?: unknown;
+  availability_set_by?: unknown;
+}
+export interface AthleteListRow { id: string; name: string; note: string | null; created_at?: string | null }
+interface PlanRow { id: string; athlete_id?: string | null; week_start_date: string; parsed_workouts: unknown; created_at: string }
+interface ActivityRow {
+  id: string;
+  athlete_id: string;
+  start_time: string;
+  distance: number;
+  duration: number;
+  moving_duration: number | null;
+  average_pace: number | null;
+  average_hr: number | null;
+  activity_type: string | null;
+  source: string | null;
+}
+interface FeedbackRow { athlete_id: string; pain: boolean | null; pain_detail: string | null; difficulty: number | null; created_at: string }
+interface MatchRow { athlete_id: string; weekly_plan_id: string; workout_key: string; activity_id: string }
+interface LapRow { id: string; laps: unknown; executed_workout?: unknown }
+
 /** The athletes, with availability when migration 186 is in; without it, everyone is active. */
-async function readAthletes(db: Db): Promise<{ rows: any[]; availability: boolean }> {
+async function readAthletes(db: Db): Promise<{ rows: AthleteRow[]; availability: boolean }> {
   const withAvail = await db
     .from('athletes')
     .select(`${ATHLETE_COLS}, availability, availability_set_by`)
     .eq('coach_id', COACH_ID)
     .eq('status', 'active');
-  if (!withAvail.error) return { rows: withAvail.data || [], availability: true };
+  if (!withAvail.error) return { rows: (withAvail.data || []) as unknown as AthleteRow[], availability: true };
   const plain = await db.from('athletes').select(ATHLETE_COLS).eq('coach_id', COACH_ID).eq('status', 'active');
   if (plain.error) throw plain.error;
-  return { rows: plain.data || [], availability: false };
+  return { rows: (plain.data || []) as unknown as AthleteRow[], availability: false };
 }
 
 /** Lists and memberships; `null` when migration 186 isn't applied. */
-export async function readLists(db: Db): Promise<{ lists: any[]; members: Array<{ list_id: string; athlete_id: string }> } | null> {
+export async function readLists(db: Db): Promise<{ lists: AthleteListRow[]; members: Array<{ list_id: string; athlete_id: string }> } | null> {
   const lists = await db.from('athlete_lists').select('id, name, note, created_at').order('created_at');
   if (lists.error) return null;
   const members = await db.from('athlete_list_members').select('list_id, athlete_id');
   if (members.error) return null;
-  return { lists: lists.data || [], members: (members.data || []) as any[] };
+  return { lists: (lists.data || []) as AthleteListRow[], members: (members.data || []) as Array<{ list_id: string; athlete_id: string }> };
 }
 
 /** Members who log in to the app (not a staff account with no training). */
-function isRosterMember(a: any): boolean {
+function isRosterMember(a: Pick<AthleteRow, 'approved'>): boolean {
   if (a.approved === false) return false;
   return true;
 }
@@ -215,20 +249,20 @@ export async function computeRoster(
   const tolerances = settings.tolerances;
   const athletes = athleteRows.filter(isRosterMember).filter((a) => !opts.onlyAthleteId || a.id === opts.onlyAthleteId);
   const ids = athletes.map((a) => a.id);
-  const groupNames = new Map<string, string>(((groupsRes.data || []) as any[]).map((g) => [g.id, g.name]));
+  const groupNames = new Map<string, string>(((groupsRes.data || []) as Array<{ id: string; name: string }>).map((g) => [g.id, g.name]));
 
-  const sharedByWeek = new Map<string, any>();
-  for (const p of (sharedRes.data || []) as any[]) if (!sharedByWeek.has(p.week_start_date)) sharedByWeek.set(p.week_start_date, p);
+  const sharedByWeek = new Map<string, PlanRow>();
+  for (const p of (sharedRes.data || []) as PlanRow[]) if (!sharedByWeek.has(p.week_start_date)) sharedByWeek.set(p.week_start_date, p);
 
   const [indivRows, actRows, feedbackRows, volume] = ids.length ? await Promise.all([
-    fetchAllRows<any>((a, b) => db
+    fetchAllRows<PlanRow>((a, b) => db
       .from('weekly_plans')
       .select('id, athlete_id, week_start_date, parsed_workouts, created_at')
       .in('athlete_id', ids)
       .in('week_start_date', gradedWeeks)
       .order('created_at', { ascending: false })
       .range(a, b)).catch(() => []),
-    fetchAllRows<any>((a, b) => db
+    fetchAllRows<ActivityRow>((a, b) => db
       .from('athlete_activities')
       .select('id, athlete_id, start_time, distance, duration, moving_duration, average_pace, average_hr, activity_type, source')
       .in('athlete_id', ids)
@@ -236,7 +270,7 @@ export async function computeRoster(
       .lte('start_time', `${to}T23:59:59Z`)
       .order('id')
       .range(a, b)),
-    fetchAllRows<any>((a, b) => db
+    fetchAllRows<FeedbackRow>((a, b) => db
       .from('workout_feedback')
       .select('athlete_id, pain, pain_detail, difficulty, created_at')
       .in('athlete_id', ids)
@@ -244,9 +278,9 @@ export async function computeRoster(
       .order('created_at', { ascending: false })
       .range(a, b)).catch(() => []),
     fetchWeeklyVolume(db, { athleteIds: ids, weeks: 1, currentWeekStart: activityWeek }),
-  ]) : [[], [], [], { weeks: [activityWeek], byAthlete: new Map() }];
+  ]) : [[] as PlanRow[], [] as ActivityRow[], [] as FeedbackRow[], { weeks: [activityWeek], byAthlete: new Map() }];
 
-  const indivByKey = new Map<string, any>();
+  const indivByKey = new Map<string, PlanRow>();
   for (const p of indivRows) {
     const key = `${p.athlete_id}|${p.week_start_date}`;
     if (!indivByKey.has(key)) indivByKey.set(key, p);
@@ -256,12 +290,12 @@ export async function computeRoster(
   const planIds = [...new Set([...indivByKey.values(), ...sharedByWeek.values()].map((p) => p.id))];
   const attribution = new Map<string, Map<string, string[]>>(); // `${athlete}|${planId}` → key → ids
   if (planIds.length && ids.length) {
-    const res = await fetchAllRows<any>((a, b) => db
+    const res = await fetchAllRows<MatchRow>((a, b) => db
       .from('activity_plan_matches')
       .select('athlete_id, weekly_plan_id, workout_key, activity_id')
       .in('athlete_id', ids)
       .in('weekly_plan_id', planIds)
-      .range(a, b)).catch((e) => { if (!isMissingMatchesTable(e)) throw e; return []; });
+      .range(a, b)).catch((e): MatchRow[] => { if (!isMissingMatchesTable(e)) throw e; return []; });
     for (const m of res) {
       const k = `${m.athlete_id}|${m.weekly_plan_id}`;
       const map = attribution.get(k) || new Map<string, string[]>();
@@ -270,9 +304,9 @@ export async function computeRoster(
     }
   }
 
-  const runs = withoutTwins(actRows as any[]);
+  const runs = withoutTwins(actRows);
   const actsByAthlete = new Map<string, ActualActivity[]>();
-  const rawRowById = new Map<string, any>();
+  const rawRowById = new Map<string, ActivityRow>();
   for (const r of runs) {
     rawRowById.set(r.id, r);
     const list = actsByAthlete.get(r.athlete_id) || [];
@@ -284,7 +318,7 @@ export async function computeRoster(
       movingDuration: r.moving_duration != null ? Number(r.moving_duration) : null,
       averagePace: r.average_pace != null ? Number(r.average_pace) : null,
       averageHr: r.average_hr != null ? Number(r.average_hr) : null,
-      activityType: r.activity_type,
+      activityType: r.activity_type ?? undefined,
     });
     actsByAthlete.set(r.athlete_id, list);
   }
@@ -298,7 +332,7 @@ export async function computeRoster(
   type Graded = { week: string; planId: string | null; planned: PlannedWorkout[]; raw: Map<string, ParsedWorkout>; adh: ReturnType<typeof assessWeek> };
   const gradedByAthlete = new Map<string, Graded[]>();
   const qualityNeeds: Array<{ athleteId: string; raw: ParsedWorkout; w: WorkoutAdherence; lane: Lane }> = [];
-  const laneOf = (a: any): Lane => {
+  const laneOf = (a: Pick<AthleteRow, 'group_id'>): Lane => {
     const idx = resolveGroup(a.group_id ? groupNames.get(a.group_id) : null).index;
     return (idx >= 0 ? idx + 1 : 2) as Lane;
   };
@@ -327,7 +361,7 @@ export async function computeRoster(
   }
 
   // The laps and step lists, only for the quality sessions (the widest columns).
-  const lapRows = new Map<string, any>();
+  const lapRows = new Map<string, LapRow>();
   const needIds = [...new Set(qualityNeeds.map((q) => q.w.actual!.id))];
   for (let i = 0; i < needIds.length; i += 200) {
     const chunk = needIds.slice(i, i + 200);
@@ -335,7 +369,7 @@ export async function computeRoster(
     const data = res.error
       ? (await db.from('athlete_activities').select('id, laps').in('id', chunk)).data
       : res.data;
-    for (const r of (data || []) as any[]) lapRows.set(r.id, r);
+    for (const r of (data || []) as LapRow[]) lapRows.set(r.id, r);
   }
   const blockByActivity = new Map<string, GradedPaceSession>();
   for (const q of qualityNeeds) {
@@ -343,7 +377,7 @@ export async function computeRoster(
   }
 
   // Feedback (pain) per athlete.
-  const fbByAthlete = new Map<string, any[]>();
+  const fbByAthlete = new Map<string, FeedbackRow[]>();
   for (const f of feedbackRows) fbByAthlete.set(f.athlete_id, [...(fbByAthlete.get(f.athlete_id) || []), f]);
 
   const squadsSeen = new Map<number, { squad: number; pack: string; sub: string | null; groupId: string }>();
@@ -431,7 +465,7 @@ export async function computeRoster(
       availabilitySetBy: availabilityAvailable ? normalizeSetBy(a.availability_set_by) : null,
       lists: listIds,
       populations: populationsOf({ squad, academy: !!a.is_academy, isNew, availability, listIds }),
-      planKm: r1(filterQualifyingRuns(planActs as any[]).reduce((t: number, x: any) => t + x.distance, 0)),
+      planKm: r1(planActs.filter((x) => x.distance > 0 && x.duration > 0).reduce((t, x) => t + x.distance, 0)),
       toDateTarget: Math.round(prescribed.filter((w) => w.date <= today).reduce((t, w) => t + midKm(w.planned), 0) * 10) / 10,
       weekTarget: Math.round(prescribed.reduce((t, w) => t + midKm(w.planned), 0) * 10) / 10,
       kmWeek: r1(volume.byAthlete.get(a.id)?.[0]?.meters ?? 0),
@@ -476,12 +510,12 @@ export async function computeRoster(
     populations: r.populations,
   })));
   const clubKm = clubKmToDate(
-    filterQualifyingRuns(runs as any[]).map((r: any) => ({ day: activityLocalDateStr(r.start_time), meters: Number(r.distance) || 0 })),
+    filterQualifyingRuns(runs).map((r) => ({ day: activityLocalDateStr(r.start_time), meters: Number(r.distance) || 0 })),
     activityWeek,
     today,
   );
 
-  const lists = (listsRes?.lists || []).map((l: any) => ({
+  const lists = (listsRes?.lists || []).map((l) => ({
     id: l.id, name: l.name, note: l.note ?? null,
     count: (listsRes?.members || []).filter((m) => m.list_id === l.id && ids.includes(m.athlete_id)).length,
   }));

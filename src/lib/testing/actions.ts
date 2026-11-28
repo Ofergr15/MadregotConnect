@@ -13,9 +13,9 @@ export async function cleanupTestAccounts(db: SupabaseClient): Promise<{ deleted
   const counts: Record<string, number> = {};
   let blocked: string | null = null;
   const { data: aths } = await db.from('athletes').select('id, email').in('email', TEST_EMAIL_LIST);
-  const ids = (aths || []).filter((a: any) => isTestEmail(a.email)).map((a: any) => a.id as string);
+  const ids = ((aths || []) as Array<{ id: string; email: string }>).filter((a) => isTestEmail(a.email)).map((a) => a.id);
   const { data: cards } = await db.from('academy_candidates').select('id, email, athlete_id').in('email', TEST_EMAIL_LIST);
-  const cardIds = (cards || []).filter((c: any) => isTestEmail(c.email)).map((c: any) => c.id as string);
+  const cardIds = ((cards || []) as Array<{ id: string; email: string }>).filter((c) => isTestEmail(c.email)).map((c) => c.id);
   const del = async (table: string, column: string, values: string[]) => {
     if (!values.length) return;
     const { data, error } = await db.from(table).delete().in(column, values).select('*');
