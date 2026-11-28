@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { guardChatChange } from '@/lib/group-chat/change-guard';
 import { resolveVerifiedCaller, type VerifiedCaller } from '@/lib/auth/self-or-staff';
 import { getStreamServerClient, CHANNEL_TYPE } from '@/lib/stream/server';
 import { notifyAthlete } from '@/lib/push';
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
   }
 }
 
-/** PATCH {groupId, messageId, text} — the author edits their own message. Nobody is pushed. */
+/** PATCH {groupId, messageId, text} — the author edits their own message, within 15 min (audited). Nobody is pushed. */
 export async function PATCH(request: Request) {
   try {
     const { denied, caller } = await resolveVerifiedCaller(request);
@@ -113,6 +114,8 @@ export async function PATCH(request: Request) {
     if (g.error) return g.error;
     const { stream, message } = await messageIn(groupId, messageId);
     if (!message) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    const refused = await guardChatChange(g.db, { actor: caller, action: 'edit', groupId, message, newText: text });
+    if (refused) return refused;
     if (!mayEdit(caller, message.user?.id)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     await stream.updateMessage({ id: messageId, text } as Parameters<typeof stream.updateMessage>[0], caller.athleteId!);
     return NextResponse.json({ ok: true });
@@ -122,7 +125,7 @@ export async function PATCH(request: Request) {
   }
 }
 
-/** DELETE ?groupId=&messageId= — the author, or staff. Soft delete: the bubble becomes "deleted" for everyone. */
+/** DELETE ?groupId=&messageId= — the author within 15 min, or staff at any age (audited). Soft delete: the bubble becomes "deleted" for everyone. */
 export async function DELETE(request: Request) {
   try {
     const { denied, caller } = await resolveVerifiedCaller(request);
@@ -135,6 +138,8 @@ export async function DELETE(request: Request) {
     if (g.error) return g.error;
     const { stream, message } = await messageIn(groupId, messageId);
     if (!message) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    const refused = await guardChatChange(g.db, { actor: caller, action: 'delete', groupId, message });
+    if (refused) return refused;
     if (!mayDelete(caller, message.user?.id)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     await stream.deleteMessage(messageId);
     return NextResponse.json({ ok: true });
