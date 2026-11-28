@@ -136,6 +136,10 @@ export async function afterPackMove(
 ): Promise<void> {
   if (p.fromGroupId === p.toGroupId) return;
   await recordPackChange(supabase, p);
+  try {
+    const { syncGroupChats } = await import('@/lib/group-chat/server');
+    await syncGroupChats(supabase as never, [p.fromGroupId, p.toGroupId]);
+  } catch { /* best-effort: the next chat open re-syncs */ }
   const resent = await resendIfShapeChanged(supabase, p);
   if (p.by !== 'coach' || !p.toGroupId) return;
   try {

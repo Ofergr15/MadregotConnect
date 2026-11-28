@@ -59,6 +59,13 @@ export async function POST(request: Request) {
     const { channel } = await ensureGroupChannel(stream, db, groupId, members, caller.athleteId);
     const id = cleanClientId(body?.id);
     const quoted = cleanClientId(body?.quotedMessageId);
+    // The server client bypasses Stream's permissions, so a quote from another channel (a private
+    // academy thread, a pain report) would be copied into the group. Only this chat's messages.
+    if (body?.quotedMessageId != null && body.quotedMessageId !== '') {
+      if (!quoted || !(await messageIn(groupId, quoted)).message) {
+        return NextResponse.json({ error: 'quoted message not in this chat' }, { status: 400 });
+      }
+    }
     let sentId: string | null = id;
     try {
       const sent = await channel.sendMessage({
@@ -114,7 +121,9 @@ export async function PATCH(request: Request) {
     const { stream, message } = await messageIn(groupId, messageId);
     if (!message) return NextResponse.json({ error: 'not found' }, { status: 404 });
     if (!mayEdit(caller, message.user?.id)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-    await stream.updateMessage({ id: messageId, text } as Parameters<typeof stream.updateMessage>[0], caller.athleteId!);
+    if (message.type === 'deleted' || message.deleted_at) return NextResponse.json({ error: 'message deleted' }, { status: 409 });
+    // Partial: set text only. A full updateMessage({id,text}) wipes the quote and the attachments.
+    await stream.partialUpdateMessage(messageId, { set: { text } }, caller.athleteId!);
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     console.error('PATCH /api/group-chat/messages error:', err);
