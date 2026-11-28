@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { OUTBOUND_TIMEOUT_MS } from '@/lib/http/timeout';
 import OpenAI from 'openai';
 import { z } from 'zod';
 import type { PlannedWorkout, WorkoutSegment } from './mock-workout';
@@ -413,7 +414,7 @@ export async function parsePromptWorkout(plannedText: string): Promise<PlannedWo
       });
       text = response.choices[0]?.message?.content || '';
     } else {
-      const response = await new Anthropic({ apiKey: anthropicKey }).messages.create({
+      const response = await new Anthropic({ apiKey: anthropicKey, timeout: OUTBOUND_TIMEOUT_MS.anthropic }).messages.create({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 1400,
         system: PROMPT_PARSE_SYSTEM,

@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { isOutboundTimeoutError, withTimeout } from '@/lib/http/timeout';
 import { DEV_SUPABASE_REF, supabaseRef } from '@/lib/dev-api-allowlist';
 
 type Env = Record<string, string | undefined>;
@@ -41,13 +42,21 @@ export function transportName(env: Env = process.env): EmailTransport['name'] {
 const resend: EmailTransport = {
   name: 'resend',
   async send(m) {
-    const { data, error } = await new Resend(process.env.RESEND_API_KEY!).emails.send({
-      from: m.from,
-      to: m.to,
-      subject: m.subject,
-      html: m.html,
-      ...(m.replyTo ? { replyTo: m.replyTo } : {}),
-    });
+    let sent;
+    try {
+      sent = await withTimeout('resend', new Resend(process.env.RESEND_API_KEY!).emails.send({
+        from: m.from,
+        to: m.to,
+        subject: m.subject,
+        html: m.html,
+        ...(m.replyTo ? { replyTo: m.replyTo } : {}),
+      }));
+    } catch (e) {
+      // A timeout is reported like a refusal so the caller's not-sent bookkeeping runs.
+      if (isOutboundTimeoutError(e)) return { ok: false, code: e.code, reason: e.message };
+      throw e;
+    }
+    const { data, error } = sent;
     if (error) return { ok: false, code: error.name || 'resend_error', reason: error.message || 'Resend refused the send' };
     return { ok: true, id: data?.id ?? null };
   },
