@@ -13,7 +13,7 @@ class Q implements PromiseLike<R> {
   constructor(private t: string) { calls.push(t); }
   select() { return this; } eq() { return this; } in() { return this; } gte() { return this; } lt() { return this; } lte() { return this; }
   is() { return this; } not() { return this; } neq() { return this; } order() { return this; } limit() { return this; }
-  maybeSingle() { return this; } update() { return this; }
+  maybeSingle() { return this; } update() { return this; } or() { return this; } range() { return this; }
   then<A = R, B = never>(ok?: ((v: R) => A | PromiseLike<A>) | null, bad?: ((e: unknown) => B | PromiseLike<B>) | null): PromiseLike<A | B> {
     return Promise.resolve(tables[this.t] ?? { data: [], error: null }).then(ok, bad);
   }
