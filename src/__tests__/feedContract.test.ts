@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { expectIosContract } from './helpers/ios-contract';
 
 /**
  * CONTRACT for the native feed: GET /api/feed (+ its keyset cursor) and POST /api/feed/like.
@@ -137,6 +138,7 @@ describe('GET /api/feed — item shape', () => {
     const body = await res.json();
     expect(Object.keys(body).sort()).toEqual(['items', 'nextCursor']);
     expect(body.nextCursor).toBeNull();
+    expectIosContract('feed', body);
     const [run, post] = body.items;
     expect(run).toEqual({
       id: 'fi-run', type: 'activity',
@@ -305,6 +307,7 @@ describe('POST /api/feed/like', () => {
     answer = likeDb(false);
     const res = await post({ itemId: 'fi-run' });
     expect(res.status).toBe(200);
+    expectIosContract('feed.like', await res.clone().json());
     expect(await res.json()).toEqual({
       liked: true, likeCount: 3,
       likePreview: [{ athleteId: ME, name: 'אני', avatarUrl: null }, { athleteId: MATE, name: 'חבר', avatarUrl: null }],

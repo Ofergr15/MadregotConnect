@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { expectIosContract } from './helpers/ios-contract';
 
 /**
  * CONTRACT for the native run-detail screen: GET /api/activities/details?activityId=.
@@ -127,6 +128,7 @@ describe('GET /api/activities/details — shape', () => {
     const res = await get(`?activityId=${ACT_ID}`);
     expect(res.status).toBe(200);
     const body = await res.json();
+    expectIosContract('activities.details', body);
     expect(Object.keys(body).sort()).toEqual(['activity', 'gpsPoints', 'hasPolyline', 'qualityName', 'repTarget', 'source', 'splits']);
     expect(body).toMatchObject({ hasPolyline: true, source: 'garmin', qualityName: null, repTarget: null });
     // Start/finish privacy zone (route-trim.ts): a teammate never receives the first/last 200 m.

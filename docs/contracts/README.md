@@ -28,6 +28,7 @@ Each note is backed by tests that run the real route handlers against a fake dat
 | Run details (GPS, splits, owner-only HR trace) | `run-details.md` | `activityDetailsContract` |
 | Apple Watch device API (`/api/device/*`) | `watch-device.md` | `deviceApiContract` |
 | Abuse controls on public routes (u21 register, email-code) | `public-route-abuse.md` | `u21RegisterConcurrency`, `emailCodeMembershipOracle`, `emailCodeVerifyRace` |
+| **iOS app: JSON Schemas for its 20 routes, breaking-change gate** | `ios-routes.json` (baseline: `ios-routes.baseline.json`) | `iosRouteContracts` + `expectIosContract()` in the per-route tests above |
 | Staff write permissions by role | `staff-write-authz.md` | `staffWriteAuthz` |
 
 ## Not built on the server (no contract possible yet)

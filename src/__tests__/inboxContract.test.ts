@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { expectIosContract } from './helpers/ios-contract';
 
 /**
  * CONTRACT for the native inbox (plan V6): GET /api/notifications/inbox, /unread and
@@ -89,6 +90,7 @@ describe('GET /api/notifications/inbox', () => {
     caller = { athleteId: ME, isStaff: false, isSuperUser: false };
     answer = inboxDb([ROW, { ...ROW, id: 'n0', audience_type: 'athlete', last_sent_at: '2026-11-18T08:00:00Z', actor: null, url: '#ledger:x' }]);
     const body = await (await inbox.GET(req(`/api/notifications/inbox?athleteId=${ME}`))).json();
+    expectIosContract('notifications.inbox', body);
     expect(body).toEqual({
       items: [
         { id: 'n1', kind: 'coach_message', title: 'אימון מחר', body: '05:30 בפארק', url: '/dashboard/plan', sentAt: '2026-11-19T12:00:00Z',
