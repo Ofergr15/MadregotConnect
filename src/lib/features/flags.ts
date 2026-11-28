@@ -219,6 +219,8 @@ export const FEATURES = {
   native_mgmt_podium_admin: { label: 'ניהול פודיום (אפליקציה)', defaultEnabled: false },
   /** Native b23: חנות והטבות — the store, perks, badges and challenges row in ניהול. */
   native_mgmt_rewards: { label: 'חנות והטבות (אפליקציה)', defaultEnabled: false },
+  /** Task 92: staff see who hasn't answered an event (GET /api/events/[id]/rsvp-reminder). Data only, no send. */
+  event_rsvp_reminder: { label: 'תזכורת הרשמה לאירוע (צוות)', defaultEnabled: false },
   /** Native משתמשים (role picker, GET/PUT/DELETE /api/admin/users). Off by default: the users manager is a pending
    *  product decision, so it ships only when an admin turns it on. */
   native_mgmt_users: { label: 'משתמשים (אפליקציה)', defaultEnabled: false },
