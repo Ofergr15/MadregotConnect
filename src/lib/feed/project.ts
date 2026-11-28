@@ -139,6 +139,13 @@ export interface FeedItem {
    * COMMENT_PREVIEW_COUNT — the full thread comes from /api/feed/comments.
    */
   commentPreview: FeedComment[];
+  /**
+   * The thread's opening comment, only when the thread is longer than the preview
+   * and the preview no longer reaches back to it — so a card can read "first · … ·
+   * latest 2". Absent otherwise. Same visibility rules as the preview (test accounts,
+   * blocked members). Optional: older cached pages and single-item callers omit it.
+   */
+  commentFirst?: FeedComment;
   canDelete: boolean;
   activity: FeedActivity | null;
   /**
@@ -494,6 +501,8 @@ export interface ProjectContext {
   /** feed_item_id -> likes / live comments by test accounts hidden from this viewer. */
   hiddenLikeCountByItem?: Map<string, number>;
   hiddenCommentCountByItem?: Map<string, number>;
+  /** feed_item_id -> the opening comment, for threads the preview doesn't reach back to. */
+  firstCommentByItem?: Map<string, FeedComment>;
   /** activity_id -> the quality session's name, for the runs that are it. */
   qualityNameByActivity?: Map<string, string>;
 }
@@ -549,6 +558,8 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
     likedByMe: ctx.likedItemIds.has(row.id),
     likePreview: ctx.likersByItem?.get(row.id) ?? [],
     commentPreview: ctx.commentsByItem?.get(row.id) ?? [],
+    // Only on a card that has one, so the common short-thread card is unchanged.
+    ...(ctx.firstCommentByItem?.has(row.id) ? { commentFirst: ctx.firstCommentByItem.get(row.id) } : {}),
     // Announcements have no author, so only staff can take one down; DELETE
     // /api/feed/posts enforces the same pair of rules.
     canDelete:

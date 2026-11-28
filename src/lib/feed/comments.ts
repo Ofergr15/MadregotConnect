@@ -98,3 +98,32 @@ export function validateCommentBody(raw: unknown): CommentValidation {
   }
   return { ok: true, body };
 }
+
+/**
+ * The opening comment of each thread, for a card whose preview (the newest
+ * `COMMENT_PREVIEW_COUNT`) no longer reaches back to it — the card then reads
+ * "first comment · … · latest 2" instead of a conversation with its start cut off.
+ *
+ * Takes rows sorted OLDEST-first and returns, per item, the first one — but only
+ * when it is not already in `previewByItem` (a 3-comment thread whose preview is
+ * comments 2 and 3 gets comment 1; a 2-comment thread gets nothing, because its
+ * preview already starts at the beginning).
+ */
+export function buildFirstCommentIndex(
+  rawCommentsOldestFirst: unknown[],
+  viewerAthleteId: string | null,
+  viewerIsStaff: boolean,
+  previewByItem: Map<string, FeedComment[]>,
+): Map<string, FeedComment> {
+  const firstByItem = new Map<string, FeedComment>();
+  for (const raw of rawCommentsOldestFirst) {
+    const comment = projectComment(raw, viewerAthleteId, viewerIsStaff);
+    if (firstByItem.has(comment.itemId)) continue;
+    firstByItem.set(comment.itemId, comment);
+  }
+  for (const [itemId, first] of firstByItem) {
+    const preview = previewByItem.get(itemId) ?? [];
+    if (preview.some((c) => c.id === first.id)) firstByItem.delete(itemId);
+  }
+  return firstByItem;
+}
