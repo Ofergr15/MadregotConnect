@@ -1,9 +1,22 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { parseJsonBody } from '@/lib/api/parse-body';
 import { createServerClient } from '@/lib/supabase/server';
 import { checkShoeAlert } from '@/lib/shoes';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
+
+const km = z.union([z.number(), z.string()]).nullish();
+const ShoeBody = z.looseObject({
+  id: z.string().optional(),
+  athleteId: z.string().optional(),
+  name: z.string().optional(),
+  distanceLimitKm: km,
+  alertBeforeKm: km,
+  retired: z.boolean().optional(),
+  setActive: z.boolean().optional(),
+});
 
 const MAX_NAME_LENGTH = 60;
 
@@ -73,7 +86,9 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}));
+    const parsed = await parseJsonBody(request, ShoeBody);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
     const { athleteId, name } = body;
     if (!athleteId || typeof name !== 'string' || !name.trim()) {
       return NextResponse.json({ error: 'athleteId and name required' }, { status: 400 });
@@ -121,7 +136,9 @@ export async function POST(request: Request) {
  */
 export async function PATCH(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}));
+    const parsed = await parseJsonBody(request, ShoeBody);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
     const { id, athleteId } = body;
     if (!id || !athleteId) return NextResponse.json({ error: 'id and athleteId required' }, { status: 400 });
 

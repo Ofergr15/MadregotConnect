@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { parseJsonBody } from '@/lib/api/parse-body';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, requireSession, authError } from '@/lib/auth-session';
 import { FEED_SELECT, projectFeedItem } from '@/lib/feed/project';
@@ -9,6 +11,8 @@ import { feedPostCopy } from '@/lib/notifications/copy';
 
 export const dynamic = 'force-dynamic';
 
+const PostBody = z.looseObject({ body: z.string().nullish(), media: z.array(z.unknown()).nullish() });
+
 const MAX_BODY_LENGTH = 5000;
 const MAX_IMAGES = 4;
 
@@ -18,7 +22,9 @@ export async function POST(request: Request) {
   if (!auth.ok) return authError(auth);
 
   try {
-    const payload = await request.json();
+    const parsed = await parseJsonBody(request, PostBody);
+    if (!parsed.ok) return parsed.response;
+    const payload = parsed.data;
     const body = typeof payload?.body === 'string' ? payload.body.trim() : '';
     const rawMedia: unknown[] = Array.isArray(payload?.media) ? payload.media : [];
 

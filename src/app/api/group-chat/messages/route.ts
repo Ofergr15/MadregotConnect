@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { parseJsonBody } from '@/lib/api/parse-body';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller, type VerifiedCaller } from '@/lib/auth/self-or-staff';
 import { getStreamServerClient, CHANNEL_TYPE } from '@/lib/stream/server';
@@ -11,6 +13,14 @@ import {
 import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
+
+const ChatBody = z.looseObject({
+  groupId: z.string().optional(),
+  messageId: z.string().optional(),
+  text: z.string().optional(),
+  id: z.string().nullish(),
+  quotedMessageId: z.string().nullish(),
+});
 
 /**
  * /api/group-chat/messages — say, edit or delete something in a group's chat.
@@ -47,7 +57,9 @@ export async function POST(request: Request) {
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
     if (!caller.athleteId) return NextResponse.json({ error: 'no athlete identity' }, { status: 403 });
-    const body = await request.json().catch(() => ({}));
+    const parsed = await parseJsonBody(request, ChatBody);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
     const groupId = String(body?.groupId || '').trim();
     const text = cleanText(body?.text);
     if (!text) return NextResponse.json({ error: 'text empty or too long' }, { status: 400 });
@@ -104,7 +116,9 @@ export async function PATCH(request: Request) {
   try {
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
-    const body = await request.json().catch(() => ({}));
+    const parsed = await parseJsonBody(request, ChatBody);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
     const groupId = String(body?.groupId || '').trim();
     const messageId = String(body?.messageId || '').trim();
     const text = cleanText(body?.text);

@@ -1,4 +1,6 @@
 import { after, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { parseJsonBody } from '@/lib/api/parse-body';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, requireAthlete, authError } from '@/lib/auth-session';
 import { notifyFeedInteraction, notifyMentions, loadFeedItemMeta } from '@/lib/feed/notify';
@@ -7,6 +9,8 @@ import { blockedAuthorIds } from '@/lib/moderation/blocks';
 import { hiddenInteractorsFor, visibleItemCount, withoutHiddenInteractors } from '@/lib/feed/test-account-filter';
 
 export const dynamic = 'force-dynamic';
+
+const CommentBody = z.looseObject({ itemId: z.string().optional(), body: z.string().optional() });
 
 /** GET /api/feed/comments?itemId=… — flat, oldest first (reads like a conversation). */
 export async function GET(request: Request) {
@@ -49,7 +53,9 @@ export async function POST(request: Request) {
   if (!auth.ok) return authError(auth);
 
   try {
-    const payload = await request.json();
+    const parsed = await parseJsonBody(request, CommentBody);
+    if (!parsed.ok) return parsed.response;
+    const payload = parsed.data;
     const itemId = payload?.itemId;
 
     if (!itemId || typeof itemId !== 'string') {

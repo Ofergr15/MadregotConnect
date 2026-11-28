@@ -7,6 +7,8 @@
  * on the AI Coach's first Stream message.
  */
 import { after, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { parseJsonBody } from '@/lib/api/parse-body';
 import { requireSession, authError } from '@/lib/auth-session';
 import { createServerClient } from '@/lib/supabase/server';
 import {
@@ -27,6 +29,8 @@ import { ensureMatchedWorkout } from '@/lib/plans/matched-workout';
 import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
+
+const RunChatBody = z.looseObject({ activityId: z.string().optional() });
 export const maxDuration = 60;
 
 const maintainedChats = new Set<string>();
@@ -102,7 +106,9 @@ export async function POST(request: Request) {
   const { user } = auth;
 
   try {
-    const { activityId } = (await request.json()) as { activityId?: string };
+    const parsed = await parseJsonBody(request, RunChatBody);
+    if (!parsed.ok) return parsed.response;
+    const { activityId } = parsed.data;
     if (!activityId) return NextResponse.json({ error: 'activityId required' }, { status: 400 });
 
     const supabase = createServerClient();

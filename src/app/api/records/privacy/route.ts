@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { parseJsonBody } from '@/lib/api/parse-body';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
 
 export const dynamic = 'force-dynamic';
+
+const PrivacyBody = z.looseObject({ leaderboardOptOut: z.boolean().optional(), squadCompare: z.boolean().optional() });
 
 /**
  * PATCH /api/records/privacy { leaderboardOptOut?, squadCompare? } — the caller's
@@ -15,7 +19,9 @@ export async function PATCH(request: Request) {
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
     if (!caller.athleteId) return NextResponse.json({ error: 'no athlete' }, { status: 404 });
-    const body = await request.json().catch(() => ({}));
+    const parsed = await parseJsonBody(request, PrivacyBody);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
     const patch: Record<string, boolean> = {};
     if (typeof body.leaderboardOptOut === 'boolean') patch.leaderboard_opt_out = body.leaderboardOptOut;
     if (typeof body.squadCompare === 'boolean') patch.squad_compare = body.squadCompare;

@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { parseJsonBody } from '@/lib/api/parse-body';
 import { createServerClient } from '@/lib/supabase/server';
 import { feedbackAlertCopy } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
@@ -12,6 +14,8 @@ import { parseFeedbackInput } from '@/lib/feedback-scales';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 
 export const dynamic = 'force-dynamic';
+
+const FeedbackBody = z.looseObject({ athleteId: z.string().optional(), activityId: z.union([z.string(), z.number()]).nullish() });
 
 const VS_PLAN: unknown[] = ['easier', 'as_planned', 'harder', 'unfinished'];
 
@@ -361,7 +365,9 @@ export async function GET(request: Request) {
 // POST /api/workout-feedback  { athleteId, activityId, difficulty, feel, pain, painDetail, wantsFeedback }
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => null);
+    const bodyResult = await parseJsonBody(request, FeedbackBody);
+    if (!bodyResult.ok) return bodyResult.response;
+    const body = bodyResult.data;
     if (!body || typeof body !== 'object') return NextResponse.json({ error: 'invalid body' }, { status: 400 });
     const { athleteId, activityId, painDetail, comment } = body;
     if (!athleteId) {

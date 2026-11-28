@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { parseJsonBody } from '@/lib/api/parse-body';
 import { createServerClient } from '@/lib/supabase/server';
 import { CATEGORIES, defaultsFor, isMigrationMissing, mergeWithDefaults, type SavedPrefs } from '@/lib/notifications/prefs';
 import { isStaffRole } from '@/lib/constants';
@@ -9,6 +11,14 @@ import { TRAINEE_V2_FOR_ALL } from '@/lib/trainee/flag';
 import { readQuietHours, readQuietPatch } from '@/lib/notifications/quiet-hours';
 
 export const dynamic = 'force-dynamic';
+
+const PrefsBody = z.looseObject({
+  athleteId: z.string().optional(),
+  category: z.string().optional(),
+  enabled: z.boolean().optional(),
+  language: z.string().optional(),
+});
+const PrefsPatchBody = z.looseObject({ athleteId: z.string().optional() });
 
 /**
  * Self-or-staff, resolved from the verified session — the same gate
@@ -71,14 +81,16 @@ export async function GET(request: Request) {
 // sync jobs that send almost every push).
 export async function PUT(request: Request) {
   try {
-    const { athleteId, category, enabled, language } = await request.json();
+    const parsed = await parseJsonBody(request, PrefsBody);
+    if (!parsed.ok) return parsed.response;
+    const { athleteId, category, enabled, language } = parsed.data;
     // Correlates with the client's logClient('notif-toggle-attempt', {actionId})
     // beacon — `vercel logs --search <actionId>` ties both sides together.
     console.log('[notification-prefs PUT]', request.headers.get('x-action-id'), { athleteId, category, enabled, language });
     const isLanguageChange = language !== undefined;
     if (!athleteId || (isLanguageChange
       ? !isSupportedNotificationLocale(language)
-      : !CATEGORIES.includes(category))) {
+      : !(CATEGORIES as readonly string[]).includes(category ?? ''))) {
       return NextResponse.json(
         { error: 'athleteId and either a valid category or a supported language required' },
         { status: 400 },
@@ -97,7 +109,7 @@ export async function PUT(request: Request) {
       ...(cur.data?.notification_prefs || {}),
       // `language` is already known to be exactly 'he' or 'en' — the guard above
       // is the strict check, so nothing needs normalizing on the way in.
-      ...(isLanguageChange ? { language } : { [category]: !!enabled }),
+      ...(isLanguageChange ? { language } : { [category as string]: !!enabled }),
     };
     const { error } = await supabase.from('athletes').update({ notification_prefs: next }).eq('id', athleteId);
     if (error) {
@@ -120,7 +132,9 @@ export async function PUT(request: Request) {
 // PATCH /api/athletes/notification-prefs { athleteId, morningReminder: { enabled?, time? } }
 export async function PATCH(request: Request) {
   try {
-    const body = await request.json().catch(() => null);
+    const parsed = await parseJsonBody(request, PrefsPatchBody);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.data;
     const athleteId = body && typeof body.athleteId === 'string' ? body.athleteId : '';
     // { athleteId, quietHours: { enabled, from, to } } — its own body, like the reminder.
     const quiet = body && 'quietHours' in body ? readQuietPatch(body.quietHours) : undefined;

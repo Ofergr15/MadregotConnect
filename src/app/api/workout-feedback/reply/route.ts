@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { parseJsonBody } from '@/lib/api/parse-body';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { notifyAthlete } from '@/lib/push';
@@ -6,6 +8,9 @@ import { coachReplyCopy } from '@/lib/notifications/copy';
 import { feedbackReplyUrl } from '@/lib/academy/member-links';
 
 export const dynamic = 'force-dynamic';
+
+const ReplyBody = z.looseObject({ feedbackId: z.string().optional(), reply: z.string().optional() });
+const SeenBody = z.looseObject({ feedbackId: z.string().optional(), athleteId: z.string().optional() });
 
 // POST /api/workout-feedback/reply { feedbackId, reply }
 // A coach writes back on a post-workout feedback row. Staff-only (coach/admin/
@@ -24,7 +29,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 
-    const { feedbackId, reply } = await request.json();
+    const parsed = await parseJsonBody(request, ReplyBody);
+    if (!parsed.ok) return parsed.response;
+    const { feedbackId, reply } = parsed.data;
     if (!feedbackId || typeof reply !== 'string' || !reply.trim()) {
       return NextResponse.json({ error: 'feedbackId and reply required' }, { status: 400 });
     }
@@ -106,7 +113,9 @@ export async function PATCH(request: Request) {
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
 
-    const { feedbackId, athleteId } = await request.json();
+    const parsed = await parseJsonBody(request, SeenBody);
+    if (!parsed.ok) return parsed.response;
+    const { feedbackId, athleteId } = parsed.data;
     if (!feedbackId || !athleteId) {
       return NextResponse.json({ error: 'feedbackId and athleteId required' }, { status: 400 });
     }

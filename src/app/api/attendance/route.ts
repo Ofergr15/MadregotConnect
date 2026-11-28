@@ -1,10 +1,20 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { parseJsonBody } from '@/lib/api/parse-body';
 import { createServerClient } from '@/lib/supabase/server';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { ACTION_TOKEN_HEADER, rsvpScope, verifyActionToken } from '@/lib/auth/action-token';
 
 export const dynamic = 'force-dynamic';
+
+const RsvpBody = z.looseObject({
+  athleteId: z.string().optional(),
+  weekStart: z.string().optional(),
+  day: z.union([z.string(), z.number()]).optional(),
+  attending: z.boolean().optional(),
+  groupLabel: z.string().nullish(),
+});
 
 // GET /api/attendance?weekStart=YYYY-MM-DD&day=N
 //   &athleteId=…    -> that athlete's own RSVP for the day (or null)
@@ -203,7 +213,9 @@ export async function GET(request: Request) {
 // POST /api/attendance  { athleteId, weekStart, day, attending, groupLabel }
 export async function POST(request: Request) {
   try {
-    const { athleteId, weekStart, day, attending, groupLabel } = await request.json();
+    const parsed = await parseJsonBody(request, RsvpBody);
+    if (!parsed.ok) return parsed.response;
+    const { athleteId, weekStart, day, attending, groupLabel } = parsed.data;
     if (!athleteId || !weekStart || day == null || attending == null) {
       return NextResponse.json({ error: 'athleteId, weekStart, day, attending required' }, { status: 400 });
     }
