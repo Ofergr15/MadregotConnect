@@ -6,7 +6,7 @@
  * What is stored is exactly what LiveTrack already stores: ONE row per runner in race_positions (latest
  * point, no trail), visible only to members who opted in to the map and never for an opted-out runner,
  * deleted by the existing purge 24 h after the race window (PURGE_AFTER_MS) or at once when the runner
- * stops sharing / opts out. The stop itself is durable (race_entries.sharing_stopped_at, 222) so the
+ * stops sharing / opts out. The stop itself is durable (race_entries.sharing_stopped_at, 225) so the
  * LiveTrack poller cannot write the row back.
  *
  * Pure, so every rule below is a test.
@@ -52,7 +52,7 @@ export function phoneWriteAllowed(p: {
   const { cfg, entry, next, nowMs } = p;
   // The watch (LiveTrack) writes the same row; only the phone's own previous point is a rate/monotonic
   // baseline, or a fresh watch point makes the phone's next write a false 429/403. A row with no source
-  // (pre-222) keeps the old behaviour.
+  // (pre-225) keeps the old behaviour.
   const prev = p.prev && p.prev.source !== 'livetrack' ? p.prev : null;
   if (!cfg?.active) return 'out-of-window';
   if (cfg.poll_from && nowMs < Date.parse(cfg.poll_from)) return 'out-of-window';

@@ -65,7 +65,7 @@ export async function fetchFeed(urlTemplate: string, bibs: string[], fetcher: ty
 }
 
 /**
- * race_entries rows with the sharing stop (222). Pre-migration the column is missing: read without it,
+ * race_entries rows with the sharing stop (225). Pre-migration the column is missing: read without it,
  * so the board and the poller keep working (the stop then only lasts until the next poll, as before).
  */
 export async function entriesWithSharing(db: Db, eventId: string, columns: string, athleteId?: string): Promise<any[]> {
@@ -80,7 +80,7 @@ export async function entriesWithSharing(db: Db, eventId: string, columns: strin
   return ((await run(columns)).data || []) as any[];
 }
 
-/** The one race_positions write (phone + LiveTrack). Stamps `source`; retries without it pre-222. */
+/** The one race_positions write (phone + LiveTrack). Stamps `source`; retries without it pre-225. */
 export async function writePosition(db: Db, row: Record<string, unknown> & { source: 'phone' | 'livetrack' }): Promise<{ error: unknown }> {
   const first = await db.from('race_positions').upsert(row, { onConflict: 'event_id,athlete_id' });
   if (!first.error || !isMissingColumn(first.error, 'source')) return { error: first.error };

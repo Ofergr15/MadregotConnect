@@ -574,7 +574,7 @@ answers **503** while 203 is unapplied, which the client reads as "fall back to
 /api/feedback". If you add a field to a report response, it must never reach a non-staff
 caller. Pinned by `src/__tests__/moderationRoutes.test.ts`.
 
-Recorded exposure change, **2026-11-26** (race live, migration 222): the race map's
+Recorded exposure change, **2026-11-26** (race live, migration 225): the race map's
 `race_positions` row now has **two writers** — the runner's own phone
 (`POST /api/race-live/{eventId}/position`, JWT identity only, `race_live_phone` flag) and
 the LiveTrack poller (`pollLiveTrack`) — and one row per runner, with `source`
@@ -585,7 +585,7 @@ before deleting the row, every writer checks it through `positionSharingOn()`
 (`lib/race-live/phone.ts`) and `liveBoard` returns `position: null` while it is set —
 before, the next poll wrote the row straight back and the runner was on the map after
 being told they weren't (Q26-5). Only `POST { resume: true }` lifts the stop. Splits
-(the board's times) still flow after a stop; it is the location that stops. Pre-222 the
+(the board's times) still flow after a stop; it is the location that stops. Pre-225 the
 route answers `durable: false` and behaves as before. If you add a third writer, go
 through `writePosition()` and check `positionSharingOn()` first.
 

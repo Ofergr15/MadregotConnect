@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 /**
  * POST { lat, lon, distanceM, elapsedSec, at } — the caller's OWN phone position during the race (b24).
  * DELETE — stop sharing: the caller's position row goes at once, and the stop is stored on their
- *   race_entries row (sharing_stopped_at, 222) so the LiveTrack poller does not write it back (Q26-5).
+ *   race_entries row (sharing_stopped_at, 225) so the LiveTrack poller does not write it back (Q26-5).
  * POST { …, resume: true } is the only thing that lifts that stop; a plain POST after a stop is 403.
  *
  * Identity is the JWT's (resolveVerifiedCaller); there is no athleteId in the body and no way to write
@@ -77,11 +77,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     console.error('race-live position delete', error);
     return NextResponse.json({ error: 'delete failed' }, { status: 500 });
   }
-  // durable: false = 222 not pasted yet, so the next LiveTrack poll may write the row back.
+  // durable: false = 225 not pasted yet, so the next LiveTrack poll may write the row back.
   return NextResponse.json({ ok: true, durable: !stop.error });
 }
 
-/** The caller's current row, with its writer (222); pre-migration without `source`. */
+/** The caller's current row, with its writer (225); pre-migration without `source`. */
 async function readPrev(db: ReturnType<typeof createServerClient>, eventId: string, athleteId: string): Promise<{ distance_m: number; at: string; source?: string | null } | null> {
   const q = (cols: string) => db.from('race_positions').select(cols).eq('event_id', eventId).eq('athlete_id', athleteId).maybeSingle();
   const first = await q('distance_m, at, source');
