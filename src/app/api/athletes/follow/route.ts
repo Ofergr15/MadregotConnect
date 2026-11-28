@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { parseJsonBody } from '@/lib/api/parse-body';
 import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
 import { followCopy } from '@/lib/notifications/copy';
@@ -6,6 +8,11 @@ import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { teammateHref } from '@/lib/athletes/profile-link';
 
 export const dynamic = 'force-dynamic';
+
+const FollowBody = z.looseObject({
+  followerId: z.string().optional(),
+  followeeId: z.string().optional(),
+});
 
 /**
  * The caller has to BE the follower (or be staff acting for them).
@@ -29,8 +36,9 @@ async function gateAsFollower(request: Request, followerId: string): Promise<Res
 // the UI never has to special-case a double-tap or a stale button state.
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const { followerId, followeeId } = body as { followerId?: string; followeeId?: string };
+    const parsed = await parseJsonBody(request, FollowBody);
+    if (!parsed.ok) return parsed.response;
+    const { followerId, followeeId } = parsed.data;
 
     if (!followerId || !followeeId) {
       return NextResponse.json({ error: 'followerId and followeeId are required' }, { status: 400 });
@@ -82,8 +90,9 @@ export async function POST(request: Request) {
 // Unfollow. Also idempotent — deleting a non-existent row is not an error.
 export async function DELETE(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const { followerId, followeeId } = body as { followerId?: string; followeeId?: string };
+    const parsed = await parseJsonBody(request, FollowBody);
+    if (!parsed.ok) return parsed.response;
+    const { followerId, followeeId } = parsed.data;
 
     if (!followerId || !followeeId) {
       return NextResponse.json({ error: 'followerId and followeeId are required' }, { status: 400 });

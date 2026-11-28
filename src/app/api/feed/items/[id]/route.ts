@@ -1,4 +1,6 @@
 import { routeForViewer } from '@/lib/privacy/route-trim';
+import { z } from 'zod';
+import { parseJsonBody } from '@/lib/api/parse-body';
 import { strengthForFeed } from '@/lib/activities/strength-feed';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
@@ -9,6 +11,8 @@ import { loadFeedContext } from '@/lib/feed/context';
 import { sanitizeMediaList } from '@/lib/feed/media';
 
 export const dynamic = 'force-dynamic';
+
+const ItemPatchBody = z.looseObject({ body: z.string().nullish() });
 
 const MAX_BODY_LENGTH = 5000;
 const MAX_IMAGES = 4;
@@ -119,6 +123,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   try {
     const { id } = await params;
+    const parsed = await parseJsonBody(request, ItemPatchBody);
+    if (!parsed.ok) return parsed.response;
+    const payload = parsed.data;
     const supabase = createServerClient();
 
     const { data: existing, error: fetchError } = await supabase
@@ -134,7 +141,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Not allowed to edit this item' }, { status: 403 });
     }
 
-    const payload = await request.json().catch(() => ({}));
     const update: Record<string, unknown> = {};
 
     if (typeof payload?.body === 'string') {

@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { parseJsonBody } from '@/lib/api/parse-body';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, authError } from '@/lib/auth-session';
 import { notifyFeedInteraction, loadFeedItemMeta } from '@/lib/feed/notify';
@@ -11,13 +13,17 @@ import { hiddenInteractorsFor, hiddenCountsByItem, visibleCount, withoutHiddenIn
 
 export const dynamic = 'force-dynamic';
 
+const LikeBody = z.looseObject({ itemId: z.string().optional() });
+
 /** POST /api/feed/like  { itemId } */
 export async function POST(request: Request) {
   const auth = await requireAthlete(request);
   if (!auth.ok) return authError(auth);
 
   try {
-    const { itemId } = await request.json();
+    const parsed = await parseJsonBody(request, LikeBody);
+    if (!parsed.ok) return parsed.response;
+    const { itemId } = parsed.data;
     if (!itemId || typeof itemId !== 'string') {
       return NextResponse.json({ error: 'itemId required' }, { status: 400 });
     }

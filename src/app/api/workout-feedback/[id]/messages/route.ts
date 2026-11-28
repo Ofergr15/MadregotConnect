@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { parseJsonBody } from '@/lib/api/parse-body';
 import { createServerClient } from '@/lib/supabase/server';
 import { isSuperUser } from '@/lib/constants';
 import { notifyAthlete } from '@/lib/push';
@@ -7,6 +9,8 @@ import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { feedbackReplyUrl } from '@/lib/academy/member-links';
 
 export const dynamic = 'force-dynamic';
+
+const MessageBody = z.looseObject({ body: z.string().optional() });
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
@@ -115,7 +119,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id } = await params;
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
-    const { body } = await request.json();
+    const parsed = await parseJsonBody(request, MessageBody);
+    if (!parsed.ok) return parsed.response;
+    const { body } = parsed.data;
     const trimmed = typeof body === 'string' ? body.trim().slice(0, 2000) : '';
     if (!trimmed) return NextResponse.json({ error: 'body is required' }, { status: 400 });
 

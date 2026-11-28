@@ -80,7 +80,7 @@ describe('POST /api/feed/like contract', () => {
       expect(notified).toHaveLength(0);
     } finally { db.client.from = sel; }
   });
-  it('malformed JSON is 500', async () => {
-    expect((await like(null, '{')).status).toBe(500);
+  it('malformed JSON is 400 (task 107 body validation)', async () => {
+    expect((await like(null, '{')).status).toBe(400);
   });
 });

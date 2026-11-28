@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { parseJsonBody } from '@/lib/api/parse-body';
 import { DEFAULT_PRIORITY, parsePriority } from '@/lib/feedback/queue';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaff, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
@@ -15,9 +17,19 @@ export const dynamic = 'force-dynamic';
 // triaging are staff-only — the whole route used to be unauthenticated, so a
 // plain GET returned every athlete's feedback (name, email, attached photos)
 // and a DELETE/PATCH with an id was enough to wipe or rewrite any of it.
+const FeedbackBody = z.looseObject({
+  message: z.string().optional(),
+  category: z.string().nullish(),
+  image: z.string().nullish(),
+  context: z.unknown().optional(),
+  priority: z.union([z.string(), z.number()]).nullish(),
+});
+
 export async function POST(request: Request) {
   try {
-    const { message, category, image, context, priority } = await request.json();
+    const parsed = await parseJsonBody(request, FeedbackBody);
+    if (!parsed.ok) return parsed.response;
+    const { message, category, image, context, priority } = parsed.data;
 
     if (!message?.trim()) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
