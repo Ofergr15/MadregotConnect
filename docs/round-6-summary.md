@@ -41,8 +41,8 @@ None of these had a `claude/r6-*` PR when this was written. Each overlaps an ear
 | 160 Shoe mileage alerts | Covered by #200 (shoes: default-off retire alert) |
 | 162 Weekly rollups table | Covered by #222 / #223 (weekly cache / profile rollups, held) |
 | 163 Response budget CI | Covered by #203 / #235 (response-size budget) |
-| 165 Health / status API | Partly covered by #211 (merged `/api/health`) and #236 (cron runs) |
-| 166 Retry / backoff helper | Partly covered by #209 (outbound timeouts) and #230 (Garmin backoff) |
+| 165 Health / status API | #271 — staff-only GET /api/admin/status (the part #211 and #236 don't cover) |
+| 166 Retry / backoff helper | #272 — one retry helper (the part #209 and #230 don't cover) |
 
 ## Partly done, by design
 
