@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "test:ui": "playwright test",
     "test:ui:headed": "playwright test --headed",
+    "test:race-live": "playwright test -c playwright.race.config.ts",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run test && npm run lint && npm run build",
     "version:bump": "node scripts/bump-version.mjs",
