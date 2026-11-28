@@ -10,6 +10,7 @@ import { refreshStaleStravaAvatars } from '@/lib/strava/avatar-refresh';
 import { createServerClient } from '@/lib/supabase/server';
 import { israelNow } from '@/lib/utils';
 import { cronPaused } from '@/lib/cron-pause';
+import { withCronLock } from '@/lib/cron/lock';
 
 // Give the sync enough time to walk every athlete (Pro plan allows up to 300s).
 export const maxDuration = 300;
@@ -21,6 +22,13 @@ const AFTER_GARMIN_RESERVE_MS = 45_000;
 /** A bonus (history-repair) pass starts only with at least this much left. */
 export const BONUS_MIN_MS = 40_000;
 export const dynamic = 'force-dynamic';
+
+/**
+ * Lease on the overlap lock (lib/cron/lock). Longer than maxDuration (300 s), so a
+ * live tick never outlives it; short enough that a tick the platform killed frees
+ * it by the next-but-one tick.
+ */
+export const SYNC_LOCK_TTL_SECONDS = 330;
 
 // Runs every 5 minutes, but only during Israeli waking hours — nobody uploads a
 // run at 03:00, and each pass costs a Garmin round trip per athlete.
@@ -141,6 +149,14 @@ async function runSync(request: Request) {
     return NextResponse.json({ ok: true, skipped: `${hour}:00 Israel is outside ${FIRST_HOUR}:00-${LAST_HOUR}:00` });
   }
 
+  // No two syncs at once: a tick that ran long (or a manual forced sync) would
+  // otherwise race the next one over the same athletes' tokens and Strava quota.
+  const outcome = await withCronLock('sync', SYNC_LOCK_TTL_SECONDS, syncPasses);
+  if (!outcome.ran) return NextResponse.json({ ok: true, skipped: 'another sync is still running' });
+  return outcome.value;
+}
+
+async function syncPasses() {
   const budgetBody = (budgetMs: number) =>
     new Request('http://internal/cron', {
       method: 'POST',
