@@ -18,6 +18,7 @@ import {
   ListChecks,
   AlertCircle,
   Pencil,
+  Radio,
 } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { useAthleteId } from '@/lib/use-athlete-id';
@@ -32,6 +33,8 @@ import { googleMapsUrl } from '@/lib/events/map-link';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { getActiveViewRole } from '@/lib/role-views';
 import { EventSheet } from '@/components/events/EventSheet';
+import Link from 'next/link';
+import type { LiveButton } from '@/lib/race-live/viewer';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 // Mirrors the raw snake_case columns from GET /api/events/[id] (see
@@ -123,6 +126,9 @@ export default function EventDetailPage() {
   // Public read — no auth required, same convention as GET /api/events.
   const { data, error, isLoading, mutate } = useApi<{ event: EventRow }>(id ? `/api/events/${id}` : null);
   const event = data?.event ?? null;
+  // "צפייה חיה" → the live viewer: shown only with an active race_live_config, the
+  // race_live gate, and inside poll_from − 2h … poll_to (then "תוצאות" for 24h).
+  const { data: live } = useApi<{ button: LiveButton }>(id ? `/api/race-live/${encodeURIComponent(id)}/link` : null);
 
   // Only real athlete accounts (not bare staff logins) can RSVP — the app's
   // convention is that an athlete's own id lives in localStorage once signed
@@ -350,6 +356,17 @@ export default function EventDetailPage() {
               </a>
             )}
           </div>
+        )}
+
+        {live?.button && (
+          <Link
+            href={`/dashboard/race-live/${encodeURIComponent(event.id)}`}
+            className="mt-3 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-brand text-base font-black text-white active:opacity-80"
+            data-live-button={live.button}
+          >
+            <Radio className="h-5 w-5" />
+            {t(live.button === 'live' ? 'watchLive' : 'liveResults')}
+          </Link>
         )}
       </Card>
 
