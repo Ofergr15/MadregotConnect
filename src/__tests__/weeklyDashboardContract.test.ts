@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { expectIosContract } from './helpers/ios-contract';
 
 /**
  * CONTRACT for the native Today screen (plan H1): GET /api/dashboard/weekly. The real route
@@ -83,6 +84,7 @@ describe('GET /api/dashboard/weekly — shape', () => {
     const res = await weekly.GET(req());
     expect(res.status).toBe(200);
     const body = await res.json();
+    expectIosContract('dashboard.weekly', body);
     expect(Object.keys(body).sort()).toEqual([
       'currentWeekStart', 'dailyDistances', 'hasClubPlan', 'hasPlan', 'longRunProgression', 'prevWeekTotal',
       'publishedAt', 'sessions', 'trainingDays', 'typeDistribution', 'weekDelta', 'weekTotalMax', 'weekTotalMin', 'weeklyVolumes',

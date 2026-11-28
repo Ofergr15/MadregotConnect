@@ -1,0 +1,375 @@
+{
+  "$comment": "Response contracts for the 20 routes the native iOS app calls (ios/docs/API_CONTRACT.md on branch native-ios + the Swift client on u21-native). Success (2xx) bodies only. Validated by src/__tests__/iosRouteContracts.test.ts; breaking changes against docs/contracts/ios-routes.baseline.json fail CI. Subset of JSON Schema: type, properties, required, items, enum, $ref to #/$defs.",
+  "$defs": {
+    "Liker": {
+      "type": "object",
+      "required": ["athleteId", "name", "avatarUrl"],
+      "properties": {
+        "athleteId": { "type": "string" },
+        "name": { "type": "string" },
+        "avatarUrl": { "type": ["string", "null"] }
+      }
+    },
+    "Comment": {
+      "type": "object",
+      "required": ["id", "itemId", "body", "createdAt", "author", "canDelete"],
+      "properties": {
+        "id": { "type": "string" },
+        "itemId": { "type": "string" },
+        "body": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "author": { "$ref": "#/$defs/Liker" },
+        "canDelete": { "type": "boolean" }
+      }
+    },
+    "FeedActivity": {
+      "type": "object",
+      "required": ["id", "athleteId", "startTime", "distance", "duration", "averagePace", "averageHr", "hasRoute"],
+      "properties": {
+        "id": { "type": "string" },
+        "athleteId": { "type": "string" },
+        "activityName": { "type": ["string", "null"] },
+        "activityType": { "type": ["string", "null"] },
+        "startTime": { "type": "string" },
+        "distance": { "type": "number" },
+        "duration": { "type": "number" },
+        "movingDuration": { "type": ["number", "null"] },
+        "averagePace": { "type": ["number", "null"] },
+        "averageHr": { "type": ["number", "null"] },
+        "maxHr": { "type": ["number", "null"] },
+        "hasRoute": { "type": "boolean" }
+      }
+    },
+    "FeedItem": {
+      "type": "object",
+      "required": ["id", "type", "author", "body", "media", "payload", "occurredAt", "likeCount", "commentCount", "likedByMe", "likePreview", "commentPreview", "canDelete", "activity"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["activity", "post", "achievement", "announcement", "new_plan"] },
+        "author": {
+          "type": "object",
+          "required": ["athleteId", "name", "avatarUrl", "groupName"],
+          "properties": {
+            "athleteId": { "type": ["string", "null"] },
+            "name": { "type": "string" },
+            "avatarUrl": { "type": ["string", "null"] },
+            "groupName": { "type": ["string", "null"] }
+          }
+        },
+        "body": { "type": ["string", "null"] },
+        "media": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "url", "w", "h"],
+            "properties": {
+              "path": { "type": "string" },
+              "url": { "type": "string" },
+              "w": { "type": ["number", "null"] },
+              "h": { "type": ["number", "null"] }
+            }
+          }
+        },
+        "payload": { "type": ["object", "null"] },
+        "occurredAt": { "type": "string" },
+        "likeCount": { "type": "number" },
+        "commentCount": { "type": "number" },
+        "likedByMe": { "type": "boolean" },
+        "likePreview": { "type": "array", "items": { "$ref": "#/$defs/Liker" } },
+        "commentPreview": { "type": "array", "items": { "$ref": "#/$defs/Comment" } },
+        "canDelete": { "type": "boolean" },
+        "activity": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/FeedActivity" }] }
+      }
+    },
+    "WeekBreakdown": {
+      "type": "object",
+      "required": ["hasPlan", "hasClubPlan", "dailyDistances", "sessions", "typeDistribution", "weekTotalMin", "weekTotalMax", "trainingDays"],
+      "properties": {
+        "hasPlan": { "type": "boolean" },
+        "hasClubPlan": { "type": "boolean" },
+        "publishedAt": { "type": ["string", "null"] },
+        "dailyDistances": { "type": "array", "items": { "type": "object" } },
+        "sessions": { "type": "array", "items": { "type": "object" } },
+        "typeDistribution": { "type": "object" },
+        "weekTotalMin": { "type": "number" },
+        "weekTotalMax": { "type": "number" },
+        "trainingDays": { "type": "number" }
+      }
+    }
+  },
+  "routes": {
+    "auth.email-code.verify": {
+      "method": "POST", "path": "/api/auth/email-code",
+      "note": "action=verify. action=send answers { ok: true } only.",
+      "response": {
+        "type": "object",
+        "required": ["ok", "email", "name", "athleteId", "groupId", "session"],
+        "properties": {
+          "ok": { "type": "boolean" },
+          "email": { "type": "string" },
+          "name": { "type": ["string", "null"] },
+          "athleteId": { "type": "string" },
+          "groupId": { "type": ["string", "null"] },
+          "session": {
+            "type": "object",
+            "required": ["access_token", "refresh_token", "expires_at"],
+            "properties": {
+              "access_token": { "type": "string" },
+              "refresh_token": { "type": "string" },
+              "expires_at": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "auth.me": {
+      "method": "GET", "path": "/api/auth/me",
+      "response": {
+        "type": "object",
+        "required": ["role", "membership"],
+        "properties": {
+          "role": { "type": "string" },
+          "roles": { "type": "array", "items": { "type": "string" } },
+          "membership": { "type": "string", "enum": ["active", "pending", "inactive", "none"] },
+          "isAcademy": { "type": "boolean" },
+          "academyOnly": { "type": "boolean" },
+          "isSuper": { "type": "boolean" },
+          "canApprove": { "type": "boolean" },
+          "athleteId": { "type": "string" },
+          "groupId": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "athletes.me.get": {
+      "method": "GET", "path": "/api/athletes/me",
+      "response": {
+        "type": "object",
+        "required": ["athlete"],
+        "properties": {
+          "athlete": {
+            "type": "object",
+            "required": ["id", "name", "email", "hasGarmin", "hasStrava", "garminState", "stravaState", "weekStartDay"],
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": ["string", "null"] },
+              "email": { "type": ["string", "null"] },
+              "hasGarmin": { "type": "boolean" },
+              "hasStrava": { "type": "boolean" },
+              "garminState": { "type": "string", "enum": ["ok", "stale", "failed", "unknown", "none"] },
+              "stravaState": { "type": "string", "enum": ["ok", "stale", "failed", "unknown", "none"] },
+              "garminLastSyncAt": { "type": ["string", "null"] },
+              "stravaLastSyncAt": { "type": ["string", "null"] },
+              "avatarUrl": { "type": ["string", "null"] },
+              "weekStartDay": { "type": "number", "enum": [0, 1] }
+            }
+          }
+        }
+      }
+    },
+    "athletes.me.put": {
+      "method": "PUT", "path": "/api/athletes/me",
+      "response": {
+        "type": "object",
+        "required": ["athlete"],
+        "properties": {
+          "athlete": {
+            "type": "object",
+            "required": ["id", "name"],
+            "properties": { "id": { "type": "string" }, "name": { "type": ["string", "null"] } }
+          }
+        }
+      }
+    },
+    "athletes.summary": {
+      "method": "GET", "path": "/api/athletes/summary",
+      "response": {
+        "type": "object",
+        "required": ["weekStreak", "longestStreak", "thisWeek", "lastWeek", "totalRuns", "totalKm", "totalHours", "thisMonthRuns"],
+        "properties": {
+          "weekStreak": { "type": "number" },
+          "longestStreak": { "type": "number" },
+          "thisWeek": { "type": ["object", "null"] },
+          "lastWeek": { "type": ["object", "null"] },
+          "totalRuns": { "type": "number" },
+          "totalKm": { "type": "number" },
+          "totalHours": { "type": "number" },
+          "thisMonthRuns": { "type": "number" }
+        }
+      }
+    },
+    "plans.week": {
+      "method": "GET", "path": "/api/plans/week",
+      "response": {
+        "allOf": [
+          { "$ref": "#/$defs/WeekBreakdown" },
+          { "type": "object", "required": ["weekStart"], "properties": { "weekStart": { "type": "string" }, "lane": { "type": ["number", "null"] }, "ownPlan": { "type": "boolean" } } }
+        ]
+      }
+    },
+    "plans.weeks": {
+      "method": "GET", "path": "/api/plans/weeks",
+      "response": {
+        "type": "object", "required": ["weekStarts"],
+        "properties": { "weekStarts": { "type": "array", "items": { "type": "string" } } }
+      }
+    },
+    "program-weeks": {
+      "method": "GET", "path": "/api/program-weeks",
+      "response": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["week_start_date", "training_pdf_native_url", "nutrition_pdf_native_url"],
+          "properties": {
+            "week_start_date": { "type": "string" },
+            "training_pdf_native_url": { "type": ["string", "null"] },
+            "nutrition_pdf_native_url": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "activities.details": {
+      "method": "GET", "path": "/api/activities/details",
+      "response": {
+        "type": "object",
+        "required": ["gpsPoints", "splits", "hasPolyline", "source", "activity"],
+        "properties": {
+          "gpsPoints": { "type": "array" },
+          "splits": { "type": ["array", "null"] },
+          "hasPolyline": { "type": "boolean" },
+          "source": { "type": "string" },
+          "activity": { "type": "object" },
+          "hrTrace": { "type": ["array", "object", "null"] },
+          "stepBands": { "type": ["array", "null"] }
+        }
+      }
+    },
+    "feed": {
+      "method": "GET", "path": "/api/feed",
+      "response": {
+        "type": "object", "required": ["items", "nextCursor"],
+        "properties": {
+          "items": { "type": "array", "items": { "$ref": "#/$defs/FeedItem" } },
+          "nextCursor": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "feed.item": {
+      "method": "GET", "path": "/api/feed/items/[id]",
+      "response": { "type": "object", "required": ["item"], "properties": { "item": { "$ref": "#/$defs/FeedItem" } } }
+    },
+    "feed.like": {
+      "method": "POST", "path": "/api/feed/like",
+      "response": {
+        "type": "object", "required": ["liked", "likeCount", "likePreview"],
+        "properties": {
+          "liked": { "type": "boolean" },
+          "likeCount": { "type": "number" },
+          "likePreview": { "type": "array", "items": { "$ref": "#/$defs/Liker" } }
+        }
+      }
+    },
+    "feed.likes": {
+      "method": "GET", "path": "/api/feed/likes",
+      "response": {
+        "type": "object", "required": ["likers"],
+        "properties": { "likers": { "type": "array", "items": { "$ref": "#/$defs/Liker" } } }
+      }
+    },
+    "feed.comments": {
+      "method": "GET", "path": "/api/feed/comments",
+      "response": {
+        "type": "object", "required": ["comments"],
+        "properties": { "comments": { "type": "array", "items": { "$ref": "#/$defs/Comment" } } }
+      }
+    },
+    "notifications.inbox": {
+      "method": "GET", "path": "/api/notifications/inbox",
+      "response": {
+        "type": "object", "required": ["items", "unread"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "kind", "title", "body", "url", "sentAt", "unread"],
+              "properties": {
+                "id": { "type": "string" },
+                "kind": { "type": "string" },
+                "title": { "type": ["string", "null"] },
+                "body": { "type": ["string", "null"] },
+                "url": { "type": ["string", "null"] },
+                "sentAt": { "type": "string" },
+                "unread": { "type": "boolean" },
+                "actorName": { "type": ["string", "null"] },
+                "actorAvatarUrl": { "type": ["string", "null"] }
+              }
+            }
+          },
+          "unread": { "type": "number" }
+        }
+      }
+    },
+    "notifications.unread": {
+      "method": "GET", "path": "/api/notifications/unread",
+      "response": { "type": "object", "required": ["count"], "properties": { "count": { "type": "number" } } }
+    },
+    "device.register": {
+      "method": "POST", "path": "/api/device/register",
+      "response": {
+        "type": "object", "required": ["deviceId", "refreshToken", "accessToken", "accessTokenExpiresAt"],
+        "properties": {
+          "deviceId": { "type": "string" },
+          "refreshToken": { "type": "string" },
+          "accessToken": { "type": "string" },
+          "accessTokenExpiresAt": { "type": ["string", "number"] }
+        }
+      }
+    },
+    "dashboard.weekly": {
+      "method": "GET", "path": "/api/dashboard/weekly",
+      "response": {
+        "allOf": [
+          { "$ref": "#/$defs/WeekBreakdown" },
+          {
+            "type": "object", "required": ["currentWeekStart", "weekDelta", "prevWeekTotal"],
+            "properties": {
+              "currentWeekStart": { "type": "string" },
+              "weekDelta": { "type": "number" },
+              "prevWeekTotal": { "type": "number" },
+              "weeklyVolumes": { "type": "array" },
+              "longRunProgression": { "type": "array" }
+            }
+          }
+        ]
+      }
+    },
+    "public.groups": {
+      "method": "GET", "path": "/api/public/groups",
+      "response": {
+        "type": "object", "required": ["groups"],
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "name", "index", "paceOffsetSeconds", "level"],
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "index": { "type": "number" },
+                "paceOffsetSeconds": { "type": "number" },
+                "level": { "type": "string", "enum": ["fast", "medium", "slow"] },
+                "marathonGoal": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "version": {
+      "method": "GET", "path": "/api/version",
+      "response": { "type": "object", "required": ["version"], "properties": { "version": { "type": "string" } } }
+    }
+  }
+}

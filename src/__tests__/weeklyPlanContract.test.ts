@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { expectIosContract } from './helpers/ios-contract';
 
 /**
  * CONTRACT for the native client's weekly plan (plan H3, docs/contracts/weekly-plan.md):
@@ -123,6 +124,7 @@ describe('GET /api/plans/week?weekStart=YYYY-MM-DD', () => {
     const body = await (await getWeek()).json();
     expect(body).toMatchObject({ hasPlan: true, hasClubPlan: true, weekStart: WEEK, publishedAt: p.created_at, lane: null, ownPlan: false, weekTotalMax: 12, trainingDays: 1 });
     expect(body.dailyDistances.map((d: Row) => d.dayOfWeek)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expectIosContract('plans.week', body);
     expect(body.dailyDistances[2]).toMatchObject({ dayOfWeek: 2, max: 12 });
     expect(Object.keys(body).sort()).toEqual(['dailyDistances', 'hasClubPlan', 'hasPlan', 'lane', 'ownPlan', 'publishedAt', 'sessions', 'trainingDays', 'typeDistribution', 'weekRequiredMax', 'weekRequiredMin', 'weekStart', 'weekTotalMax', 'weekTotalMin']);
   });
@@ -176,6 +178,7 @@ describe('GET /api/dashboard/weekly (plan part)', () => {
   it('currentWeekStart is the Sunday of the displayed week; no plan → hasPlan:false, zeros', async () => {
     const body = await (await getWeekly()).json();
     expect(body).toMatchObject({ currentWeekStart: WEEK, hasPlan: false, hasClubPlan: false, weekTotalMin: 0, weekTotalMax: 0, publishedAt: null });
+    expectIosContract('dashboard.weekly', body);
   });
   it('Saturday 20:00 Israel rolls the displayed week forward to the next Sunday', async () => {
     vi.setSystemTime(new Date('2026-11-21T18:30:00Z')); // Sat 20:30 Israel

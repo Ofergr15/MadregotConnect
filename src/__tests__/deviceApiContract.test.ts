@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { expectIosContract } from './helpers/ios-contract';
 
 /**
  * CONTRACT for the native iOS companion app: the /api/device/* routes (plan H5–H7,
@@ -173,6 +174,7 @@ describe('POST /api/device/register', () => {
     expect(res.headers.get('cache-control')).toBe('no-store');
     const body = await res.json();
     expect(Object.keys(body).sort()).toEqual(['accessToken', 'accessTokenExpiresAt', 'deviceId', 'refreshToken']);
+    expectIosContract('device.register', body);
     expect(body.refreshToken).toMatch(/^wrt1\./);
     expect(body.accessToken).toMatch(/^wat1\./);
     expect(body.accessTokenExpiresAt).toBe(new Date(NOW.getTime() + 15 * 60_000).toISOString());
