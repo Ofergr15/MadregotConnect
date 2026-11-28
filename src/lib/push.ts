@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { OUTBOUND_TIMEOUT_MS } from '@/lib/http/timeout';
+import { logRetry, withRetry } from '@/lib/http/retry';
 import { readCutoff, isMissingColumn } from '@/lib/notifications/seen';
 import { isTestAccount } from '@/lib/athletes/test-accounts';
 import * as webpush from 'web-push';   // 4.x is ESM with named exports only (no default)
@@ -692,11 +693,13 @@ export async function sendPushDetailed(
         return;
       }
       try {
-        await webpush.sendNotification(
+        // Retried only when the push service certainly didn't take it (refused, 429, 503) —
+        // a timeout may already be on the phone (lib/http/retry.ts).
+        await withRetry('webpush', () => webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
           body,
           { timeout: OUTBOUND_TIMEOUT_MS.webpush },
-        );
+        ), { idempotent: false, onRetry: logRetry });
         sent++;
         byAthlete[s.athlete_id] = (byAthlete[s.athlete_id] || 0) + 1;
         note([s], true, null);

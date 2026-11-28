@@ -1,5 +1,6 @@
 import { createPrivateKey, sign, type KeyObject } from 'crypto';
 import http2 from 'http2';
+import { logRetry, withRetry } from '@/lib/http/retry';
 
 /**
  * Apple Push Notification service sender for the native iOS app (bundle
@@ -157,7 +158,7 @@ export async function sendApns(
   cfg: ApnsConfig,
   deviceToken: string,
   payload: Record<string, unknown>,
-  opts: { collapseId?: string; transport?: ApnsTransport; nowSec?: number } = {},
+  opts: { collapseId?: string; transport?: ApnsTransport; nowSec?: number; retrySleep?: (ms: number) => Promise<void> } = {},
 ): Promise<ApnsResult> {
   try {
     const nowSec = opts.nowSec ?? Math.floor(Date.now() / 1000);
@@ -168,11 +169,18 @@ export async function sendApns(
       'apns-priority': '10',
     };
     if (opts.collapseId && Buffer.byteLength(opts.collapseId) <= 64) headers['apns-collapse-id'] = opts.collapseId;
-    const res = await (opts.transport ?? http2Transport)({
+    // Retried only on 429 / 503 (Apple didn't take it); never on 500 or a broken stream.
+    const transport = opts.transport ?? http2Transport;
+    const res = await withRetry('apns', () => transport({
       host: cfg.host,
       path: `/3/device/${deviceToken}`,
       headers,
       body: JSON.stringify(payload),
+    }), {
+      idempotent: false,
+      classify: (r) => ((r as { status: number }).status === 200 ? { kind: 'ok' } : { kind: 'status', status: (r as { status: number }).status }),
+      onRetry: logRetry,
+      ...(opts.retrySleep ? { sleep: opts.retrySleep } : {}),
     });
     if (res.status === 200) return { ok: true, status: 200, reason: null, dead: false };
     let reason: string | null = null;

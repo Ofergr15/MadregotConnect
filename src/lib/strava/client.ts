@@ -1,4 +1,5 @@
 import { fetchWithTimeout } from '@/lib/http/timeout';
+import { classifyResponse, logRetry, withRetry } from '@/lib/http/retry';
 /**
  * Strava API client — ported/adapted from RunGPT `lib/strava.ts`,
  * plus streams → GPX / gps_points for run-chat actuals.
@@ -126,7 +127,8 @@ export async function refreshStravaToken(refreshToken: string): Promise<StravaTo
   if (!clientId || !clientSecret) return null;
 
   try {
-    const response = await fetchWithTimeout('strava', 'https://www.strava.com/oauth/token', {
+    // Not idempotent as far as the retry policy is concerned: only a refused connection or a 503 is retried.
+    const response = await withRetry('strava', () => fetchWithTimeout('strava', 'https://www.strava.com/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -135,7 +137,7 @@ export async function refreshStravaToken(refreshToken: string): Promise<StravaTo
         grant_type: 'refresh_token',
         refresh_token: refreshToken,
       }),
-    });
+    }), { idempotent: false, classify: classifyResponse, noRetryStatuses: [429], onRetry: logRetry });
     if (!response.ok) {
       console.error('Failed to refresh Strava token:', await response.text());
       return null;
@@ -192,9 +194,11 @@ export class StravaClient {
         url.searchParams.append(key, String(value));
       }
     }
-    const response = await fetchWithTimeout('strava', url.toString(), {
+    // GETs: retried on network errors, timeouts and 5xx (lib/http/retry.ts). Never on 429 —
+    // Strava's limit is a 15-minute window, and asking again inside it only burns quota.
+    const response = await withRetry('strava', () => fetchWithTimeout('strava', url.toString(), {
       headers: { Authorization: `Bearer ${this.accessToken}` },
-    });
+    }), { idempotent: true, classify: classifyResponse, noRetryStatuses: [429], onRetry: logRetry });
     if (!response.ok) {
       // Message kept byte-identical to the string this used to throw, so any log
       // grep or test matching on it still matches.

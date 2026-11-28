@@ -3,6 +3,7 @@ import { ParsedWeeklyPlan, ParsedWorkout, WorkoutStep } from './types';
 import { WORKOUT_PARSER_SYSTEM_PROMPT } from './prompt';
 import { normalizeWorkoutParts } from '@/lib/plans/normalize-plan';
 import { israelNow } from '@/lib/utils';
+import { sdkMaxRetries } from '@/lib/http/retry';
 
 // Re-exported from its old home: the normalizer moved to lib/plans so the READ
 // paths (matching, adherence) can use it without pulling the Anthropic client in.
@@ -10,6 +11,8 @@ export { normalizeWorkoutParts };
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
+  // Same as the SDK default (2); named so every service's retry count lives in lib/http/retry.ts.
+  maxRetries: sdkMaxRetries('anthropic'),
 });
 
 /**
