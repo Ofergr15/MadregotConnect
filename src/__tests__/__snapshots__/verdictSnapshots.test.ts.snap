@@ -1,0 +1,569 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`'block-cut-short' — '10 km of a 20 km block at 4:36' > assessWorkout (distance / time / whole-run pace) 1`] = `
+{
+  "distance": [
+    "under",
+    12000,
+    22000,
+    22000,
+  ],
+  "duration": [
+    "under",
+    false,
+  ],
+  "pace": [
+    "on_target",
+    282,
+    275,
+    275,
+  ],
+  "score": 33,
+}
+`;
+
+exports[`'block-cut-short' — '10 km of a 20 km block at 4:36' > findPlannedEfforts (reps, from laps) 1`] = `
+{
+  "requirements": [
+    "Warmup 2km by distance: 1/1/1",
+    "Run 20km by distance: 0/0/1",
+  ],
+  "totals": "1/1/1",
+  "verdict": "confirmed",
+}
+`;
+
+exports[`'block-cut-short' — '10 km of a 20 km block at 4:36' > gradePlanBlocks (pace per block, on the trace) 1`] = `
+{
+  "blocks": [
+    "Warmup 2km | on_target | 310",
+    "Run 20km | on_target | 276 | truncated",
+  ],
+  "dominant": null,
+  "graded": "2/2",
+  "reason": null,
+  "resolutionM": 50,
+  "source": "stream",
+}
+`;
+
+exports[`'block-cut-short' — '10 km of a 20 km block at 4:36' > gradeWatchSteps (the device's own steps + stamped laps) 1`] = `
+{
+  "complete": true,
+  "dominant": null,
+  "graded": "2/2",
+  "partial": "#1 on_target",
+  "repeats": "0/0 on target, 0/0 run",
+  "steps": [
+    "#0 Warmup 2km | on_target | 310 | 1/1",
+    "#1 Run 20km | on_target | 276 | 1/1 | truncated",
+  ],
+  "unstampedLaps": 0,
+  "workoutName": "טמפו ארוך",
+}
+`;
+
+exports[`'easy-no-target' — 'easy day, distance band only' > assessWorkout (distance / time / whole-run pace) 1`] = `
+{
+  "distance": [
+    "on_target",
+    9412,
+    8000,
+    10000,
+  ],
+  "duration": [
+    "unknown",
+    true,
+  ],
+  "pace": [
+    "unknown",
+    334,
+    null,
+    null,
+  ],
+  "score": 100,
+}
+`;
+
+exports[`'easy-no-target' — 'easy day, distance band only' > findPlannedEfforts (reps, from laps) 1`] = `
+{
+  "requirements": [],
+  "totals": "0/0/0",
+  "verdict": "unverifiable",
+}
+`;
+
+exports[`'easy-no-target' — 'easy day, distance band only' > gradePlanBlocks (pace per block, on the trace) 1`] = `
+{
+  "blocks": [],
+  "dominant": null,
+  "graded": "0/0",
+  "reason": "no_blocks",
+  "resolutionM": 1000,
+  "source": "laps",
+}
+`;
+
+exports[`'ladder-abandoned' — '6×1 km, stopped during rep 5' > assessWorkout (distance / time / whole-run pace) 1`] = `
+{
+  "distance": [
+    "under",
+    5400,
+    7002,
+    7284,
+  ],
+  "duration": [
+    "under",
+    false,
+  ],
+  "pace": [
+    "unknown",
+    247,
+    null,
+    null,
+  ],
+  "score": 0,
+}
+`;
+
+exports[`'ladder-abandoned' — '6×1 km, stopped during rep 5' > findPlannedEfforts (reps, from laps) 1`] = `
+{
+  "requirements": [
+    "Interval 1km by distance: 4/4/6",
+  ],
+  "totals": "4/4/6",
+  "verdict": "partial",
+}
+`;
+
+exports[`'ladder-abandoned' — '6×1 km, stopped during rep 5' > gradePlanBlocks (pace per block, on the trace) 1`] = `
+{
+  "blocks": [],
+  "dominant": null,
+  "graded": "0/0",
+  "reason": "no_blocks",
+  "resolutionM": 400,
+  "source": "laps",
+}
+`;
+
+exports[`'ladder-abandoned' — '6×1 km, stopped during rep 5' > gradeWatchSteps (the device's own steps + stamped laps) 1`] = `
+{
+  "complete": true,
+  "dominant": null,
+  "graded": "1/1",
+  "partial": "#0 on_target",
+  "repeats": "4/5 on target, 5/6 run",
+  "steps": [
+    "#0 Interval 1km | on_target | 222 | 5/6 | truncated",
+    "#1 Recovery 1:30 | unknown | 360 | 4/6 | truncated",
+  ],
+  "unstampedLaps": 0,
+  "workoutName": "סולם",
+}
+`;
+
+exports[`'open-22k-unpushed' — 'one open step the athlete built; club…' > assessWorkout (distance / time / whole-run pace) 1`] = `
+{
+  "distance": [
+    "on_target",
+    22000,
+    23232,
+    23456,
+  ],
+  "duration": [
+    "on_target",
+    false,
+  ],
+  "pace": [
+    "unknown",
+    270,
+    null,
+    null,
+  ],
+  "score": 100,
+}
+`;
+
+exports[`'open-22k-unpushed' — 'one open step the athlete built; club…' > findPlannedEfforts (reps, from laps) 1`] = `
+{
+  "requirements": [
+    "Warmup 2km by distance: 0/0/1",
+    "Run 20km by distance: 0/0/1",
+    "Interval 15s by duration: 0/0/8",
+  ],
+  "totals": "0/0/0",
+  "verdict": "unverifiable",
+}
+`;
+
+exports[`'open-22k-unpushed' — 'one open step the athlete built; club…' > gradePlanBlocks (pace per block, on the trace) 1`] = `
+{
+  "blocks": [
+    "Warmup 2km | faster | 270",
+    "Run 20km | on_target | 270",
+  ],
+  "dominant": "Run 20km on_target",
+  "graded": "1/2",
+  "reason": null,
+  "resolutionM": 1000,
+  "source": "laps",
+}
+`;
+
+exports[`'open-22k-unpushed' — 'one open step the athlete built; club…' > gradeWatchSteps (the device's own steps + stamped laps) 1`] = `
+{
+  "complete": true,
+  "dominant": "#0 on_target",
+  "graded": "1/1",
+  "partial": null,
+  "repeats": "0/0 on target, 0/0 run",
+  "steps": [
+    "#0 Run | on_target | 270 | 1/1",
+  ],
+  "unstampedLaps": 0,
+  "workoutName": "הריצה שלי",
+}
+`;
+
+exports[`'strides-off-pace' — 'timed strides run at 4:10' > assessWorkout (distance / time / whole-run pace) 1`] = `
+{
+  "distance": [
+    "on_target",
+    11040,
+    11264,
+    11456,
+  ],
+  "duration": [
+    "on_target",
+    false,
+  ],
+  "pace": [
+    "unknown",
+    326,
+    null,
+    null,
+  ],
+  "score": 100,
+}
+`;
+
+exports[`'strides-off-pace' — 'timed strides run at 4:10' > findPlannedEfforts (reps, from laps) 1`] = `
+{
+  "requirements": [
+    "Run 10km by distance: 0/0/1",
+    "Interval 15s by duration: 0/8/8",
+  ],
+  "totals": "0/8/8",
+  "verdict": "partial",
+}
+`;
+
+exports[`'strides-off-pace' — 'timed strides run at 4:10' > gradePlanBlocks (pace per block, on the trace) 1`] = `
+{
+  "blocks": [
+    "Run 10km | on_target | 312",
+  ],
+  "dominant": "Run 10km on_target",
+  "graded": "1/1",
+  "reason": null,
+  "resolutionM": 70,
+  "source": "laps",
+}
+`;
+
+exports[`'sun-long-pause' — '228 s stop at 22 km, between the bloc…' > assessWorkout (distance / time / whole-run pace) 1`] = `
+{
+  "distance": [
+    "on_target",
+    23104,
+    23232,
+    23456,
+  ],
+  "duration": [
+    "on_target",
+    false,
+  ],
+  "pace": [
+    "unknown",
+    275,
+    null,
+    null,
+  ],
+  "score": 100,
+}
+`;
+
+exports[`'sun-long-pause' — '228 s stop at 22 km, between the bloc…' > findPlannedEfforts (reps, from laps) 1`] = `
+{
+  "requirements": [
+    "Warmup 2km by distance: 1/1/1",
+    "Run 20km by distance: 0/0/1",
+    "Interval 15s by duration: 8/8/8",
+  ],
+  "totals": "9/9/9",
+  "verdict": "confirmed",
+}
+`;
+
+exports[`'sun-long-pause' — '228 s stop at 22 km, between the bloc…' > gradePlanBlocks (pace per block, on the trace) 1`] = `
+{
+  "blocks": [
+    "Warmup 2km | on_target | 305",
+    "Run 20km | on_target | 263",
+  ],
+  "dominant": "Run 20km on_target",
+  "graded": "2/2",
+  "reason": null,
+  "resolutionM": 50,
+  "source": "stream",
+}
+`;
+
+exports[`'sun-long-pause' — '228 s stop at 22 km, between the bloc…' > gradeWatchSteps (the device's own steps + stamped laps) 1`] = `
+{
+  "complete": true,
+  "dominant": "#1 on_target",
+  "graded": "2/2",
+  "partial": null,
+  "repeats": "0/0 on target, 8/8 run",
+  "steps": [
+    "#0 Warmup 2km | on_target | 305 | 1/1",
+    "#1 Run 20km | on_target | 263 | 1/1",
+    "#2 Interval 15s | unknown | 192 | 8/8",
+    "#3 Recovery 45s | unknown | 750 | 8/8",
+  ],
+  "unstampedLaps": 0,
+  "workoutName": "ארוכה",
+}
+`;
+
+exports[`'tue-0929-fartlek' — 'real laps, laps only' > assessWorkout (distance / time / whole-run pace) 1`] = `
+{
+  "distance": [
+    "on_target",
+    30009,
+    30067,
+    30387,
+  ],
+  "duration": [
+    "unknown",
+    true,
+  ],
+  "pace": [
+    "unknown",
+    268,
+    null,
+    null,
+  ],
+  "score": 100,
+}
+`;
+
+exports[`'tue-0929-fartlek' — 'real laps, laps only' > findPlannedEfforts (reps, from laps) 1`] = `
+{
+  "requirements": [
+    "Warmup 3.6km by distance: 0/0/1",
+    "Interval 45s by duration: 3/4/4",
+    "Interval 1km by distance: 10/10/10",
+    "Interval 300m by distance: 4/5/5",
+  ],
+  "totals": "17/19/19",
+  "verdict": "partial",
+}
+`;
+
+exports[`'tue-0929-fartlek' — 'real laps, laps only' > gradePlanBlocks (pace per block, on the trace) 1`] = `
+{
+  "blocks": [
+    "Warmup 3.6km | on_target | 289",
+  ],
+  "dominant": null,
+  "graded": "1/1",
+  "reason": null,
+  "resolutionM": 1000,
+  "source": "laps",
+}
+`;
+
+exports[`'tue-1020-pyramid' — 'real stamped laps, pack 2; no step li…' > assessWorkout (distance / time / whole-run pace) 1`] = `
+{
+  "distance": [
+    "under",
+    23796,
+    28000,
+    29000,
+  ],
+  "duration": [
+    "unknown",
+    true,
+  ],
+  "pace": [
+    "unknown",
+    280,
+    null,
+    null,
+  ],
+  "score": 0,
+}
+`;
+
+exports[`'tue-1020-pyramid' — 'real stamped laps, pack 2; no step li…' > findPlannedEfforts (reps, from laps) 1`] = `
+{
+  "requirements": [
+    "Warmup 3km by distance: 0/0/1",
+    "Interval 45s by duration: 1/1/1",
+    "Interval 45s by duration: 1/1/1",
+    "Interval 45s by duration: 1/1/1",
+    "Interval 45s by duration: 1/1/1",
+    "Interval 1.6km by distance: 0/0/3",
+    "Interval 1.6km by distance: 0/0/4",
+    "Interval 1.6km by distance: 0/0/3",
+    "Run 2km by distance: 0/0/1",
+  ],
+  "totals": "4/4/4",
+  "verdict": "confirmed",
+}
+`;
+
+exports[`'tue-1020-pyramid' — 'real stamped laps, pack 2; no step li…' > gradePlanBlocks (pace per block, on the trace) 1`] = `
+{
+  "blocks": [
+    "Warmup 3km | on_target | 275",
+    "Interval 1.6km | slower | 236",
+    "Interval 1.6km | on_target | 220",
+    "Interval 1.6km | on_target | 211",
+    "Interval 1.6km | on_target | 212",
+    "Interval 1.6km | on_target | 213",
+    "Interval 1.6km | slower | 287",
+    "Interval 1.6km | slower | 289 | truncated",
+    "Interval 1.6km | unknown | -",
+    "Interval 1.6km | unknown | -",
+    "Interval 1.6km | unknown | -",
+    "Run 2km | unknown | -",
+  ],
+  "dominant": "Interval 1.6km slower",
+  "graded": "5/8",
+  "reason": null,
+  "resolutionM": 437,
+  "source": "laps",
+}
+`;
+
+exports[`'tue-double-garmin' — '6×2 km, Garmin copy with stamps' > assessWorkout (distance / time / whole-run pace) 1`] = `
+{
+  "distance": [
+    "on_target",
+    20132,
+    20000,
+    20000,
+  ],
+  "duration": [
+    "unknown",
+    true,
+  ],
+  "pace": [
+    "unknown",
+    261,
+    null,
+    null,
+  ],
+  "score": 100,
+}
+`;
+
+exports[`'tue-double-garmin' — '6×2 km, Garmin copy with stamps' > findPlannedEfforts (reps, from laps) 1`] = `
+{
+  "requirements": [
+    "Interval 2km by distance: 6/6/6",
+  ],
+  "totals": "6/6/6",
+  "verdict": "confirmed",
+}
+`;
+
+exports[`'tue-double-garmin' — '6×2 km, Garmin copy with stamps' > gradePlanBlocks (pace per block, on the trace) 1`] = `
+{
+  "blocks": [
+    "Interval 2km | slower | 300",
+    "Interval 2km | on_target | 214",
+    "Interval 2km | on_target | 215",
+    "Interval 2km | on_target | 210",
+    "Interval 2km | on_target | 210",
+    "Interval 2km | on_target | 205",
+  ],
+  "dominant": "Interval 2km slower",
+  "graded": "5/6",
+  "reason": null,
+  "resolutionM": 2000,
+  "source": "laps",
+}
+`;
+
+exports[`'tue-double-garmin' — '6×2 km, Garmin copy with stamps' > gradeWatchSteps (the device's own steps + stamped laps) 1`] = `
+{
+  "complete": true,
+  "dominant": "#1 on_target",
+  "graded": "1/1",
+  "partial": null,
+  "repeats": "6/6 on target, 6/6 run",
+  "steps": [
+    "#0 Warmup 3km | unknown | 300 | 1/1",
+    "#1 Interval 2km | on_target | 212 | 6/6",
+    "#2 Recovery 500m | unknown | 383 | 6/6",
+    "#4 Cooldown 2km | unknown | 310 | 1/1",
+  ],
+  "unstampedLaps": 0,
+  "workoutName": "שלישי כפול",
+}
+`;
+
+exports[`'tue-double-strava' — 'the same run as Strava km splits: no …' > assessWorkout (distance / time / whole-run pace) 1`] = `
+{
+  "distance": [
+    "on_target",
+    20132,
+    20000,
+    20000,
+  ],
+  "duration": [
+    "unknown",
+    true,
+  ],
+  "pace": [
+    "unknown",
+    261,
+    null,
+    null,
+  ],
+  "score": 100,
+}
+`;
+
+exports[`'tue-double-strava' — 'the same run as Strava km splits: no …' > findPlannedEfforts (reps, from laps) 1`] = `
+{
+  "requirements": [
+    "Interval 2km by distance: 0/0/6",
+  ],
+  "totals": "0/0/0",
+  "verdict": "unverifiable",
+}
+`;
+
+exports[`'tue-double-strava' — 'the same run as Strava km splits: no …' > gradePlanBlocks (pace per block, on the trace) 1`] = `
+{
+  "blocks": [
+    "Interval 2km | slower | 300",
+    "Interval 2km | on_target | 214",
+    "Interval 2km | slower | 255",
+    "Interval 2km | on_target | 214",
+    "Interval 2km | slower | 248",
+    "Interval 2km | on_target | 213",
+  ],
+  "dominant": "Interval 2km slower",
+  "graded": "3/6",
+  "reason": null,
+  "resolutionM": 1000,
+  "source": "laps",
+}
+`;
