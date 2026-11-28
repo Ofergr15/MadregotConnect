@@ -43,6 +43,10 @@
     {
       "path": "/api/cron/partner-orders",
       "schedule": "20 4 * * *"
+    },
+    {
+      "path": "/api/cron/retention",
+      "schedule": "50 2 * * *"
     }
   ],
   "git": {
