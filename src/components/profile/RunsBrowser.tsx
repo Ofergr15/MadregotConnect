@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { BarChart3, CalendarDays, ChevronLeft, ChevronRight, Route } from 'lucide-react';
 import { useApi } from '@/lib/api';
-import { cn, israelToday } from '@/lib/utils';
+import { cn, formatActivityDateWith, israelToday } from '@/lib/utils';
 import { SegmentedControl } from '@/components/ui';
 import { formatPace } from '@/components/activity/format';
 import { RouteMinimap } from '@/components/RouteMinimap';
@@ -244,7 +244,7 @@ function RunRows({ runs, loading, empty }: { runs: RangeRun[]; loading: boolean;
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-ink-700" dir="auto">{r.name || t('tabRuns')}</p>
               <p className="text-xs font-light text-ink-400">
-                {new Date(r.startTime).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' })}
+                {formatActivityDateWith(r.startTime, locale, { weekday: 'short', day: 'numeric', month: 'short' })}
                 {r.paceSecPerKm != null && (
                   <>
                     {' · '}

@@ -7,7 +7,7 @@ import { apiHeaders } from '@/lib/api';
 import { WAITING_DAYS, groupByRunner, isWaiting, type RunnerGroup } from '@/lib/feedback/waiting';
 import { MessageSquare, AlertTriangle, MessageCircle, Bell } from 'lucide-react';
 import { feelInfo, rpeHex, rpeLabel } from '@/lib/feedback-scales';
-import { cn, resolveGroup, memberPackName } from '@/lib/utils';
+import { cn, resolveGroup, memberPackName, formatActivityDateWith } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { SkeletonList, SegmentedControl, Card, EmptyState } from '@/components/ui';
 import { FeedbackThread, type ThreadMessage } from '@/components/FeedbackThread';
@@ -390,7 +390,7 @@ function AllFeedback() {
 
 function MissingCard({ m }: { m: MissingEntry }) {
   const rg = m.squad ? resolveGroup(m.squad) : null;
-  const dateStr = m.startTime ? new Date(m.startTime).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' }) : '';
+  const dateStr = m.startTime ? formatActivityDateWith(m.startTime, 'he-IL', { day: 'numeric', month: 'short' }) : '';
   const km = m.distance != null ? (m.distance / 1000).toFixed(1) : null;
 
   return (

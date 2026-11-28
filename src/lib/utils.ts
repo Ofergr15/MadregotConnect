@@ -324,6 +324,16 @@ export function formatActivityDate(startTime: string, locale: string = 'en-US'):
   });
 }
 
+/**
+ * An activity's date in any `toLocaleDateString` shape — the caller's options, with
+ * the timezone pinned to UTC because the athlete's wall clock IS the stored UTC
+ * parts (CLAUDE.md). Without the pin an Israel browser reads a 22:30 run three
+ * hours later, on the NEXT day.
+ */
+export function formatActivityDateWith(startTime: string, locale: string, options: Intl.DateTimeFormatOptions): string {
+  return parseActivityInstant(startTime).toLocaleDateString(locale, { ...options, timeZone: 'UTC' });
+}
+
 /** Athlete-local hour (0-23) of an activity, for morning/evening labels etc. */
 export function activityLocalHour(startTime: string): number {
   return parseActivityInstant(startTime).getUTCHours();
