@@ -11,7 +11,7 @@ const ROOT = new URL('..', import.meta.url).pathname;
 const API = join(ROOT, 'src', 'app', 'api');
 const OUT = join(ROOT, 'docs', 'api-routes.md');
 
-function walk(dir) {
+export function walk(dir) {
   return readdirSync(dir).flatMap((n) => {
     const p = join(dir, n);
     if (statSync(p).isDirectory()) return walk(p);
@@ -22,7 +22,7 @@ function walk(dir) {
 const GATE = /\b(resolveVerifiedCaller|mayActFor|requireMember|requireStaff\w*|requireCallerForAthlete|requirePackLeader|requireAcademyManager|requireStoryAdmin|requireContentStaff|requireApprover|requireDevice|requireAdmin\w*|verifyRequest|verifyImageUrl|verifyVideoUrl|isAuthorizedCron|CRON_SECRET)\b/g;
 
 /** First sentence of the first JSDoc block or leading // comment run, trimmed to one line. */
-function purpose(src) {
+export function purpose(src) {
   const doc = /\/\*\*([\s\S]*?)\*\//.exec(src);
   let text = '';
   if (doc) {
