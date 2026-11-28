@@ -334,9 +334,9 @@ export interface BoardRunner {
  * The board every member sees. Opted-out runners are left out entirely — not masked, absent —
  * except for themselves (so they can see their own state and the switch that hides it).
  */
-export async function liveBoard(db: Db, eventId: string, viewerId: string | null): Promise<{ runners: BoardRunner[]; source: string; updatedAt: string | null; active: boolean; mapOptIn: boolean }> {
+export async function liveBoard(db: Db, eventId: string, viewerId: string | null): Promise<{ runners: BoardRunner[]; source: string; updatedAt: string | null; active: boolean; mapOptIn: boolean; windowEnd: string | null }> {
   const [{ data: cfg }, entries, splits, { data: groups }] = await Promise.all([
-    db.from('race_live_config').select('source, active, last_polled_at').eq('event_id', eventId).maybeSingle(),
+    db.from('race_live_config').select('source, active, last_polled_at, poll_to').eq('event_id', eventId).maybeSingle(),
     loadEntries(db, eventId),
     loadSplits(db, eventId),
     db.from('event_group_assignments').select('athlete_id, event_pace_groups!group_id(label)').eq('event_id', eventId),
@@ -378,5 +378,5 @@ export async function liveBoard(db: Db, eventId: string, viewerId: string | null
       liveTrack: e.athleteId === viewerId ? { set: !!ltOf.get(e.athleteId)?.livetrack_url, state: ltOf.get(e.athleteId)?.livetrack_state ?? null } : null,
     } as BoardRunner;
   });
-  return { runners, source: cfg?.source ?? 'manual', updatedAt: cfg?.last_polled_at ?? null, active: !!cfg?.active, mapOptIn: mapOn };
+  return { runners, source: cfg?.source ?? 'manual', updatedAt: cfg?.last_polled_at ?? null, active: !!cfg?.active, mapOptIn: mapOn, windowEnd: (cfg as { poll_to?: string | null } | null)?.poll_to ?? null };
 }
