@@ -25,4 +25,4 @@ export async function requireAdmin(
 export const actorOf = (c: VerifiedCaller) => c.athleteId ?? c.email;
 
 export const pending = () =>
-  NextResponse.json({ error: 'migration_pending', details: 'migration 226 not applied' }, { status: 503 });
+  NextResponse.json({ error: 'migration_pending', details: 'migration 260 not applied' }, { status: 503 });

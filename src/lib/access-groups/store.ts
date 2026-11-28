@@ -4,9 +4,9 @@ import { isMissingTable } from '@/lib/supabase/schema-drift';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any, any, any>;
 
-// Access groups, migration 226 — owner-made groups of people with a screen set each.
+// Access groups, migration 260 — owner-made groups of people with a screen set each.
 // Design: review-2026-11-20/access-groups-design.md. Every read here FAILS SAFE to "no
-// groups": an unpasted 226 must leave feature resolution exactly as it was.
+// groups": an unpasted 260 must leave feature resolution exactly as it was.
 
 export const ACCESS_GROUPS_TABLE = 'access_groups';
 export const ACCESS_GROUP_MEMBERS_TABLE = 'access_group_members';

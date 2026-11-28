@@ -16,7 +16,7 @@
 //
 //   athlete > access_group > squad > academy > role > club > default (off)
 //
-// access_group (migration 226) = an owner-made group of people ("בעלים", "גרעין",
+// access_group (migration 260) = an owner-made group of people ("בעלים", "גרעין",
 // "ולנסיה"…). A person can be in several; an explicit OFF wins at the same rank.
 //
 // Everything in this file is pure; the DB reads live in ./server.ts.
@@ -225,7 +225,7 @@ export const FEATURES = {
   /** Native משתמשים (role picker, GET/PUT/DELETE /api/admin/users). Off by default: the users manager is a pending
    *  product decision, so it ships only when an admin turns it on. */
   native_mgmt_users: { label: 'משתמשים (אפליקציה)', defaultEnabled: false },
-  /** Native ניהול → משתמשים וקבוצות: access groups + per-user screen sets (/api/admin/access-groups, migration 226). Admin-only. */
+  /** Native ניהול → משתמשים וקבוצות: access groups + per-user screen sets (/api/admin/access-groups, migration 260). Admin-only. */
   native_mgmt_access_groups: { label: 'קבוצות גישה ומסכים למשתמשים (אפליקציה)', defaultEnabled: false },
 } as const;
 
@@ -279,7 +279,7 @@ export interface AthleteFacts {
   role?: string | null;
   extraRoles?: string[] | null;
   isAcademy?: boolean;
-  /** access_groups.id the athlete belongs to (migration 226; [] before it). */
+  /** access_groups.id the athlete belongs to (migration 260; [] before it). */
   accessGroupIds?: string[] | null;
 }
 
