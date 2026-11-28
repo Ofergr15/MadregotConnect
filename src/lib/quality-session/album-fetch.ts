@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import sharp from 'sharp';
 import type { createServerClient } from '@/lib/supabase/server';
+import { fileRouteUrl } from '@/lib/storage/buckets';
 import {
   ALBUM_HOSTS, IMAGE_HOSTS, driveFolderGridUrl, driveFolderImages, googlePhotosImages,
   isAllowedHost, parseAlbumLink,
@@ -93,7 +94,7 @@ export async function pullAlbumPhotos(
       const { error } = await supabase.storage.from('feed-media').upload(path, data, { contentType: 'image/jpeg', upsert: false });
       // photos_drive_v2 (#101): the same file imported again lands on the same path — reuse it, store nothing.
       if (error && !(opts.stableKeys && isAlreadyThere(error))) continue;
-      media.push({ path, url: supabase.storage.from('feed-media').getPublicUrl(path).data.publicUrl, w: info.width, h: info.height });
+      media.push({ path, url: fileRouteUrl('feed-media', path), w: info.width, h: info.height });
     } catch { /* one unreadable file must not stop the rest */ }
   }
   if (media.length === 0) return { ok: false, error: 'no-photos' };
@@ -128,7 +129,7 @@ export async function pullDrivePhotos(
       const { error } = await supabase.storage.from('feed-media').upload(path, data, { contentType: 'image/jpeg', upsert: false });
       // photos_drive_v2 (#101): the same file imported again lands on the same path — reuse it, store nothing.
       if (error && !(opts.stableKeys && isAlreadyThere(error))) continue;
-      media.push({ path, url: supabase.storage.from('feed-media').getPublicUrl(path).data.publicUrl, w: info.width, h: info.height });
+      media.push({ path, url: fileRouteUrl('feed-media', path), w: info.width, h: info.height });
     } catch { /* one unreadable file must not stop the rest */ }
   }
   if (media.length === 0) return { ok: false, error: 'no-photos' };

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DEVICE_COOKIE, DEVICE_COOKIE_OPTIONS } from '@/lib/auth/device-token';
+import { FILES_COOKIE, FILES_COOKIE_OPTIONS } from '@/lib/storage/file-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,5 +29,6 @@ export async function POST() {
   // the path matches what set it byte for byte. A '/'-scoped cookie deleted at a
   // different path silently survives.
   response.cookies.set(DEVICE_COOKIE, '', { ...DEVICE_COOKIE_OPTIONS, maxAge: 0 });
+  response.cookies.set(FILES_COOKIE, '', { ...FILES_COOKIE_OPTIONS, maxAge: 0 });
   return response;
 }

@@ -4,6 +4,7 @@ import { getSupabase } from '@/lib/supabase/client';
 import { trySilentReauth } from '@/lib/auth/silent-reauth';
 import { getViewedPerson } from '@/lib/view-as-person';
 import { VIEW_AS_HEADER } from '@/lib/auth/view-as';
+import { ensureFilesCookie } from '@/lib/storage/files-cookie-client';
 
 // Attaches the caller's real Supabase session token as a Bearer header. This is
 // now the app's ONLY way of proving who's asking — the x-user-email convention
@@ -90,6 +91,7 @@ export async function accessToken(): Promise<string | null> {
 
 export async function bearerHeaders(includeJson = true): Promise<Record<string, string>> {
   const token = await accessToken();
+  if (token) ensureFilesCookie(token);
   // "View as this person" (lib/auth/view-as.ts): sent on every request, and the
   // server decides where it counts — every /api/ read but its deny-list, for an
   // admin only. Writes never leave the browser while viewing (lib/view-as-person.ts).

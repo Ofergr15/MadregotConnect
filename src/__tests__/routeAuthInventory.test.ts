@@ -47,7 +47,6 @@ const PUBLIC_ROUTES = new Map<string, string>([
   ['dev/strava-athletes', 'dev-only'],
   ['device/token', 'device-pairing'],
   ['native/auth/refresh', 'login'],
-  ['native/storage/program-plans/[folder]/[file]', 'public'],
   ['events/[id]/forecast', 'public'],
   ['photos/browse/img', 'signed-url'],
   ['photos/browse/video', 'signed-url'],

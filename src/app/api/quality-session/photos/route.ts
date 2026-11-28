@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { fileRouteUrl } from '@/lib/storage/buckets';
 import { authError, requireSession } from '@/lib/auth-session';
 import { isStoryEditor } from '@/lib/quality-session/access';
 import { sanitizeMediaList } from '@/lib/feed/media';
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
   // Only photos this caller uploaded (/api/feed/media files them under their id).
   const media = sanitizeMediaList(raw, auth.user.athleteId!).map((m) => ({
     ...m,
-    url: supabase.storage.from('feed-media').getPublicUrl(m.path).data.publicUrl,
+    url: fileRouteUrl('feed-media', m.path),
   }));
 
   try {

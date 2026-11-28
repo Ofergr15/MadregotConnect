@@ -12,11 +12,14 @@ import {
 } from '@/lib/plans/clipboard';
 import { renderGarminClipboardPng } from '@/lib/run-chat/garmin-clipboard';
 import { planEstimateOptions } from '@/lib/plans/step-estimate';
+import { fileRouteUrl } from '@/lib/storage/buckets';
+import { APP_URL } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
-const BUCKET = 'run-chat';
+// Absolute: the link is copied into Stream Chat messages. Private (lib/storage/buckets.ts).
+const BUCKET = 'run-chat' as const;
 const ARTIFACT_VERSION = 'v1';
 
 function isGrouped(value: unknown): value is GroupedWeeklyPlans {
@@ -27,7 +30,7 @@ function isGrouped(value: unknown): value is GroupedWeeklyPlans {
 async function ensureBucket(supabase: ReturnType<typeof createServerClient>) {
   const { data } = await supabase.storage.getBucket(BUCKET);
   if (!data) {
-    await supabase.storage.createBucket(BUCKET, { public: true, fileSizeLimit: 20_000_000 });
+    await supabase.storage.createBucket(BUCKET, { public: false, fileSizeLimit: 20_000_000 });
   }
 }
 
@@ -143,11 +146,10 @@ async function publish(
         .from(BUCKET)
         .upload(path, png, { contentType: 'image/png', upsert: true });
       if (uploadError) throw uploadError;
-      const { data: publicUrl } = supabase.storage.from(BUCKET).getPublicUrl(path);
       plan.workouts[index] = {
         ...workout,
         clipboardText,
-        clipboardImageUrl: `${publicUrl.publicUrl}?v=${ARTIFACT_VERSION}`,
+        clipboardImageUrl: `${APP_URL}${fileRouteUrl(BUCKET, path)}?v=${ARTIFACT_VERSION}`,
       };
     }
   }

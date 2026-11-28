@@ -1,20 +1,18 @@
 import { NextResponse } from 'next/server';
-import { programPlanKey, publicProgramPlanUrl } from '@/lib/native/supabase-proxy';
+import { programPlanKey } from '@/lib/native/supabase-proxy';
+import { serveFile } from '@/lib/storage/file-access';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * GET /api/native/storage/program-plans/{folder}/{file}.pdf → 302 to the CURRENT
- * project's public object URL. The program-plans bucket is public today (GET
- * /api/program-weeks already hands its URLs out unauthenticated), so this adds no
- * access: same objects, same rule, only the host is resolved server-side. If the bucket
- * ever goes private, this route must switch to a resolveVerifiedCaller-gated signed URL.
+ * GET /api/native/storage/program-plans/{folder}/{file}.pdf — the native app's way to a
+ * program PDF, now that the bucket is private (migration 300): the same gate as
+ * /api/files (serveFile → resolveVerifiedCaller: a verified member by bearer token, or
+ * the files cookie) and a 302 to a
+ * ten-minute signed URL. Only the two PDF folders.
  */
-export async function GET(_req: Request, ctx: { params: Promise<{ folder: string; file: string }> }) {
+export async function GET(request: Request, ctx: { params: Promise<{ folder: string; file: string }> }) {
   const { folder, file } = await ctx.params;
-  const key = programPlanKey(folder, file);
-  if (!key) return NextResponse.json({ error: 'not-found' }, { status: 404 });
-  const url = publicProgramPlanUrl(key);
-  if (!url) return NextResponse.json({ error: 'not-configured' }, { status: 503 });
-  return NextResponse.redirect(url, { status: 302, headers: { 'Cache-Control': 'no-store' } });
+  if (!programPlanKey(folder, file)) return NextResponse.json({ error: 'not-found' }, { status: 404 });
+  return serveFile(request, 'program-plans', [folder, file]);
 }

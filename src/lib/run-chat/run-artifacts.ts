@@ -4,8 +4,10 @@ import {
   LAPS_CLIPBOARD_VERSION,
   renderStravaLapsPng,
 } from './strava-laps-clipboard';
+import { fileRouteUrl } from '@/lib/storage/buckets';
+import { APP_URL } from '@/lib/constants';
 
-const BUCKET = 'run-chat';
+const BUCKET = 'run-chat' as const;
 
 function syntheticTotalLap(activity: {
   distance?: number | null;
@@ -43,7 +45,7 @@ export async function ensureLapsArtifact(
   const { data: bucket } = await supabase.storage.getBucket(BUCKET);
   if (!bucket) {
     const { error } = await supabase.storage.createBucket(BUCKET, {
-      public: true,
+      public: false,
       fileSizeLimit: 10_000_000,
     });
     if (error && !error.message.toLowerCase().includes('already exists')) throw error;
@@ -63,6 +65,6 @@ export async function ensureLapsArtifact(
     .upload(path, png, { contentType: 'image/png', upsert: true });
   if (uploadError) throw uploadError;
 
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  return `${data.publicUrl}?v=${LAPS_CLIPBOARD_VERSION}`;
+  // Absolute: it travels inside a Stream Chat message. Private bucket (lib/storage/buckets.ts).
+  return `${APP_URL}${fileRouteUrl(BUCKET, path)}?v=${LAPS_CLIPBOARD_VERSION}`;
 }

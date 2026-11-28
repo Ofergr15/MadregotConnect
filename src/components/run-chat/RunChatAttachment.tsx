@@ -13,9 +13,22 @@ import type {
   ToolTraceAttachment,
 } from '@/lib/run-chat/attachments';
 import type { PlannedWorkout } from '@/lib/run-chat/mock-workout';
+import { toFileRoute } from '@/lib/storage/buckets';
+
+// Messages already in Stream still carry the bucket's public link, which stops loading once
+// run-chat is private (migration 300): read them through /api/files like everything else.
+const LINK_KEYS = ['image_url', 'asset_url', 'thumb_url', 'laps_image_url'] as const;
+function withFileRoutes<T extends object>(attachment: T): T {
+  const a = attachment as Record<string, unknown>;
+  if (!LINK_KEYS.some((k) => typeof a[k] === 'string')) return attachment;
+  const out: Record<string, unknown> = { ...a };
+  for (const k of LINK_KEYS) if (typeof out[k] === 'string') out[k] = toFileRoute(out[k] as string);
+  return out as T;
+}
 
 /** Routes structured run-chat attachments while retaining Stream's native files/images. */
-export function RunChatAttachment(props: AttachmentProps) {
+export function RunChatAttachment(incoming: AttachmentProps) {
+  const props = { ...incoming, attachments: incoming.attachments.map(withFileRoutes) };
   const attachments = props.attachments as Array<Record<string, unknown>>;
   const custom = attachments.filter((attachment) =>
     ['workout', 'strava_run', 'tool_trace'].includes(String(attachment.type)),

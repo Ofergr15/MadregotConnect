@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSession, authError } from '@/lib/auth-session';
 import { DEVICE_COOKIE, DEVICE_COOKIE_OPTIONS, signDeviceToken } from '@/lib/auth/device-token';
+import { blockedFromApp } from '@/lib/auth/approval-gate';
+import { FILES_COOKIE, FILES_COOKIE_OPTIONS, signFilesCookie } from '@/lib/storage/file-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,5 +25,9 @@ export async function POST(request: NextRequest) {
 
   const response = NextResponse.json({ ok: true });
   response.cookies.set(DEVICE_COOKIE, token, DEVICE_COOKIE_OPTIONS);
+  // Every real login passes here, so the first screen's <img> tags already carry the
+  // private-file cookie (lib/storage/file-access.ts). Not for an unapproved/inactive row.
+  const files = blockedFromApp(auth.user) ? null : signFilesCookie(auth.user.isStaff || auth.user.isSuperUser ? 'staff' : 'member');
+  if (files) response.cookies.set(FILES_COOKIE, files, FILES_COOKIE_OPTIONS);
   return response;
 }

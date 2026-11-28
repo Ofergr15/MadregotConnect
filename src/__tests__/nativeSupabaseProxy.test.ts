@@ -101,15 +101,19 @@ describe('program-plans storage via our domain', () => {
 
   const get = (folder: string, file: string) => storage(new Request('https://www.madregot.app/x'), { params: Promise.resolve({ folder, file }) });
 
-  it('redirects to the CONFIGURED project public object, not a hardcoded host', async () => {
-    const res = await get('training-program', 'week-2026-11-22.pdf');
-    expect(res.status).toBe(302);
-    expect(res.headers.get('location')).toBe(`${EU}/storage/v1/object/public/program-plans/training-program/week-2026-11-22.pdf`);
-    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://another.supabase.co');
-    expect((await get('nutrition-plan', 'w.pdf')).headers.get('location')).toBe('https://another.supabase.co/storage/v1/object/public/program-plans/nutrition-plan/w.pdf');
+  it('is gated since the bucket went private (migration 300): no credential → 401', async () => {
+    expect((await get('training-program', 'week-2026-11-22.pdf')).status).toBe(401);
   });
 
-  it('access rule unchanged: only the public bucket objects, never another folder/bucket or a signed path', async () => {
+  it('reads the /api/files link new rows hold', () => {
+    expect(programPlanKeyFromStored('/api/files/program-plans/nutrition-plan/w.pdf')).toBe('nutrition-plan/w.pdf');
+    expect(nativePdfUrl('/api/files/program-plans/nutrition-plan/w.pdf')).toBe('/api/native/storage/program-plans/nutrition-plan/w.pdf');
+    for (const bad of ['/api/files/program-plans/secret/a.pdf', '/api/files/avatars/training-program/a.pdf', '/api/files/program-plans/training-program/a.pdf?x=1']) {
+      expect(programPlanKeyFromStored(bad)).toBeNull();
+    }
+  });
+
+  it('only the two PDF folders, never another folder/bucket or a signed path', async () => {
     for (const [f, n] of [['secret', 'a.pdf'], ['training-program', '..pdf'], ['training-program', 'a.txt'], ['..', 'a.pdf']]) {
       expect((await get(f, n)).status).toBe(404);
     }

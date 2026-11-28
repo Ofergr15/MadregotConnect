@@ -4,6 +4,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { logWeek } from '@/lib/week-setup/server';
 import { requireSession, authError } from '@/lib/auth-session';
 import { nativePdfUrl } from '@/lib/native/supabase-proxy';
+import { fileRouteUrl } from '@/lib/storage/buckets';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,8 +92,7 @@ export async function POST(request: NextRequest) {
     if (uploadError) {
       return NextResponse.json({ error: `Training upload failed: ${uploadError.message}` }, { status: 500 });
     }
-    const { data: urlData } = supabase.storage.from('program-plans').getPublicUrl(path);
-    trainingUrl = urlData.publicUrl;
+    trainingUrl = fileRouteUrl('program-plans', path);
   }
 
   if (nutritionFile && nutritionFile.size > 0) {
@@ -104,8 +104,7 @@ export async function POST(request: NextRequest) {
     if (uploadError) {
       return NextResponse.json({ error: `Nutrition upload failed: ${uploadError.message}` }, { status: 500 });
     }
-    const { data: urlData } = supabase.storage.from('program-plans').getPublicUrl(path);
-    nutritionUrl = urlData.publicUrl;
+    nutritionUrl = fileRouteUrl('program-plans', path);
   }
 
   // Only the columns this request actually has a value for.

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { fileRouteUrl } from '@/lib/storage/buckets';
 import { requireBirthdayAdmin } from '@/lib/birthday-year/access';
 import { readStorySettings } from '@/lib/stories/gate';
 
@@ -26,8 +27,7 @@ export async function POST(request: Request) {
     const { error } = await supabase.storage.from('feed-media')
       .upload(path, Buffer.from(await file.arrayBuffer()), { contentType: file.type, upsert: false });
     if (error) { console.error('[api/admin/birthdays/photo]', error); return NextResponse.json({ error: 'Upload failed' }, { status: 500 }); }
-    const { data } = supabase.storage.from('feed-media').getPublicUrl(path);
-    return NextResponse.json({ url: data.publicUrl });
+    return NextResponse.json({ url: fileRouteUrl('feed-media', path) });
   } catch (err) {
     console.error('birthday photo upload failed:', err);
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
