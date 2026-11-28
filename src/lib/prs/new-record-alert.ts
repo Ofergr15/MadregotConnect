@@ -9,6 +9,8 @@ import { attachLapsForPrs } from './attach-laps';
 import { readPrOverrides } from './overrides-store';
 import { readPrExclusions, type PrExclusions } from './exclusions-store';
 import { fetchAllRows } from '@/lib/supabase/paginate';
+import { areTwins, withoutTwins, type TwinCandidate } from '@/lib/academy/twins';
+import { isFeatureEnabled } from '@/lib/features/server';
 
 /**
  * "YOU JUST BROKE A RECORD" — the push and the in-app sheet that send the athlete to
@@ -33,6 +35,15 @@ import { fetchAllRows } from '@/lib/supabase/paginate';
  *  - Once per run: the notification row is the record of having said it. Two syncs
  *    of one run send one push.
  *  - One push per run, however many distances it broke.
+ *  - One run recorded twice (Garmin + its Strava copy) is one run. Uncollapsed, the
+ *    twin at the same time was "the record without this run", so a real PR read as a
+ *    tie and nobody was told; and a twin synced later under another id was told
+ *    again. Twins are collapsed before the comparison, and "said already" checks
+ *    every copy's id (task 159).
+ *  - A feed card for the club (kind 'personal_record'), behind `personal_record_feed`
+ *    (default off), once per run and its twins. The card carries the distances and
+ *    the run, never a time: the record screen it links to applies the runner's
+ *    hide-pace setting live, a time frozen in a feed payload could not.
  */
 export const RECENT_DAYS = 3;
 export const RECORD_KIND = 'record';
@@ -49,10 +60,14 @@ export interface NewRecord {
 
 /** The pure half: which records the latest runs just broke. */
 export function findNewRecords(
-  runs: RunActivityRow[],
+  runsIn: RunActivityRow[],
   opts: { excluded?: PrExclusions; now?: number; stated?: Map<string, number> } = {},
 ): NewRecord[] {
   const now = opts.now ?? Date.now();
+  // Twins collapsed first (see the header) — only possible when every row carries an id.
+  const runs = runsIn.every((r) => !!r.id)
+    ? withoutTwins(runsIn as unknown as Array<RunActivityRow & TwinCandidate>) as RunActivityRow[]
+    : runsIn;
   const bests = computeDistanceBests(runs, { excluded: opts.excluded });
   const out: NewRecord[] = [];
   for (const best of bests) {
@@ -79,6 +94,39 @@ export function newRecordUrl(athleteId: string, r: Pick<NewRecord, 'bucket' | 'a
   return `${teammateHref(athleteId) ?? '/dashboard/profile'}/records/${encodeURIComponent(r.bucket)}?new=${r.activityId}`;
 }
 
+/** The ids of `activityId` and every twin of it in `acts` — "this run", under any of its ids. */
+export function twinGroupIds(activityId: string, acts: Array<RunActivityRow & Partial<TwinCandidate>>): string[] {
+  const self = acts.find((a) => a.id === activityId);
+  if (!self) return [activityId];
+  const out = [activityId];
+  for (const a of acts) {
+    if (!a.id || a.id === activityId) continue;
+    if (areTwins(self as TwinCandidate, a as TwinCandidate)) out.push(a.id);
+  }
+  return out;
+}
+
+export const PERSONAL_RECORD_KIND = 'personal_record';
+
+/** The feed card's payload. No time on purpose (see the header). */
+export interface PersonalRecordPayload {
+  kind: typeof PERSONAL_RECORD_KIND;
+  athleteId: string;
+  activityId: string;
+  /** Shortest distance first, like the push. */
+  buckets: string[];
+}
+
+export function personalRecordPayload(athleteId: string, activityId: string, records: Pick<NewRecord, 'bucket'>[]): PersonalRecordPayload {
+  return { kind: PERSONAL_RECORD_KIND, athleteId, activityId, buckets: records.map((r) => r.bucket) };
+}
+
+/** Body for a client that doesn't know the kind. No time in it. */
+export function personalRecordBody(buckets: string[]): string {
+  const names = buckets.map((b) => HE[b] ?? b);
+  return names.length === 1 ? `🏆 שיא אישי חדש ב־${names[0]}` : `🏆 ${names.length} שיאים אישיים חדשים: ${names.join(', ')}`;
+}
+
 const HE: Record<string, string> = { '5k': '5 ק״מ', '10k': '10 ק״מ', hm: 'חצי מרתון', fm: 'מרתון' };
 const EN: Record<string, string> = { '5k': '5K', '10k': '10K', hm: 'half marathon', fm: 'marathon' };
 
@@ -86,10 +134,10 @@ export async function notifyNewRecords(athleteId: string): Promise<NewRecord[]> 
   const supabase: Supabase = createServerClient();
   if (await isNewMember(supabase, athleteId)) return [];
 
-  const acts = await fetchAllRows<RunActivityRow>((from, to) =>
+  const acts = await fetchAllRows<RunActivityRow & { source?: string | null }>((from, to) =>
     supabase
       .from('athlete_activities')
-      .select('id, activity_name, activity_type, start_time, distance, duration')
+      .select('id, activity_name, activity_type, start_time, distance, duration, source')
       .eq('athlete_id', athleteId)
       .order('start_time', { ascending: false })
       .order('id')
@@ -112,13 +160,15 @@ export async function notifyNewRecords(athleteId: string): Promise<NewRecord[]> 
 
   const sent: NewRecord[] = [];
   for (const [activityId, records] of byRun) {
-    // Said already? The notification row is the memory (kind 'record', the run in the url).
+    // Said already? The notification row is the memory (kind 'record', the run in the
+    // url) — under this id or any twin's: the Strava copy synced first is the same run.
+    const ids = twinGroupIds(activityId, acts as Array<RunActivityRow & Partial<TwinCandidate>>);
     const { data: prior } = await supabase
       .from('scheduled_notifications')
       .select('id')
       .eq('audience_id', athleteId)
       .eq('kind', RECORD_KIND)
-      .like('url', `%new=${activityId}%`)
+      .or(ids.map((id) => `url.like.*new=${id}*`).join(','))
       .limit(1);
     if (prior && prior.length) continue;
 
@@ -138,7 +188,39 @@ export async function notifyNewRecords(athleteId: string): Promise<NewRecord[]> 
       tag: `record-${activityId}`,
       category: 'achievements',
     });
+    await postPersonalRecordCard(supabase, athleteId, activityId, ids, records);
     sent.push(...records);
   }
   return sent;
+}
+
+/**
+ * The club's feed card for a new PR — flag `personal_record_feed` (default off), once per
+ * run and its twins (keyed on `payload.activityId`). Best effort: never throws, the push
+ * already went.
+ */
+export async function postPersonalRecordCard(
+  supabase: Supabase,
+  athleteId: string,
+  activityId: string,
+  twinIds: string[],
+  records: Pick<NewRecord, 'bucket'>[],
+): Promise<boolean> {
+  try {
+    if (!(await isFeatureEnabled('personal_record_feed', athleteId, supabase as never))) return false;
+    const { data: prior, error: priorError } = await supabase.from('feed_items').select('id')
+      .eq('type', 'achievement').eq('payload->>kind', PERSONAL_RECORD_KIND)
+      .in('payload->>activityId', twinIds).limit(1);
+    // Could not tell whether it is there: a second card is worse than none.
+    if (priorError || (prior && prior.length)) return false;
+    const payload = personalRecordPayload(athleteId, activityId, records);
+    const { error } = await supabase.from('feed_items').insert({
+      type: 'achievement', author_athlete_id: athleteId, body: personalRecordBody(payload.buckets),
+      payload, occurred_at: new Date().toISOString(),
+    });
+    return !error;
+  } catch (err) {
+    console.warn('personal record card skipped:', err);
+    return false;
+  }
 }
