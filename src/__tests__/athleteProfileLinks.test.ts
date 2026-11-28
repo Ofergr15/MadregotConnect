@@ -89,7 +89,6 @@ const PERSON_LISTS = [
   'components/ActivityFeed.tsx',
   'app/(app)/dashboard/activities/[activityId]/page.tsx',
   // Academy
-  'components/AcademyStats.tsx',
   'components/AcademyResults.tsx',
   // AcademyMyView left this list on 2026-10-06: the trainee home no longer shows
   // anybody else (the leaderboard went), and its one other person — the coach's
