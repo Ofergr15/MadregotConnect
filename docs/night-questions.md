@@ -6,3 +6,8 @@ Open owner questions from the unattended night runs. Each has the safe default t
 
 - **Which project may it write to?** Safe default shipped: only the dev project (`DEV_SUPABASE_REF`) or a local Supabase; any other ref needs `SEED_DEV_ALLOW_REF=<ref>` and the two production refs are refused even then. Dry run unless `--apply`. Open: is there a second sandbox project that should be on the allow-list permanently?
 - **Seeded runners live in the real coach's club (COACH_ID).** Default: yes, so the app's single-club screens show them; the existing dev coach row is never overwritten (insert-only). Open: should the seed use its own coach id instead, so it can be wiped cleanly?
+
+## Task 173 — seed-dev: races, weekly summaries, academy, chat
+
+- **Is there a dev Stream app for chat?** Chat lives in Stream, not the database, and the app's `STREAM_*` keys point at the production Stream app. Default shipped: the seed posts chat lines only with `--chat` and only with keys passed as `SEED_STREAM_API_KEY` / `SEED_STREAM_SECRET`; a plain `--apply` never touches Stream. If there is no separate dev Stream app, leave `--chat` unused.
+- **Staff roles on the seed's two staff rows.** #233 left them `runner` (the column default). Default: the first is `coach`, the second `academy_coach`, so the academy screens have a coach with a caseload.
