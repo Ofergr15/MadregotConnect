@@ -32,6 +32,7 @@ served without any SELECT policy; private buckets use `createSignedUrl()` (servi
 | `api/photos/enroll-selfie`, `api/photos/selfie-url` | reference-faces (private) | upload (upsert), remove, list, createSignedUrl | service role |
 | `api/activities/gpx`, `lib/strava/gpx-store.ts`, `lib/strava/enrich.ts` | run-gpx (private) | upload (upsert), download, createSignedUrl | service role (passed in) |
 | `lib/photos/drive-browse.ts`, `mux.ts`, `video-time.ts`, `mirror.ts` | photo mirror buckets | upload (upsert), download, list | service role (passed in, cron/route) |
+| `api/group-chat/photos`, `lib/group-chat/photos-server.ts` | group-chat-media (private, migration 347) | upload, remove, createSignedUrls (5 min) | service role (passed in) |
 
 Browser code (`src/lib/supabase/client.ts`, anon key) never calls `.storage`: the web uploads
 by POSTing the file to the routes above.
