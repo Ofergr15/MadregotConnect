@@ -288,6 +288,15 @@ export const DEV_API_ALLOWLIST: ReadonlyArray<readonly [string, string]> = [
   ['POST', '/api/runs/meetups/pin-check'],
   ['POST', '/api/runs/meetups/requests'],
   ['POST', '/api/shoes'],
+  // b26 group chat + weekly story (QA 2026-11-28, Q28-1): the app calls them, every handler
+  // gates on resolveVerifiedCaller. Listed here so the prod route gate checks they exist.
+  ['GET', '/api/group-chat'],
+  ['POST', '/api/group-chat'],
+  ['POST', '/api/group-chat/messages'],
+  ['PATCH', '/api/group-chat/messages'],
+  ['DELETE', '/api/group-chat/messages'],
+  ['GET', '/api/week-story'],
+  ['PATCH', '/api/week-story'],
   // U21 questionnaire submit: public like the web /u21 form, own env guard pinned to the dev project.
   ['POST', '/api/u21/register'],
   ['POST', '/api/workout-feedback'],
