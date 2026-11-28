@@ -8,6 +8,7 @@ import {
   editTarget, isMissingSchema, mergePending, normaliseBlocks, projectEvent, visibleBlocks, isVisibleTo,
 } from '@/lib/events/lifecycle';
 import { callerIsStaff, loadBlocks, optionalCaller, replaceBlocks } from '@/lib/events/server';
+import { rebalanceWaitlist } from '@/lib/events/rsvp-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -155,6 +156,10 @@ export async function PATCH(
       throw error;
     }
     if (!data) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    // A capacity edit frees (or removes the limit on) spots: fill them from the waitlist.
+    if ('capacity' in updates) {
+      try { await rebalanceWaitlist(supabase, id, data.capacity ?? null); } catch (e) { console.error('event waitlist rebalance failed:', e); }
+    }
 
     return NextResponse.json({ event: data, pending: false });
   } catch (error) {

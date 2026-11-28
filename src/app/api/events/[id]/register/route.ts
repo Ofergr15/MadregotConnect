@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, authError } from '@/lib/auth-session';
 import { isVisibleTo } from '@/lib/events/lifecycle';
-import type { EventRegistrationStatus } from '@/lib/events';
+import { rsvpDecision } from '@/lib/events/rsvp';
+import { rebalanceWaitlist } from '@/lib/events/rsvp-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,23 +74,42 @@ export async function POST(
       .neq('athlete_id', auth.user.athleteId);
     if (countError) throw countError;
 
-    const hasRoom = event.capacity == null || (othersRegistered || 0) < event.capacity;
-    const status: EventRegistrationStatus = hasRoom ? 'registered' : 'waitlisted';
-
-    const { data: registration, error } = await supabase
+    const { data: existing, error: exErr } = await supabase
       .from('event_registrations')
-      .upsert(
-        {
-          event_id: eventId,
-          athlete_id: auth.user.athleteId,
-          status,
-          created_at: new Date().toISOString(),
-        },
-        { onConflict: 'event_id,athlete_id' },
-      )
       .select('id, event_id, athlete_id, status, created_at')
-      .single();
-    if (error) throw error;
+      .eq('event_id', eventId)
+      .eq('athlete_id', auth.user.athleteId)
+      .maybeSingle();
+    if (exErr) throw exErr;
+
+    // Idempotent (lib/events/rsvp.ts): a repeat tap changes nothing, and a waitlisted
+    // member keeps their place in line instead of being re-queued at the back.
+    const decision = rsvpDecision(existing, othersRegistered || 0, event.capacity);
+    let registration = existing as { id: string; event_id: string; athlete_id: string; status: string; created_at: string } | null;
+    if (decision.action === 'promote' && existing) {
+      const { data, error } = await supabase.from('event_registrations')
+        .update({ status: 'registered' }).eq('id', existing.id)
+        .select('id, event_id, athlete_id, status, created_at').single();
+      if (error) throw error;
+      registration = data;
+    } else if (decision.action === 'write') {
+      const { data, error } = await supabase
+        .from('event_registrations')
+        .upsert(
+          {
+            event_id: eventId,
+            athlete_id: auth.user.athleteId,
+            status: decision.status,
+            created_at: new Date().toISOString(),
+          },
+          { onConflict: 'event_id,athlete_id' },
+        )
+        .select('id, event_id, athlete_id, status, created_at')
+        .single();
+      if (error) throw error;
+      registration = data;
+    }
+    if (!registration) throw new Error('registration missing after RSVP');
 
     const summary = await capacitySummary(supabase, eventId, event.capacity);
 
@@ -150,31 +170,14 @@ export async function DELETE(
       .eq('id', existing.id);
     if (cancelError) throw cancelError;
 
-    let promotedAthleteId: string | null = null;
-    // Only cancelling a truly `registered` row frees a real spot; cancelling
-    // a `waitlisted` row changes nothing capacity-wise.
-    if (existing.status === 'registered' && event.capacity != null) {
-      const { data: nextInLine } = await supabase
-        .from('event_registrations')
-        .select('id, athlete_id')
-        .eq('event_id', eventId)
-        .eq('status', 'waitlisted')
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      if (nextInLine) {
-        const { error: promoteError } = await supabase
-          .from('event_registrations')
-          .update({ status: 'registered' })
-          .eq('id', nextInLine.id);
-        if (promoteError) throw promoteError;
-        promotedAthleteId = nextInLine.athlete_id;
-      }
-    }
+    // Only cancelling a truly `registered` row frees a spot. Rebalance to the CURRENT
+    // capacity rather than promoting exactly one, so a capacity raised since the last
+    // cancel is filled too (lib/events/rsvp.ts).
+    const promoted = existing.status === 'registered' ? await rebalanceWaitlist(supabase, eventId, event.capacity) : [];
+    const promotedAthleteId: string | null = promoted[0] ?? null;
 
     const summary = await capacitySummary(supabase, eventId, event.capacity);
-    return NextResponse.json({ success: true, promotedAthleteId, ...summary });
+    return NextResponse.json({ success: true, promotedAthleteId, promotedAthleteIds: promoted, ...summary });
   } catch (error) {
     console.error('Failed to cancel event registration:', error);
     return NextResponse.json({ error: 'Failed to cancel event registration' }, { status: 500 });

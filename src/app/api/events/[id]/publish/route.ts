@@ -6,6 +6,7 @@ import { isMissingSchema, publishPatch, type PublishMode } from '@/lib/events/li
 import { replaceBlocks } from '@/lib/events/server';
 import { resolveAudience, sendPushLocalized } from '@/lib/push';
 import { newEventCopy } from '@/lib/notifications/copy';
+import { rebalanceWaitlist } from '@/lib/events/rsvp-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +48,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (upErr) {
       if (isMissingSchema(upErr)) return NextResponse.json({ error: 'Publishing needs migration 184' }, { status: 409 });
       throw upErr;
+    }
+    // Publishing a pending edit can change the capacity: fill any freed spots.
+    if (data && res.patch && 'capacity' in (res.patch as Record<string, unknown>)) {
+      try { await rebalanceWaitlist(supabase, id, data.capacity ?? null); } catch (e) { console.error('event waitlist rebalance failed:', e); }
     }
 
     let notified = 0;
