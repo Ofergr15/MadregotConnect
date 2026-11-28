@@ -9,6 +9,7 @@ import {
 } from '@/lib/events/lifecycle';
 import { callerIsStaff, loadBlocks, optionalCaller, replaceBlocks } from '@/lib/events/server';
 import { rebalanceWaitlist } from '@/lib/events/rsvp-server';
+import { withSchedule } from '@/lib/events/schedule';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,7 +67,7 @@ export async function GET(
       event = { ...event, ...(p.fields ?? {}) };
       if (p.blocks) blocks = p.blocks;
     }
-    return NextResponse.json({ event, blocks });
+    return NextResponse.json({ event: withSchedule(event), blocks });
   } catch (error) {
     console.error('Failed to fetch event:', error);
     return NextResponse.json({ error: 'Failed to fetch event' }, { status: 500 });
