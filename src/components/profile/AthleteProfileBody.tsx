@@ -186,7 +186,7 @@ export function AthleteProfileBody({
   // once the PRs tab is open; on a teammate's it is never shown (profileClubRanks).
   // The board is a snapshot served from one row, so this is a cheap read.
   const { data: board } = useApi<{ buckets?: ClubRecordBucket[] }>(
-    owner && section === 'prs' ? '/api/club/records' : null,
+    owner && section === 'prs' ? '/api/club/records?view=buckets' : null,
   );
   const ranks = profileClubRanks(board?.buckets, athleteId, owner);
 

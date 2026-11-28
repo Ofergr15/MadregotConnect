@@ -46,6 +46,11 @@ export async function fetchActivities(
     limit?: number;
     selfOnly?: boolean;
     volumeOnly?: boolean;
+    /**
+     * `shape=list` — the row without `splits`/`laps` (most of its bytes) and the
+     * rarely-read columns. For callers that never draw splits (task 102).
+     */
+    listOnly?: boolean;
     sinceDays?: number;
     since?: string;
     until?: string;
@@ -58,6 +63,7 @@ export async function fetchActivities(
   if (options.limit) params.set('limit', String(options.limit));
   if (options.selfOnly) params.set('scope', 'self');
   if (options.volumeOnly) params.set('shape', 'volume');
+  else if (options.listOnly) params.set('shape', 'list');
   if (options.sinceDays) {
     // Date-only (YYYY-MM-DD), not a full timestamp: start_time is stored as the
     // athlete's wall clock, so a UTC instant here would shift the boundary a few

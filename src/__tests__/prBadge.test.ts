@@ -20,7 +20,7 @@ describe('the runs that hold a record', () => {
 
   it('is asked for by everyone (since 2026-10-16), and shown on the feed card and the run page', () => {
     const badge = readFileSync('src/components/PrBadge.tsx', 'utf8');
-    expect(badge).toMatch(/useApi<\{ buckets\?: RecordBucketLike\[\] \}>\('\/api\/club\/records'\)/);
+    expect(badge).toMatch(/useApi<\{ buckets\?: RecordBucketLike\[\] \}>\('\/api\/club\/records\?view=buckets'\)/);
     expect(readFileSync('src/components/FeedCard.tsx', 'utf8')).toMatch(/const prBuckets = usePrRuns\(\)\.get\(act\.id\);/);
     const runPage = readFileSync('src/app/(app)/dashboard/activities/[activityId]/page.tsx', 'utf8');
     expect(runPage).toMatch(/<PrBadge\s+buckets=\{prRuns\.get\(act\.id\)\}/);

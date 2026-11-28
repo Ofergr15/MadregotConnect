@@ -267,7 +267,7 @@ export default function DashboardPage() {
         // beat 200 other people's runs to be in it at all, so the deep-link
         // quietly did nothing for a coach who also runs. No `limit` here: the
         // id can be an older activity if the push sat unopened.
-        const res = await fetchActivities({ selfOnly: true });
+        const res = await fetchActivities({ selfOnly: true, listOnly: true });
         if (!res.ok) return;
         const data = await res.json();
         const found = (data.activities || []).find(
@@ -384,7 +384,7 @@ export default function DashboardPage() {
       // greet the club's own admin with "0 runs this week". 30 own rows covers
       // three recents, any single week, and the diff below (a genuinely new
       // activity lands at the top, so a shorter page can't invent one).
-      const activitiesPromise = fetchActivities({ limit: 30, selfOnly: true });
+      const activitiesPromise = fetchActivities({ limit: 30, selfOnly: true, listOnly: true });
 
       try {
         let hasStrava = false;
@@ -463,7 +463,7 @@ export default function DashboardPage() {
           try {
             // Same shape as the pre-sync snapshot above — the diff below compares
             // the two, so they have to be the same page of the same athlete.
-            const refreshRes = await fetchActivities({ limit: 30, selfOnly: true });
+            const refreshRes = await fetchActivities({ limit: 30, selfOnly: true, listOnly: true });
             if (refreshRes.ok) {
               const refreshData = await refreshRes.json();
               const allActs = refreshData.activities || [];

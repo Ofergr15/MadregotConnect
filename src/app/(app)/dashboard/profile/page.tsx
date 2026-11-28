@@ -323,7 +323,7 @@ function ProfileContent() {
       // `selfOnly` is what makes `limit: 1` correct: without it the server hands
       // staff the club-wide list, so for a coach who also runs the single newest
       // row would be somebody else's and this would read as "no activities".
-      fetchActivities({ limit: 1, selfOnly: true })
+      fetchActivities({ limit: 1, selfOnly: true, listOnly: true })
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           const acts = data?.activities || [];

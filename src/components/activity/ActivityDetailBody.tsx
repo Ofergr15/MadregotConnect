@@ -287,6 +287,11 @@ export function ActivityDetailBody({
         </Section>
       )}
       {!mapOnly && !an?.workout && watchLaps && <Laps laps={watchLaps} />}
+      {/* A row from a list shape (the week screen asks for shape=list) carries no splits: until
+          the details answer, hold the splits' place with a skeleton instead of popping them in. */}
+      {!mapOnly && loading && !details && splits.length === 0 && !(trace?.kmSplits && trace.kmSplits.length > 1) && (
+        <div data-testid="splits-skeleton" aria-busy="true" className="animate-pulse rounded-card bg-card" style={{ height: 180 }} />
+      )}
       {!mapOnly && !(trace?.kmSplits && trace.kmSplits.length > 1) && <KmSplits streamKm={trace?.kmSplits ?? null} splits={splits} maxHr={trace?.maxHr ?? maxHR} />}
       {hero && !mapOnly && (
         <Section title={tr('moreMetrics')}>

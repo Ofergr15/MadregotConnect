@@ -218,13 +218,17 @@ export default function ActivitiesPage() {
   //    coach those 200 rows are club-wide and cover roughly two weeks at this
   //    club's volume, so paging back a month showed an empty week with no
   //    explanation. A window can't be truncated that way.
+  //  - Shape (decision 28.11, task 102): `listOnly` — no `splits`/`laps` per row
+  //    (~60% of this screen's bytes). The one expanded card gets its splits from
+  //    /api/activities/details and holds a splits skeleton until then
+  //    (ActivityDetailBody), so nothing jumps.
   const fetchActivities = async (weekStart: string) => {
     setLoading(true);
     try {
       // `until` is exclusive, so it's the Monday AFTER the week being shown.
       const end = new Date(weekStart + 'T00:00:00');
       end.setDate(end.getDate() + 7);
-      const res = await fetchActivitiesScoped({ since: weekStart, until: iso(end) });
+      const res = await fetchActivitiesScoped({ since: weekStart, until: iso(end), listOnly: true });
       if (res.ok) {
         const data = await res.json();
         setActivities(data.activities || []);
@@ -263,7 +267,7 @@ export default function ActivitiesPage() {
     // only needs to refresh the week on screen.
     const end = new Date(weekStartDate + 'T00:00:00');
     end.setDate(end.getDate() + 7);
-    const res = await fetchActivitiesScoped({ since: weekStartDate, until: iso(end) });
+    const res = await fetchActivitiesScoped({ since: weekStartDate, until: iso(end), listOnly: true });
     if (res.ok) {
       const data = await res.json();
       setActivities(data.activities || []);

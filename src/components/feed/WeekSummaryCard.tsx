@@ -81,7 +81,7 @@ export function WeekSummaryCard() {
         // keeps the oldest day whole whichever side of midnight we are on.
         const [res, nights] = await Promise.all([
           // The trial also reads the week before, for the comparison.
-          fetchActivities({ selfOnly: true, sinceDays: trial ? 15 : 8 }),
+          fetchActivities({ selfOnly: true, sinceDays: trial ? 15 : 8, listOnly: true }),
           // Sleep + resting HR (#69). Optional: a failure is a week without them.
           fetch(`/api/wellness?days=${trial ? 16 : 9}`, { headers: await apiHeaders() })
             .then(r => (r.ok ? r.json() : { nights: [] }))

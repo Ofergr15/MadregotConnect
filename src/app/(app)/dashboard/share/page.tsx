@@ -31,7 +31,7 @@ import { addDaysToDateStr, israelToday } from '@/lib/utils';
 import { fetchStoryAccess } from '@/lib/stories/client';
 
 async function lastRun(): Promise<ShareSubject | null> {
-  const res = await fetchActivities({ selfOnly: true, limit: 1 });
+  const res = await fetchActivities({ selfOnly: true, limit: 1, listOnly: true });
   if (!res.ok) return null;
   const act = ((await res.json()).activities ?? [])[0] as { id?: string } | undefined;
   if (!act?.id) return null;
@@ -44,7 +44,7 @@ async function thisWeek(): Promise<ShareSubject | null> {
   if (!(await fetchStoryAccess('weekly')).allowed) return null;
   // Fifteen days for the week before, and a day of slack either side, as on the feed card.
   const [res, nights] = await Promise.all([
-    fetchActivities({ selfOnly: true, sinceDays: 15 }),
+    fetchActivities({ selfOnly: true, sinceDays: 15, listOnly: true }),
     fetch('/api/wellness?days=16', { headers: await apiHeaders() })
       .then(r => (r.ok ? r.json() : { nights: [] }))
       .then(d => (d.nights || []) as WellnessNight[])
