@@ -24,6 +24,7 @@ import { backfillActivityStreams } from '@/lib/garmin/stream-backfill';
 import { backfillGarminHistory } from '@/lib/garmin/history-backfill';
 import { requireCallerForAthlete, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { looksLikeAuthFailure, markProviderAuthFailed, markProviderSynced } from '@/lib/providers/health';
+import { isAuthFailing, shouldAttemptGarmin } from '@/lib/garmin/auth-backoff';
 import { fillMissingProfileFields, garminProfileFields } from '@/lib/providers/profile';
 
 export const dynamic = 'force-dynamic';
@@ -155,7 +156,12 @@ export async function runSyncRequest(request: Request) {
 
     // gender/birth_date ride along so the profile auto-fill below can tell whether
     // this athlete still needs asking, without a second query per athlete.
-    let { data: athletes, error: athError } = await buildAthleteQuery('id, name, garmin_auth, active_shoe_id, gender, birth_date');
+    // garmin_auth_failed_at / garmin_last_sync_at feed the auth backoff (task 94); without them
+    // (101 not applied) every athlete is simply attempted, as before — the shoe column stays.
+    let { data: athletes, error: athError } = await buildAthleteQuery('id, name, garmin_auth, active_shoe_id, gender, birth_date, garmin_auth_failed_at, garmin_last_sync_at');
+    if (athError?.code === '42703') {
+      ({ data: athletes, error: athError } = await buildAthleteQuery('id, name, garmin_auth, active_shoe_id, gender, birth_date'));
+    }
     if (athError?.code === '42703') {
       // active_shoe_id or garmin_last_sync_at not migrated yet — degrade to the
       // pre-shoes shape, unordered, rather than failing sync for every athlete
@@ -170,7 +176,11 @@ export async function runSyncRequest(request: Request) {
     let totalSynced = 0;
     const results: Array<{ athleteId: string; name: string; synced: number; strength?: { inserted: number; upgraded: number; setsFetched: number }; upgradedFromStrava?: number; sameDeviceDupes?: number; profileFilled?: string[]; error?: string }> = [];
     const skipped: string[] = [];
+    const backedOff: string[] = [];
     const startedAt = Date.now();
+    // Task 94: refuse-streak markers, so a repeat failure keeps the FIRST failure time.
+    const failing = (a: any) => isAuthFailing(a.garmin_auth_failed_at, a.garmin_last_sync_at);
+    const markFailed = (a: any) => (failing(a) ? Promise.resolve() : markProviderAuthFailed(supabase, a.id, 'garmin'));
 
     for (const athlete of athletes) {
       if (!athlete.garmin_auth) continue;
@@ -180,6 +190,12 @@ export async function runSyncRequest(request: Request) {
       // who was missed, and the passes queued behind this one still get to run.
       if (!athleteId && Date.now() - startedAt > budget) {
         skipped.push(athlete.name);
+        continue;
+      }
+      // Task 94: a credential Garmin keeps refusing is retried on a backoff, not every tick.
+      // A member's own sync (athleteId) always tries.
+      if (!athleteId && !shouldAttemptGarmin(athlete, Date.now())) {
+        backedOff.push(athlete.id);
         continue;
       }
 
@@ -192,7 +208,7 @@ export async function runSyncRequest(request: Request) {
           // A rejected credential is the one failure the athlete has to act on, and
           // until now it was indistinguishable from a Garmin blip: both landed in
           // `results` and the profile screen went on saying "Connected" either way.
-          if (looksLikeAuthFailure(fetchErr)) await markProviderAuthFailed(supabase, athlete.id, 'garmin');
+          if (looksLikeAuthFailure(fetchErr)) await markFailed(athlete);
           results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: `Fetch failed: ${fetchErr.message}` });
           continue;
         }
@@ -654,14 +670,14 @@ export async function runSyncRequest(request: Request) {
           ...(filledProfile.length ? { profileFilled: filledProfile } : {}),
         });
       } catch (e: any) {
-        if (looksLikeAuthFailure(e)) await markProviderAuthFailed(supabase, athlete.id, 'garmin');
+        if (looksLikeAuthFailure(e)) await markFailed(athlete);
         results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: e.message });
       }
     }
 
     // `skipped` only ever appears when the budget bit, so a non-empty value in the
     // cron log is the signal that the club has outgrown one tick.
-    return NextResponse.json({ synced: totalSynced, results, ...(skipped.length ? { skipped } : {}) });
+    return NextResponse.json({ synced: totalSynced, results, ...(skipped.length ? { skipped } : {}), ...(backedOff.length ? { backedOff: backedOff.length } : {}) });
   } catch (error: any) {
     console.error('Activity sync error:', error);
     return NextResponse.json({ error: error.message || 'Sync failed' }, { status: 500 });

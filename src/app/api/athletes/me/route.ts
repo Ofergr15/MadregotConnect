@@ -6,6 +6,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { KIT_SIZE_FIELDS } from '@/lib/kit-sizes';
 import { PROVIDER_HEALTH_COLUMNS_101, connectionState } from '@/lib/providers/health';
+import { garminReconnect } from '@/lib/garmin/auth-backoff';
 import { nameProblem, normalizeDisplayName } from '@/lib/names/latin';
 import { historyImportStatus, readHistoryCursors, type HistoryImportStatus } from '@/lib/garmin/history-schedule';
 import { weekStartDayOf } from '@/lib/utils';
@@ -170,6 +171,9 @@ async function handleGET(req: NextRequest) {
         authFailedAt: (data as any).garmin_auth_failed_at,
       }),
       garminLastSyncAt: (data as any).garmin_last_sync_at || null,
+      // Task 94: what to tell a member whose credential Garmin refuses — reconnect, since when,
+      // and when the sync will next try on its own (it backs off, lib/garmin/auth-backoff.ts).
+      garminReconnect: garminReconnect(data as any, Date.now()),
       stravaState: connectionState({
         hasAuth: !!data.strava_auth,
         lastSyncAt: (data as any).strava_last_sync_at,
