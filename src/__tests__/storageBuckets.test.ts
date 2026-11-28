@@ -36,8 +36,8 @@ describe('every bucket the code names is in lib/storage/buckets.ts', () => {
     }
   });
 
-  it('migration 252 makes private exactly the buckets /api/files serves', () => {
-    const sql = readFileSync(join(SRC, '../supabase/migrations/252_private_buckets.sql'), 'utf8');
+  it('migration 300 makes private exactly the buckets /api/files serves', () => {
+    const sql = readFileSync(join(SRC, '../supabase/migrations/300_private_buckets.sql'), 'utf8');
     const update = sql.slice(sql.indexOf('UPDATE storage.buckets\n'));
     const ids = [...update.slice(0, update.indexOf(';')).matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1]).sort();
     expect(ids).toEqual([...SERVED_BUCKETS].sort());

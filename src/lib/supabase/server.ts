@@ -63,7 +63,7 @@ export interface ServerClientOptions {
 /**
  * Rows still hold `https://<project>/storage/v1/object/public/<bucket>/…` links, written
  * when those buckets were public, and every API route hands them out. Once a bucket is
- * private (lib/storage/buckets.ts, migration 252) those links answer 400 — so they are
+ * private (lib/storage/buckets.ts, migration 300) those links answer 400 — so they are
  * rewritten HERE, on the one path every server read takes, into /api/files/<bucket>/…,
  * and no row needs migrating. Database answers (rest/v1) only; storage calls untouched.
  */

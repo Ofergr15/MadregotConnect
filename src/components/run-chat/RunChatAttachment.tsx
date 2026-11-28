@@ -16,7 +16,7 @@ import type { PlannedWorkout } from '@/lib/run-chat/mock-workout';
 import { toFileRoute } from '@/lib/storage/buckets';
 
 // Messages already in Stream still carry the bucket's public link, which stops loading once
-// run-chat is private (migration 252): read them through /api/files like everything else.
+// run-chat is private (migration 300): read them through /api/files like everything else.
 const LINK_KEYS = ['image_url', 'asset_url', 'thumb_url', 'laps_image_url'] as const;
 function withFileRoutes<T extends object>(attachment: T): T {
   const a = attachment as Record<string, unknown>;

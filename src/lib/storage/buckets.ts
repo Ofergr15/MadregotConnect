@@ -5,7 +5,7 @@
  * `public: true` means anyone with the URL reads the file AND anyone holding the anon key
  * (it ships in the web bundle) can list the bucket — Supabase serves a public bucket with
  * no RLS at all, so migration 223 dropping the SELECT policies did not stop that. The only
- * lever is `storage.buckets.public = false` (migration 252).
+ * lever is `storage.buckets.public = false` (migration 300).
  *
  * A private bucket marked `serve` is read through GET /api/files/<bucket>/<path>
  * (lib/storage/file-access.ts): a verified member (or staff, for 'staff') gets a 302 to a

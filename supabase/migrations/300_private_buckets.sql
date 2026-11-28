@@ -1,4 +1,4 @@
--- 252_private_buckets.sql — owner rule 2026-11-28: no bucket is public without a reason.
+-- 300_private_buckets.sql — owner rule 2026-11-28: no bucket is public without a reason.
 -- NOT applied. Paste by hand in the Supabase SQL editor, AFTER the deploy that ships
 -- /api/files (lib/storage/buckets.ts) is live in production. Idempotent.
 --

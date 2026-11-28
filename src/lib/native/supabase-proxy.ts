@@ -31,7 +31,7 @@ const BUCKET_PATH = `/storage/v1/object/public/${PROGRAM_PLANS_BUCKET}/`;
  */
 export function programPlanKeyFromStored(stored: string | null | undefined): string | null {
   if (!stored) return null;
-  // Written since the bucket went private (migration 252): the /api/files link.
+  // Written since the bucket went private (migration 300): the /api/files link.
   const route = /^\/api\/files\/program-plans\/([^/?#]+)\/([^/?#]+)$/.exec(stored);
   if (route) return programPlanKey(route[1], route[2]);
   let u: URL;

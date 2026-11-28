@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/native/storage/program-plans/{folder}/{file}.pdf — the native app's way to a
- * program PDF, now that the bucket is private (migration 252): the same gate as
+ * program PDF, now that the bucket is private (migration 300): the same gate as
  * /api/files (serveFile → resolveVerifiedCaller: a verified member by bearer token, or
  * the files cookie) and a 302 to a
  * ten-minute signed URL. Only the two PDF folders.

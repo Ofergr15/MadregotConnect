@@ -101,7 +101,7 @@ describe('program-plans storage via our domain', () => {
 
   const get = (folder: string, file: string) => storage(new Request('https://www.madregot.app/x'), { params: Promise.resolve({ folder, file }) });
 
-  it('is gated since the bucket went private (migration 252): no credential → 401', async () => {
+  it('is gated since the bucket went private (migration 300): no credential → 401', async () => {
     expect((await get('training-program', 'week-2026-11-22.pdf')).status).toBe(401);
   });
 
