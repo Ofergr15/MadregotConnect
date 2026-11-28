@@ -155,6 +155,7 @@ Who may call each route, and why the public ones are safe, is in `docs/route-aut
 | `/api/admin/entry-queue` | GET | requireStaffCaller | dyn cached | '42703' = Postgres undefined_column; 'PGRST204' = PostgREST's schema cache. |
 | `/api/admin/finance/remind` | POST | resolveVerifiedCaller | dyn | POST /api/admin/finance/remind { athleteId } — כספים › "תזכורת": one in-app notification to that academy trainee, with the same words the… |
 | `/api/admin/finance` | GET | resolveVerifiedCaller | dyn | GET /api/admin/finance?month=YYYY-MM — כספים (design/b22/finance/mockup-v3.html): this month's income, a 6-month trend, the three streams… |
+| `/api/admin/garmin-health` | GET | requireStaff | dyn | GET /api/admin/garmin-health — staff-only. |
 | `/api/admin/group-change-requests` | GET,POST | requireStaffCaller | dyn | Staff decide pack-change requests (BUILD-BRIEF gap 4, decision: decided in the app). |
 | `/api/admin/leads` | GET | requireStaffCaller | dyn cached | Try each column list in turn; a missing table or column is "nothing", never a 500. |
 | `/api/admin/leads/touch` | POST | requireStaffCaller | dyn |  |
