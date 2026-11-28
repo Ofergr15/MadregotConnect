@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import sharp from 'sharp';
 import { createServerClient } from '@/lib/supabase/server';
+import { fileRouteUrl } from '@/lib/storage/buckets';
 import { requireStaff } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
@@ -41,8 +42,7 @@ export async function POST(request: Request) {
     const path = `${slot}/${crypto.randomUUID()}.webp`;
     const { error } = await supabase.storage.from('event-images').upload(path, out, { contentType: 'image/webp', upsert: false });
     if (error) return NextResponse.json({ error: `Upload failed: ${error.message}` }, { status: 500 });
-    const { data } = supabase.storage.from('event-images').getPublicUrl(path);
-    return NextResponse.json({ url: data.publicUrl, path, bytes: out.length });
+    return NextResponse.json({ url: fileRouteUrl('event-images', path), path, bytes: out.length });
   } catch (err) {
     console.error('Event image upload error:', err);
     return NextResponse.json({ error: 'Failed to upload image' }, { status: 500 });

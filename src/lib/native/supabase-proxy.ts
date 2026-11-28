@@ -31,6 +31,9 @@ const BUCKET_PATH = `/storage/v1/object/public/${PROGRAM_PLANS_BUCKET}/`;
  */
 export function programPlanKeyFromStored(stored: string | null | undefined): string | null {
   if (!stored) return null;
+  // Written since the bucket went private (migration 252): the /api/files link.
+  const route = /^\/api\/files\/program-plans\/([^/?#]+)\/([^/?#]+)$/.exec(stored);
+  if (route) return programPlanKey(route[1], route[2]);
   let u: URL;
   try {
     u = new URL(stored);
@@ -56,10 +59,4 @@ export function nativePdfUrl(stored: string | null | undefined): string | null {
     return stored;
   }
   return null;
-}
-
-/** The current project's public URL for a program-plans object key. */
-export function publicProgramPlanUrl(key: string): string | null {
-  const base = supabaseBase();
-  return base ? `${base}${BUCKET_PATH}${key}` : null;
 }

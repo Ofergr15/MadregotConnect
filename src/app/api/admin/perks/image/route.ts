@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { fileRouteUrl } from '@/lib/storage/buckets';
 import { requireSession, authError } from '@/lib/auth-session';
 
 export const dynamic = 'force-dynamic';
@@ -42,8 +43,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
     }
 
-    const { data: urlData } = supabase.storage.from('perk-images').getPublicUrl(path);
-    return NextResponse.json({ path, url: urlData.publicUrl });
+    return NextResponse.json({ path, url: fileRouteUrl('perk-images', path) });
   } catch (err: unknown) {
     console.error('Perk image upload error:', err);
     console.error('[api/admin/perks/image]', err);

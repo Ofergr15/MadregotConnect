@@ -1,4 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server';
+import { signedLinkFor } from '@/lib/storage/file-access';
 import { decrypt } from '@/lib/encryption';
 import { readMaintenance } from '@/lib/maintenance';
 import {
@@ -110,7 +111,8 @@ const VOLATILE_TABLES = new Set(['app_settings', 'client_events', 'cron_tick_loc
 
 // ── The suite ──────────────────────────────────────────────────────────────────
 export async function runMoveChecks(caller: { athleteId: string | null; tokenIssHost: string | null }): Promise<CheckResult[]> {
-  const db = createServerClient();
+  // Raw rows: the link checks below look for the stored project host itself.
+  const db = createServerClient({ rawStorageUrls: true });
   const snap = await readMoveSnapshot();
   const status = await readMoveStatus();
   const isNew = onNewProject();
@@ -216,7 +218,9 @@ export async function runMoveChecks(caller: { athleteId: string | null; tokenIss
       const list = [...urls].slice(0, 30);
       if (!list.length) return { status: 'warn', title: 'No stored file links found to sample', detail: 'avatars and feed media scanned' };
       const res = await pool(list, 8, async (u) => {
-        const r = await fetch(u, { headers: { Range: 'bytes=0-0' }, cache: 'no-store' }).catch(() => null);
+        // A private bucket's public link answers 400 by design; load the object signed.
+        const target = (await signedLinkFor(u).catch(() => undefined)) ?? u;
+        const r = await fetch(target, { headers: { Range: 'bytes=0-0' }, cache: 'no-store' }).catch(() => null);
         return { u, ok: !!r && (r.status === 200 || r.status === 206), host: new URL(u).hostname };
       });
       const bad = res.filter((r) => !r.ok);

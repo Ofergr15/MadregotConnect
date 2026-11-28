@@ -4,6 +4,7 @@ import { getSupabase } from '@/lib/supabase/client';
 import { clearIdentityKeys } from '@/lib/auth/identity-keys';
 import { blockSilentReauth } from '@/lib/auth/silent-reauth';
 import { clearPendingVerifier } from '@/lib/auth/login-handoff';
+import { forgetFilesCookie } from '@/lib/storage/files-cookie-client';
 
 /**
  * Sign out for real, everywhere this browser keeps a claim to an identity.
@@ -44,4 +45,5 @@ export async function signOutEverywhere(): Promise<void> {
   blockSilentReauth();
   clearPendingVerifier();
   clearIdentityKeys();
+  forgetFilesCookie();
 }

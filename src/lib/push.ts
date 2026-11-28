@@ -1,3 +1,4 @@
+import { signedLinkFor } from '@/lib/storage/file-access';
 import { randomUUID } from 'crypto';
 import { readCutoff, isMissingColumn } from '@/lib/notifications/seen';
 import { isTestAccount } from '@/lib/athletes/test-accounts';
@@ -534,6 +535,12 @@ export async function sendPushDetailed(
 ): Promise<{ sent: number; byAthlete: Record<string, number> }> {
   const empty = { sent: 0, byAthlete: {} as Record<string, number> };
   if (subs.length === 0) return empty;
+  // An avatar/photo from a private bucket can't be fetched by the browser/OS that draws the
+  // notification (no session there): hand it a week-long signed link instead.
+  if (payload.icon || payload.image) {
+    const [icon, image] = await Promise.all([signedLinkFor(payload.icon), signedLinkFor(payload.image)]);
+    payload = { ...payload, icon, image };
+  }
   // Dev surface: no web push to anyone (the dev DB may hold a real person's old subscription).
   if (isDevSurface()) {
     console.warn(`[push] dev surface — suppressed "${payload.title}" for ${subs.length} subscription(s)`);

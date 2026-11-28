@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { rewriteStorageUrls } from '@/lib/storage/buckets';
 
 /**
  * Server-side Supabase client for use in Server Components and API routes.
@@ -51,6 +52,30 @@ export interface ServerClientOptions {
    * for the whole `revalidateSeconds` window. Only meaningful alongside it.
    */
   cacheTags?: string[];
+  /**
+   * Hand back stored file links exactly as written. By default every database answer
+   * has its public-object links of a now-private bucket turned into /api/files links
+   * (see withServedFileLinks) — only a check that inspects the raw rows wants otherwise.
+   */
+  rawStorageUrls?: boolean;
+}
+
+/**
+ * Rows still hold `https://<project>/storage/v1/object/public/<bucket>/…` links, written
+ * when those buckets were public, and every API route hands them out. Once a bucket is
+ * private (lib/storage/buckets.ts, migration 252) those links answer 400 — so they are
+ * rewritten HERE, on the one path every server read takes, into /api/files/<bucket>/…,
+ * and no row needs migrating. Database answers (rest/v1) only; storage calls untouched.
+ */
+async function withServedFileLinks(url: RequestInfo | URL, res: Response): Promise<Response> {
+  const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+  if (!href.includes('/rest/v1/') || !res.body || res.status === 204 || res.status === 304) return res;
+  if (!(res.headers.get('content-type') || '').includes('json')) return res;
+  const text = await res.text();
+  const headers = new Headers(res.headers);
+  headers.delete('content-length');
+  headers.delete('content-encoding');
+  return new Response(rewriteStorageUrls(text), { status: res.status, statusText: res.statusText, headers });
 }
 
 export function createServerClient(options?: ServerClientOptions) {
@@ -63,17 +88,17 @@ export function createServerClient(options?: ServerClientOptions) {
         autoRefreshToken: false,
       },
       global: {
-        fetch: (url, fetchOptions = {}) => {
-          if (options?.revalidateSeconds !== undefined) {
-            return fetch(url, {
+        fetch: async (url, fetchOptions = {}) => {
+          const res = options?.revalidateSeconds !== undefined
+            ? await fetch(url, {
               ...fetchOptions,
               next: {
                 revalidate: options.revalidateSeconds,
                 ...(options.cacheTags?.length ? { tags: options.cacheTags } : {}),
               },
-            });
-          }
-          return fetch(url, { ...fetchOptions, cache: 'no-store' });
+            })
+            : await fetch(url, { ...fetchOptions, cache: 'no-store' });
+          return options?.rawStorageUrls ? res : withServedFileLinks(url, res);
         },
       },
     }

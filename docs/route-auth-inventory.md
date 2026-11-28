@@ -17,7 +17,7 @@ there with a reason — so this file and the code cannot silently drift apart.
   queries, not as caller identity.
 - Cron routes authenticate with `Bearer CRON_SECRET`; the Watch/device routes with a device token
   (`requireDevice`); photo routes with `verifyRequest` (same JWT check).
-- 37 routes are intentionally reachable without a session; each is listed below with why.
+- 36 routes are intentionally reachable without a session; each is listed below with why.
 
 Who should be allowed, by prefix: `/api/admin/**`, `/api/plan-builder/**` → staff/admin;
 `/api/academy/**` → academy manager / paired coach / the trainee (self-or-staff);
@@ -58,7 +58,6 @@ Who should be allowed, by prefix: `/api/admin/**`, `/api/plan-builder/**` → st
 | `/api/dev/strava-athletes` | dev-only | 403 in production |
 | `/api/device/token` | device-pairing | exchanges a pairing code for a device token |
 | `/api/native/auth/refresh` | login | refresh-token exchange for the native app |
-| `/api/native/storage/program-plans/[folder]/[file]` | public | 302 to a public bucket object (same objects /api/program-weeks already hands out) |
 | `/api/events/[id]/forecast` | public | weather forecast for a public event |
 | `/api/photos/browse/img` | signed-url | serves only URLs carrying a valid server signature (verifyImageUrl) |
 | `/api/photos/browse/video` | signed-url | same, verifyVideoUrl |
@@ -399,7 +398,9 @@ non-exported helper in the same folder (e.g. `loadPain`), by CRON_SECRET, or is 
 | `/api/moderation/report` | GET,PATCH,POST | notifyStaff, requireStaffCaller, resolveVerifiedCaller | verified |
 | `/api/my-watch` | GET,POST | providerFor, pushOwnWeek, requireAthlete | verified |
 | `/api/native/auth/refresh` | POST | - | allowlisted |
-| `/api/native/storage/program-plans/[folder]/[file]` | GET | - | allowlisted |
+| `/api/files/[bucket]/[...path]` | GET | serveFile → resolveVerifiedCaller, or the signed `mc_files` cookie | verified |
+| `/api/files/session` | DELETE,POST | resolveVerifiedCaller (POST) | verified |
+| `/api/native/storage/program-plans/[folder]/[file]` | GET | serveFile → resolveVerifiedCaller | verified |
 | `/api/notifications` | DELETE,GET,POST,PUT | requireApprover, resolveVerifiedCaller, sendPushLocalized | verified |
 | `/api/notifications/approvals` | GET,POST,PUT | gate, gateState, requireSession | verified |
 | `/api/notifications/inbox` | GET | resolveVerifiedCaller | verified |

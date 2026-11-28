@@ -31,8 +31,10 @@ import {
   RUN_ATTACHMENT_VERSION,
   type StravaRunAttachment,
 } from './attachments';
+import { fileRouteUrl } from '@/lib/storage/buckets';
+import { APP_URL } from '@/lib/constants';
 
-const BUCKET = 'run-chat';
+const BUCKET = 'run-chat' as const;
 const SEED_LOCK_KEY = '__madregotChatSeedLock';
 
 function seedInflight(): Map<string, Promise<RunChatRow>> {
@@ -67,7 +69,7 @@ export interface RunChatRow {
 async function ensureBucket(supabase: SupabaseClient) {
   const { data } = await supabase.storage.getBucket(BUCKET);
   if (!data) {
-    await supabase.storage.createBucket(BUCKET, { public: true, fileSizeLimit: 10_000_000 });
+    await supabase.storage.createBucket(BUCKET, { public: false, fileSizeLimit: 10_000_000 });
   }
 }
 
@@ -139,8 +141,8 @@ async function ensureClipboardImage(
     .upload(path, png, { contentType: 'image/png', upsert: true });
   if (upErr) throw upErr;
 
-  const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  const url = `${urlData.publicUrl}?v=${clipboardRevision(workout)}`;
+  // Absolute: it travels inside a Stream Chat message. Private bucket (lib/storage/buckets.ts).
+  const url = `${APP_URL}${fileRouteUrl(BUCKET, path)}?v=${clipboardRevision(workout)}`;
 
   const { error } = await supabase
     .from('run_chats')
@@ -153,7 +155,10 @@ async function ensureClipboardImage(
   return url;
 }
 
-function imageAttachment(imageUrl: string, title: string) {
+function imageAttachment(link: string, title: string) {
+  // A row read back from the database holds a site-relative /api/files link
+  // (lib/supabase/server.ts); a Stream message gets it absolute.
+  const imageUrl = link.startsWith('/') ? `${APP_URL}${link}` : link;
   return {
     type: 'image' as const,
     image_url: imageUrl,

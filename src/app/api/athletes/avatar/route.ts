@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { fileRouteUrl } from '@/lib/storage/buckets';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
@@ -40,8 +41,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `Upload failed: ${uploadError.message}` }, { status: 500 });
     }
 
-    const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
-    const avatarUrl = `${urlData.publicUrl}?v=${Date.now()}`;
+    // Private bucket: the row keeps the /api/files link (lib/storage/buckets.ts).
+    const avatarUrl = `${fileRouteUrl('avatars', path)}?v=${Date.now()}`;
 
     const { error: updateError } = await supabase
       .from('athletes')
