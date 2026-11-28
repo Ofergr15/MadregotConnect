@@ -373,7 +373,8 @@ export function ActionRow({
       <div className={cn(bleed, 'mt-1 flex items-stretch border-t border-page')}>
         <button
           onClick={handleLike}
-          aria-label={liked ? t('unlike') : t('like')}
+          // No aria-label: the visible "אהבתי" + aria-pressed say it all, and a "בטל לייק"
+          // label over a visible "אהבתי" failed WCAG 2.5.3 "label in name" (task 111).
           aria-pressed={liked}
           className={cn(
             'flex min-h-11 flex-1 items-center justify-center gap-1.5 text-[13px] font-semibold transition-colors active:bg-page/60',
@@ -384,10 +385,12 @@ export function ActionRow({
           {t('actionLike')}
         </button>
 
-        {/* The label is not decoration: without it VoiceOver announced a bare "3". */}
+        {/* The label is not decoration: without it VoiceOver announced a bare "3". It
+            starts with the visible word, so it also passes WCAG 2.5.3 "label in name"
+            (a "תגובות" label over a visible "תגובה" failed it — axe, task 111). */}
         <button
           onClick={onCommentPress}
-          aria-label={t('comments')}
+          aria-label={commentCount > 0 ? `${t('actionComment')} ${commentCount}` : t('actionComment')}
           className="flex min-h-11 flex-1 items-center justify-center gap-1.5 border-s border-page text-[13px] font-semibold text-ink-500 transition-colors hover:text-ink-700 active:bg-page/60"
         >
           <MessageCircle className="h-[18px] w-[18px]" />
@@ -400,7 +403,8 @@ export function ActionRow({
         {item.activity && isMyActivity && (
           <button
             onClick={() => setShareOpen(true)}
-            aria-label={t('shareToStory')}
+            // Visible word first (WCAG 2.5.3 "label in name", task 111), the detail after it.
+            aria-label={`${t('actionShare')} · ${t('shareToStory')}`}
             className="flex min-h-11 flex-1 items-center justify-center gap-1.5 border-s border-page text-[13px] font-semibold text-ink-500 transition-colors hover:text-ink-700 active:bg-page/60"
           >
             <Share2 className="h-[18px] w-[18px]" />
@@ -411,7 +415,7 @@ export function ActionRow({
         {canOpenRunChat && (
           <button
             onClick={() => router.push(`/dashboard/run-chat/${item.activity!.id}`)}
-            aria-label={runChatLabel}
+            aria-label={`${t('actionChat')} · ${runChatLabel}`}
             className="flex min-h-11 flex-1 items-center justify-center gap-1.5 border-s border-page text-[13px] font-semibold text-ink-500 transition-colors hover:text-brand-600 active:bg-page/60"
           >
             <MessagesSquare className="h-[18px] w-[18px]" />
@@ -636,7 +640,6 @@ function ActivityCard({
               openDetail();
             }
           }}
-          aria-label={t('viewDetails')}
           className="-mx-2 px-2 pt-0.5 pb-0 rounded-xl cursor-pointer transition-colors hover:bg-page/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40"
         >
           {/* Hebrew for the watch's automatic names, the time of day for a bare
@@ -646,6 +649,9 @@ function ActivityCard({
           </p>
 
           <CardStats act={act} />
+          {/* The hint rides AFTER the visible run name and stats instead of replacing
+              them as an aria-label did (WCAG 2.5.3 "label in name", task 111). */}
+          <span className="sr-only">{t('viewDetails')}</span>
 
           {/* Whether these were the numbers asked for — one slim line, for the
               runner and staff only (the payload carries no score for anyone else). */}
