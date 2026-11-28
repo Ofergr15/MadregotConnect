@@ -43,15 +43,15 @@ async function signIn(page: Page) {
   }, ATHLETE_ID);
 }
 
-// `fixture: false` = the page crashes on the generic `{}` API answer and needs a real
-// fixture before it can be audited (tracked in the PR); kept listed so it isn't forgotten.
-const PAGES: Array<{ path: string; signedIn: boolean; fixture?: false }> = [
-  { path: '/', signedIn: false, fixture: false },
+// Home, /dashboard/week and /dashboard/records used to crash on the generic `{}` answer and
+// were skipped; they now render their empty state on a partial body, so all ten are asserted.
+const PAGES: Array<{ path: string; signedIn: boolean }> = [
+  { path: '/', signedIn: false },
   { path: '/register', signedIn: false },
   { path: '/feed', signedIn: true },
   { path: '/dashboard', signedIn: true },
-  { path: '/dashboard/week', signedIn: true, fixture: false },
-  { path: '/dashboard/records', signedIn: true, fixture: false },
+  { path: '/dashboard/week', signedIn: true },
+  { path: '/dashboard/records', signedIn: true },
   { path: '/dashboard/athletes', signedIn: true },
   { path: '/dashboard/groups', signedIn: true },
   { path: '/dashboard/activities', signedIn: true },
@@ -60,7 +60,6 @@ const PAGES: Array<{ path: string; signedIn: boolean; fixture?: false }> = [
 
 for (const p of PAGES) {
   test(`axe: ${p.path}`, async ({ page }) => {
-    test.fixme(p.fixture === false, 'needs a response fixture: crashes on an empty API body');
     const pageErrors: string[] = [];
     page.on('pageerror', (e) => pageErrors.push(e.message));
     page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(m.text().slice(0, 200)); });
