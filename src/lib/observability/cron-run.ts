@@ -24,9 +24,11 @@ export function startCronRun(cron: string, requestId: string | null = null, now:
   const failed: CronStepFailure[] = [];
   return {
     fail(step: string, err: unknown) {
-      const f = { step, ...errorFields(err) };
+      // The stack goes on the step's own log line only; the summary (also returned
+      // in the route's JSON answer) stays name + message.
+      const { stack, ...f } = { step, ...errorFields(err) };
       failed.push(f);
-      log('error', 'cron.step_failed', { cron, requestId, ...f });
+      log('error', 'cron.step_failed', { cron, requestId, ...f, ...(stack ? { stack } : {}) });
     },
     finish(extra: Record<string, unknown> = {}): CronSummary {
       const summary: CronSummary = {

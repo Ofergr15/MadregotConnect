@@ -20,9 +20,37 @@ describe('structured log — no PII', () => {
   it('reduces an error to name + scrubbed message, never stack or config', () => {
     const e = Object.assign(new Error('login a@b.co failed'), { config: { data: 'password=hunter2' }, code: '42P01' });
     const f = errorFields(e);
+    // An axios-like error (it carries `config`) gets no stack at all.
     expect(f).toEqual({ errorName: 'Error', message: 'login [email] failed', code: '42P01' });
     expect(JSON.stringify(scrub({ err: e }))).not.toContain('hunter2');
     expect(errorFields('plain')).toEqual({ errorName: 'Error', message: 'plain' });
+  });
+  it('keeps the first frames of a plain error stack, scrubbed', () => {
+    const e = new Error('boom');
+    e.stack = ['Error: boom', ...Array.from({ length: 12 }, (_, i) => `    at fn${i} (/var/task/x.js:${i}:1)`),
+      '    at https://u:secretpw@api.example.com/x (r@x.com)'].join('\n');
+    const f = errorFields(e);
+    expect(f.stack).toHaveLength(8);
+    expect(f.stack?.[0]).toBe('at fn0 (/var/task/x.js:0:1)');
+    const g = new Error('boom');
+    g.stack = 'Error: boom\n    at https://u:secretpw@api.example.com/x (r@x.com)';
+    expect(errorFields(g).stack).toEqual(['at https://[credentials]@api.example.com/x ([email])']);
+    expect(errorFields(new Error('real')).stack?.length).toBeGreaterThan(0);
+  });
+  it('drops the stack of axios / fetch / network errors, and their credentials', () => {
+    const axiosLike = Object.assign(new Error('Request failed with status code 401'), {
+      isAxiosError: true, name: 'AxiosError',
+      config: { url: 'https://connect.garmin.com/signin', headers: { Authorization: 'Bearer tok123' }, data: 'password=hunter2' },
+    });
+    axiosLike.stack = 'AxiosError: Request failed\n    at https://connect.garmin.com/signin?password=hunter2';
+    const fetchErr = Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('x'), { code: 'ECONNRESET' }) });
+    const sock = Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' });
+    for (const err of [axiosLike, fetchErr, sock]) {
+      const f = errorFields(err);
+      expect(f.stack).toBeUndefined();
+      const line = formatLog('error', 'x', { err });
+      expect(line).not.toMatch(/hunter2|tok123|Bearer|garmin\.com|"stack"/);
+    }
   });
   it('caps long strings and deep objects', () => {
     expect((scrub('x'.repeat(1000)) as string).length).toBeLessThan(310);
