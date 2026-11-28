@@ -10,6 +10,7 @@ import { activityDayRelation, cn, formatActivityDate, formatActivityTime, resolv
 import { useTranslations, useFormatter, useLocale, useNow } from 'next-intl';
 import { toggleLike } from '@/lib/feed-client';
 import { FeedLikesSheet } from '@/components/FeedLikesSheet';
+import { sizedImageUrl } from '@/lib/images/variants';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { ShareSheet } from '@/components/ShareSheet';
 import { RouteMinimap } from '@/components/RouteMinimap';
@@ -797,7 +798,7 @@ function SessionPhotosCard({
                 className={cn('relative overflow-hidden bg-page', shown.length === 3 && i === 0 && 'row-span-2', shown.length === 2 && 'row-span-2')}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={m.url} alt="" className="h-full w-full object-cover" />
+                <img src={sizedImageUrl(m.url, shown.length === 1 ? 390 : 200) ?? m.url} alt="" className="h-full w-full object-cover" />
                 {more > 0 && i === shown.length - 1 && (
                   <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-xl font-black text-white">
                     <bdi dir="ltr">+{more}</bdi>
@@ -954,7 +955,7 @@ function PostCard({
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={m.url}
+                  src={sizedImageUrl(m.url, item.media.length === 1 ? 390 : 200) ?? m.url}
                   alt=""
                   className="w-full object-cover"
                   style={{

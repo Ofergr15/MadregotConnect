@@ -6,7 +6,7 @@ import { requireAthlete, requireSession, authError } from '@/lib/auth-session';
 import { FEED_SELECT, projectFeedItem } from '@/lib/feed/project';
 import { hiddenFromCaller } from '@/lib/athletes/test-accounts';
 import { loadFeedContext } from '@/lib/feed/context';
-import { sanitizeMediaList } from '@/lib/feed/media';
+import { sanitizeMediaList, storedMediaEntry } from '@/lib/feed/media';
 
 export const dynamic = 'force-dynamic';
 
@@ -160,10 +160,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (rawMedia.length > MAX_IMAGES) {
         return NextResponse.json({ error: `Up to ${MAX_IMAGES} images per post` }, { status: 400 });
       }
-      const media = sanitizeMediaList(rawMedia, auth.user.athleteId).map((m) => ({
-        ...m,
-        url: supabase.storage.from('feed-media').getPublicUrl(m.path).data.publicUrl,
-      }));
+      const media = sanitizeMediaList(rawMedia, auth.user.athleteId).map((m) => storedMediaEntry(m, supabase.storage.from('feed-media').getPublicUrl(m.path).data.publicUrl));
       update.media = media.length > 0 ? media : null;
     }
 

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, requireSession, authError } from '@/lib/auth-session';
 import { FEED_SELECT, projectFeedItem } from '@/lib/feed/project';
-import { sanitizeMediaList } from '@/lib/feed/media';
+import { sanitizeMediaList, storedMediaEntry } from '@/lib/feed/media';
 import { notifyMentions } from '@/lib/feed/notify';
 import { resolveAudience, sendPushLocalized } from '@/lib/push';
 import { feedPostCopy } from '@/lib/notifications/copy';
@@ -33,10 +33,7 @@ export async function POST(request: Request) {
     }
 
     const supabase = createServerClient();
-    const media = sanitizeMediaList(rawMedia, auth.user.athleteId).map((m) => ({
-      ...m,
-      url: supabase.storage.from('feed-media').getPublicUrl(m.path).data.publicUrl,
-    }));
+    const media = sanitizeMediaList(rawMedia, auth.user.athleteId).map((m) => storedMediaEntry(m, supabase.storage.from('feed-media').getPublicUrl(m.path).data.publicUrl));
 
     if (!body && media.length === 0) {
       return NextResponse.json({ error: 'Add some text or a photo' }, { status: 400 });

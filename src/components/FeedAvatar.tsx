@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { PhotoLightbox } from '@/components/PhotoLightbox';
 import { usableAvatarUrl } from '@/lib/avatar-url';
+import { sizedImageUrl } from '@/lib/images/variants';
 
 /** "Tal Borenstein" -> "TA". Used whenever there's no usable photo. */
 export function initialsOf(name: string, maxChars = 2): string {
@@ -34,6 +35,12 @@ interface Props {
    * does anything.
    */
   enlargeable?: boolean;
+  /**
+   * The drawn size in CSS px, to pick the sized variant (lib/images/variants.ts):
+   * up to 64 gets the 128 px copy, bigger the 512 one. The lightbox always opens
+   * the original.
+   */
+  px?: number;
 }
 
 /** Profile photo with an initials fallback. */
@@ -44,8 +51,10 @@ export function FeedAvatar({
   textClassName,
   maxChars = 2,
   enlargeable = false,
+  px = 48,
 }: Props) {
   const url = usableAvatarUrl(rawUrl);
+  const drawUrl = url ? sizedImageUrl(url, px) ?? url : null;
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const [enlarged, setEnlarged] = useState(false);
   const showImage = !!url && failedUrl !== url;
@@ -85,7 +94,7 @@ export function FeedAvatar({
         {showImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={url}
+            src={drawUrl ?? url}
             alt={name}
             referrerPolicy="no-referrer"
             onError={() => setFailedUrl(url)}

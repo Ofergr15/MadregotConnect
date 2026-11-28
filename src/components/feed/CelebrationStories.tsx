@@ -163,7 +163,7 @@ function Slide({ entry, active, onComment, myId, onYear }: {
           {(people.length ? people.slice(0, 3) : [null]).map((p, i) => (
             <span key={p?.id ?? i} className="rounded-full border-4 border-card">
               {p
-                ? <FeedAvatar name={p.name} url={p.avatarUrl} className="h-[76px] w-[76px] text-[22px]" />
+                ? <FeedAvatar name={p.name} url={p.avatarUrl} px={76} className="h-[76px] w-[76px] text-[22px]" />
                 : <span className="flex h-[76px] w-[76px] items-center justify-center rounded-full bg-page text-4xl">{kind.emoji}</span>}
             </span>
           ))}

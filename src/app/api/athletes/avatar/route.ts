@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
+import { AVATAR_VARIANT_SIZES, withVariantMarker } from '@/lib/images/variants';
+import { storeVariants } from '@/lib/images/variants-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,14 +44,18 @@ export async function POST(request: Request) {
 
     const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
     const avatarUrl = `${urlData.publicUrl}?v=${Date.now()}`;
+    // 128/512 px square WebP copies (lib/images/variants.ts). Best effort: a photo
+    // sharp can't decode still saves, just without the `sz` marker.
+    const sizes = await storeVariants(supabase.storage.from('avatars'), buffer, path, AVATAR_VARIANT_SIZES, { square: true });
+    const storedUrl = withVariantMarker(avatarUrl, sizes);
 
     const { error: updateError } = await supabase
       .from('athletes')
-      .update({ avatar_url: avatarUrl })
+      .update({ avatar_url: storedUrl })
       .eq('id', athleteId);
     if (updateError) throw updateError;
 
-    return NextResponse.json({ avatarUrl });
+    return NextResponse.json({ avatarUrl: storedUrl });
   } catch (err: unknown) {
     return NextResponse.json({ error: (err as Error).message || 'Failed' }, { status: 500 });
   }

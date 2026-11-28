@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, authError } from '@/lib/auth-session';
 import { MAX_MEDIA_BYTES, isAllowedMediaType, extensionForMimeType } from '@/lib/feed/media';
+import { PHOTO_VARIANT_SIZES, withVariantMarker } from '@/lib/images/variants';
+import { storeVariants } from '@/lib/images/variants-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +50,8 @@ export async function POST(request: Request) {
     }
 
     const { data: urlData } = supabase.storage.from('feed-media').getPublicUrl(path);
+    // 640/1080 px WebP copies for the feed list (lib/images/variants.ts); the original stays for the lightbox.
+    const sizes = await storeVariants(supabase.storage.from('feed-media'), buffer, path, PHOTO_VARIANT_SIZES, { square: false });
 
     // Intrinsic dimensions come from the client (it already decoded the image to
     // resize it). They're only used to reserve aspect-ratio space in the feed and
@@ -57,7 +61,7 @@ export async function POST(request: Request) {
     const h = Number(form.get('h')) || null;
 
     return NextResponse.json({
-      media: { path, url: urlData.publicUrl, w: Number.isFinite(w) ? w : null, h: Number.isFinite(h) ? h : null },
+      media: { path, url: withVariantMarker(urlData.publicUrl, sizes), w: Number.isFinite(w) ? w : null, h: Number.isFinite(h) ? h : null, sizes },
     });
   } catch (err: unknown) {
     console.error('Feed media upload error:', err);
