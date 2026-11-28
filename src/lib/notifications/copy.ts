@@ -1,6 +1,7 @@
 import type { NotificationLocale } from './locale';
 import { ageFrom, focusShort } from '@/lib/email/academy-new-applicant';
 import { isHumanName } from '@/lib/signup';
+import { mentionPreview } from '@/lib/feed/mentions';
 
 /**
  * Notification wording, per language.
@@ -309,8 +310,7 @@ export function feedInteractionCopy(
   p: { name: string | null | undefined; kind: 'like' | 'comment'; commentBody?: string },
 ): PushCopy {
   const who = (p.name || '').trim() || SOMEONE[locale];
-  const preview = (p.commentBody || '').trim();
-  const clipped = preview.length > 80 ? `${preview.slice(0, 80)}…` : preview;
+  const clipped = mentionPreview(p.commentBody || '', 80);
   if (locale === 'he') {
     const fallback = 'היכנסו לפיד כדי לראות';
     return {
@@ -327,10 +327,16 @@ export function feedInteractionCopy(
 
 export function mentionCopy(
   locale: NotificationLocale,
-  p: { name: string | null | undefined; kind: 'post' | 'comment' },
+  p: { name: string | null | undefined; kind: 'post' | 'comment' | 'chat'; group?: string },
 ): { title: string } {
   const who = (p.name || '').trim() || SOMEONE[locale];
   // Body is the mention's own text, clipped by the caller — nothing to translate.
+  if (p.kind === 'chat') {
+    const group = (p.group || '').trim();
+    return locale === 'he'
+      ? { title: `${who} תייג/ה אותך בצ׳אט${group ? ` · ${group}` : ''} 🏷️` }
+      : { title: `${who} mentioned you in the chat${group ? ` · ${group}` : ''} 🏷️` };
+  }
   return locale === 'he'
     ? { title: `${who} תייג/ה אותך ${p.kind === 'comment' ? 'בתגובה' : 'בפוסט'} 🏷️` }
     : { title: `${who} mentioned you in a ${p.kind === 'comment' ? 'comment' : 'post'} 🏷️` };
@@ -1712,7 +1718,7 @@ export function groupChatMessageCopy(
   p: { name: string | null | undefined; group: string; text: string },
 ): PushCopy {
   const who = (p.name || '').trim() || SOMEONE[locale];
-  const preview = p.text.trim().replace(/\s+/g, ' ');
-  const clipped = preview.length > 90 ? `${preview.slice(0, 90)}…` : preview;
+  // A tagged teammate reads as @Name, not the raw `@[Name](uuid)` token.
+  const clipped = mentionPreview(p.text, 90);
   return { title: `${who} · ${p.group}`, body: clipped || (locale === 'he' ? 'לחצו לקריאה' : 'Tap to read') };
 }

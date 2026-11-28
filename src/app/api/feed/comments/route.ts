@@ -1,7 +1,7 @@
 import { after, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, requireAthlete, authError } from '@/lib/auth-session';
-import { notifyFeedInteraction, notifyMentions, loadFeedItemMeta } from '@/lib/feed/notify';
+import { authorAlsoTagged, notifyFeedInteraction, notifyMentions, loadFeedItemMeta } from '@/lib/feed/notify';
 import { COMMENT_SELECT, projectComment, validateCommentBody } from '@/lib/feed/comments';
 import { blockedAuthorIds } from '@/lib/moderation/blocks';
 import { hiddenInteractorsFor, visibleItemCount, withoutHiddenInteractors } from '@/lib/feed/test-account-filter';
@@ -76,15 +76,20 @@ export async function POST(request: Request) {
     // their own comment to appear (lab 2026-10-17). A failure there no longer
     // turns a saved comment into a 500 either.
     const actor = { actorAthleteId: auth.user.athleteId, actorName: auth.user.name };
+    // The item's author tagged in a comment on their own item gets ONE push — the
+    // mention, which says more — not "X commented" and "X tagged you" side by side.
+    const authorTagged = authorAlsoTagged(body, auth.user.athleteId, meta.authorAthleteId);
     after(async () => {
       try {
-        await notifyFeedInteraction({
-          feedItemId: itemId,
-          authorAthleteId: meta.authorAthleteId,
-          ...actor,
-          kind: 'comment',
-          commentBody: body,
-        });
+        if (!authorTagged) {
+          await notifyFeedInteraction({
+            feedItemId: itemId,
+            authorAthleteId: meta.authorAthleteId,
+            ...actor,
+            kind: 'comment',
+            commentBody: body,
+          });
+        }
       } catch (err) { console.error('Feed comment notify error:', err); }
       try {
         await notifyMentions({ feedItemId: itemId, body, ...actor, kind: 'comment' });

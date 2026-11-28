@@ -3,7 +3,9 @@ import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller, type VerifiedCaller } from '@/lib/auth/self-or-staff';
 import { getStreamServerClient, CHANNEL_TYPE } from '@/lib/stream/server';
 import { notifyAthlete } from '@/lib/push';
-import { groupChatMessageCopy } from '@/lib/notifications/copy';
+import { groupChatMessageCopy, mentionCopy } from '@/lib/notifications/copy';
+import { mentionedRoomMembers, mentionPreview } from '@/lib/feed/mentions';
+import { recipientsWhoBlocked } from '@/lib/moderation/blocks';
 import { ensureGroupChannel, groupChannelId, groupChatMembers } from '@/lib/group-chat/server';
 import {
   cleanClientId, cleanText, groupChatTag, groupChatUrl, mayDelete, mayEdit, mayEnter, pushRecipients,
@@ -76,8 +78,30 @@ export async function POST(request: Request) {
       db.from('athletes').select('name').eq('id', caller.athleteId).maybeSingle(),
       db.from('groups').select('name').eq('id', groupId).maybeSingle(),
     ]);
+    // @mentions (the feed's `@[Name](id)` token): a tagged room member gets a "tagged you"
+    // push under kind 'mention' — the teammates category, so their prefs decide — INSTEAD of
+    // the plain message push, never both. One who blocked the author gets neither.
+    const tagged = new Set(mentionedRoomMembers(text, caller.athleteId, members));
+    const blockers = tagged.size ? await recipientsWhoBlocked(db, caller.athleteId, [...tagged]) : new Set<string>();
     await Promise.all(pushRecipients(members, caller.athleteId).map(async (rid) => {
       try {
+        if (tagged.has(rid)) {
+          if (blockers.has(rid)) return;
+          await notifyAthlete({
+            athleteId: rid,
+            kind: 'mention',
+            actorAthleteId: caller.athleteId,
+            copy: (locale) => ({
+              ...mentionCopy(locale, { name: author?.name ?? null, kind: 'chat', group: group?.name || '' }),
+              body: mentionPreview(text, 90),
+            }),
+            url: groupChatUrl(groupId),
+            // Its own banner: a tag must not be replaced by the next message in the burst.
+            tag: `${groupChatTag(groupId)}-mention-${rid}`,
+            category: 'teammates',
+          });
+          return;
+        }
         await notifyAthlete({
           athleteId: rid,
           kind: 'group_chat_message',
