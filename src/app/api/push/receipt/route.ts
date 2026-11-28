@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { allowReceipt, clientIp, isPlausiblePushEndpoint, readCappedJson, RECEIPT_MAX_BYTES } from '@/lib/public-sinks';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,8 +39,17 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const endpoint: string | null = typeof body?.endpoint === 'string' ? body.endpoint : null;
+    // Task 78: a brake on a script probing endpoint strings, and a cap on what we parse.
+    // Neither answers "is this endpoint known" — both fire before any lookup.
+    if (!allowReceipt(clientIp(request.headers))) {
+      return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+    }
+    const read = await readCappedJson(request, RECEIPT_MAX_BYTES);
+    if (!read.ok && read.reason === 'too_large') {
+      return NextResponse.json({ error: 'too_large' }, { status: 413 });
+    }
+    const body = (read.ok ? read.body : {}) as { endpoint?: unknown; nid?: unknown } | null;
+    const endpoint = isPlausiblePushEndpoint(body?.endpoint) ? body.endpoint : null;
     if (!endpoint) return NextResponse.json({ error: 'endpoint required' }, { status: 400 });
 
     const supabase = createServerClient();
