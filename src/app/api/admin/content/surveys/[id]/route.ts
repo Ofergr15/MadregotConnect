@@ -5,12 +5,13 @@ import { requireContentLevel } from '@/lib/access/require-content';
 import { requireApprover } from '@/lib/auth/require-approver';
 import { cancelSurveyReminders, notifySurveyNonResponders, surveyAudienceIds } from '@/lib/surveys';
 import { REMINDER_KIND } from '@/lib/survey-reminders';
+import { surveyByGroup } from '@/lib/survey-by-group';
 
 export const dynamic = 'force-dynamic';
 
 // One poll for the staff (mockup ~/.cache/madregot/polls-proposal.html, "תוצאות חיות, מי לא
 // ענה, ותזכורות"): who chose what by name, who hasn't answered by pack (and which of them have
-// no push, for the WhatsApp list), its push and every reminder with what it did.
+// no push, for the WhatsApp list), the results per pack (byGroup), its push and every reminder.
 //   GET  — staff (as the hub).
 //   POST { action: 'remind' } — a reminder now, to whoever hasn't answered; approvers.
 //   POST { action: 'close' }  — closes it now and drops the reminders still to come.
@@ -83,6 +84,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       answered: answered.size,
       options,
       waiting: packs,
+      // Per pack: asked, answered and the count per option (task 154). Counts only, so anonymous polls too.
+      byGroup: surveyByGroup({
+        optionCount: (s.options_he || []).length,
+        asked,
+        responses: rows,
+        groupOf: (athleteId) => person.get(athleteId)?.group_id ?? null,
+        groups: (groups || []) as Array<{ id: string; name: string | null }>,
+      }),
       push: announce ? { status: announce.status, sent: announce.sent_count ?? 0, at: announce.last_sent_at ?? announce.next_run_at } : null,
       reminders: n.filter((r) => r.kind === REMINDER_KIND).map((r) => ({
         id: r.id,
