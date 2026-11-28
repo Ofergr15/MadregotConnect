@@ -505,6 +505,7 @@ non-exported helper in the same folder (e.g. `loadPain`), by CRON_SECRET, or is 
 | `/api/race-live/[eventId]/manual` | POST | requireStaffCaller | verified |
 | `/api/race-live/[eventId]/map` | PUT | resolveVerifiedCaller | verified |
 | `/api/race-live/[eventId]/position` | DELETE,POST | resolveVerifiedCaller | verified |
+| `/api/race-live/[eventId]/settings` | GET,PUT | resolveVerifiedCaller | verified |
 | `/api/records/champions` | GET | recordsGate | verified |
 | `/api/records/privacy` | PATCH | resolveVerifiedCaller | verified |
 | `/api/records/progress` | GET | recordsGate | verified |
