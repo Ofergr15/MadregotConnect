@@ -117,14 +117,14 @@ describe('GET /api/feed — auth', () => {
   it('no session → 401 { error } and no DB read', async () => {
     const res = await get('', {});
     expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: 'Missing bearer token' });
+    expect(await res.json()).toEqual({ error: 'Missing bearer token', code: 'unauthenticated' });
     expect(log).toEqual([]);
   });
   it('a session the gate refuses (unapproved / no membership) → that status, { error }', async () => {
     session = { ok: false, status: 403, error: 'pending' };
     const res = await get();
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: 'pending' });
+    expect(await res.json()).toEqual({ error: 'pending', code: 'pending' });
   });
 });
 
@@ -288,7 +288,7 @@ describe('POST /api/feed/like', () => {
     session = member({ athleteId: null, isStaff: true });
     const res = await post({ itemId: 'fi-run' });
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: 'This account has no athlete profile' });
+    expect(await res.json()).toEqual({ error: 'This account has no athlete profile', code: 'forbidden' });
   });
   it('missing itemId → 400 { error: "itemId required" }; unknown/deleted item → 404', async () => {
     session = member();

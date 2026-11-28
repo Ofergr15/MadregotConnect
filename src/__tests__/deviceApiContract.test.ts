@@ -184,7 +184,7 @@ describe('POST /api/device/register', () => {
   it('no session → 401 (requireAthlete answer, passed through); view-as → 403', async () => {
     const res = await register.POST(post({ installationId: 'i' }));
     expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: 'Authentication required' });
+    expect(await res.json()).toEqual({ error: 'Authentication required', code: 'unauthenticated' });
     session = { athleteId: ME, viewingAsBy: 'admin' };
     const res2 = await register.POST(post({ installationId: 'i' }, 'jwt'));
     expect(res2.status).toBe(403);

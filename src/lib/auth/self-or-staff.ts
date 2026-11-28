@@ -127,7 +127,7 @@ export async function resolveVerifiedCaller(
   if (blockedByMaintenance) {
     return {
       denied: NextResponse.json(
-        { error: 'maintenance', message: 'האפליקציה בעבודות תחזוקה — ננסה שוב בקרוב.' },
+        { error: 'maintenance', code: 'maintenance', message: 'האפליקציה בעבודות תחזוקה — ננסה שוב בקרוב.' },
         { status: 503 },
       ),
       caller: { email: '', isSuperUser: false, canApprove: false, isStaff: false, athleteId: null, role: '', isCoreRunner: false },
@@ -191,7 +191,7 @@ export async function requireStaffCaller(
   const { denied, caller } = await resolveVerifiedCaller(request);
   if (denied) return { denied, caller };
   if (!caller.isSuperUser && !caller.isStaff) {
-    return { denied: NextResponse.json({ error: 'Staff access required' }, { status: 403 }), caller };
+    return { denied: NextResponse.json({ error: 'Staff access required', code: 'staff_required' }, { status: 403 }), caller };
   }
   return { denied: null, caller };
 }
@@ -212,7 +212,7 @@ export async function requireCallerForAthlete(
   if (!targetAthleteId) {
     if (!caller.isSuperUser && !caller.isStaff) {
       return {
-        denied: NextResponse.json({ error: 'Staff access required' }, { status: 403 }),
+        denied: NextResponse.json({ error: 'Staff access required', code: 'staff_required' }, { status: 403 }),
         caller,
       };
     }
@@ -220,7 +220,7 @@ export async function requireCallerForAthlete(
   }
 
   if (!mayActFor(caller, targetAthleteId)) {
-    return { denied: NextResponse.json({ error: 'forbidden' }, { status: 403 }), caller };
+    return { denied: NextResponse.json({ error: 'forbidden', code: 'forbidden' }, { status: 403 }), caller };
   }
   return { denied: null, caller };
 }
@@ -249,7 +249,7 @@ export async function requirePackLeader(
   if (denied) return { denied, caller, asLeader: false };
   if (caller.isSuperUser || caller.isStaff) return { denied: null, caller, asLeader: false };
   if (!caller.athleteId || !packId) {
-    return { denied: NextResponse.json({ error: 'forbidden' }, { status: 403 }), caller, asLeader: false };
+    return { denied: NextResponse.json({ error: 'forbidden', code: 'forbidden' }, { status: 403 }), caller, asLeader: false };
   }
   const { data, error } = await createServerClient()
     .from('pack_leaders')
@@ -258,7 +258,7 @@ export async function requirePackLeader(
     .eq('athlete_id', caller.athleteId)
     .maybeSingle();
   if (error || !data) {
-    return { denied: NextResponse.json({ error: 'forbidden' }, { status: 403 }), caller, asLeader: false };
+    return { denied: NextResponse.json({ error: 'forbidden', code: 'forbidden' }, { status: 403 }), caller, asLeader: false };
   }
   return { denied: null, caller, asLeader: true };
 }
