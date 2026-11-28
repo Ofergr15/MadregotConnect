@@ -265,26 +265,26 @@ describe('basemap provider', () => {
     });
   }
 
+  // Walked and read once for both scans below (task 109: each used to re-read all of src/).
+  let cache: Array<{ f: string; text: string }> | null = null;
+  const sources = () => (cache ??= sourceFiles(SRC).map((f) => ({ f, text: readFileSync(f, 'utf8') })));
+
   // lib/basemap.ts is exempt: naming the dead provider is the whole point of the
   // comment that explains why the working one was chosen.
   const isProviderModule = (f: string) =>
     f.endsWith('lib/basemap.ts') || f.endsWith('routeTiles.test.ts');
 
   it('is not a keyed provider masquerading as a working one', () => {
-    const offenders = sourceFiles(SRC).filter(
-      (f) => !isProviderModule(f) && /cartocdn\.com/.test(readFileSync(f, 'utf8')),
-    );
+    const offenders = sources()
+      .filter(({ f, text }) => !isProviderModule(f) && /cartocdn\.com/.test(text))
+      .map(({ f }) => f);
     expect(offenders).toEqual([]);
   });
 
   it('is named in exactly one module, so a dead provider is a one-line fix', () => {
-    const offenders = sourceFiles(SRC).filter(
-      (f) =>
-        !isProviderModule(f) &&
-        /MapServer\/tile|tile\.openstreetmap\.org|api\.mapbox\.com|tiles\.stadiamaps\.com/.test(
-          readFileSync(f, 'utf8'),
-        ),
-    );
+    const offenders = sources()
+      .filter(({ f, text }) => !isProviderModule(f) && /MapServer\/tile|tile\.openstreetmap\.org|api\.mapbox\.com|tiles\.stadiamaps\.com/.test(text))
+      .map(({ f }) => f);
     expect(offenders).toEqual([]);
   });
 

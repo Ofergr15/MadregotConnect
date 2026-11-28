@@ -35,7 +35,8 @@ can't start, check `node -v` before anything else.
 |---|---|
 | `npm run dev` | Dev server on :3000 |
 | `npm run check` | **Run before every commit** — typecheck + test + lint |
-| `npm test` | vitest (120 tests, ~0.5s) |
+| `npm test` | vitest (~9,800 tests / 880 files, ~16 s on an M-series Mac; see `vitest.config.ts` for the two pools) |
+| `npm run test:profile` | the suite once, then the slowest files and tests — start here when `npm test` drags |
 | `npm run typecheck` | `tsc --noEmit` (~4s, currently clean) |
 | `npm run lint` | next lint (3 pre-existing `exhaustive-deps` warnings, 0 errors) |
 | `npm run build` | Production build (~40s) |
