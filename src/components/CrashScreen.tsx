@@ -150,7 +150,7 @@ export function CrashScreen({
               style={{
                 fontSize: '14px',
                 fontWeight: 600,
-                color: '#656565',
+                color: '#4F4F4F', // ink-500: #656565 measured 4.37:1 on this #DFDFDF page (axe, task 68)
                 textDecoration: 'none',
                 padding: '8px',
               }}
