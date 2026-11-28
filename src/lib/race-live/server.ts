@@ -14,6 +14,7 @@ import {
   LIVETRACK_POLL_SEC, LiveTrackError, parseLiveTrackUrl, progressToSplits, readLiveTrack, sessionLooksEnded, trackProgress,
 } from './livetrack';
 import { phoneEtaSec, raceWindowOpen } from './phone';
+import { shareExpired } from './share-expiry';
 
 export type SplitSource = 'manual' | 'feed' | 'livetrack' | 'replay';
 /** Who wins the same point: staff's official chip time, then the organizer's feed, then the watch. */
@@ -351,6 +352,12 @@ export async function liveBoard(db: Db, eventId: string, viewerId: string | null
   // whatever the purge has or hasn't deleted yet.
   const windowOpen = raceWindowOpen(cfg ? { active: !!cfg.active, poll_from: cfg.poll_from ?? null, poll_to: cfg.poll_to ?? null } : null, nowMs);
   const { data: posRows } = mapOn && windowOpen ? await db.from('race_positions').select('athlete_id, lat, lon, distance_m, elapsed_sec, at').eq('event_id', eventId) : { data: [] as any[] };
+  // Task 178: a finished runner's share ends 2 h after the finish (share-expiry.ts). An unreadable
+  // recorded_at (older schema) just means no finish-based expiry, never a failed board.
+  const { data: finRows } = (posRows || []).length
+    ? await db.from('race_splits').select('athlete_id, recorded_at').eq('event_id', eventId).eq('point', 'finish')
+    : { data: [] as any[] };
+  const finishAt = new Map((finRows || []).map((r: any) => [String(r.athlete_id), r.recorded_at ?? null]));
   const ltOf = new Map((goals || []).map((g: any) => [String(g.athlete_id), g]));
   const groupOf = new Map((groups || []).map((g: any) => [String(g.athlete_id), g.event_pace_groups?.label ?? null]));
   const goalOf = new Map((goals || []).map((g: any) => [String(g.athlete_id), g.goal_sec ?? null]));
@@ -375,6 +382,7 @@ export async function liveBoard(db: Db, eventId: string, viewerId: string | null
       position: (() => {
         if (e.optOut) return null;
         const pr = (posRows || []).find((r: any) => String(r.athlete_id) === e.athleteId);
+        if (pr && shareExpired({ nowMs, position: pr, sharingStoppedAt: (ltOf.get(e.athleteId) as any)?.sharing_stopped_at ?? null, finishRecordedAt: finishAt.get(e.athleteId) ?? null })) return null;
         // b24: elapsed + a finish estimate from the device's own pace (phone or watch) for the fans' map.
         return pr ? { lat: pr.lat, lon: pr.lon, distanceM: pr.distance_m, elapsedSec: pr.elapsed_sec ?? null, etaSec: phoneEtaSec(pr.distance_m, pr.elapsed_sec ?? 0), at: pr.at } : null;
       })(),
