@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { getStreamServerClient, CHANNEL_TYPE } from '@/lib/stream/server';
-import { ensureGroupChannel, groupChannelId, groupChatMembers } from '@/lib/group-chat/server';
-import { mayEnter, sortRows, visibleGroupIds, type ChatRow } from '@/lib/group-chat/logic';
+import { ensureGroupChannel, groupChannelId, groupChatMembers, visibleChatGroups } from '@/lib/group-chat/server';
+import { mayEnter, sortRows, type ChatRow } from '@/lib/group-chat/logic';
 import { internalErrorBody } from '@/lib/api-error';
 
 export const dynamic = 'force-dynamic';
@@ -20,17 +20,10 @@ export async function GET(request: Request) {
     if (denied) return denied;
     const db = createServerClient();
 
-    const [{ data: groups, error }, { data: me }, { data: led }] = await Promise.all([
-      db.from('groups').select('id, name'),
-      caller.athleteId ? db.from('athletes').select('group_id').eq('id', caller.athleteId).maybeSingle() : Promise.resolve({ data: null }),
-      caller.athleteId ? db.from('pack_leaders').select('pack_id').eq('athlete_id', caller.athleteId) : Promise.resolve({ data: [] }),
-    ]);
+    const { error, groups } = await visibleChatGroups(db, caller);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    const all = (groups || []) as Array<{ id: string; name: string | null }>;
-    const ids = visibleGroupIds(caller, all.map((g) => g.id), (me as { group_id?: string } | null)?.group_id ?? null,
-      ((led || []) as Array<{ pack_id: string }>).map((r) => r.pack_id));
-    const name = new Map(all.map((g) => [g.id, g.name || g.id]));
+    const ids = groups.map((g) => g.id);
+    const name = new Map(groups.map((g) => [g.id, g.name]));
     const byChannel = new Map(ids.map((id) => [groupChannelId(id), id]));
     const rows = new Map<string, ChatRow>(ids.map((id) => [id, {
       groupId: id, name: name.get(id) || id, channelId: groupChannelId(id),
