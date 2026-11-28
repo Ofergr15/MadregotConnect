@@ -1,4 +1,4 @@
--- 223: one report per (reporter, target), enforced by the database (QA 2026-11-26 #7).
+-- 226: one report per (reporter, target), enforced by the database (QA 2026-11-26 #7).
 -- The route's dedupe was read-then-insert, so 50 concurrent POSTs made 50 rows and 50 staff
 -- pushes. The route now upserts ON CONFLICT DO NOTHING on this index and pushes only when a
 -- row was created.

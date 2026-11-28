@@ -85,8 +85,8 @@ export async function POST(request: Request) {
       note: input.note,
       status: 'open',
     };
-    // Atomic dedupe (223): ON CONFLICT (reporter, target) DO NOTHING. A concurrent twin gets no row back,
-    // answers with the existing id and sends no push. Pre-223 there is no unique index to conflict on
+    // Atomic dedupe (226): ON CONFLICT (reporter, target) DO NOTHING. A concurrent twin gets no row back,
+    // answers with the existing id and sends no push. Pre-226 there is no unique index to conflict on
     // (42P10) and pre-220 no author_verified column: fall back to the plain insert as before.
     const save = async (payload: Record<string, unknown>) => {
       const up = await db.from('content_reports')
