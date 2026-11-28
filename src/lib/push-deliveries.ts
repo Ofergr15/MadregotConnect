@@ -25,7 +25,8 @@ export type DeliveryState = 'shown' | 'waiting' | 'not_shown' | 'refused' | 'no_
 export function stateOf(r: Pick<DeliveryRow, 'accepted' | 'error' | 'shown_at' | 'sent_at'>, now = Date.now()): DeliveryState {
   if (r.shown_at) return 'shown';
   if (r.error === 'no-device') return 'no_device';
-  if (r.error === 'muted' || r.error === 'maintenance') return 'muted';
+  // A dry run (lib/push-dry-run) sent nothing, so it is never judged as shown or not.
+  if (r.error === 'muted' || r.error === 'maintenance' || r.error?.startsWith('dry-run')) return 'muted';
   if (!r.accepted) return 'refused';
   return now - Date.parse(r.sent_at) < CONFIRM_MS ? 'waiting' : 'not_shown';
 }
