@@ -23,6 +23,7 @@ import { messageMentionsAi } from '@/lib/run-chat/ai-mention';
 import { claimAiTurn, releaseAiTurn } from '@/lib/run-chat/ai-lock';
 import { orderSeedMessagesFirst } from '@/lib/run-chat/seed-order';
 import { AI_USER_ID } from '@/lib/stream/constants';
+import { formatActivityDateWith } from '@/lib/utils';
 import { AiMentionButton } from './AiMentionButton';
 import { CoachMentionButton, type MentionableCoach } from './CoachMentionButton';
 import { PlanEditPromptProvider, RunChatMessageActions } from './PlanEditPrompt';
@@ -177,12 +178,7 @@ function ChatPanel({
             )}
           </div>
           <p className="text-[11px] text-ink-400">
-            {new Date(activity.start_time).toLocaleDateString('he-IL', {
-              weekday: 'short',
-              day: 'numeric',
-              month: 'short',
-              timeZone: 'UTC',
-            })}
+            {formatActivityDateWith(activity.start_time, 'he-IL', { weekday: 'short', day: 'numeric', month: 'short' })}
             {activity.distance ? ` · ${(activity.distance / 1000).toFixed(1)}ק"מ` : ''}
             {matchedWorkout?.name
               ? ` · תוכנית: ${matchedWorkout.name}${

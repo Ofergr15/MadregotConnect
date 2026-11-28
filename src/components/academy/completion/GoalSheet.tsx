@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Check, ChevronLeft, Plus, Sparkles } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, israelToday } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import {
   GOAL_KIND_LABELS, NO_RACE_KINDS, distanceForKind, distanceLabel, estimateFinish, finishPace, goalProgress,
@@ -58,7 +58,7 @@ export function GoalSheet({ open, onOpenChange, goal, onDone, busy, error, athle
   const t = useTranslations('completion.goal');
   const { data: ctx } = useApi<GoalContext>(open && athleteId ? `/api/academy/goal?athleteId=${encodeURIComponent(athleteId)}` : null);
   const races = ctx?.clubRaces ?? [];
-  const today = ctx?.today ?? new Date().toISOString().slice(0, 10);
+  const today = ctx?.today ?? israelToday();
 
   const [step, setStep] = useState<Step>('race');
   const [pick, setPick] = useState<Pick>(null);

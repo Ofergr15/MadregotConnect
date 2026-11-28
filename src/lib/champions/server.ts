@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { COACH_ID } from '@/lib/constants';
 import { distanceOf, packNumber, relevantSuggestions, type ChampDistance, type ResultRow } from './table';
-import { israelToday } from '@/lib/utils';
+import { activityLocalDateStr, israelToday } from '@/lib/utils';
 
 // The DB half of אלופי המדרגות: approved official results (race_results, 163), and the
 // watch's race-day runs that could become one (race_matches) for staff to confirm.
@@ -64,7 +64,9 @@ export async function readSuggestions(db: Db, taken: Set<string>): Promise<Sugge
   const all = fit.filter((x) => ok.has(x.r.athlete_id)).map(({ r, a, d }) => ({
     activityId: r.activity_id, athleteId: r.athlete_id, name: who.get(r.athlete_id)?.name || '', avatarUrl: who.get(r.athlete_id)?.avatar_url ?? null,
     distance: d, watchSeconds: Math.round(a.duration!), raceName: r.events?.name ?? r.evidence?.eventName ?? null,
-    raceDate: new Date(a.start_time).toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }),
+    // start_time is the athlete's wall clock in UTC parts; converting it to Israel time
+    // again moved a late race onto the next day.
+    raceDate: activityLocalDateStr(a.start_time),
     gender: who.get(r.athlete_id)?.gender ?? null,
     location: r.events?.location ?? null,
   }));
