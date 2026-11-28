@@ -13,6 +13,7 @@
  * sweep: nothing changes for a challenge between one athlete's activity syncs.
  */
 import { createServerClient } from '@/lib/supabase/server';
+import { israelToday } from '@/lib/utils';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 import { awardBadge, isNewMember, type BadgeRow } from '@/lib/badges/award-engine';
 import { filterQualifyingRuns, type RunActivityRow } from '@/lib/prs/pr-buckets';
@@ -168,7 +169,10 @@ export async function computeChallengeProgress(
  */
 export async function checkAndAwardChallenges(athleteId: string): Promise<{ awarded: string[] }> {
   const supabase = createServerClient();
-  const today = new Date().toISOString().slice(0, 10);
+  // Israel's calendar day: the UTC date is still yesterday until 02:00/03:00 Israel, so a
+  // challenge ending yesterday kept awarding and one starting today was skipped (same bug
+  // #204 fixed in GET /api/challenges).
+  const today = israelToday();
 
   const { data: rows, error } = await supabase
     .from('challenges')

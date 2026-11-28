@@ -7,6 +7,7 @@ import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { notifyAthlete } from '@/lib/push';
 import { watchSentCopy, type WatchPushContext } from '@/lib/notifications/watch-push-copy';
 import { israelToday } from '@/lib/utils';
+import { planDayKey } from '@/lib/plans/workout-parsing';
 import { planPushedUrl } from '@/lib/academy/member-links';
 
 /**
@@ -152,9 +153,9 @@ export async function pushWeekToAthlete({
       const garminWorkout = convertToGarminWorkout(workout, paceProfile, { paceTarget });
 
       // Calculate the actual date for this workout
-      const startDate = new Date(weekStartDate);
-      startDate.setDate(startDate.getDate() + workout.dayOfWeek);
-      const dateStr = startDate.toISOString().split('T')[0];
+      // Date-string arithmetic (planDayKey): the old local-time setDate on a UTC-midnight Date
+      // landed a day early after a DST switch in any non-UTC process (spring week: Saturday → Friday).
+      const dateStr = planDayKey(weekStartDate, workout.dayOfWeek);
 
       // A club week or a day session on a date the coach already made personal: not sent.
       if (kind !== 'personal' && personalDays.has(dateStr)) continue;
