@@ -27,6 +27,7 @@ import { readWeekStartDay } from '@/lib/athletes/week-pref';
 import { buildLast7Report, withWellness } from '@/lib/reports/last-7-days';
 import { buildPlanWeek, israelWallNow } from '@/lib/athletes/plan-week';
 import { readWellnessNights } from '@/lib/wellness/read';
+import { readProfileRollups } from '@/lib/athletes/stat-rollups';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,10 +111,13 @@ export async function GET(
       readPrOverrides(supabase, id),
       readPrExclusions(supabase, id),
       self ? readWellnessNights(supabase, id) : Promise.resolve(null),
+      // Precomputed totals (PROFILE_STAT_ROLLUPS, default off → null, no query). Null also when
+      // stale or missing, and the totals below fold from `acts` as before.
+      readProfileRollups(supabase, id, israelToday()),
     ]);
     // A runner the club hasn't approved yet: their PRs and runs are theirs and
     // staff's to see, nobody else's (#77).
-    const [pending, acts, ownStartDay, prLaps, prOverrides, prExclusions, wellness] = await reads;
+    const [pending, acts, ownStartDay, prLaps, prOverrides, prExclusions, wellness, rollups] = await reads;
     // `?week=plan` (the academy's screens, 2026-10-19): the plan's Sunday→Saturday week, so
     // the ten weeks agree with the week card above them (buildPlanWeek). The runner's own
     // profile leaves it off and keeps their own week setting.
@@ -253,12 +257,12 @@ export async function GET(
     const prYearBests = yearBests(prRuns, prYear, prExclusions);
 
     return NextResponse.json({
-      ...buildAllTimeTotals(acts),
+      ...(rollups?.allTime ?? buildAllTimeTotals(acts)),
       // Israel's calendar year, from the same anchor the weekly cut uses, so the
       // count row turns over at local midnight on 1 January, not UTC's.
-      ...buildYearTotals(acts, Number(israelToday().slice(0, 4))),
+      ...(rollups?.year ?? buildYearTotals(acts, Number(israelToday().slice(0, 4)))),
       // This calendar month so far — the second tile beside the ten-week chart (#103).
-      ...buildMonthTotals(acts, israelToday()),
+      ...(rollups?.month ?? buildMonthTotals(acts, israelToday())),
       currentWeekStart,
       // Echoed so the screen can SAY which week it drew. A total the reader can't
       // reconcile is the original complaint; two legal windows with no label on
