@@ -58,6 +58,7 @@ import type { FeedComment } from '@/lib/feed/comments';
 import { appScrollTop, scrollAppToTop } from '@/lib/app-scroll';
 import { getFeedScope, isDefaultScope, resetFeedScope, setFeedScope, useFeedScope } from '@/lib/feed/scope-store';
 import { cachedScope, loadScope, rememberScope, scopeKey } from '@/lib/feed/scope-cache';
+import { appendFeedPage } from '@/lib/feed/pagination';
 
 const PAGE_SIZE = FEED_PAGE_SIZE;
 
@@ -432,7 +433,7 @@ export default function FeedPage() {
     setLoadingMore(true);
     try {
       const { items: page, nextCursor } = await fetchFeed(cursor, PAGE_SIZE, activeTypes, squad);
-      setItems(prev => [...prev, ...page]);
+      setItems(prev => appendFeedPage(prev, page));
       setCursor(nextCursor);
     } catch { /* silent — user can scroll again */ }
     finally { setLoadingMore(false); }

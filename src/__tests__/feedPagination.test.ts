@@ -31,9 +31,9 @@ describe('parseFeedCursor', () => {
   });
 
   it('splits a well-formed "time,id" cursor', () => {
-    expect(parseFeedCursor('2026-01-01T00:00:00.000Z,item-42')).toEqual({
+    expect(parseFeedCursor('2026-01-01T00:00:00.000Z,00000000-0000-4000-8000-000000000042')).toEqual({
       time: '2026-01-01T00:00:00.000Z',
-      id: 'item-42',
+      id: '00000000-0000-4000-8000-000000000042',
     });
   });
 

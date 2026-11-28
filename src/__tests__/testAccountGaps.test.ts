@@ -169,13 +169,15 @@ describe('likes and comments on a feed item', () => {
 });
 
 describe('feed paging with test accounts filtered', () => {
+  // Feed item ids are uuids (the cursor parser rejects anything else).
+  const A = '00000000-0000-4000-8000-00000000000a', B = '00000000-0000-4000-8000-00000000000b', C = '00000000-0000-4000-8000-00000000000c', D = '00000000-0000-4000-8000-00000000000d';
   // Newest first: the first page (limit 2) is entirely the test account's.
   beforeEach(() => {
     h.tables.feed_items = [
-      { id: 'a', type: 'post', author_athlete_id: 'qa', occurred_at: '2026-11-05T00:00:00Z', like_count: 0, comment_count: 0 },
-      { id: 'b', type: 'post', author_athlete_id: 'qa', occurred_at: '2026-11-04T00:00:00Z', like_count: 0, comment_count: 0 },
-      { id: 'c', type: 'post', author_athlete_id: 'omer', occurred_at: '2026-11-03T00:00:00Z', like_count: 0, comment_count: 0 },
-      { id: 'd', type: 'post', author_athlete_id: 'omer', occurred_at: '2026-11-02T00:00:00Z', like_count: 0, comment_count: 0 },
+      { id: A, type: 'post', author_athlete_id: 'qa', occurred_at: '2026-11-05T00:00:00Z', like_count: 0, comment_count: 0 },
+      { id: B, type: 'post', author_athlete_id: 'qa', occurred_at: '2026-11-04T00:00:00Z', like_count: 0, comment_count: 0 },
+      { id: C, type: 'post', author_athlete_id: 'omer', occurred_at: '2026-11-03T00:00:00Z', like_count: 0, comment_count: 0 },
+      { id: D, type: 'post', author_athlete_id: 'omer', occurred_at: '2026-11-02T00:00:00Z', like_count: 0, comment_count: 0 },
     ];
   });
 
@@ -187,17 +189,17 @@ describe('feed paging with test accounts filtered', () => {
   it('an emptied page still returns a cursor, and the next page advances', async () => {
     const p1 = await page();
     expect(p1.items).toEqual([]);
-    expect(p1.nextCursor).toBe('2026-11-04T00:00:00Z,b');
+    expect(p1.nextCursor).toBe(`2026-11-04T00:00:00Z,${B}`);
     const p2 = await page(p1.nextCursor!);
-    expect(p2.items.map((i) => i.id)).toEqual(['c', 'd']);
+    expect(p2.items.map((i) => i.id)).toEqual([C, D]);
     expect(p2.nextCursor).toBeNull();
   });
 
   it('the test account pages through its own items normally', async () => {
     h.user = SELF;
     const p1 = await page();
-    expect(p1.items.map((i) => i.id)).toEqual(['a', 'b']);
+    expect(p1.items.map((i) => i.id)).toEqual([A, B]);
     const p2 = await page(p1.nextCursor!);
-    expect(p2.items.map((i) => i.id)).toEqual(['c', 'd']);
+    expect(p2.items.map((i) => i.id)).toEqual([C, D]);
   });
 });
