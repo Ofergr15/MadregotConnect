@@ -23,6 +23,7 @@ export const WIDE_PREFIXES = [
   '/dashboard/numbers',
   '/dashboard/onboarding-funnel',
   '/dashboard/push-health',
+  '/dashboard/cron-runs',
   '/dashboard/data-check',
   '/dashboard/feedback',
 ] as const;

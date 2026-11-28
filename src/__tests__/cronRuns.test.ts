@@ -31,12 +31,13 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }));
 const requireStaff = vi.fn(async () => null as Response | null);
-vi.mock('@/lib/auth/self-or-staff', () => ({ requireStaff: () => requireStaff() }));
+const staffCaller = vi.fn(async () => ({ denied: new Response(null, { status: 401 }) as Response | null, caller: { athleteId: null as string | null } }));
+vi.mock('@/lib/auth/self-or-staff', () => ({ requireStaff: () => requireStaff(), requireStaffCaller: () => staffCaller() }));
 const runs = await import('@/lib/cron/runs');
 const { GET } = await import('@/app/api/admin/cron-runs/route');
 
 const req = (auth?: string) => new Request('http://x/api/cron/x', { headers: auth ? { authorization: auth } : {} });
-beforeEach(() => { rows = []; missing = false; process.env.CRON_SECRET = 's3cret'; });
+beforeEach(() => { rows = []; missing = false; process.env.CRON_SECRET = 's3cret'; staffCaller.mockClear(); });
 afterEach(() => { delete process.env.CRON_SECRET; vi.restoreAllMocks(); });
 
 describe('withCronRun', () => {
@@ -58,6 +59,33 @@ describe('withCronRun', () => {
     const h = runs.withCronRun('tick', async () => new Response(null, { status: 401 }));
     expect((await h(req('Bearer wrong'))).status).toBe(401);
     expect(rows).toHaveLength(0);
+  });
+  it('a staff POST without the secret runs as the cron and is recorded as manual, with who', async () => {
+    staffCaller.mockResolvedValueOnce({ denied: null, caller: { athleteId: 'ath-7' } });
+    let seen: string | null = null;
+    const h = runs.withCronRun('badges', async (r: Request) => { seen = r.headers.get('authorization'); return Response.json({ awarded: 2 }); });
+    const res = await h(new Request('http://x/api/cron/badges', { method: 'POST' }));
+    expect(res.status).toBe(200);
+    expect(seen).toBe('Bearer s3cret');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ name: 'badges', ok: true, counts: { awarded: 2, trigger: 'manual', staff_athlete_id: 'ath-7' } });
+    expect(runs.isManualRun(rows[0].counts)).toBe(true);
+  });
+  it('a scheduled run carries no manual mark', async () => {
+    const h = runs.withCronRun('badges', async () => Response.json({ awarded: 1 }));
+    await h(req('Bearer s3cret'));
+    expect(runs.isManualRun(rows[0].counts)).toBe(false);
+    expect(staffCaller).not.toHaveBeenCalled();
+  });
+  it('a staff GET (a link) or a non-staff POST is not a manual run: nothing recorded', async () => {
+    staffCaller.mockResolvedValue({ denied: null, caller: { athleteId: 'ath-7' } });
+    const h = runs.withCronRun('tick', async () => new Response(null, { status: 401 }));
+    expect((await h(new Request('http://x/api/cron/tick'))).status).toBe(401);
+    staffCaller.mockResolvedValue({ denied: new Response(null, { status: 403 }), caller: { athleteId: 'ath-1' } });
+    expect((await h(new Request('http://x/api/cron/tick', { method: 'POST' }))).status).toBe(401);
+    expect(rows).toHaveLength(0);
+    staffCaller.mockReset();
+    staffCaller.mockImplementation(async () => ({ denied: new Response(null, { status: 401 }), caller: { athleteId: null } }));
   });
   it('before migration 251 the cron runs exactly as before', async () => {
     missing = true;
@@ -95,10 +123,10 @@ describe('GET /api/admin/cron-runs', () => {
     rows = [
       { name: 'tick', started_at: '2026-11-28T10:00:00Z', finished_at: null, ok: null, http_status: null, counts: null, error: null },
       { name: 'tick', started_at: '2026-11-28T09:00:00Z', finished_at: '2026-11-28T09:01:00Z', ok: false, http_status: 500, counts: null, error: 'e' },
-      { name: 'badges', started_at: '2026-11-28T03:00:00Z', finished_at: '2026-11-28T03:02:00Z', ok: true, http_status: 200, counts: { n: 1 }, error: null },
+      { name: 'badges', started_at: '2026-11-28T03:00:00Z', finished_at: '2026-11-28T03:02:00Z', ok: true, http_status: 200, counts: { n: 1, trigger: 'manual', staff_athlete_id: 'a' }, error: null },
     ];
     const body = await (await GET(new Request('http://x'))).json();
-    expect(body.summary.map((s: { name: string; open: boolean; failedRecently: number }) => [s.name, s.open, s.failedRecently])).toEqual([['badges', false, 0], ['tick', true, 1]]);
+    expect(body.summary.map((s: { name: string; open: boolean; failedRecently: number; manualRecently: number }) => [s.name, s.open, s.failedRecently, s.manualRecently])).toEqual([['badges', false, 0, 1], ['tick', true, 1, 0]]);
   });
   it('503 before the migration', async () => {
     missing = true;

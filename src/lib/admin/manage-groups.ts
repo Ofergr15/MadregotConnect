@@ -29,6 +29,7 @@ export const MANAGE_GROUPS: ManageGroup[] = [
     items: [
       { label: 'הרשאות', sub: 'מי רואה ומפרסם מה, עמודים והתראות ניהול', href: '/dashboard/access', also: 'הרשאות תוכן מפרסם עמודים טאבים התראות ניהול ניתוב' },
       { label: 'תפקידים', sub: 'מאמנים, מנהלים, גרעין', href: '/dashboard/roles' },
+      { label: 'ריצות אוטומטיות', sub: 'מתי כל משימה רצה, ומה הופעל ידנית', href: '/dashboard/cron-runs', also: 'קרון cron ידני' },
       { label: 'מצב תחזוקה', sub: 'מי נכנס בזמן תחזוקה', href: '/dashboard/athletes', also: 'תחזוקה' },
       { label: 'כל ההגדרות', sub: 'כל השאר', href: '/dashboard/settings' },
     ],
