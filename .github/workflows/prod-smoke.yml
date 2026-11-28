@@ -41,7 +41,16 @@ jobs:
             sleep 15
           done
           echo "No finished production deploy after 10 min — smoke runs against whatever is live."
+      - name: Native routes exist in prod + shipped version is live
+        # Unauthenticated, read-only: GET / empty-body POST / OPTIONS (scripts/smoke-prod-routes.mjs).
+        # A 404 or 405 on any route the native app calls fails the release (QA 2026-11-28, Q28-1).
+        run: |
+          EXPECTED_VERSION=$(git show origin/production:package.json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).version))')
+          git show origin/production:src/lib/dev-api-allowlist.ts > "$RUNNER_TEMP/allowlist.ts"
+          echo "expecting version $EXPECTED_VERSION"
+          EXPECTED_VERSION="$EXPECTED_VERSION" ALLOWLIST_PATH="$RUNNER_TEMP/allowlist.ts" node scripts/smoke-prod-routes.mjs
       - name: Smoke
+        if: ${{ !cancelled() }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
