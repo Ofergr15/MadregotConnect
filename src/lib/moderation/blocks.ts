@@ -69,3 +69,23 @@ export function validateReport(body: unknown): { ok: true; value: ReportInput } 
     value: { targetType: b.targetType as ReportInput['targetType'], targetId, authorId, reason: b.reason as ReportInput['reason'], note },
   };
 }
+
+/**
+ * Of `recipientIds`, the ones who blocked `actorId` — a member who blocked someone is
+ * never pushed "X tagged you" by them. Fails OPEN (empty set) like blockedAuthorIds:
+ * a missing table or failed read suppresses nobody.
+ */
+export async function recipientsWhoBlocked(db: Db, actorId: string | null | undefined, recipientIds: readonly string[]): Promise<Set<string>> {
+  if (!actorId || recipientIds.length === 0) return new Set();
+  try {
+    const { data, error } = await db
+      .from('athlete_blocks')
+      .select('blocker_athlete_id')
+      .eq('blocked_athlete_id', actorId)
+      .in('blocker_athlete_id', [...recipientIds]);
+    if (error) return new Set();
+    return new Set((data || []).map((r: { blocker_athlete_id: string }) => r.blocker_athlete_id));
+  } catch {
+    return new Set();
+  }
+}

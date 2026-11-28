@@ -1,7 +1,8 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
 import { feedInteractionCopy, kudosCopy, mentionCopy } from '@/lib/notifications/copy';
-import { uniqueMentionedAthleteIds } from '@/lib/feed/mentions';
+import { uniqueMentionedAthleteIds, mentionPreview } from '@/lib/feed/mentions';
+import { recipientsWhoBlocked } from '@/lib/moderation/blocks';
 import { isTestAccount } from '@/lib/athletes/test-accounts';
 
 export interface FeedInteractionInput {
@@ -114,6 +115,14 @@ export async function notifyFeedInteraction(opts: {
   });
 }
 
+/**
+ * The item's author is tagged in a comment on their own item: they get the mention
+ * push only, not "X commented" next to "X tagged you" for the same words.
+ */
+export function authorAlsoTagged(body: string, actorAthleteId: string, authorAthleteId: string | null): boolean {
+  return !!authorAthleteId && uniqueMentionedAthleteIds(body, actorAthleteId).includes(authorAthleteId);
+}
+
 export interface MentionNotificationInput {
   body: string;
   actorAthleteId: string;
@@ -135,9 +144,8 @@ export function buildMentionNotification(
   const mentionedIds = uniqueMentionedAthleteIds(body, actorAthleteId);
   if (mentionedIds.length === 0) return null;
 
-  const preview = body.length > 80 ? `${body.slice(0, 80)}…` : body;
-
-  return { mentionedIds, body: preview };
+  // Tokens rendered as @Name — the raw `@[Name](uuid)` used to reach the lock screen.
+  return { mentionedIds, body: mentionPreview(body, 80) };
 }
 
 /**
@@ -158,7 +166,10 @@ export async function notifyMentions(opts: {
   const { feedItemId, actorAthleteId, actorName, kind } = opts;
   const notification = buildMentionNotification(opts);
   if (!notification) return;
-  const { mentionedIds, body: preview } = notification;
+  const { body: preview } = notification;
+  // Someone who blocked the actor isn't told the actor tagged them (fails open).
+  const blockers = await recipientsWhoBlocked(createServerClient(), actorAthleteId, notification.mentionedIds);
+  const mentionedIds = notification.mentionedIds.filter((id) => !blockers.has(id));
 
   await Promise.all(
     mentionedIds.map((athleteId) =>

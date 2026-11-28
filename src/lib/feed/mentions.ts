@@ -60,3 +60,28 @@ export function uniqueMentionedAthleteIds(body: string, authorAthleteId: string)
 export function mentionToken(name: string, athleteId: string): string {
   return `@[${name}](${athleteId})`;
 }
+
+/**
+ * The body as a person reads it: every `@[Name](id)` token becomes `@Name`. For
+ * push previews and any other plain-text surface — a lock screen used to show the
+ * raw token, uuid and all, under "X tagged you".
+ */
+export function mentionPlainText(body: string): string {
+  return body.replace(MENTION_RE, (_m, name: string) => `@${name}`);
+}
+
+/** A plain-text preview of a body, tokens rendered, whitespace collapsed, clipped at `max`. */
+export function mentionPreview(body: string, max = 80): string {
+  const plain = mentionPlainText(body).trim().replace(/\s+/g, ' ');
+  return plain.length > max ? `${plain.slice(0, max)}…` : plain;
+}
+
+/**
+ * Who a chat message tags: the unique mentioned ids that are in the room, minus the
+ * author. A token naming someone outside the room is ignored — they can't open the
+ * chat the push would send them to.
+ */
+export function mentionedRoomMembers(text: string, authorAthleteId: string, members: readonly string[]): string[] {
+  const room = new Set(members);
+  return uniqueMentionedAthleteIds(text, authorAthleteId).filter((id) => room.has(id));
+}
