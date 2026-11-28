@@ -1,6 +1,11 @@
 import { after, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { runStravaSyncRequest } from '../sync-activities/route';
+import { createSeenSet, eventKey, webhookDecision, type StravaEvent } from '@/lib/strava/webhook-dedupe';
+
+// Task 95: idempotency keyed by the Strava activity id (lib/strava/webhook-dedupe.ts).
+const seenEvents = createSeenSet();
+const inflightAthletes = new Set<string>();
 
 export const dynamic = 'force-dynamic';
 // The ack is instant; the after() sync behind it is a whole athlete's Strava sync and
@@ -42,13 +47,8 @@ export async function POST(request: Request) {
   const payload = await request.json().catch(() => null);
   if (!payload) return NextResponse.json({}, { status: 200 });
 
-  const { object_type, aspect_type, owner_id } = payload as {
-    object_type?: string;
-    aspect_type?: string;
-    owner_id?: number;
-  };
-
-  if (object_type !== 'activity' || aspect_type === 'delete' || !owner_id) {
+  const event = payload as StravaEvent;
+  if (webhookDecision(event, { firstTime: true, alreadyStored: false, inflight: false }) === 'ignore') {
     return NextResponse.json({}, { status: 200 });
   }
 
@@ -57,10 +57,30 @@ export async function POST(request: Request) {
     const { data: athlete } = await supabase
       .from('athletes')
       .select('id')
-      .eq('strava_athlete_id', owner_id)
+      .eq('strava_athlete_id', event.owner_id)
       .maybeSingle();
 
     if (athlete) {
+      const key = eventKey(event);
+      const firstTime = key ? seenEvents.firstTime(key) : true;
+      let alreadyStored = false;
+      if (firstTime && event.aspect_type === 'create' && event.object_id) {
+        try {
+          const { data: row } = await supabase
+            .from('athlete_activities')
+            .select('id')
+            .eq('athlete_id', athlete.id)
+            .eq('strava_activity_id', event.object_id)
+            .limit(1)
+            .maybeSingle();
+          alreadyStored = !!row;
+        } catch {
+          alreadyStored = false;   // can't tell → sync; the import upserts on the Strava id
+        }
+      }
+      const decision = webhookDecision(event, { firstTime, alreadyStored, inflight: inflightAthletes.has(athlete.id) });
+      if (decision !== 'sync') return NextResponse.json({ skipped: decision }, { status: 200 });
+
       // Mirrors the direct-import pattern cron/sync/route.ts uses for the
       // Garmin sync: call the sync body, not the HTTP handler. Going through
       // the handler meant going through its self-or-staff gate, which a
@@ -72,15 +92,16 @@ export async function POST(request: Request) {
         body: JSON.stringify({ athleteId: athlete.id }),
       });
       // After the ack, not before it. Strava wants the 200 within 2 seconds and
-      // retries when it doesn't come; this waited for the athlete's whole sync —
-      // seconds as a rule, and twice in two days past 60 s (504) — so every event
-      // was delivered, and synced, more than once. after() keeps the work alive
-      // past the response, within this route's maxDuration.
+      // retries when it doesn't come. after() keeps the work alive past the
+      // response, within this route's maxDuration.
+      inflightAthletes.add(athlete.id);
       after(async () => {
         try {
           await runStravaSyncRequest(syntheticRequest);
         } catch (err) {
           console.error('Strava webhook sync failed:', err);
+        } finally {
+          inflightAthletes.delete(athlete.id);
         }
       });
     }
