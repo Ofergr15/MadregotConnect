@@ -111,7 +111,38 @@ export function impossibleActivities(rows: ActivityRow[], now: Date = new Date()
     if (Date.parse(r.start_time) > future) at(`start_time ${r.start_time} is in the future`);
     if (r.distance != null && r.distance < 0) at(`distance ${r.distance} < 0`);
     if (r.duration != null && r.duration < 0) at(`duration ${r.duration} < 0`);
-    if (r.distance && r.duration && r.distance / r.duration > 12) at(`speed ${(r.distance / r.duration).toFixed(1)} m/s is faster than a human runs`);
+    if (r.distance && r.duration && r.distance / r.duration > IMPOSSIBLE_SPEED) at(`speed ${(r.distance / r.duration).toFixed(1)} m/s is faster than a human runs`);
+  }
+  return out;
+}
+
+/** Above this average speed a "run" is suspicious (likely a ride logged as a run); m/s. */
+export const SUSPICIOUS_SPEED = 7;
+/** Above this it is not suspicious but broken — impossibleActivities already reports it; m/s. */
+export const IMPOSSIBLE_SPEED = 12;
+
+export interface SuspiciousSpeed {
+  id: string;
+  athlete_id: string | null;
+  date: string | null;
+  distance: number;
+  speed: number;
+}
+
+/**
+ * Runs with an average speed in (7, 12] m/s — faster than any club runner, slower
+ * than "broken". Almost always a ride logged as a run, which distorts PRs. A
+ * separate list, not a Finding: it is a lead to check by hand, not a broken row.
+ * Ids only, no names.
+ */
+export function suspiciousSpeed(rows: ActivityRow[]): SuspiciousSpeed[] {
+  const out: SuspiciousSpeed[] = [];
+  for (const r of rows) {
+    if (!r.distance || !r.duration || r.distance <= 0 || r.duration <= 0) continue;
+    const speed = r.distance / r.duration;
+    if (speed > SUSPICIOUS_SPEED && speed <= IMPOSSIBLE_SPEED) {
+      out.push({ id: r.id, athlete_id: r.athlete_id, date: r.start_time ? r.start_time.slice(0, 10) : null, distance: r.distance, speed: Math.round(speed * 100) / 100 });
+    }
   }
   return out;
 }

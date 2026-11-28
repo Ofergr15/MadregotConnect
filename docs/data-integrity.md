@@ -22,6 +22,11 @@ carry ids only — no names or emails — so the output can be pasted into an is
 | `impossible-date` | `weekly_plans` | `week_start_date` not a real date, not a **Sunday**, before 2020 or > 1 year ahead; or a workout `dayOfWeek` outside 0..6 | A plan written with the activity-week (Monday) anchor, or a parser output that skipped validation. |
 | `impossible-activity` | `athlete_activities` | `start_time` missing/unparsable/in the future, negative distance or duration, or faster than 12 m/s | A provider payload mapped wrong. Remember `start_time` is wall-clock-shaped (CLAUDE.md), so up to a day of "future" is tolerated. |
 
+**Suspicious speed** (a separate section, not a finding): runs with an average speed
+above 7 m/s and at most 12 m/s, listed with id, athlete id, date, distance and speed
+only (no names). Almost always a ride logged as a run, which distorts PRs — check each
+by hand. Above 12 m/s is the `impossible-activity` check above, unchanged.
+
 A table the database doesn't have yet (unpasted migration) is skipped with a line on
 stderr, not treated as a failure.
 

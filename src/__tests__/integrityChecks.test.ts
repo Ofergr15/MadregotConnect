@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  duplicateTwins, impossibleActivities, impossiblePlanDates, orphanRows, summarize, type ActivityRow,
+  duplicateTwins, impossibleActivities, impossiblePlanDates, orphanRows, summarize, suspiciousSpeed, type ActivityRow,
 } from '@/lib/integrity/checks';
 
 const NOW = new Date('2026-11-27T12:00:00Z');
@@ -60,6 +60,23 @@ describe('impossibleActivities', () => {
     ], NOW);
     expect(f.map((x) => x.id)).toEqual(['future', 'neg', 'bad', 'fast']);
     expect(summarize(f)).toEqual({ 'impossible-activity:athlete_activities': 4 });
+  });
+});
+
+describe('suspiciousSpeed', () => {
+  it('lists (7, 12] m/s only — the band edges', () => {
+    const rows = [
+      act({ id: 'run', distance: 10000, duration: 3000 }),      // 3.33 m/s
+      act({ id: 'at7', distance: 7000, duration: 1000 }),       // exactly 7: not suspicious
+      act({ id: 'just7', distance: 7001, duration: 1000 }),     // 7.001
+      act({ id: 'at12', distance: 12000, duration: 1000 }),     // exactly 12: still suspicious
+      act({ id: 'over12', distance: 12001, duration: 1000 }),   // broken, not here
+      act({ id: 'zero', distance: 5000, duration: 0 }),
+    ];
+    expect(suspiciousSpeed(rows).map((r) => r.id)).toEqual(['just7', 'at12']);
+    expect(suspiciousSpeed(rows)[1]).toEqual({ id: 'at12', athlete_id: 'a1', date: '2026-11-20', distance: 12000, speed: 12 });
+    // The > 12 broken check is unchanged: 12 is not flagged, 12.001 is.
+    expect(impossibleActivities(rows, NOW).map((f) => f.id)).toEqual(['over12']);
   });
 });
 

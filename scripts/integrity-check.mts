@@ -5,8 +5,8 @@
 // See docs/data-integrity.md for what each check means and what to do about it.
 import { createClient } from '@supabase/supabase-js';
 import {
-  duplicateTwins, impossibleActivities, impossiblePlanDates, orphanRows, summarize,
-  type ActivityRow, type Finding, type PlanRow,
+  duplicateTwins, impossibleActivities, impossiblePlanDates, orphanRows, summarize, suspiciousSpeed,
+  type ActivityRow, type Finding, type PlanRow, type SuspiciousSpeed,
 } from '@/lib/integrity/checks';
 
 process.loadEnvFile('.env.local');
@@ -28,12 +28,14 @@ const athletes = await all<{ id: string }>('athletes', 'id');
 if (!athletes) process.exit(1);
 const athleteIds = new Set(athletes.map((a) => a.id));
 const findings: Finding[] = [];
+let suspicious: SuspiciousSpeed[] = [];
 
 const activities = await all<ActivityRow>('athlete_activities', 'id, athlete_id, source, start_time, distance, duration');
 if (activities) {
   findings.push(...orphanRows('athlete_activities', activities, athleteIds));
   findings.push(...duplicateTwins(activities));
   findings.push(...impossibleActivities(activities));
+  suspicious = suspiciousSpeed(activities);
 }
 const plans = await all<PlanRow>('weekly_plans', 'id, week_start_date, athlete_id, parsed_workouts');
 if (plans) {
@@ -46,7 +48,7 @@ for (const [table, nullable] of [['feed_items', true], ['shoes', false], ['feed_
 }
 
 if (asJson) {
-  console.log(JSON.stringify({ summary: summarize(findings), findings }, null, 2));
+  console.log(JSON.stringify({ summary: summarize(findings), findings, suspiciousSpeed: suspicious }, null, 2));
 } else {
   console.log('Integrity summary:', summarize(findings));
   const byCheck = new Map<string, Finding[]>();
@@ -56,4 +58,7 @@ if (asJson) {
     for (const f of list.slice(0, 20)) console.log(`  ${f.id}  ${f.detail}`);
   }
   if (!findings.length) console.log('No findings.');
+  // Not a finding: a hand-check list. 7–12 m/s is usually a ride logged as a run.
+  console.log(`\n## suspicious speed: runs > 7 and <= 12 m/s (${suspicious.length})`);
+  for (const r of suspicious) console.log(`  ${r.id}  athlete ${r.athlete_id}  ${r.date}  ${r.distance} m  ${r.speed} m/s`);
 }
