@@ -1,3 +1,5 @@
+import { startCronRun } from '@/lib/observability/cron-run';
+import { requestIdOf } from '@/lib/observability/request-id';
 import { invalidateShared, SHARED_TAGS } from '@/lib/cache/shared';
 import { hiddenEventIds } from '@/lib/events/server';
 import { after, NextResponse } from 'next/server';
@@ -104,6 +106,8 @@ async function run(request: Request) {
   const supabase = createServerClient();
   const now = new Date();
   const startedAt = now.getTime();
+  // One error summary for the whole run (lib/observability/cron-run.ts).
+  const cron = startCronRun('tick', requestIdOf(request));
 
   // Atomic overlap guard (migration 074) — Vercel Cron doesn't guarantee
   // mutual exclusion between invocations, so if one tick runs long (more
@@ -636,7 +640,7 @@ async function run(request: Request) {
         await markFired(postTag, 0);
         fired.push(`${postTag} → ${c.runners > 1 ? 'posted' : 'quiet'}`);
       } catch (err) {
-        console.error('club week post failed:', err);
+        cron.fail('club week post', err);
       }
     }
   }
@@ -701,7 +705,7 @@ async function run(request: Request) {
   try {
     fired.push(...(await runSessionPhotoFolders(supabase, now)));
   } catch (err) {
-    console.error('[tick] session photo folders failed:', err);
+    cron.fail('session photo folders', err);
   }
 
   // "מדרגות במספרים" kept warm (lib/club-numbers/access): recomputed when 10+ minutes old, after the
@@ -714,7 +718,7 @@ async function run(request: Request) {
         const { loadClubNumbers } = await import('@/lib/club-numbers/server');
         await writeSnapshot(supabase, await loadClubNumbers(supabase));
       }
-    } catch (err) { console.error('[tick] club numbers refresh failed:', err); }
+    } catch (err) { cron.fail('club numbers refresh', err); } // after the reply: logged, not in the summary
   });
 
   const resolvedReports = await reconcileResolvedReports(supabase, now);
@@ -731,7 +735,7 @@ async function run(request: Request) {
     const { runScheduledPlanPublishes } = await import('@/lib/plan-builder/server');
     fired.push(...(await runScheduledPlanPublishes(supabase, now)));
   } catch (err) {
-    console.error('[cron/tick] plan publishes failed', err);
+    cron.fail('plan publishes', err);
   }
 
   // ── הזמנת פודיום (lib/podium/notify): "open", "closes tomorrow", "closed" — each once ──
@@ -739,7 +743,7 @@ async function run(request: Request) {
     const { runPodiumPushes } = await import('@/lib/podium/notify');
     fired.push(...(await runPodiumPushes(supabase, now)));
   } catch (err) {
-    console.error('[cron/tick] podium pushes failed', err);
+    cron.fail('podium pushes', err);
   }
 
   // ── The week's planned polls (lib/week-setup/planned-polls) ─────────────────
@@ -750,7 +754,7 @@ async function run(request: Request) {
     const polls = await sendDuePolls(supabase, now);
     if (polls) fired.push(`plannedPolls → ${polls}`);
   } catch (err) {
-    console.error('[cron/tick] planned polls failed', err);
+    cron.fail('planned polls', err);
   }
 
   // ── The academy's test reminders ─────────────────────────────────────────
@@ -771,7 +775,7 @@ async function run(request: Request) {
       const pain = await runPainFollowups(supabase, now);
       if (pain.asked || pain.escalated) fired.push(`painFollowup → ${pain.asked} asked, ${pain.escalated} escalated`);
     } catch (err) {
-      console.error('[tick] pain follow-ups failed:', err);
+      cron.fail('pain follow-ups', err);
     }
   }
 
@@ -780,7 +784,7 @@ async function run(request: Request) {
       const waiting = await runPendingReminders(supabase, now, { already, markFired });
       if (waiting) fired.push(`pendingReminder → ${waiting}`);
     } catch (err) {
-      console.error('[tick] pending reminders failed:', err);
+      cron.fail('pending reminders', err);
     }
   }
 
@@ -790,7 +794,7 @@ async function run(request: Request) {
       const waiting = await runPendingReminders(supabase, now, { already, markFired }, 'evening');
       if (waiting) fired.push(`pendingReminder:evening → ${waiting}`);
     } catch (err) {
-      console.error('[tick] evening pending reminders failed:', err);
+      cron.fail('evening pending reminders', err);
     }
   }
 
@@ -799,14 +803,14 @@ async function run(request: Request) {
       const reminded = await runJoinReminders(supabase, now, { already, markFired });
       if (reminded) fired.push(`joinReminder → ${reminded}`);
     } catch (err) {
-      console.error('[tick] join reminders failed:', err);
+      cron.fail('join reminders', err);
     }
     // The academy's two on the way in: the details form, the install (lib/academy/onboarding-reminders).
     try {
       const academy = await runAcademyOnboardingReminders(supabase, now, { already, markFired });
       if (academy.form || academy.install) fired.push(`academyReminders → form ${academy.form}, install ${academy.install}`);
     } catch (err) {
-      console.error('[tick] academy reminders failed:', err);
+      cron.fail('academy reminders', err);
     }
   }
 
@@ -841,7 +845,7 @@ async function run(request: Request) {
         // Not a quality day: nothing is written, so a plan uploaded at 8:00 still gets its push.
       }
     } catch (err) {
-      console.error('[tick] quality session push failed:', err);
+      cron.fail('quality session push', err);
     }
   }
 
@@ -906,7 +910,7 @@ async function run(request: Request) {
       }
     }
   } catch (err) {
-    console.error('[tick] push health failed:', err);
+    cron.fail('push health', err);
   }
 
   // אלופי המדרגות: every result goes through an admin (Ofer 10-20). Once a day at 20:00,
@@ -932,7 +936,7 @@ async function run(request: Request) {
         if (sent) fired.push(`${tag} → ${sent}`);
       }
     } catch (err) {
-      console.error('[tick] champions pending push failed:', err);
+      cron.fail('champions pending push', err);
     }
   }
 
@@ -945,7 +949,7 @@ async function run(request: Request) {
       const n = await publishBirthdayPosts(supabase, israelToday(now), now);
       if (n) fired.push(`birthdayPosts:${israelToday(now)} → ${n}`);
     } catch (err) {
-      console.error('[tick] birthday posts failed:', err);
+      cron.fail('birthday posts', err);
     }
   }
 
@@ -958,14 +962,14 @@ async function run(request: Request) {
       const n = await runBirthdayStoryPushes(supabase, now, { already, markFired });
       if (n) fired.push(`story:birthday → ${n}`);
     } catch (err) {
-      console.error('[tick] birthday story push failed:', err);
+      cron.fail('birthday story push', err);
     }
   }
   try {
     const n = await runAnnualStoryPushes(supabase, now, { already, markFired });
     if (n) fired.push(`story:annual → ${n}`);
   } catch (err) {
-    console.error('[tick] annual story push failed:', err);
+    cron.fail('annual story push', err);
   }
 
   // 20:00, once a night: runners whose session for tomorrow was sent and is not on their
@@ -979,7 +983,7 @@ async function run(request: Request) {
         fired.push(`${tag} → ${n}`);
       }
     } catch (err) {
-      console.error('[tick] evening watch reminder failed:', err);
+      cron.fail('evening watch reminder', err);
     }
   }
 
@@ -993,7 +997,7 @@ async function run(request: Request) {
         fired.push(`${tag} → ${n}`);
       }
     } catch (err) {
-      console.error('[tick] meetup reminders failed:', err);
+      cron.fail('meetup reminders', err);
     }
   }
 
@@ -1013,7 +1017,7 @@ async function run(request: Request) {
         if (linked) fired.push(`groupRuns → ${linked}`);
       }
     } catch (err) {
-      console.error('[tick] run-together jobs failed:', err);
+      cron.fail('run-together jobs', err);
     }
   }
 
@@ -1080,7 +1084,8 @@ async function run(request: Request) {
     .eq('tick_at', tickAt);
   if (timingError) console.warn('[cron/tick] could not record timing:', timingError.message);
 
-  return NextResponse.json({ ok: true, israel: { weekday, hour }, fired, resolvedReports, setupSnapshot, testReminders, morningReminders, durationMs });
+  const errors = cron.finish({ fired: fired.length });
+  return NextResponse.json({ ok: true, israel: { weekday, hour }, fired, resolvedReports, setupSnapshot, testReminders, morningReminders, durationMs, errors });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
