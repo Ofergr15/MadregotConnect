@@ -10,6 +10,16 @@ Tests: `valenciaContract.test.ts`, `eventForecast.test.ts`, `clubUpdatesTopics.t
 - `Event.course_gpx_url`: https URL of the course GPX, or `null` / absent (absent until migration 200
   is applied). No map → fall back to `lat`/`lng`, `waze_url`, `distances`.
 
+- `Event.schedule` (task 149, every event in both routes): `null` for an all-day event, else
+  `{ starts_at, time_zone, time_zone_source, venue: WallClock, israel: WallClock }` where
+  `WallClock = { date: "YYYY-MM-DD", time: "HH:MM", weekday: 0-6 (0 = Sunday) }`.
+  `start_time` stays the zoneless wall clock AT THE VENUE; `starts_at` is the UTC instant — count down
+  to it, never to `date + start_time` read in the phone's own zone. Zone: `time_zone_source` is
+  `venue` (coordinates in Israel → Asia/Jerusalem, in Spain → Europe/Madrid) or `default`
+  (Asia/Jerusalem: no coordinates or elsewhere). Valencia: race 08:15 Spain = 09:15 Israel = 07:15Z;
+  departures from Ben Gurion are Israel times. A wall time inside a DST gap moves forward by the gap;
+  one that happens twice is the first.
+
 ## Forecast: `GET /api/events/{id}/forecast`
 - 200 `{ status: "ok", eventId, days: Day[] }`, or `{ status: "no_location", eventId, days: [] }`.
 - `Day` is `{ date, status: "available", tMaxC, tMinC, precipProbPct, windMaxKmh, weatherCode }`

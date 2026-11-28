@@ -58,6 +58,12 @@ const EVENT = {
   agenda: null, gear: null, faqs: null, capacity: null, registration_deadline: null, created_by: 'a1',
   created_at: '2026-11-01T00:00:00Z', updated_at: null,
 };
+// Added by task 149: the start as an instant + the wall clock at the venue and in Israel.
+const SCHEDULE = {
+  starts_at: '2026-12-06T07:15:00.000Z', time_zone: 'Europe/Madrid', time_zone_source: 'venue',
+  venue: { date: '2026-12-06', time: '08:15', weekday: 0 },
+  israel: { date: '2026-12-06', time: '09:15', weekday: 0 },
+};
 const SURVEY = {
   id: 's1', question_he: 'מי טס?', options_he: ['כן', 'לא'], closes_at: null, audience_type: 'all', audience_id: null,
   created_by: 'a1', created_at: new Date().toISOString(), anonymous: false, multi_answer: false,
@@ -70,7 +76,27 @@ describe('GET /api/events', () => {
     answer = () => ({ data: [EVENT], error: null });
     const res = await events.GET(new Request('http://x/api/events?kind=race'));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ events: [EVENT] });
+    expect(await res.json()).toEqual({ events: [{ ...EVENT, schedule: SCHEDULE }] });
+  });
+  it('Valencia week (task 149): Wed/Thu/Fri 2–4.12 departures in Israel time, the 08:15 start in Spain and Israel', async () => {
+    // Departures leave from Ben Gurion; Postgres TIME comes back as "HH:MM:SS".
+    const dep = (id: string, date: string, start_time: string) =>
+      ({ ...EVENT, id, kind: 'social', name: 'טיסה לוולנסיה', date, start_time, location: 'נתב״ג', lat: 32.0055, lng: 34.8854, distances: [] });
+    answer = () => ({ data: [dep('d1', '2026-12-02', '05:40:00'), dep('d2', '2026-12-03', '23:55:00'), dep('d3', '2026-12-04', '06:10:00'), { ...EVENT, start_time: '08:15:00' }], error: null });
+    const body = await (await events.GET(new Request('http://x/api/events?from=2026-12-01&to=2026-12-08'))).json();
+    const s = body.events.map((e: { id: string; schedule: Record<string, any> }) => [e.id, e.schedule.israel, e.schedule.venue.time, e.schedule.time_zone, e.schedule.starts_at]);
+    expect(s).toEqual([
+      ['d1', { date: '2026-12-02', time: '05:40', weekday: 3 }, '05:40', 'Asia/Jerusalem', '2026-12-02T03:40:00.000Z'],
+      ['d2', { date: '2026-12-03', time: '23:55', weekday: 4 }, '23:55', 'Asia/Jerusalem', '2026-12-03T21:55:00.000Z'],
+      ['d3', { date: '2026-12-04', time: '06:10', weekday: 5 }, '06:10', 'Asia/Jerusalem', '2026-12-04T04:10:00.000Z'],
+      ['e1', { date: '2026-12-06', time: '09:15', weekday: 0 }, '08:15', 'Europe/Madrid', '2026-12-06T07:15:00.000Z'],
+    ]);
+    // The raw row is untouched: start_time is still the venue's wall clock.
+    expect(body.events[3].start_time).toBe('08:15:00');
+  });
+  it('an all-day event → schedule: null', async () => {
+    answer = () => ({ data: [{ ...EVENT, start_time: null }], error: null });
+    expect((await (await events.GET(new Request('http://x/api/events'))).json()).events[0].schedule).toBeNull();
   });
   it('empty → { events: [] }, never null', async () => {
     expect(await (await events.GET(new Request('http://x/api/events'))).json()).toEqual({ events: [] });
@@ -91,7 +117,7 @@ describe('GET /api/events', () => {
 describe('GET /api/events/[id]', () => {
   it('→ { event: Event }', async () => {
     answer = () => ({ data: EVENT, error: null });
-    expect(await (await eventOne.GET(new Request('http://x'), ctx('e1'))).json()).toEqual({ event: EVENT, blocks: null });
+    expect(await (await eventOne.GET(new Request('http://x'), ctx('e1'))).json()).toEqual({ event: { ...EVENT, schedule: SCHEDULE }, blocks: null });
   });
   it('missing → 404 { error: "Event not found" }', async () => {
     const res = await eventOne.GET(new Request('http://x'), ctx('nope'));

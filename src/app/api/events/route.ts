@@ -8,6 +8,7 @@ import { newEventCopy } from '@/lib/notifications/copy';
 import { israelToday } from '@/lib/utils';
 import { isMissingSchema, normaliseBlocks, projectEvents } from '@/lib/events/lifecycle';
 import { callerIsStaff, optionalCaller, replaceBlocks } from '@/lib/events/server';
+import { withSchedule } from '@/lib/events/schedule';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,7 +58,9 @@ export async function GET(request: Request) {
     // Events v2: drafts and not-yet-live scheduled events only for verified staff;
     // `pending` never leaves for anyone else. Rows without `status` (pre-184) pass.
     const caller = await optionalCaller(request);
-    return NextResponse.json({ events: projectEvents(data || [], callerIsStaff(caller), new Date()) });
+    // `schedule` (task 149): the start as an instant + the wall clock at the venue and in Israel, so a
+    // phone in Spain and one in Israel count down to the same moment (lib/events/schedule.ts).
+    return NextResponse.json({ events: projectEvents(data || [], callerIsStaff(caller), new Date()).map(withSchedule) });
   } catch (error) {
     console.error('Failed to fetch events:', error);
     return NextResponse.json({ error: 'Failed to fetch events' }, { status: 500 });
