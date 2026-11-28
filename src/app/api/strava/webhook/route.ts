@@ -1,7 +1,8 @@
 import { after, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { runStravaSyncRequest } from '../sync-activities/route';
-import { createSeenSet, eventKey, webhookDecision, type StravaEvent } from '@/lib/strava/webhook-dedupe';
+import { createSeenSet, eventKey, webhookDecision } from '@/lib/strava/webhook-dedupe';
+import { claimStravaEvent, purgeOldStravaEvents, verifyStravaEvent, verifyTokenMatches, type EventStore } from '@/lib/strava/webhook-verify';
 
 // Task 95: idempotency keyed by the Strava activity id (lib/strava/webhook-dedupe.ts).
 const seenEvents = createSeenSet();
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
   const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
-  if (mode === 'subscribe' && token && token === process.env.STRAVA_WEBHOOK_VERIFY_TOKEN) {
+  if (mode === 'subscribe' && verifyTokenMatches(token, process.env.STRAVA_WEBHOOK_VERIFY_TOKEN)) {
     return NextResponse.json({ 'hub.challenge': challenge });
   }
   return NextResponse.json({ error: 'Verification failed' }, { status: 403 });
@@ -47,7 +48,15 @@ export async function POST(request: Request) {
   const payload = await request.json().catch(() => null);
   if (!payload) return NextResponse.json({}, { status: 200 });
 
-  const event = payload as StravaEvent;
+  // Task 192: Strava signs nothing, so the event is held to its shape, our
+  // subscription id and a replay window (lib/strava/webhook-verify). A malformed or
+  // stale event is acked 200 so Strava doesn't retry it; a foreign subscription is 403.
+  const verified = verifyStravaEvent(payload, { subscriptionId: process.env.STRAVA_WEBHOOK_SUBSCRIPTION_ID });
+  if (!verified.ok) {
+    console.warn('[strava/webhook] refused event:', verified.reason);
+    return NextResponse.json({}, { status: verified.reason === 'subscription' ? 403 : 200 });
+  }
+  const event = verified.event;
   if (webhookDecision(event, { firstTime: true, alreadyStored: false, inflight: false }) === 'ignore') {
     return NextResponse.json({}, { status: 200 });
   }
@@ -62,7 +71,16 @@ export async function POST(request: Request) {
 
     if (athlete) {
       const key = eventKey(event);
-      const firstTime = key ? seenEvents.firstTime(key) : true;
+      let firstTime = key ? seenEvents.firstTime(key) : true;
+      // Across instances (migration 356): a retry that lands on a cold instance, or
+      // two instances racing, still syncs once. 'unknown' keeps the in-memory answer.
+      let claimed = false;
+      if (firstTime && key) {
+        const claim = await claimStravaEvent(supabase as unknown as EventStore, key);
+        if (claim === 'duplicate') firstTime = false;
+        claimed = claim === 'first';
+      }
+      if (claimed) after(() => purgeOldStravaEvents(supabase as unknown as EventStore));
       let alreadyStored = false;
       if (firstTime && event.aspect_type === 'create' && event.object_id) {
         try {

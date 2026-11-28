@@ -13,7 +13,7 @@ import { POST } from '@/app/api/strava/webhook/route';
 
 describe('Strava webhook', () => {
   it('acks a new activity before syncing, then syncs it', async () => {
-    const res = await POST(new Request('http://x', { method: 'POST', body: JSON.stringify({ object_type: 'activity', aspect_type: 'create', owner_id: 42 }) }));
+    const res = await POST(new Request('http://x', { method: 'POST', body: JSON.stringify({ object_type: 'activity', aspect_type: 'create', owner_id: 42, object_id: 77, event_time: Math.floor(Date.now() / 1000) }) }));
     expect(res.status).toBe(200);
     expect(h.synced).toBe(0);          // not yet: the 200 went first
     expect(h.kept).toHaveLength(1);
