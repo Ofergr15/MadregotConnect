@@ -36,6 +36,11 @@ export const maxDuration = 60;
 // rows (`seconds: null`, `paceHidden: true`, no rank, after the ranked rows); ranks
 // count visible runners only. `buckets`, `history` and `b2000` still drop them. The unfiltered per-athlete breaks in the snapshot are
 // never sent.
+//
+// `?view=buckets` (task 102) — the web's three readers (records page, PrBadge,
+// the profile's club ranks) only read `buckets`; `tables`, `history`, `b2000` and
+// `ageBands` are the native שיאים tab's and were half the bytes. Opt-in and
+// narrowing-only: the default answer is unchanged, so the native app is untouched.
 export async function GET(request: Request) {
   try {
     const { denied, caller } = await resolveVerifiedCaller(request);
@@ -52,6 +57,16 @@ export async function GET(request: Request) {
     const sex: SexFilter = sexQ === 'm' || sexQ === 'f' ? sexQ : 'all';
     const age = url.searchParams.get('age') || 'all';
     const racesOnly = url.searchParams.get('races') === '1';
+    const bucketsOnly = url.searchParams.get('view') === 'buckets';
+
+    if (bucketsOnly) {
+      const roster = await readRoster(supabase, israelToday());
+      const facts = new Map(roster.map((p) => [p.id, p]));
+      const buckets = snapshot.buckets.map((b) => ({ ...b, entries: b.entries.filter((e) => isOnTimeTable(facts.get(e.athleteId) ?? {})) }));
+      const { breaks: _drop, ...head } = snapshot;
+      void _drop;
+      return NextResponse.json({ ...head, buckets, recomputed });
+    }
 
     const [roster, official, bench] = await Promise.all([readRoster(supabase, israelToday()), officialActivityIds(supabase), benchmarkBests(supabase)]);
     const facts = new Map(roster.map((p) => [p.id, p]));

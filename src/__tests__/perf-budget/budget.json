@@ -8,5 +8,7 @@
   "academy/members": 7500,
   "groups": 1000,
   "athletes/[id]/stats": 7000,
-  "club-updates": 500
+  "club-updates": 500,
+  "activities (web list, 30 own)": 11500,
+  "club/records (web buckets)": 37000
 }

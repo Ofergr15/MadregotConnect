@@ -107,10 +107,12 @@ export async function GET(request: Request) {
     // of widening this stays visible.
     const volumeCols = `id, athlete_id, start_time, distance`;
 
+    // `calories` (task 102): the weekly report (WeekSummaryCard, share → this week)
+    // sums it, and it is one number — additive for the native list readers.
     const listCols = `
         id, athlete_id, source, activity_name, activity_type,
         start_time, distance, duration, moving_duration, average_pace, average_hr,
-        elevation_gain, has_polyline, created_at,
+        elevation_gain, calories, has_polyline, created_at,
         athletes (name)`;
 
     const baseCols = `

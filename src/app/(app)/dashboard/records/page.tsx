@@ -54,7 +54,7 @@ function recordYear(date: string | null): string {
 
 export default function ClubRecordsPage() {
   const t = useTranslations('records');
-  const { data } = useApi<{ buckets?: Bucket[]; computedAt?: string; athleteCount?: number }>('/api/club/records');
+  const { data } = useApi<{ buckets?: Bucket[]; computedAt?: string; athleteCount?: number }>('/api/club/records?view=buckets');
   // Memoised, not `data?.buckets || []`: a fresh [] every render would be a new
   // dependency for the useMemo below on every render.
   const buckets = useMemo(() => data?.buckets || [], [data]);

@@ -14,7 +14,7 @@ import { prRunsByActivity, type RecordBucketLike } from '@/lib/prs/pr-runs';
  * a day, so a record set this morning can take a few hours to earn its badge.
  */
 export function usePrRuns(): Map<string, string[]> {
-  const { data } = useApi<{ buckets?: RecordBucketLike[] }>('/api/club/records');
+  const { data } = useApi<{ buckets?: RecordBucketLike[] }>('/api/club/records?view=buckets');
   return useMemo(() => prRunsByActivity(data?.buckets), [data]);
 }
 

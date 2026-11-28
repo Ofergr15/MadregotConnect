@@ -54,6 +54,10 @@ const ROUTES: Probe[] = [
   { name: 'groups', path: '/api/groups', load: () => import('@/app/api/groups/route') },
   { name: 'athletes/[id]/stats', path: `/api/athletes/${RUNNER_ID}/stats`, params: { id: RUNNER_ID }, load: () => import('@/app/api/athletes/[id]/stats/route') },
   { name: 'club-updates', path: '/api/club-updates', load: () => import('@/app/api/club-updates/route') },
+  // The narrow shapes the web asks for since task 102 (the rows above are the
+  // defaults, which the native app still reads).
+  { name: 'activities (web list, 30 own)', path: `/api/activities?athleteId=${RUNNER_ID}&scope=self&limit=30&shape=list`, load: () => import('@/app/api/activities/route') },
+  { name: 'club/records (web buckets)', path: '/api/club/records?view=buckets', load: () => import('@/app/api/club/records/route') },
 ];
 
 const sizes: Record<string, { status: number; bytes: number }> = {};
