@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { surveyAudienceAllows } from '@/lib/survey-audience';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,8 +25,7 @@ export async function GET(request: Request) {
     const a = (who || {}) as { group_id?: string | null; is_academy?: boolean | null };
     const mine = ((open || []) as Array<{ id: string; question_he: string; closes_at: string | null; audience_type: string; audience_id: string | null; created_by: string | null }>)
       .filter((s) => s.created_by !== 'cron')
-      .filter((s) => s.audience_type === 'all' || (s.audience_type === 'group' && s.audience_id === a.group_id)
-        || (s.audience_type === 'academy' && a.is_academy) || (s.audience_type === 'athlete' && s.audience_id === me));
+      .filter((s) => surveyAudienceAllows(s, { id: me, group_id: a.group_id ?? null, is_academy: a.is_academy ?? null }));
     if (!mine.length) return NextResponse.json({ polls: [] });
     const { data: done } = await db.from('survey_responses').select('survey_id').eq('athlete_id', me).in('survey_id', mine.map((s) => s.id));
     const answered = new Set(((done || []) as Array<{ survey_id: string }>).map((r) => r.survey_id));

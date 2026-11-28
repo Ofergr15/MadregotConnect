@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { nextAnswers } from '@/lib/publish/pin';
+import { surveyAudienceAllows } from '@/lib/survey-audience';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,11 +14,13 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const body = await request.json();
-    const { athleteId, optionIndex } = body;
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object') return NextResponse.json({ error: 'invalid body' }, { status: 400 });
+    const { athleteId, optionIndex } = body as { athleteId?: unknown; optionIndex?: unknown };
 
-    if (!athleteId) return NextResponse.json({ error: 'athleteId is required' }, { status: 400 });
-    if (typeof optionIndex !== 'number' || optionIndex < 0) {
+    if (!athleteId || typeof athleteId !== 'string') return NextResponse.json({ error: 'athleteId is required' }, { status: 400 });
+    // An integer: option_index is an INT column, so 1.5 used to reach the insert and come back as a 500.
+    if (typeof optionIndex !== 'number' || !Number.isInteger(optionIndex) || optionIndex < 0) {
       return NextResponse.json({ error: 'optionIndex is required' }, { status: 400 });
     }
 
@@ -39,6 +42,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (survey.closes_at && new Date(survey.closes_at) < new Date()) {
       return NextResponse.json({ error: 'This survey is closed' }, { status: 400 });
     }
+    // Only the poll's own audience votes (lib/survey-audience.ts). Staff answering on a
+    // runner's behalf are held to the runner's audience too, so the count stays the group's.
+    const { data: voter } = await supabase.from('athletes').select('id, group_id, is_academy').eq('id', athleteId).maybeSingle();
+    if (!voter || !surveyAudienceAllows(survey, voter as { id: string; group_id: string | null; is_academy: boolean | null })) {
+      return NextResponse.json({ error: 'not in this survey\'s audience' }, { status: 403 });
+    }
 
     const { data: mine, error: mineError } = await supabase
       .from('survey_responses').select('option_index').eq('survey_id', id).eq('athlete_id', athleteId);
@@ -58,6 +67,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     return NextResponse.json({ success: true, answers: next });
   } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    console.error('[surveys/respond] failed:', err);
+    return NextResponse.json({ error: 'Failed to save the answer' }, { status: 500 });
   }
 }
