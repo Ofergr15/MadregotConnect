@@ -43,7 +43,31 @@ export function lastClosedWindow(today: string, hour: number): SummaryWindow {
 /** The plan week (Sunday) that contains the activity week's Monday. */
 export const planWeekOfSummary = (w: SummaryWindow) => addDays(w.weekStart, -1);
 
-export interface SummaryRun { day: string; km: number; seconds: number }
+export interface SummaryRun {
+  day: string;
+  km: number;
+  seconds: number;
+  /** The run's fastest whole kilometre, seconds (from its per-km splits/laps). Absent = unknown. */
+  fastestKmSeconds?: number | null;
+}
+
+/**
+ * "Best of the week" (task 158): the week's standout numbers. All of them read the same
+ * Monday–Sunday activity week as the km above, never the plan week.
+ */
+export interface WeekBest {
+  /** The longest single run: its local date and km. */
+  longestRun: { day: string; km: number } | null;
+  /** The fastest whole kilometre of any run that week, seconds per km. Null when no run had splits. */
+  fastestKm: { day: string; seconds: number } | null;
+  /** The longest run of consecutive days with a run, inside the week (1–7). */
+  dayStreak: number;
+  /**
+   * Consecutive activity weeks with at least one run, this one included. Capped by the
+   * loader's lookback (this week + 8 before = 9): 9 reads "9 or more".
+   */
+  weekStreak: number;
+}
 
 export interface SummaryPlan {
   /** Planned km of the plan week (Sunday–Saturday), 0 = no plan. */
@@ -68,6 +92,7 @@ export interface WeekSummary {
   lastWeekRuns: number | null;
   missed: SummaryPlan['missed'];
   highlight: Highlight;
+  best: WeekBest;
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -76,6 +101,42 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
  * `runs`: qualifying runs from at least eight weeks before the window through its Sunday
  * (`day` is the activity's own local date — start_time is wall-clock, see CLAUDE.md).
  */
+/** A fastest-km below this is a GPS glitch, not a kilometre anyone ran (2:00/km). */
+const MIN_KM_SECONDS = 120;
+
+export function weekBest(w: SummaryWindow, runs: SummaryRun[]): WeekBest {
+  const inWeek = (r: SummaryRun, start: string) => r.day >= start && r.day <= addDays(start, 6);
+  const mine = runs.filter((r) => inWeek(r, w.weekStart));
+
+  let longestRun: WeekBest['longestRun'] = null;
+  let fastestKm: WeekBest['fastestKm'] = null;
+  for (const r of mine) {
+    // Ties go to the earlier run: the day it first happened.
+    if (!longestRun || r.km > longestRun.km) longestRun = { day: r.day, km: r1(r.km) };
+    const f = r.fastestKmSeconds;
+    if (f != null && Number.isFinite(f) && f >= MIN_KM_SECONDS && (!fastestKm || f < fastestKm.seconds)) {
+      fastestKm = { day: r.day, seconds: Math.round(f) };
+    }
+  }
+
+  const ran = new Set(mine.map((r) => r.day));
+  let dayStreak = 0;
+  let cur = 0;
+  for (let i = 0; i < 7; i++) {
+    cur = ran.has(addDays(w.weekStart, i)) ? cur + 1 : 0;
+    dayStreak = Math.max(dayStreak, cur);
+  }
+
+  let weekStreak = 0;
+  for (let i = 0; i <= 8; i++) {
+    const start = addDays(w.weekStart, -7 * i);
+    if (!runs.some((r) => inWeek(r, start))) break;
+    weekStreak++;
+  }
+
+  return { longestRun, fastestKm, dayStreak, weekStreak };
+}
+
 export function buildWeekSummary(opts: {
   window: SummaryWindow;
   runs: SummaryRun[];
@@ -125,5 +186,6 @@ export function buildWeekSummary(opts: {
     lastWeekRuns: prev.length || null,
     missed: hasPlan ? plan!.missed : [],
     highlight: highlightOf(numbers, biggestInWeeks),
+    best: weekBest(w, runs),
   };
 }

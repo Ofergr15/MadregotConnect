@@ -415,6 +415,33 @@ export async function loadWeekStory(db: Db, athleteId: string, today: string, ho
 
 export { DAY_MS };
 
+/** A split this close to 1000 m is a whole kilometre (Garmin's auto-lap lands a few metres off). */
+const WHOLE_KM_M = 980;
+
+/** The fastest whole kilometre per run, from its stored splits/laps (`displaySplits`). Never throws. */
+export async function fastestKmByActivity(db: Db, ids: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (!ids.length) return out;
+  const { data, error } = await db.from('athlete_activities').select('id, splits, laps').in('id', ids);
+  if (error) return out;
+  for (const row of (data || []) as Array<{ id: string; splits: unknown; laps: unknown }>) {
+    const best = fastestWholeKm(row.splits, row.laps);
+    if (best != null) out.set(row.id, best);
+  }
+  return out;
+}
+
+export function fastestWholeKm(splits: unknown, laps: unknown): number | null {
+  let best: number | null = null;
+  for (const k of displaySplits(splits, laps)) {
+    if (k.distance < WHOLE_KM_M || !(k.duration > 0)) continue;
+    // Normalised to exactly 1 km so a 1004 m auto-lap doesn't read 1–2 s slow.
+    const secPerKm = k.duration / (k.distance / 1000);
+    if (best == null || secPerKm < best) best = secPerKm;
+  }
+  return best == null ? null : Math.round(best);
+}
+
 /**
  * GET /api/week-story?mode=summary — the b25 weekly summary card (lib/week-story/summary.ts).
  * Monday–Sunday km, the plan share against the plan week that contains that Monday, and the
@@ -427,8 +454,16 @@ export async function loadWeekSummary(db: Db, athleteId: string, w: SummaryWindo
   const planWeek = planWeekOfSummary(w);
   // Eight weeks back for "biggest in N weeks", and from the plan week's Sunday for the share.
   const acts = filterQualifyingRuns(await runsBetween(db, athleteId, addDays(w.weekStart, -7 * 8), addDays(w.weekEnd, 1)));
-  const runs: SummaryRun[] = acts.map((r) => ({ day: r.start_time.slice(0, 10), km: r.distance / 1000, seconds: r.duration ?? 0 }));
-  if (!runs.some((r) => r.day >= w.weekStart && r.day <= w.weekEnd)) return null;
+  const runsRaw: SummaryRun[] = acts.map((r) => ({ day: r.start_time.slice(0, 10), km: r.distance / 1000, seconds: r.duration ?? 0 }));
+  if (!runsRaw.some((r) => r.day >= w.weekStart && r.day <= w.weekEnd)) return null;
+  // The week's fastest whole km (task 158) needs splits/laps, read for the week's runs only.
+  const fastest = await fastestKmByActivity(db, acts
+    .filter((r) => r.id && r.start_time.slice(0, 10) >= w.weekStart && r.start_time.slice(0, 10) <= w.weekEnd)
+    .map((r) => r.id as string)).catch(() => new Map<string, number>());
+  const runs: SummaryRun[] = runsRaw.map((r, i) => {
+    const id = acts[i].id;
+    return id && fastest.has(id) ? { ...r, fastestKmSeconds: fastest.get(id)! } : r;
+  });
   const storyW: StoryWindow = { weekStart: w.weekStart, weekEnd: w.weekEnd };
   const [breakdown, records, pack] = await Promise.all([
     planBreakdownFor(db, athleteId, planWeek).catch(() => null),
