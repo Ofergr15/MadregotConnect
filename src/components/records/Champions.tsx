@@ -35,7 +35,9 @@ export function Champions() {
   const [scope, setScope] = useState<ChampScope>('all');
   const [managing, setManaging] = useState(false);
   if (!data) return <SkeletonList count={5} />;
-  const b = data.boards[`${distance}:${sex}:${scope}`] ?? { top: [], me: null };
+  // `?.` and `?? []`: a partial/empty answer ({}) shows the empty board, not the crash screen.
+  const board = data.boards?.[`${distance}:${sex}:${scope}`];
+  const b = { top: board?.top ?? [], me: board?.me ?? null };
   const [first, second, third] = b.top;
   const rest = b.top.slice(3);
   const meOutside = b.me && !b.top.some((r) => r.athleteId === b.me!.athleteId) ? b.me : null;
@@ -75,7 +77,8 @@ export function Champions() {
             ))}
           </div>
         </div>
-        {!data.ready ? (
+        {/* Only an explicit `ready: false` means the migration is missing; a body without it is just empty. */}
+        {data.ready === false ? (
           <p className="py-8 text-center text-[13px] opacity-85">מחכה למיגרציה 163</p>
         ) : !first ? (
           <p className="py-8 text-center text-[13px] opacity-85">עוד אין תוצאות רשמיות כאן</p>
