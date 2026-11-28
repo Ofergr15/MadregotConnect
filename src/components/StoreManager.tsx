@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils';
 import { Sheet, SegmentedControl, Button, LoadingBlock, EmptyState, Switch } from '@/components/ui';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { authedFetch } from '@/lib/auth/authed-fetch';
+import { StatusReasonSheet } from '@/components/store/StatusReasonSheet';
+import { isOrderStatus, needsReason } from '@/lib/store/order-history';
 
 interface Product {
   id: string;
@@ -166,22 +168,34 @@ export function StoreManager() {
     }
   };
 
-  const updateOrderStatus = async (order: Order, status: string) => {
+  // An exceptional move (skip, back-step, reopen, refund) asks for its reason in a sheet
+  // first (decision 28.11); a normal forward step stays one tap.
+  const [reasonAsk, setReasonAsk] = useState<{ order: Order; status: string } | null>(null);
+
+  const updateOrderStatus = (order: Order, status: string) => {
+    if (isOrderStatus(status) && needsReason(order.status, status)) {
+      setReasonAsk({ order, status });
+      return;
+    }
+    void sendOrderStatus(order, status);
+  };
+
+  const sendOrderStatus = async (order: Order, status: string, reason?: string) => {
     setUpdatingOrder(order.id);
     setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, status } : o)));
     try {
-      const send = (reason?: string) => authedFetch(`/api/admin/store/orders/${order.id}`, {
+      const res = await authedFetch(`/api/admin/store/orders/${order.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reason ? { status, reason } : { status }),
       });
-      let res = await send();
-      // A skip or back-step needs a written reason (server rule, task 84).
-      if (res.status === 409 && (await res.clone().json().catch(() => ({}))).error === 'reason_required') {
-        const reason = window.prompt('שינוי סטטוס שלא לפי הסדר — מה הסיבה?')?.trim();
-        if (reason) res = await send(reason);
+      if (!res.ok) {
+        // The server holds the same rule (task 84): if it still wants a reason, ask for one.
+        if (res.status === 409 && !reason && (await res.json().catch(() => ({}))).error === 'reason_required') {
+          setReasonAsk({ order, status });
+        }
+        throw new Error('status not changed');
       }
-      if (!res.ok) throw new Error('status not changed');
     } catch {
       setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, status: order.status } : o)));
     } finally {
@@ -293,6 +307,13 @@ export function StoreManager() {
           )}
         </div>
       )}
+
+      <StatusReasonSheet
+        open={!!reasonAsk}
+        title={reasonAsk ? `${t(`status_${reasonAsk.order.status}` as any)} ← ${t(`status_${reasonAsk.status}` as any)}` : ''}
+        onCancel={() => setReasonAsk(null)}
+        onSubmit={(reason) => { const ask = reasonAsk; setReasonAsk(null); if (ask) void sendOrderStatus(ask.order, ask.status, reason); }}
+      />
 
       <Sheet open={sheetOpen} onOpenChange={(o) => { setSheetOpen(o); if (!o) resetForm(); }} title={editingId ? t('editProduct') : t('newProduct')}>
         <div className="space-y-4 pb-2">

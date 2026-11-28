@@ -81,3 +81,22 @@ export function checkTransition(from: string | null, to: OrderStatus, rawReason:
 export function normalNext(from: string | null): readonly OrderStatus[] {
   return isOrderStatus(from) ? NORMAL[from] : [];
 }
+
+// ── The reason sheet (decision 28.11) ─────────────────────────────────────────────
+// An exceptional move asks for its reason in an in-app bottom sheet (no window.prompt):
+// a preset chip, or 'אחר' with free text. Submit stays disabled until this returns a reason.
+
+export const REASON_OTHER = 'אחר';
+export const REASON_PRESETS = ['החזר כספי', 'טעות בלחיצה', 'התשלום לא עבר', REASON_OTHER] as const;
+
+/** Does this move need a reason before it is sent? A repeat or a normal step does not. */
+export function needsReason(from: string | null, to: OrderStatus): boolean {
+  return from !== to && !normalNext(from).includes(to);
+}
+
+/** The reason the sheet sends, or null while it has none: a preset as is, 'אחר' only with text. */
+export function composeReason(chip: string | null, text: string): string | null {
+  if (!chip || !(REASON_PRESETS as readonly string[]).includes(chip)) return null;
+  const reason = chip === REASON_OTHER ? cleanReason(text) : chip;
+  return reason && reason.length <= REASON_MAX ? reason : null;
+}

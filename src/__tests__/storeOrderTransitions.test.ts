@@ -2,7 +2,9 @@
 // free; a skip or back-step needs a reason, stored on the audit row (migration 250).
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMemoryDb } from './helpers/memory-db';
-import { checkTransition, normalNext } from '@/lib/store/order-history';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { checkTransition, composeReason, needsReason, normalNext, REASON_OTHER, REASON_PRESETS } from '@/lib/store/order-history';
 
 const user = { athleteId: 'staff-1', name: 'Dana Coach', isStaff: true };
 vi.mock('@/lib/auth-session', () => ({ requireSession: async () => ({ ok: true, user }), authError: () => new Response(null, { status: 401 }) }));
@@ -84,5 +86,36 @@ describe('PATCH enforces the rules', () => {
     await patch({ status: 'fulfilled', reason: 'במזומן' });
     const { history: h } = await (await history.GET(new Request('http://x'), ctx)).json();
     expect(h[0]).toMatchObject({ to: 'fulfilled', reason: 'במזומן' });
+  });
+});
+
+describe('the reason sheet (decision 28.11): an exceptional move without a reason is blocked client-side too', () => {
+  it('needsReason matches the server rule', () => {
+    expect(needsReason('pending_payment', 'paid')).toBe(false);
+    expect(needsReason('paid', 'paid')).toBe(false);
+    expect(needsReason('fulfilled', 'cancelled')).toBe(true);
+    expect(needsReason('cancelled', 'pending_payment')).toBe(true);
+    for (const [from, to] of [['pending_payment', 'fulfilled'], ['paid', 'pending_payment'], ['fulfilled', 'paid']] as const) {
+      expect(needsReason(from, to)).toBe(checkTransition(from, to, undefined).ok === false);
+    }
+  });
+  it('submit has no reason until a chip is picked; אחר needs text', () => {
+    expect(REASON_PRESETS).toEqual(['החזר כספי', 'טעות בלחיצה', 'התשלום לא עבר', 'אחר']);
+    expect(composeReason(null, '')).toBeNull();
+    expect(composeReason(REASON_OTHER, '   ')).toBeNull();
+    expect(composeReason(REASON_OTHER, ' שולם במזומן ')).toBe('שולם במזומן');
+    expect(composeReason('החזר כספי', '')).toBe('החזר כספי');
+    expect(composeReason('not a preset', 'x')).toBeNull();
+  });
+  it('whatever the sheet sends passes the server check', () => {
+    for (const p of REASON_PRESETS.filter((x) => x !== REASON_OTHER)) {
+      expect(checkTransition('fulfilled', 'cancelled', composeReason(p, ''))).toMatchObject({ ok: true, normal: false, reason: p });
+    }
+  });
+  it('the store manager asks in the in-app sheet, never window.prompt', () => {
+    const src = readFileSync(join(process.cwd(), 'src/components/StoreManager.tsx'), 'utf8');
+    expect(src).not.toMatch(/\bprompt\(/);
+    expect(src).toContain('<StatusReasonSheet');
+    expect(src).toContain('needsReason(order.status, status)');
   });
 });
