@@ -84,7 +84,7 @@ describe('first sign-in of a trainee with no band', () => {
       url: '/dashboard/academy/week?athleteId=t-1&setup=1',
     });
     expect(pushes[0].copy('he').body).toContain('עדיין אין דבוקה');
-    expect(pushes[0].copy('en').body).toContain('No band yet');
+    expect(pushes[0].copy('en').body).toContain('No pack yet');
     expect(staff).toHaveLength(0);
   });
 
@@ -172,6 +172,6 @@ describe('the "לשבץ דבוקה" task, derived from the roster', () => {
     expect(tHe(actionCardKeys('band').title)).toBe('לשבץ דבוקה');
     expect(text(tHe, band)).toBe('[3 מתאמנים] עדיין בלי דבוקה. הדבוקה נקבעת בטופס ההתאמה');
     expect(text(tHe, noCoach)).toBe('[2 מתאמנים] בלי מאמן ובלי דבוקה. המאמן שישובץ יקבע את הדבוקה');
-    expect(text(tEn, band)).toBe('[3 trainees] have no band yet. The band is set in the coaching form');
+    expect(text(tEn, band)).toBe('[3 trainees] have no pack yet. The pack is set in the coaching form');
   });
 });

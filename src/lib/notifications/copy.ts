@@ -657,7 +657,7 @@ export function accountLinkedCopy(locale: NotificationLocale, p: { name: string 
       }
     : {
         title: `${hey}your account is connected ✅`,
-        body: 'We recognised the Strava sign-in as yours — your runs, your group and your history are inside',
+        body: 'We recognised the Strava sign-in as yours — your runs, your pack and your history are inside',
       };
 }
 
@@ -798,7 +798,7 @@ export function academyTraineeJoinedNoBandCopy(locale: NotificationLocale, p: { 
   const who = (p.name || '').trim() || SOMEONE[locale];
   return locale === 'he'
     ? { title: `✅ ${who} התחבר/ה`, body: 'עדיין אין דבוקה. לחיצה פותחת את טופס ההתאמה כדי לקבוע אותה, ואז אפשר לבנות את התוכנית.' }
-    : { title: `✅ ${who} signed in`, body: 'No band yet. Tap to set it in their coaching form, then build their plan.' };
+    : { title: `✅ ${who} signed in`, body: 'No pack yet. Tap to set it in their coaching form, then build their plan.' };
 }
 
 /**
@@ -809,7 +809,7 @@ export function academyBandNoCoachCopy(locale: NotificationLocale, p: { name: st
   const who = (p.name || '').trim() || SOMEONE[locale];
   return locale === 'he'
     ? { title: `⚠️ ${who} התחבר/ה בלי מאמן ובלי דבוקה`, body: 'צריך לשבץ מאמן. את הדבוקה יקבע המאמן בטופס ההתאמה. לחיצה פותחת את השיבוץ.' }
-    : { title: `⚠️ ${who} signed in with no coach and no band`, body: 'Assign a coach; the coach then sets the band in the coaching form. Tap to open coach assignment.' };
+    : { title: `⚠️ ${who} signed in with no coach and no pack`, body: 'Assign a coach; the coach then sets the pack in the coaching form. Tap to open coach assignment.' };
 }
 
 /**
@@ -829,7 +829,7 @@ export function academyTraineeComingCopy(locale: NotificationLocale, p: { name: 
   const who = (p.name || '').trim() || SOMEONE[locale];
   return locale === 'he'
     ? { title: `🎓 ${who} מצטרף/ת אליך`, body: 'ייכנס/תיכנס לאפליקציה בקרוב. אפשר כבר להשלים את טופס ההתאמה: סוג ליווי, דבוקה ומטרה.' }
-    : { title: `🎓 ${who} is joining you`, body: "They'll be in the app soon. You can already fill in their coaching form: type, band and goal." };
+    : { title: `🎓 ${who} is joining you`, body: "They'll be in the app soon. You can already fill in their coaching form: type, pack and goal." };
 }
 
 /** The "אינסטגרם" switch turned on (roles screen): they now share the group's workouts. */
@@ -1435,8 +1435,8 @@ export function surveyNudgeCopy(locale: NotificationLocale, p: { day: number }):
         body: `בחרו דבוקה לאימון יום ${dayName('he', p.day)} לפני שהזמן נגמר`,
       }
     : {
-        title: "Haven't picked your pace group? 🏃",
-        body: `Choose a pace group for ${dayName('en', p.day)}'s session before time runs out`,
+        title: "Haven't picked your pack? 🏃",
+        body: `Choose a pack for ${dayName('en', p.day)}'s session before time runs out`,
       };
 }
 
