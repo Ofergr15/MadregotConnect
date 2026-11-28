@@ -22,9 +22,10 @@ export async function GET(request: Request) {
   const window = parseWindow(rawWindow);
   if (rawWindow != null && !window) return NextResponse.json({ error: 'window must be one of 3m, 12m, ytd, all' }, { status: 400 });
   const supabase = createServerClient();
-  // Task 81: the weekly figures follow the activity week (Mon–Sun) when the club-scope flag is
-  // on. Its own snapshot key, so flipping the flag never serves the other anchor's numbers.
-  const monday = !window && (await isFeatureEnabled('club_numbers_activity_week', null).catch(() => false));
+  // Task 81: the weekly figures follow the activity week (Mon–Sun) when the flag is on for the
+  // caller (set it at club scope so every manager sees the same anchor). It is
+  // read per caller; its own snapshot key, so flipping the flag never serves the other anchor's numbers.
+  const monday = !window && (await isFeatureEnabled('club_numbers_activity_week', caller.athleteId).catch(() => false));
   const key = monday ? `${snapshotKey(window)}:monday` : snapshotKey(window);
   const load = (s: ReturnType<typeof createServerClient>) => (window ? loadClubMonthly(s, window) : loadClubNumbers(s, undefined, monday ? 'monday' : 'sunday'));
   const [allowed, snap] = await Promise.all([mayViewNumbers(supabase, caller), readSnapshot(supabase, key)]);
