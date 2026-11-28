@@ -20,6 +20,7 @@ import { KUDOS_ACTION_LABEL, teammateActivityCopy } from '@/lib/notifications/co
 import { apnsConfig, buildApnsPayload, sendApns } from '@/lib/apns';
 import { duplicateInstalls, siblingGhosts, type SubDevice, type SubHealth } from '@/lib/push-ghosts';
 import { isDevSurface } from '@/lib/dev-api-allowlist';
+import { DRY_RUN_MARK, isDeadStatus, pushDryRunTransport } from '@/lib/push-dry-run';
 import { noteSwallowed } from '@/lib/errors/swallowed';
 
 /**
@@ -548,15 +549,18 @@ export async function sendPushDetailed(
   const note = (list: SubRow[], accepted: boolean, error: string | null) => {
     for (const s of list) deliveries.push({ nid, athlete_id: s.athlete_id || null, subscription_id: s.id, kind: payload.kind ?? payload.category ?? null, title: payload.title.slice(0, 120), accepted, error });
   };
-  if (!ensureConfigured()) {
+  // Task 196: a dry run needs no keys — nothing leaves the process (lib/push-dry-run).
+  const dry = pushDryRunTransport();
+  if (dry) console.warn(`[push] dry run — "${payload.title}" for ${subs.length} subscription(s), nothing sent`);
+  if (!dry && !ensureConfigured()) {
     // Web-push can't go out, but an iOS device still can (APNs has its own keys).
     const web = subs.filter((s) => !s.apns_token);
     if (web.length > 0) console.warn(`[push] VAPID keys missing — dropped "${payload.title}" for ${web.length} subscription(s)`);
     subs = subs.filter((s) => s.apns_token);
     if (subs.length === 0) return empty;
   }
-  const apns = apnsConfig();
-  subs = subs.filter((s) => !s.apns_token || apns);
+  const apns = dry ? null : apnsConfig();
+  if (!dry) subs = subs.filter((s) => !s.apns_token || apns);
   const supabase = createServerClient();
 
   // While maintenance mode is ON, only the allowlist (+ approvers) may receive
@@ -677,6 +681,19 @@ export async function sendPushDetailed(
         athleteId: s.athlete_id,
         ...(actionToken ? { actionToken } : {}),
       });
+      if (dry) {
+        const r = await dry({ subscriptionId: s.id, athleteId: s.athlete_id, channel: s.apns_token ? 'apns' : 'webpush', body });
+        if (r.ok) {
+          sent++;
+          byAthlete[s.athlete_id] = (byAthlete[s.athlete_id] || 0) + 1;
+          note([s], true, DRY_RUN_MARK);
+        } else {
+          note([s], false, `${DRY_RUN_MARK}:${r.status}`);
+          if (isDeadStatus(r.status)) (s.apns_token ? deadApns : deadIds).push(s.id);
+          else failures.push(`${DRY_RUN_MARK}:${s.id}=${r.status}`);
+        }
+        return;
+      }
       if (s.apns_token) {
         if (!apns) return;
         const r = await sendApns(apns, s.apns_token, buildApnsPayload(payload, { nid, badge, athleteId: s.athlete_id }), { collapseId: payload.tag });
