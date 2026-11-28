@@ -1,4 +1,4 @@
--- 224: the lane a run was GRADED on, saved once (QA 2026-11-27, Q27-3).
+-- 227: the lane a run was GRADED on, saved once (QA 2026-11-27, Q27-3).
 --
 -- The feed ring (lib/feed/plan-verdicts.ts) and the run detail (api/academy/segments)
 -- each resolved the lane themselves, from different traces, and the bands-only chart a

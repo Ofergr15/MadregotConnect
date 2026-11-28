@@ -13,7 +13,7 @@ import { isRepeatMarker, stepPaceBand, type ExecutedWorkout } from '@/lib/garmin
 // slower pack's band scored 100, and the verdict could no longer say "slower".
 //
 //   manual     — the runner (or staff) said "I ran with pack N" on this run.
-//   stored     — an earlier resolution saved on activity_plan_matches (migration 224),
+//   stored     — an earlier resolution saved on activity_plan_matches (migration 227),
 //                so the feed ring and the run detail read ONE lane (one-verdict rule).
 //   attendance — a pack leader marked them present with pack N that day (pack_attendance).
 //   watch      — the workout on the watch carried ONE pack's paces — unless that is
@@ -83,7 +83,7 @@ const asLane = (v: unknown): Lane | null => (v === 1 || v === 2 || v === 3 ? v :
 export function resolveRanLane(input: {
   assigned: Lane;
   override?: number | null;
-  /** The lane saved on the run's plan match by an earlier resolution (224), with its source. */
+  /** The lane saved on the run's plan match by an earlier resolution (227), with its source. */
   stored?: { lane: number | null; source: string | null } | null;
   /** A pack leader's "present" mark for that day, as a lane — null when none or ambiguous. */
   attended?: number | null;

@@ -48,7 +48,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const matched = await ensureMatchedWorkout(supabase, id, run.athlete_id as string);
     if (!matched) return reply({ error: 'no planned workout for this run' }, 409);
 
-    // The graded lane (224) moves with it, so the feed ring and the run detail read the
+    // The graded lane (227) moves with it, so the feed ring and the run detail read the
     // answer at once; cleared, it is resolved again from the evidence on the next read.
     let { data, error } = await supabase
       .from('activity_plan_matches')

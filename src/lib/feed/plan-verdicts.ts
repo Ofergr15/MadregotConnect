@@ -224,7 +224,7 @@ export async function loadFeedPlanVerdicts(
       // The pack this run was run with (ran-lane.ts) — the same resolution the run
       // detail makes, so the ring and the detail grade one lane.
       // The pack this run was run with (ran-lane.ts): moved off the assigned pack only
-      // on evidence, never on pace, and read back from the match row (224) when another
+      // on evidence, never on pace, and read back from the match row (227) when another
       // surface already resolved it — so the ring and the detail grade ONE lane (Q27-3).
       const ran = resolveRanLane({
         assigned,

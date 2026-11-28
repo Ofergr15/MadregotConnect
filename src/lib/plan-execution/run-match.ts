@@ -8,7 +8,7 @@ export interface RunMatch {
   groupNumber: number | null;
   /** The pack the runner said they ran with (migration 221), else null. */
   ranLane: 1 | 2 | 3 | null;
-  /** The lane a surface already graded this run on (migration 224), else null. */
+  /** The lane a surface already graded this run on (migration 227), else null. */
   resolvedLane: 1 | 2 | 3 | null;
   laneSource: string | null;
 }
@@ -35,7 +35,7 @@ const toMatch = (row: Row): RunMatch => ({
 
 /**
  * The stored plan match for one run, or null when there is none (or the table isn't
- * there). Falls back to the pre-224 / pre-221 shapes when those aren't pasted in yet.
+ * there). Falls back to the pre-227 / pre-221 shapes when those aren't pasted in yet.
  */
 export async function readRunMatch(supabase: SupabaseServer, activityId: string): Promise<RunMatch | null> {
   for (const cols of SHAPES) {
@@ -62,7 +62,7 @@ export async function readRunMatches(supabase: SupabaseServer, activityIds: stri
 }
 
 /**
- * Save the lane a run was graded on (224) when it differs from what is stored, so the
+ * Save the lane a run was graded on (227) when it differs from what is stored, so the
  * next surface reads it instead of resolving again. Best-effort: a missing column or
  * a run with no match row writes nothing and changes no answer.
  */

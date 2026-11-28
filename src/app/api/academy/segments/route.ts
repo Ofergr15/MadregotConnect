@@ -182,7 +182,7 @@ async function handleGET(request: Request) {
     const pushedLane = laneOn(athleteId, weekStart) as Lane;
     const runMatch = await matchRead.catch(() => null);
     // Until the run itself is read, the lane is the runner's say-so, else the lane this
-    // run was already graded on (224) — which is what keeps a bands-only chart (a
+    // run was already graded on (227) — which is what keeps a bands-only chart (a
     // teammate's view) on the same lane as the owner's verdict (Q27-3) — else their pack.
     let lane: Lane = (runMatch?.ranLane as Lane | null) ?? (runMatch?.resolvedLane as Lane | null) ?? assignedLane;
     let planBlob: unknown = null;
@@ -389,7 +389,7 @@ async function handleGET(request: Request) {
     }
     const matchedLane = lane;
     const laneSource = lane === ranLane.lane ? ranLane.source : 'assigned';
-    // Saved for the feed ring and the bands-only chart to read back (224, one verdict).
+    // Saved for the feed ring and the bands-only chart to read back (227, one verdict).
     if (!caller.viewingAsBy) await saveResolvedLane(supabase, activity.id, { lane, source: laneSource }, ownMatch);
 
     // 4) Flatten + match + grade.
