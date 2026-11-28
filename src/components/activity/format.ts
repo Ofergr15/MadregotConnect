@@ -4,15 +4,14 @@
  * called and which HR zone a beat count lands in.
  */
 import { activityLocalHour } from '@/lib/utils';
+import { formatPace as formatPaceCanonical } from '@/lib/pace/format';
 
 export function formatPace(secPerKm: number): string {
   // A pace of zero or less is not a pace, it's a missing measurement — and this
   // printed it as "0:00", or on a chart axis that had stretched below zero, as
   // "-1:-28". Both read as data.
   if (!Number.isFinite(secPerKm) || secPerKm <= 0) return '—';
-  const min = Math.floor(secPerKm / 60);
-  const sec = Math.round(secPerKm % 60);
-  return `${min}:${String(sec).padStart(2, '0')}`;
+  return formatPaceCanonical(secPerKm);
 }
 
 export function formatDuration(seconds: number): string {

@@ -5,6 +5,7 @@ import { Plus, X, Save, CheckCircle2 } from 'lucide-react';
 import { AcademySettings as Settings, DEFAULT_ACADEMY_SETTINGS, MAX_COACH_CAPACITY } from '@/lib/academy/settings';
 import { Card, Button, Spinner, LoadingBlock, Switch } from '@/components/ui';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { formatPace } from '@/lib/pace/format';
 
 const DAYS = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
 
@@ -180,7 +181,5 @@ function TolField({ label, value, onChange, step }: { label: string; value: numb
 }
 
 function fmtPace(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = Math.round(sec % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
+  return formatPace(sec);
 }

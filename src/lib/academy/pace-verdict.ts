@@ -21,6 +21,8 @@
 //
 // Units: pace sec/km (smaller = faster), distance metres, time seconds.
 
+import { formatPace as formatMmSs } from '@/lib/pace/format';
+
 export type PaceKind = 'on' | 'fast' | 'slow';
 
 export interface PaceVerdict {
@@ -159,8 +161,7 @@ export const PACE_DOT: Record<PaceKind, string> = {
  */
 export function fmtPace(secPerKm: number | null | undefined): string {
   if (secPerKm == null || !Number.isFinite(secPerKm) || secPerKm <= 0) return '—';
-  const total = Math.round(secPerKm);
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+  return formatMmSs(secPerKm);
 }
 
 /** seconds → "54:20" or "1:05:03". */

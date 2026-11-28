@@ -18,6 +18,7 @@ import { formatActivityTime } from '@/lib/utils';
 import type { FeedItem, FeedActivity } from './project';
 import { markLogo, recordHitMap, type ShareHitMap } from '@/lib/share/hit-map';
 import { mainSet, onTarget, workoutHeadline, type PlanSegment } from '@/lib/share/plan-segments';
+import { formatPace } from '@/lib/pace/format';
 
 /**
  * What the KM Splits view charts. `blocks` / `full` are the workout the watch ran
@@ -408,14 +409,6 @@ export interface ShareVerdict {
   /** 0–100. Null when the session was graded without a score. */
   score: number | null;
   color: string;
-}
-
-function formatPace(secPerKm: number): string {
-  // Rounded whole first: 239.6 s split before rounding came out as "3:60".
-  const whole = Math.round(secPerKm);
-  const min = Math.floor(whole / 60);
-  const sec = whole % 60;
-  return `${min}:${String(sec).padStart(2, '0')}`;
 }
 
 function formatDuration(seconds: number): string {

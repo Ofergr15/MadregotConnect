@@ -17,6 +17,7 @@
 // block publishing yet.
 
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
+import { formatPace, parsePace } from '@/lib/pace/format';
 
 export interface PdfGlyph { page: number; x: number; y: number; w: number; str: string; pageWidth: number }
 export type Group = 1 | 2 | 3;
@@ -186,8 +187,9 @@ export function fileByDay(glyphs: PdfGlyph[]): Map<number, FileRow[]> {
 
 /* --------------------------------------------------------------- tokens */
 
-const paceSec = (s: string) => { const [m, ss] = s.split(':').map(Number); return m * 60 + ss; };
-const fmtPace = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+// Only ever called on a regex-matched `\d{1,2}:\d{2}` token, so the parse cannot miss.
+const paceSec = (s: string) => parsePace(s) ?? NaN;
+const fmtPace = formatPace;
 
 export function fileTokens(row: FileRow): FileTok[] {
   const out: FileTok[] = [];

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { parsePace } from '@/lib/pace/format';
 import { Pencil, Target } from 'lucide-react';
 import { Sheet } from '@/components/ui';
 import { apiHeaders } from '@/lib/api';
@@ -46,8 +47,8 @@ const SOURCE_LABEL: Record<MetricSource, string> = {
 /** `4:45` / `285` → 285. Null when it is neither. */
 function parsePaceSec(text: string): number | null {
   const trimmed = text.trim();
-  const colon = /^(\d{1,3}):(\d{2})$/.exec(trimmed);
-  if (colon) return parseInt(colon[1], 10) * 60 + parseInt(colon[2], 10);
+  const colon = parsePace(trimmed);
+  if (colon !== null) return colon;
   const bare = Number(trimmed);
   return Number.isFinite(bare) && bare > 0 ? Math.round(bare) : null;
 }

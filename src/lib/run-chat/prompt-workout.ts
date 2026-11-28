@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { z } from 'zod';
 import type { PlannedWorkout, WorkoutSegment } from './mock-workout';
+import { formatPace } from '@/lib/pace/format';
 
 interface ParsedSegment {
   kind: WorkoutSegment['kind'];
@@ -54,10 +55,7 @@ const LABELS: Record<WorkoutSegment['kind'], string> = {
   repeat: 'Repeat',
 };
 
-function formatPace(seconds: number) {
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes}:${String(Math.round(seconds % 60)).padStart(2, '0')}/km`;
-}
+const formatPacePerKm = (seconds: number) => `${formatPace(seconds)}/km`;
 
 function formatDistance(distanceM: number) {
   return distanceM >= 1000 && distanceM % 1000 === 0
@@ -72,7 +70,7 @@ function segmentDetail(segment: ParsedSegment, fallback: string) {
   const details: string[] = [];
   if (segment.distanceM) details.push(formatDistance(segment.distanceM));
   if (segment.durationSec) details.push(`${Math.round(segment.durationSec / 60)} min`);
-  if (segment.targetPaceSec) details.push(formatPace(segment.targetPaceSec));
+  if (segment.targetPaceSec) details.push(formatPacePerKm(segment.targetPaceSec));
   return details.join(', ') || segment.note || fallback;
 }
 

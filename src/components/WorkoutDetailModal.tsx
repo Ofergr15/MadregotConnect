@@ -11,6 +11,7 @@ import { groupPaceTokens } from '@/lib/garmin/pace';
 import { workoutStoryText } from '@/lib/plans/workout-story-text';
 import { PaceTokens } from './PaceTokens';
 import { Sheet } from '@/components/ui';
+import { formatPace } from '@/lib/pace/format';
 
 /**
  * Renders one workout session's full step breakdown (warmup/intervals/
@@ -20,12 +21,6 @@ import { Sheet } from '@/components/ui';
  * view for an arbitrary week — one place that knows how to render a
  * `ParsedWorkout`'s steps, instead of two that could drift.
  */
-
-function formatPace(secPerKm: number): string {
-  const min = Math.floor(secPerKm / 60);
-  const sec = Math.round(secPerKm % 60);
-  return `${min}:${String(sec).padStart(2, '0')}`;
-}
 
 function formatDuration(seconds: number): string {
   if (seconds >= 60) {

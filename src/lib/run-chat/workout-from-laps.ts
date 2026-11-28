@@ -12,6 +12,7 @@
 import type { StravaLap } from '@/lib/strava/client';
 import { groupLaps, type LapBlock, type LapStepSummary } from './lap-groups';
 import type { PlannedWorkout, WorkoutSegment, WorkoutSegmentKind } from './mock-workout';
+import { formatPace } from '@/lib/pace/format';
 
 export interface LapsWorkoutActivity {
   id?: string;
@@ -122,9 +123,7 @@ function roundPace(paceSecPerKm: number): number {
 }
 
 export function formatPaceSec(paceSecPerKm: number): string {
-  const minutes = Math.floor(paceSecPerKm / 60);
-  const seconds = Math.round(paceSecPerKm % 60);
-  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  return formatPace(paceSecPerKm);
 }
 
 function paceOf(lap: Pick<StravaLap, 'distance' | 'moving_time'>): number | null {

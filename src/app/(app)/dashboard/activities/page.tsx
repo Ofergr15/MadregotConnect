@@ -16,6 +16,7 @@ import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { ManualActivitySheet } from '@/components/ManualActivitySheet';
 import { appScrollTop } from '@/lib/app-scroll';
 import { ProfileActivityFeed } from '@/components/profile/ProfileActivityFeed';
+import { formatPace } from '@/lib/pace/format';
 
 // Local-date ISO (YYYY-MM-DD). NOT toISOString(), which converts to UTC and
 // shifts the day back in timezones ahead of UTC (Israel is +2/+3), throwing the
@@ -90,12 +91,6 @@ type SyncStatus =
   | { kind: 'upToDate'; at: string }
   | { kind: 'failed' }
   | { kind: 'timeout' };
-
-function formatPace(secPerKm: number): string {
-  const min = Math.floor(secPerKm / 60);
-  const sec = Math.round(secPerKm % 60);
-  return `${min}:${String(sec).padStart(2, '0')}`;
-}
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
