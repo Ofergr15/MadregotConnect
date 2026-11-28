@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { fetchWeeklyVolume } from '@/lib/athletes/weekly-volume';
 import { getActivityWeekStart, israelDateAnchor, israelToday } from '@/lib/utils';
-import { weeklyBoard, squadStandings, SHOW_SQUAD_STANDINGS, type BoardMetric } from '@/lib/records/board';
+import { weeklyBoard, isOnBoard, squadStandings, SHOW_SQUAD_STANDINGS, type BoardMetric } from '@/lib/records/board';
 import { readRoster, myPrivacy } from '@/lib/records/server';
 import { recordsGate } from '@/lib/records/gate';
 import { dayKmOf, parseWeekOffset, type DayKmRow } from '@/lib/records/day-km';
@@ -26,7 +26,7 @@ export const dynamic = 'force-dynamic';
  * (periodStart/periodEnd; weekStart/weekEnd are null then). Squad standings stay
  * club-wide and week-only.
  *
- * Week only (b23): `dayKm[7]` — the club's km per day, Monday first — and `myDayKm[7]`
+ * Week only (b23): `dayKm[7]` — the board's km per day (same group + opt-out filter), Monday first — and `myDayKm[7]`
  * for the verified caller (never a caller-supplied id). `weekOffset=-1` reads last
  * activity week instead, so the screen can fall back when this week is still empty.
  */
@@ -81,7 +81,11 @@ export async function GET(request: Request) {
     const end = new Date(`${weekStart}T12:00:00Z`); end.setUTCDate(end.getUTCDate() + 6);
     const daysLeft = Math.max(0, Math.round((end.getTime() - Date.parse(`${today}T12:00:00Z`)) / 86400000));
     const weekEnd = end.toISOString().slice(0, 10);
-    const { dayKm, myDayKm } = dayKmOf(await dayRowsP, weekStart, caller.athleteId);
+    // The club's day columns are the board's people only: the pace group asked for, without opt-outs
+    // (QA 26.11 #8). Otherwise the columns don't add up to the board under ?group=, and the gap between
+    // them leaks an opted-out runner's km. The caller's own row (myDayKm) is theirs regardless.
+    const onBoard = new Set(ranked.filter(isOnBoard).map((p) => p.id));
+    const { dayKm, myDayKm } = dayKmOf(await dayRowsP, weekStart, caller.athleteId, onBoard);
     return NextResponse.json({
       enabled: true,
       period,
