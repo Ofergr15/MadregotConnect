@@ -33,7 +33,9 @@ const sb = createClient(url!, key, { auth: { persistSession: false } });
 for (const table of ['coaches', 'groups', 'athletes', 'athlete_activities'] as const) {
   const rows = club[table];
   for (let i = 0; i < rows.length; i += 500) {
-    const { error } = await sb.from(table).upsert(rows.slice(i, i + 500), { onConflict: 'id' });
+    // The coach row reuses COACH_ID, which the dev project already has: insert-only, so a
+    // seed run never rewrites the existing dev coach's email/name (dev login keeps working).
+    const { error } = await sb.from(table).upsert(rows.slice(i, i + 500), { onConflict: 'id', ignoreDuplicates: table === 'coaches' });
     if (error) throw new Error(`seed-dev: ${table} upsert failed: ${error.message}`);
   }
   console.log(`  ✓ ${table}`);

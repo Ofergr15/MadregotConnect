@@ -26,6 +26,10 @@ describe('assertSeedTarget — never production', () => {
     expect(src).not.toMatch(/loadEnvFile|NEXT_PUBLIC_SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY/);
     expect(src).toMatch(/assertSeedTarget\(/);
   });
+  it('never overwrites the existing dev coach row (insert-only for coaches)', () => {
+    const src = readFileSync('scripts/seed-dev.mts', 'utf8');
+    expect(src).toMatch(/ignoreDuplicates: table === 'coaches'/);
+  });
 });
 
 describe('buildSeedClub', () => {
